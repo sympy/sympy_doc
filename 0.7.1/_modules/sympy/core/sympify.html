@@ -1,0 +1,284 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>sympy.core.sympify &mdash; SymPy v0.7.1 documentation</title>
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '0.7.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_HTML-full"></script>
+    <link rel="top" title="SymPy v0.7.1 documentation" href="../../../index.html" />
+    <link rel="up" title="sympy" href="../../sympy.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">SymPy v0.7.1 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li>
+          <li><a href="../../sympy.html" accesskey="U">sympy</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for sympy.core.sympify</h1><div class="highlight"><pre>
+<span class="sd">&quot;&quot;&quot;sympify -- convert objects SymPy internal format&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">inspect</span> <span class="kn">import</span> <span class="n">getmro</span>
+
+<span class="kn">from</span> <span class="nn">core</span> <span class="kn">import</span> <span class="n">all_classes</span> <span class="k">as</span> <span class="n">sympy_classes</span>
+<span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="kn">import</span> <span class="n">iterable</span>
+
+<span class="k">class</span> <span class="nc">SympifyError</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">base_exc</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">expr</span> <span class="o">=</span> <span class="n">expr</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">base_exc</span> <span class="o">=</span> <span class="n">base_exc</span>
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">base_exc</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="s">&quot;SympifyError: </span><span class="si">%r</span><span class="s">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="p">,)</span>
+
+        <span class="k">return</span> <span class="p">(</span><span class="s">&quot;Sympify of expression &#39;</span><span class="si">%s</span><span class="s">&#39; failed, because of exception being &quot;</span>
+            <span class="s">&quot;raised:</span><span class="se">\n</span><span class="si">%s</span><span class="s">: </span><span class="si">%s</span><span class="s">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">base_exc</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span><span class="p">,</span>
+            <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">base_exc</span><span class="p">)))</span>
+
+
+<span class="n">converter</span> <span class="o">=</span> <span class="p">{}</span>
+
+<div class="viewcode-block" id="sympify"><a class="viewcode-back" href="../../../modules/core.html#sympy.core.sympify.sympify">[docs]</a><span class="k">def</span> <span class="nf">sympify</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="nb">locals</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">convert_xor</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">rational</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Converts an arbitrary expression to a type that can be used inside sympy.</span>
+
+<span class="sd">    For example, it will convert python ints into instance of sympy.Rational,</span>
+<span class="sd">    floats into instances of sympy.Float, etc. It is also able to coerce symbolic</span>
+<span class="sd">    expressions which inherit from Basic. This can be useful in cooperation</span>
+<span class="sd">    with SAGE.</span>
+
+<span class="sd">    It currently accepts as arguments:</span>
+<span class="sd">       - any object defined in sympy (except matrices [TODO])</span>
+<span class="sd">       - standard numeric python types: int, long, float, Decimal</span>
+<span class="sd">       - strings (like &quot;0.09&quot; or &quot;2e-19&quot;)</span>
+<span class="sd">       - booleans, including ``None`` (will leave them unchanged)</span>
+<span class="sd">       - lists, sets or tuples containing any of the above</span>
+
+<span class="sd">    If the argument is already a type that sympy understands, it will do</span>
+<span class="sd">    nothing but return that value. This can be used at the beginning of a</span>
+<span class="sd">    function to ensure you are working with the correct type.</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy import sympify</span>
+
+<span class="sd">    &gt;&gt;&gt; sympify(2).is_integer</span>
+<span class="sd">    True</span>
+<span class="sd">    &gt;&gt;&gt; sympify(2).is_real</span>
+<span class="sd">    True</span>
+
+<span class="sd">    &gt;&gt;&gt; sympify(2.0).is_real</span>
+<span class="sd">    True</span>
+<span class="sd">    &gt;&gt;&gt; sympify(&quot;2.0&quot;).is_real</span>
+<span class="sd">    True</span>
+<span class="sd">    &gt;&gt;&gt; sympify(&quot;2e-45&quot;).is_real</span>
+<span class="sd">    True</span>
+
+<span class="sd">    If the expression could not be converted, a SympifyError is raised.</span>
+
+<span class="sd">    &gt;&gt;&gt; sympify(&quot;x***2&quot;)</span>
+<span class="sd">    Traceback (most recent call last):</span>
+<span class="sd">    ...</span>
+<span class="sd">    SympifyError: SympifyError: &quot;could not parse u&#39;x***2&#39;&quot;</span>
+
+
+<span class="sd">    If the option ``strict`` is set to ``True``, only the types for which an</span>
+<span class="sd">    explicit conversion has been defined are converted. In the other</span>
+<span class="sd">    cases, a SympifyError is raised.</span>
+
+<span class="sd">    &gt;&gt;&gt; sympify(True)</span>
+<span class="sd">    True</span>
+<span class="sd">    &gt;&gt;&gt; sympify(True, strict=True)</span>
+<span class="sd">    Traceback (most recent call last):</span>
+<span class="sd">    ...</span>
+<span class="sd">    SympifyError: SympifyError: True</span>
+
+<span class="sd">    To extend `sympify` to convert custom objects (not derived from `Basic`),</span>
+<span class="sd">    the static dictionary `convert` is provided. The custom converters are</span>
+<span class="sd">    usually added at import time, and will apply to all objects of the given</span>
+<span class="sd">    class or its derived classes.</span>
+
+<span class="sd">    For example, all geometry objects derive from `GeometryEntity` class, and</span>
+<span class="sd">    should not be altered by the converter, so we add the following after</span>
+<span class="sd">    defining that class:</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.core.sympify import converter</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.geometry.entity import GeometryEntity</span>
+<span class="sd">    &gt;&gt;&gt; converter[GeometryEntity] = lambda x: x</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">containers</span> <span class="kn">import</span> <span class="n">Tuple</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">cls</span> <span class="o">=</span> <span class="n">a</span><span class="o">.</span><span class="n">__class__</span>
+    <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>  <span class="c">#a is probably an old-style class object</span>
+        <span class="n">cls</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">cls</span> <span class="ow">in</span> <span class="n">sympy_classes</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">a</span>
+    <span class="k">if</span> <span class="n">cls</span> <span class="ow">in</span> <span class="p">(</span><span class="nb">bool</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="bp">None</span><span class="p">)):</span>
+        <span class="k">if</span> <span class="n">strict</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">SympifyError</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">a</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">converter</span><span class="p">[</span><span class="n">cls</span><span class="p">](</span><span class="n">a</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">superclass</span> <span class="ow">in</span> <span class="n">getmro</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">converter</span><span class="p">[</span><span class="n">superclass</span><span class="p">](</span><span class="n">a</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                <span class="k">continue</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">a</span><span class="o">.</span><span class="n">_sympy_</span><span class="p">()</span>
+    <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+        <span class="k">pass</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="nb">basestring</span><span class="p">):</span>
+        <span class="k">for</span> <span class="nb">coerce</span> <span class="ow">in</span> <span class="p">(</span><span class="nb">float</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">sympify</span><span class="p">(</span><span class="nb">coerce</span><span class="p">(</span><span class="n">a</span><span class="p">))</span>
+            <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">,</span> <span class="ne">AttributeError</span><span class="p">,</span> <span class="n">SympifyError</span><span class="p">):</span>
+                <span class="k">continue</span>
+
+    <span class="k">if</span> <span class="n">strict</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">SympifyError</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">Tuple</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">sympify</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="nb">locals</span><span class="o">=</span><span class="nb">locals</span><span class="p">,</span> <span class="n">convert_xor</span><span class="o">=</span><span class="n">convert_xor</span><span class="p">,</span>
+            <span class="n">rational</span><span class="o">=</span><span class="n">rational</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">a</span><span class="p">])</span>
+    <span class="k">if</span> <span class="n">iterable</span><span class="p">(</span><span class="n">a</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">type</span><span class="p">(</span><span class="n">a</span><span class="p">)([</span><span class="n">sympify</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="nb">locals</span><span class="o">=</span><span class="nb">locals</span><span class="p">,</span> <span class="n">convert_xor</span><span class="o">=</span><span class="n">convert_xor</span><span class="p">,</span>
+                <span class="n">rational</span><span class="o">=</span><span class="n">rational</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">a</span><span class="p">])</span>
+        <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+            <span class="c"># Not all iterables are rebuildable with their type.</span>
+            <span class="k">pass</span>
+
+    <span class="c"># At this point we were given an arbitrary expression</span>
+    <span class="c"># which does not inherit from Basic and doesn&#39;t implement</span>
+    <span class="c"># _sympy_ (which is a canonical and robust way to convert</span>
+    <span class="c"># anything to SymPy expression).</span>
+    <span class="c">#</span>
+    <span class="c"># As a last chance, we try to take &quot;a&quot;&#39;s  normal form via unicode()</span>
+    <span class="c"># and try to parse it. If it fails, then we have no luck and</span>
+    <span class="c"># return an exception</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">a</span> <span class="o">=</span> <span class="nb">unicode</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">Exception</span><span class="p">,</span> <span class="n">exc</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">SympifyError</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">exc</span><span class="p">)</span>
+
+    <span class="kn">from</span> <span class="nn">sympy.parsing.sympy_parser</span> <span class="kn">import</span> <span class="n">parse_expr</span><span class="p">,</span> <span class="n">TokenError</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">expr</span> <span class="o">=</span> <span class="n">parse_expr</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="nb">locals</span> <span class="ow">or</span> <span class="p">{},</span> <span class="n">rational</span><span class="p">,</span> <span class="n">convert_xor</span><span class="p">)</span>
+    <span class="k">except</span> <span class="p">(</span><span class="n">TokenError</span><span class="p">,</span> <span class="ne">SyntaxError</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="n">SympifyError</span><span class="p">(</span><span class="s">&#39;could not parse </span><span class="si">%r</span><span class="s">&#39;</span> <span class="o">%</span> <span class="n">a</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">expr</span>
+</div>
+<span class="k">def</span> <span class="nf">_sympify</span><span class="p">(</span><span class="n">a</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Short version of sympify for internal usage for __add__ and __eq__</span>
+<span class="sd">       methods where it is ok to allow some things (like Python integers</span>
+<span class="sd">       and floats) in the expression. This excludes things (like strings)</span>
+<span class="sd">       that are unwise to allow into such an expression.</span>
+
+<span class="sd">       &gt;&gt;&gt; from sympy import Integer</span>
+<span class="sd">       &gt;&gt;&gt; Integer(1) == 1</span>
+<span class="sd">       True</span>
+
+<span class="sd">       &gt;&gt;&gt; Integer(1) == &#39;1&#39;</span>
+<span class="sd">       False</span>
+
+<span class="sd">       &gt;&gt;&gt; from sympy import Symbol</span>
+<span class="sd">       &gt;&gt;&gt; from sympy.abc import x</span>
+<span class="sd">       &gt;&gt;&gt; x + 1</span>
+<span class="sd">       x + 1</span>
+
+<span class="sd">       &gt;&gt;&gt; x + &#39;1&#39;</span>
+<span class="sd">       Traceback (most recent call last):</span>
+<span class="sd">           ...</span>
+<span class="sd">       TypeError: unsupported operand type(s) for +: &#39;Symbol&#39; and &#39;str&#39;</span>
+
+<span class="sd">       see: sympify</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">sympify</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../../index.html">
+              <img class="logo" src="../../../_static/sympylogo.png" alt="Logo"/>
+            </a></p>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" size="18" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">SymPy v0.7.1 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li>
+          <li><a href="../../sympy.html" >sympy</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2008, 2009, 2010, 2011 SymPy Development Team.
+      Last updated on Jul 29, 2011.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.7.
+    </div>
+  </body>
+</html>

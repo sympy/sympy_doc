@@ -1,0 +1,408 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>sympy.core.cache &mdash; SymPy v0.7.1 documentation</title>
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '0.7.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_HTML-full"></script>
+    <link rel="top" title="SymPy v0.7.1 documentation" href="../../../index.html" />
+    <link rel="up" title="sympy" href="../../sympy.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">SymPy v0.7.1 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li>
+          <li><a href="../../sympy.html" accesskey="U">sympy</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for sympy.core.cache</h1><div class="highlight"><pre>
+<span class="sd">&quot;&quot;&quot; Caching facility for SymPy &quot;&quot;&quot;</span>
+
+<span class="c"># TODO: refactor CACHE &amp; friends into class?</span>
+
+<span class="c"># global cache registry:</span>
+<span class="n">CACHE</span> <span class="o">=</span> <span class="p">[]</span>  <span class="c"># [] of</span>
+            <span class="c">#    (item, {} or tuple of {})</span>
+
+<span class="kn">from</span> <span class="nn">sympy.core.logic</span> <span class="kn">import</span> <span class="n">fuzzy_bool</span>
+<span class="kn">from</span> <span class="nn">sympy.core.decorators</span> <span class="kn">import</span> <span class="n">wraps</span>
+
+<span class="k">def</span> <span class="nf">print_cache</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;print cache content&quot;&quot;&quot;</span>
+
+    <span class="k">for</span> <span class="n">item</span><span class="p">,</span> <span class="n">cache</span> <span class="ow">in</span> <span class="n">CACHE</span><span class="p">:</span>
+        <span class="n">item</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">item</span><span class="p">)</span>
+        <span class="n">head</span> <span class="o">=</span> <span class="s">&#39;=&#39;</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">item</span><span class="p">)</span>
+
+        <span class="k">print</span> <span class="n">head</span>
+        <span class="k">print</span> <span class="n">item</span>
+        <span class="k">print</span> <span class="n">head</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cache</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>
+            <span class="n">cache</span> <span class="o">=</span> <span class="p">(</span><span class="n">cache</span><span class="p">,)</span>
+            <span class="n">shown</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">shown</span> <span class="o">=</span> <span class="bp">True</span>
+
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">kv</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">cache</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">shown</span><span class="p">:</span>
+                <span class="k">print</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">*** </span><span class="si">%i</span><span class="s"> ***</span><span class="se">\n</span><span class="s">&#39;</span> <span class="o">%</span> <span class="n">i</span>
+
+            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">kv</span><span class="o">.</span><span class="n">iteritems</span><span class="p">():</span>
+                <span class="k">print</span> <span class="s">&#39;  </span><span class="si">%s</span><span class="s"> :</span><span class="se">\t</span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">clear_cache</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;clear cache content&quot;&quot;&quot;</span>
+    <span class="k">for</span> <span class="n">item</span><span class="p">,</span> <span class="n">cache</span> <span class="ow">in</span> <span class="n">CACHE</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cache</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>
+            <span class="n">cache</span> <span class="o">=</span> <span class="p">(</span><span class="n">cache</span><span class="p">,)</span>
+
+        <span class="k">for</span> <span class="n">kv</span> <span class="ow">in</span> <span class="n">cache</span><span class="p">:</span>
+            <span class="n">kv</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+
+<span class="c">########################################</span>
+
+<span class="k">def</span> <span class="nf">__cacheit_nocache</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">func</span>
+
+<span class="k">def</span> <span class="nf">__cacheit</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;caching decorator.</span>
+
+<span class="sd">       important: the result of cached function must be *immutable*</span>
+
+
+<span class="sd">       **Example**</span>
+
+<span class="sd">       &gt;&gt;&gt; from sympy.core.cache import cacheit</span>
+<span class="sd">       &gt;&gt;&gt; @cacheit</span>
+<span class="sd">       ... def f(a,b):</span>
+<span class="sd">       ...    return a+b</span>
+
+<span class="sd">       &gt;&gt;&gt; @cacheit</span>
+<span class="sd">       ... def f(a,b):</span>
+<span class="sd">       ...    return [a,b] # &lt;-- WRONG, returns mutable object</span>
+
+<span class="sd">       to force cacheit to check returned results mutability and consistency,</span>
+<span class="sd">       set environment variable SYMPY_USE_CACHE to &#39;debug&#39;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">func</span><span class="o">.</span><span class="n">_cache_it_cache</span> <span class="o">=</span> <span class="n">func_cache_it_cache</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">CACHE</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">func</span><span class="p">,</span> <span class="n">func_cache_it_cache</span><span class="p">))</span>
+
+    <span class="nd">@wraps</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">wrapper</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kw_args</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Assemble the args and kw_args to compute the hash.</span>
+<span class="sd">        It is important that kw_args be standardized since if they</span>
+<span class="sd">        have the same meaning but in different forms (e.g. one</span>
+<span class="sd">        kw_arg having a value of 1 for an object and another object</span>
+<span class="sd">        with identical args but a kw_arg of True) then two different</span>
+<span class="sd">        hashes will be computed and the two objects will not be identical.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">kw_args</span><span class="p">:</span>
+            <span class="n">keys</span> <span class="o">=</span> <span class="n">kw_args</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span>
+
+            <span class="c"># make keywords all the same</span>
+            <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">:</span>
+                <span class="n">kw_args</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">fuzzy_bool</span><span class="p">(</span><span class="n">kw_args</span><span class="p">[</span><span class="n">k</span><span class="p">])</span>
+
+            <span class="n">keys</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+            <span class="n">items</span> <span class="o">=</span> <span class="p">[(</span><span class="n">k</span><span class="o">+</span><span class="s">&#39;=&#39;</span><span class="p">,</span> <span class="n">kw_args</span><span class="p">[</span><span class="n">k</span><span class="p">])</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">]</span>
+            <span class="n">k</span> <span class="o">=</span> <span class="n">args</span> <span class="o">+</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">items</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">k</span> <span class="o">=</span> <span class="n">args</span>
+        <span class="n">k</span> <span class="o">=</span> <span class="n">k</span> <span class="o">+</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="nb">type</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="n">k</span><span class="p">))</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">func_cache_it_cache</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="k">pass</span>
+        <span class="n">func_cache_it_cache</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">r</span> <span class="o">=</span> <span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kw_args</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">r</span>
+    <span class="k">return</span> <span class="n">wrapper</span>
+
+<span class="k">def</span> <span class="nf">__cacheit_debug</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;cacheit + code to check cache consistency&quot;&quot;&quot;</span>
+    <span class="n">cfunc</span> <span class="o">=</span> <span class="n">__cacheit</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>
+
+    <span class="nd">@wraps</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">wrapper</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kw_args</span><span class="p">):</span>
+        <span class="c"># always call function itself and compare it with cached version</span>
+        <span class="n">r1</span> <span class="o">=</span> <span class="n">func</span> <span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kw_args</span><span class="p">)</span>
+        <span class="n">r2</span> <span class="o">=</span> <span class="n">cfunc</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kw_args</span><span class="p">)</span>
+
+        <span class="c"># try to see if the result is immutable</span>
+        <span class="c">#</span>
+        <span class="c"># this works because:</span>
+        <span class="c">#</span>
+        <span class="c"># hash([1,2,3])         -&gt; raise TypeError</span>
+        <span class="c"># hash({&#39;a&#39;:1, &#39;b&#39;:2})  -&gt; raise TypeError</span>
+        <span class="c"># hash((1,[2,3]))       -&gt; raise TypeError</span>
+        <span class="c">#</span>
+        <span class="c"># hash((1,2,3))         -&gt; just computes the hash</span>
+        <span class="nb">hash</span><span class="p">(</span><span class="n">r1</span><span class="p">),</span> <span class="nb">hash</span><span class="p">(</span><span class="n">r2</span><span class="p">)</span>
+
+        <span class="c"># also see if returned values are the same</span>
+        <span class="k">assert</span> <span class="n">r1</span> <span class="o">==</span> <span class="n">r2</span>
+
+        <span class="k">return</span> <span class="n">r1</span>
+    <span class="k">return</span> <span class="n">wrapper</span>
+
+<span class="k">class</span> <span class="nc">MemoizerArg</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot; See Memoizer.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">allowed_types</span><span class="p">,</span> <span class="n">converter</span> <span class="o">=</span> <span class="bp">None</span><span class="p">,</span> <span class="n">name</span> <span class="o">=</span> <span class="bp">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_allowed_types</span> <span class="o">=</span> <span class="n">allowed_types</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">converter</span> <span class="o">=</span> <span class="n">converter</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+
+    <span class="k">def</span> <span class="nf">fix_allowed_types</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">have_been_here</span><span class="o">=</span><span class="p">{}):</span>
+        <span class="kn">from</span> <span class="nn">basic</span> <span class="kn">import</span> <span class="n">C</span>
+        <span class="n">i</span> <span class="o">=</span> <span class="nb">id</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">have_been_here</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">i</span><span class="p">):</span> <span class="k">return</span>
+        <span class="n">allowed_types</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_allowed_types</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">allowed_types</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">allowed_types</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">C</span><span class="p">,</span> <span class="n">allowed_types</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">allowed_types</span><span class="p">,</span> <span class="p">(</span><span class="nb">tuple</span><span class="p">,</span> <span class="nb">list</span><span class="p">)):</span>
+            <span class="n">new_allowed_types</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">allowed_types</span><span class="p">:</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+                    <span class="n">t</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">C</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span>
+                <span class="n">new_allowed_types</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">allowed_types</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">new_allowed_types</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">allowed_types</span> <span class="o">=</span> <span class="n">allowed_types</span>
+        <span class="n">have_been_here</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="bp">True</span>
+        <span class="k">return</span>
+
+    <span class="k">def</span> <span class="nf">process</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">,</span> <span class="n">func</span><span class="p">,</span> <span class="n">index</span> <span class="o">=</span> <span class="bp">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">allowed_types</span><span class="p">):</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">converter</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="n">obj</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">converter</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">obj</span>
+        <span class="n">func_src</span> <span class="o">=</span> <span class="s">&#39;</span><span class="si">%s</span><span class="s">:</span><span class="si">%s</span><span class="s">:function </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">func</span><span class="o">.</span><span class="n">func_code</span><span class="o">.</span><span class="n">co_filename</span><span class="p">,</span> <span class="n">func</span><span class="o">.</span><span class="n">func_code</span><span class="o">.</span><span class="n">co_firstlineno</span><span class="p">,</span> <span class="n">func</span><span class="o">.</span><span class="n">func_name</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">index</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;</span><span class="si">%s</span><span class="s"> return value must be of type </span><span class="si">%r</span><span class="s"> but got </span><span class="si">%r</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">func_src</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">allowed_types</span><span class="p">,</span> <span class="n">obj</span><span class="p">))</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="p">(</span><span class="nb">int</span><span class="p">,</span><span class="nb">long</span><span class="p">)):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;</span><span class="si">%s</span><span class="s"> </span><span class="si">%s</span><span class="s">-th argument must be of type </span><span class="si">%r</span><span class="s"> but got </span><span class="si">%r</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">func_src</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">allowed_types</span><span class="p">,</span> <span class="n">obj</span><span class="p">))</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;</span><span class="si">%s</span><span class="s"> </span><span class="si">%r</span><span class="s"> keyword argument must be of type </span><span class="si">%r</span><span class="s"> but got </span><span class="si">%r</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">func_src</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">allowed_types</span><span class="p">,</span> <span class="n">obj</span><span class="p">))</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="nb">repr</span><span class="p">((</span><span class="n">index</span><span class="p">,</span><span class="nb">type</span><span class="p">(</span><span class="n">index</span><span class="p">))))</span>
+
+<span class="k">class</span> <span class="nc">Memoizer</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot; Memoizer function decorator generator.</span>
+
+<span class="sd">    Features:</span>
+<span class="sd">      - checks that function arguments have allowed types</span>
+<span class="sd">      - optionally apply converters to arguments</span>
+<span class="sd">      - cache the results of function calls</span>
+<span class="sd">      - optionally apply converter to function values</span>
+
+<span class="sd">    Usage:</span>
+
+<span class="sd">      @Memoizer(&lt;allowed types for argument 0&gt;,</span>
+<span class="sd">                MemoizerArg(&lt;allowed types for argument 1&gt;),</span>
+<span class="sd">                MemoizerArg(&lt;allowed types for argument 2&gt;, &lt;convert argument before function call&gt;),</span>
+<span class="sd">                MemoizerArg(&lt;allowed types for argument 3&gt;, &lt;convert argument before function call&gt;, name=&lt;kw argument name&gt;),</span>
+<span class="sd">                ...</span>
+<span class="sd">                return_value_converter = &lt;None or converter function, usually makes a copy&gt;</span>
+<span class="sd">                )</span>
+<span class="sd">      def function(&lt;arguments&gt;, &lt;kw_arguments&gt;):</span>
+<span class="sd">          ...</span>
+
+<span class="sd">    Details:</span>
+<span class="sd">      - if allowed type is string object then there `C` must have attribute</span>
+<span class="sd">        with the string name that is used as the allowed type --- this is needed</span>
+<span class="sd">        for applying Memoizer decorator to Basic methods when Basic definition</span>
+<span class="sd">        is not defined.</span>
+
+<span class="sd">    Restrictions:</span>
+<span class="sd">      - arguments must be immutable</span>
+<span class="sd">      - when function values are mutable then one must use return_value_converter to</span>
+<span class="sd">        deep copy the returned values</span>
+
+<span class="sd">    Ref: http://en.wikipedia.org/wiki/Memoization</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">arg_templates</span><span class="p">,</span> <span class="o">**</span><span class="n">kw_arg_templates</span><span class="p">):</span>
+        <span class="n">new_arg_templates</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">arg_templates</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">MemoizerArg</span><span class="p">):</span>
+                <span class="n">t</span> <span class="o">=</span> <span class="n">MemoizerArg</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+            <span class="n">new_arg_templates</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">arg_templates</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">new_arg_templates</span><span class="p">)</span>
+        <span class="n">return_value_converter</span> <span class="o">=</span> <span class="n">kw_arg_templates</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s">&#39;return_value_converter&#39;</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">kw_arg_templates</span> <span class="o">=</span> <span class="n">kw_arg_templates</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">template</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">arg_templates</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">template</span><span class="o">.</span><span class="n">name</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">kw_arg_templates</span><span class="p">[</span><span class="n">template</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">template</span>
+        <span class="k">if</span> <span class="n">return_value_converter</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">return_value_converter</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">obj</span><span class="p">:</span> <span class="n">obj</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">return_value_converter</span> <span class="o">=</span> <span class="n">return_value_converter</span>
+
+    <span class="k">def</span> <span class="nf">fix_allowed_types</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">have_been_here</span><span class="o">=</span><span class="p">{}):</span>
+        <span class="n">i</span> <span class="o">=</span> <span class="nb">id</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">have_been_here</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">i</span><span class="p">):</span> <span class="k">return</span>
+        <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">arg_templates</span><span class="p">:</span>
+            <span class="n">t</span><span class="o">.</span><span class="n">fix_allowed_types</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span><span class="n">t</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">kw_arg_templates</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">t</span><span class="o">.</span><span class="n">fix_allowed_types</span><span class="p">()</span>
+        <span class="n">have_been_here</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="bp">True</span>
+
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">func</span><span class="p">):</span>
+        <span class="n">cache</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">value_cache</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">CACHE</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">func</span><span class="p">,</span> <span class="p">(</span><span class="n">cache</span><span class="p">,</span> <span class="n">value_cache</span><span class="p">)))</span>
+
+        <span class="nd">@wraps</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>
+        <span class="k">def</span> <span class="nf">wrapper</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kw_args</span><span class="p">):</span>
+            <span class="n">kw_items</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">kw_args</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">return_value_converter</span><span class="p">(</span><span class="n">cache</span><span class="p">[</span><span class="n">args</span><span class="p">,</span><span class="n">kw_items</span><span class="p">])</span>
+            <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                <span class="k">pass</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">fix_allowed_types</span><span class="p">()</span>
+            <span class="n">new_args</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">([</span><span class="n">template</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">a</span><span class="p">,</span><span class="n">func</span><span class="p">,</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">template</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">arg_templates</span><span class="p">,</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)))])</span>
+            <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span><span class="o">==</span><span class="nb">len</span><span class="p">(</span><span class="n">new_args</span><span class="p">)</span>
+            <span class="n">new_kw_args</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">kw_items</span><span class="p">:</span>
+                <span class="n">template</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">kw_arg_templates</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+                <span class="n">v</span> <span class="o">=</span> <span class="n">template</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">func</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span>
+                <span class="n">new_kw_args</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span>
+            <span class="n">new_kw_items</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">new_kw_args</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">return_value_converter</span><span class="p">(</span><span class="n">cache</span><span class="p">[</span><span class="n">new_args</span><span class="p">,</span> <span class="n">new_kw_items</span><span class="p">])</span>
+            <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                <span class="n">r</span> <span class="o">=</span> <span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">new_args</span><span class="p">,</span> <span class="o">**</span><span class="n">new_kw_args</span><span class="p">)</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">r</span> <span class="o">=</span> <span class="n">value_cache</span><span class="p">[</span><span class="n">r</span><span class="p">]</span>
+                    <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                        <span class="n">value_cache</span><span class="p">[</span><span class="n">r</span><span class="p">]</span> <span class="o">=</span> <span class="n">r</span>
+                <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+                    <span class="k">pass</span>
+                <span class="n">cache</span><span class="p">[</span><span class="n">new_args</span><span class="p">,</span> <span class="n">new_kw_items</span><span class="p">]</span> <span class="o">=</span> <span class="n">cache</span><span class="p">[</span><span class="n">args</span><span class="p">,</span> <span class="n">kw_items</span><span class="p">]</span> <span class="o">=</span> <span class="n">r</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">return_value_converter</span><span class="p">(</span><span class="n">r</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">wrapper</span>
+
+
+<span class="k">class</span> <span class="nc">Memoizer_nocache</span><span class="p">(</span><span class="n">Memoizer</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">func</span><span class="p">):</span>
+        <span class="c"># XXX I would be happy just to return func, but we need to provide</span>
+        <span class="c"># argument convertion, and it is really needed for e.g. Float(&quot;0.5&quot;)</span>
+        <span class="nd">@wraps</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>
+        <span class="k">def</span> <span class="nf">wrapper</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kw_args</span><span class="p">):</span>
+            <span class="n">kw_items</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">kw_args</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">fix_allowed_types</span><span class="p">()</span>
+            <span class="n">new_args</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">([</span><span class="n">template</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">a</span><span class="p">,</span><span class="n">func</span><span class="p">,</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">template</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">arg_templates</span><span class="p">,</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)))])</span>
+            <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span><span class="o">==</span><span class="nb">len</span><span class="p">(</span><span class="n">new_args</span><span class="p">)</span>
+            <span class="n">new_kw_args</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">kw_items</span><span class="p">:</span>
+                <span class="n">template</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">kw_arg_templates</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+                <span class="n">v</span> <span class="o">=</span> <span class="n">template</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">func</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span>
+                <span class="n">new_kw_args</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span>
+
+            <span class="n">r</span> <span class="o">=</span> <span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">new_args</span><span class="p">,</span> <span class="o">**</span><span class="n">new_kw_args</span><span class="p">)</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">return_value_converter</span><span class="p">(</span><span class="n">r</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">wrapper</span>
+
+
+
+<span class="c"># SYMPY_USE_CACHE=yes/no/debug</span>
+<span class="k">def</span> <span class="nf">__usecache</span><span class="p">():</span>
+    <span class="kn">import</span> <span class="nn">os</span>
+    <span class="k">return</span> <span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s">&#39;SYMPY_USE_CACHE&#39;</span><span class="p">,</span> <span class="s">&#39;yes&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+<span class="n">usecache</span> <span class="o">=</span> <span class="n">__usecache</span><span class="p">()</span>
+
+<span class="k">if</span> <span class="n">usecache</span><span class="o">==</span><span class="s">&#39;no&#39;</span><span class="p">:</span>
+    <span class="n">Memoizer</span>            <span class="o">=</span> <span class="n">Memoizer_nocache</span>
+    <span class="n">cacheit</span>             <span class="o">=</span> <span class="n">__cacheit_nocache</span>
+<span class="k">elif</span> <span class="n">usecache</span><span class="o">==</span><span class="s">&#39;yes&#39;</span><span class="p">:</span>
+    <span class="n">cacheit</span> <span class="o">=</span> <span class="n">__cacheit</span>
+<span class="k">elif</span> <span class="n">usecache</span><span class="o">==</span><span class="s">&#39;debug&#39;</span><span class="p">:</span>
+    <span class="n">cacheit</span> <span class="o">=</span> <span class="n">__cacheit_debug</span>   <span class="c"># a lot slower</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s">&#39;unknown argument in SYMPY_USE_CACHE: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="n">usecache</span><span class="p">)</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../../index.html">
+              <img class="logo" src="../../../_static/sympylogo.png" alt="Logo"/>
+            </a></p>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" size="18" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">SymPy v0.7.1 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li>
+          <li><a href="../../sympy.html" >sympy</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2008, 2009, 2010, 2011 SymPy Development Team.
+      Last updated on Jul 29, 2011.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.7.
+    </div>
+  </body>
+</html>

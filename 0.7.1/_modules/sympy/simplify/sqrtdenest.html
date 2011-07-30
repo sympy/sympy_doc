@@ -1,0 +1,176 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>sympy.simplify.sqrtdenest &mdash; SymPy v0.7.1 documentation</title>
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '0.7.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_HTML-full"></script>
+    <link rel="top" title="SymPy v0.7.1 documentation" href="../../../index.html" />
+    <link rel="up" title="sympy" href="../../sympy.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">SymPy v0.7.1 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li>
+          <li><a href="../../sympy.html" accesskey="U">sympy</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for sympy.simplify.sqrtdenest</h1><div class="highlight"><pre>
+<span class="kn">from</span> <span class="nn">sympy.functions</span> <span class="kn">import</span> <span class="n">sqrt</span><span class="p">,</span> <span class="n">sign</span>
+<span class="kn">from</span> <span class="nn">sympy.core</span> <span class="kn">import</span> <span class="n">S</span><span class="p">,</span> <span class="n">Wild</span><span class="p">,</span> <span class="n">Rational</span><span class="p">,</span> <span class="n">sympify</span>
+
+<div class="viewcode-block" id="sqrtdenest"><a class="viewcode-back" href="../../../modules/simplify/simplify.html#sympy.simplify.sqrtdenest.sqrtdenest">[docs]</a><span class="k">def</span> <span class="nf">sqrtdenest</span> <span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Denests an expression that contains nested square roots.</span>
+<span class="sd">    This algorithm is based on &lt;http://www.almaden.ibm.com/cs/people/fagin/symb85.pdf&gt;.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">expr</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Pow</span> <span class="ow">and</span> <span class="n">expr</span><span class="o">.</span><span class="n">exp</span> <span class="ow">is</span> <span class="n">S</span><span class="o">.</span><span class="n">Half</span><span class="p">:</span> <span class="c">#If expr is a square root</span>
+        <span class="k">return</span> <span class="n">denester</span><span class="p">([</span><span class="n">expr</span><span class="p">])[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">expr</span>
+</div>
+<span class="k">def</span> <span class="nf">denester</span> <span class="p">(</span><span class="n">nested</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Denests a list of expressions that contain nested square roots.</span>
+<span class="sd">    This method should not be called directly - use &#39;denest&#39; instead.</span>
+<span class="sd">    This algorithm is based on &lt;http://www.almaden.ibm.com/cs/people/fagin/symb85.pdf&gt;.</span>
+
+<span class="sd">    It is assumed that all of the elements of &#39;nested&#39; share the same</span>
+<span class="sd">    bottom-level radicand. (This is stated in the paper, on page 177, in</span>
+<span class="sd">    the paragraph immediately preceding the algorithm.)</span>
+
+<span class="sd">    When evaluating all of the arguments in parallel, the bottom-level</span>
+<span class="sd">    radicand only needs to be denested once. This means that calling</span>
+<span class="sd">    denester with x arguments results in a recursive invocation with x+1</span>
+<span class="sd">    arguments; hence denester has polynomial complexity.</span>
+
+<span class="sd">    However, if the arguments were evaluated separately, each call would</span>
+<span class="sd">    result in two recursive invocations, and the algorithm would have</span>
+<span class="sd">    exponential complexity.</span>
+
+<span class="sd">    This is discussed in the paper in the middle paragraph of page 179.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">all</span><span class="p">((</span><span class="n">n</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">is_Number</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">nested</span><span class="p">):</span> <span class="c">#If none of the arguments are nested</span>
+        <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">subsets</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">nested</span><span class="p">)):</span> <span class="c">#Test subset &#39;f&#39; of nested</span>
+            <span class="n">p</span> <span class="o">=</span> <span class="n">prod</span><span class="p">(</span><span class="n">nested</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">f</span><span class="p">))</span> <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="n">i</span><span class="p">])</span><span class="o">.</span><span class="n">expand</span><span class="p">()</span>
+            <span class="k">if</span> <span class="mi">1</span> <span class="ow">in</span> <span class="n">f</span> <span class="ow">and</span> <span class="n">f</span><span class="o">.</span><span class="n">count</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">f</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span> <span class="n">p</span> <span class="o">=</span> <span class="o">-</span><span class="n">p</span>
+            <span class="k">if</span> <span class="n">sqrt</span><span class="p">(</span><span class="n">p</span><span class="p">)</span><span class="o">.</span><span class="n">is_Number</span><span class="p">:</span> <span class="k">return</span> <span class="n">sqrt</span><span class="p">(</span><span class="n">p</span><span class="p">),</span> <span class="n">f</span> <span class="c">#If we got a perfect square, return its square root.</span>
+        <span class="k">return</span> <span class="n">nested</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">nested</span><span class="p">)</span> <span class="c">#Otherwise, return the radicand from the previous invocation.</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">R</span> <span class="o">=</span> <span class="n">Wild</span><span class="p">(</span><span class="s">&#39;a&#39;</span><span class="p">),</span> <span class="n">Wild</span><span class="p">(</span><span class="s">&#39;b&#39;</span><span class="p">),</span> <span class="n">Wild</span><span class="p">(</span><span class="s">&#39;r&#39;</span><span class="p">),</span> <span class="bp">None</span>
+        <span class="n">values</span> <span class="o">=</span> <span class="p">[</span><span class="n">expr</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">sqrt</span><span class="p">(</span><span class="n">a</span> <span class="o">+</span> <span class="n">b</span> <span class="o">*</span> <span class="n">sqrt</span><span class="p">(</span><span class="n">r</span><span class="p">)))</span> <span class="k">for</span> <span class="n">expr</span> <span class="ow">in</span> <span class="n">nested</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">values</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">v</span><span class="p">:</span> <span class="c">#Since if b=0, r is not defined</span>
+                <span class="k">if</span> <span class="n">R</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span> <span class="k">assert</span> <span class="n">R</span> <span class="o">==</span> <span class="n">v</span><span class="p">[</span><span class="n">r</span><span class="p">]</span> <span class="c">#All the &#39;r&#39;s should be the same.</span>
+                <span class="k">else</span><span class="p">:</span> <span class="n">R</span> <span class="o">=</span> <span class="n">v</span><span class="p">[</span><span class="n">r</span><span class="p">]</span>
+        <span class="n">d</span><span class="p">,</span> <span class="n">f</span> <span class="o">=</span> <span class="n">denester</span><span class="p">([</span><span class="n">sqrt</span><span class="p">((</span><span class="n">v</span><span class="p">[</span><span class="n">a</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">expand</span><span class="p">()</span><span class="o">-</span><span class="p">(</span><span class="n">R</span><span class="o">*</span><span class="n">v</span><span class="p">[</span><span class="n">b</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">expand</span><span class="p">())</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">values</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="n">sqrt</span><span class="p">(</span><span class="n">R</span><span class="p">)])</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">([</span><span class="n">f</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">nested</span><span class="p">))]):</span> <span class="c">#If f[i]=0 for all i &lt; len(nested)</span>
+            <span class="n">v</span> <span class="o">=</span> <span class="n">values</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+            <span class="k">return</span> <span class="n">sqrt</span><span class="p">(</span><span class="n">v</span><span class="p">[</span><span class="n">a</span><span class="p">]</span> <span class="o">+</span> <span class="n">v</span><span class="p">[</span><span class="n">b</span><span class="p">]</span><span class="o">*</span><span class="n">d</span><span class="p">),</span> <span class="n">f</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">v</span> <span class="o">=</span> <span class="n">prod</span><span class="p">(</span><span class="n">nested</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">nested</span><span class="p">))</span> <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="n">i</span><span class="p">])</span><span class="o">.</span><span class="n">expand</span><span class="p">()</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">a</span><span class="o">+</span><span class="n">b</span><span class="o">*</span><span class="n">sqrt</span><span class="p">(</span><span class="n">r</span><span class="p">))</span>
+            <span class="k">if</span> <span class="mi">1</span> <span class="ow">in</span> <span class="n">f</span> <span class="ow">and</span> <span class="n">f</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">nested</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">f</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">nested</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span>
+                <span class="n">v</span><span class="p">[</span><span class="n">a</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span> <span class="o">*</span> <span class="n">v</span><span class="p">[</span><span class="n">a</span><span class="p">]</span>
+                <span class="n">v</span><span class="p">[</span><span class="n">b</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span> <span class="o">*</span> <span class="n">v</span><span class="p">[</span><span class="n">b</span><span class="p">]</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">f</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">nested</span><span class="p">)]:</span> <span class="c">#Solution denests with square roots</span>
+                <span class="k">return</span> <span class="p">(</span><span class="n">sqrt</span><span class="p">((</span><span class="n">v</span><span class="p">[</span><span class="n">a</span><span class="p">]</span><span class="o">+</span><span class="n">d</span><span class="p">)</span><span class="o">.</span><span class="n">expand</span><span class="p">()</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span><span class="o">+</span><span class="n">sign</span><span class="p">(</span><span class="n">v</span><span class="p">[</span><span class="n">b</span><span class="p">])</span><span class="o">*</span><span class="n">sqrt</span><span class="p">((</span><span class="n">v</span><span class="p">[</span><span class="n">b</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span><span class="o">*</span><span class="n">R</span><span class="o">/</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="p">(</span><span class="n">v</span><span class="p">[</span><span class="n">a</span><span class="p">]</span><span class="o">+</span><span class="n">d</span><span class="p">)))</span><span class="o">.</span><span class="n">expand</span><span class="p">()))</span><span class="o">.</span><span class="n">expand</span><span class="p">(),</span> <span class="n">f</span>
+            <span class="k">else</span><span class="p">:</span> <span class="c">#Solution requires a fourth root</span>
+                <span class="n">FR</span><span class="p">,</span> <span class="n">s</span> <span class="o">=</span> <span class="p">(</span><span class="n">R</span><span class="o">.</span><span class="n">expand</span><span class="p">()</span><span class="o">**</span><span class="n">Rational</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">4</span><span class="p">)),</span> <span class="n">sqrt</span><span class="p">((</span><span class="n">v</span><span class="p">[</span><span class="n">b</span><span class="p">]</span><span class="o">*</span><span class="n">R</span><span class="p">)</span><span class="o">.</span><span class="n">expand</span><span class="p">()</span><span class="o">+</span><span class="n">d</span><span class="p">)</span>
+                <span class="k">return</span> <span class="p">(</span><span class="n">s</span><span class="o">/</span><span class="p">(</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">*</span><span class="n">FR</span><span class="p">)</span> <span class="o">+</span> <span class="n">v</span><span class="p">[</span><span class="n">a</span><span class="p">]</span><span class="o">*</span><span class="n">FR</span><span class="o">/</span><span class="p">(</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">*</span><span class="n">s</span><span class="p">))</span><span class="o">.</span><span class="n">expand</span><span class="p">(),</span> <span class="n">f</span>
+
+<span class="k">def</span> <span class="nf">subsets</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns all possible subsets of the set (0, 1, ..., n-1) except the empty set.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">binary</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">&gt;</span><span class="mi">0</span> <span class="ow">and</span> <span class="n">binary</span><span class="p">(</span><span class="n">x</span><span class="o">&gt;&gt;</span><span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="p">[</span><span class="n">x</span><span class="o">&amp;</span><span class="mi">1</span><span class="p">]</span> <span class="ow">or</span> <span class="p">[]</span>
+    <span class="n">pad</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">l</span><span class="p">:</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="p">(</span><span class="n">n</span><span class="o">-</span><span class="nb">len</span><span class="p">(</span><span class="n">l</span><span class="p">))</span> <span class="o">+</span> <span class="n">l</span> <span class="c">#Always returns a list of length &#39;n&#39;</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">pad</span><span class="p">(</span><span class="n">binary</span><span class="p">(</span><span class="n">i</span><span class="p">))</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="o">**</span><span class="n">n</span><span class="p">)]</span>
+
+<span class="k">def</span> <span class="nf">prod</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns the product of all elements of n, as a Rational.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">product</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">n</span><span class="p">:</span>
+        <span class="n">product</span> <span class="o">=</span> <span class="n">product</span> <span class="o">*</span> <span class="n">i</span>
+    <span class="k">return</span> <span class="n">product</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../../index.html">
+              <img class="logo" src="../../../_static/sympylogo.png" alt="Logo"/>
+            </a></p>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" size="18" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">SymPy v0.7.1 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li>
+          <li><a href="../../sympy.html" >sympy</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2008, 2009, 2010, 2011 SymPy Development Team.
+      Last updated on Jul 29, 2011.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.7.
+    </div>
+  </body>
+</html>

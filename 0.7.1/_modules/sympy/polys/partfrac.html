@@ -1,0 +1,259 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>sympy.polys.partfrac &mdash; SymPy v0.7.1 documentation</title>
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '0.7.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_HTML-full"></script>
+    <link rel="top" title="SymPy v0.7.1 documentation" href="../../../index.html" />
+    <link rel="up" title="sympy" href="../../sympy.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">SymPy v0.7.1 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li>
+          <li><a href="../../sympy.html" accesskey="U">sympy</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for sympy.polys.partfrac</h1><div class="highlight"><pre>
+<span class="sd">&quot;&quot;&quot;Algorithms for partial fraction decomposition of rational functions. &quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">sympy.polys</span> <span class="kn">import</span> <span class="n">Poly</span><span class="p">,</span> <span class="n">RootSum</span><span class="p">,</span> <span class="n">cancel</span><span class="p">,</span> <span class="n">factor</span>
+<span class="kn">from</span> <span class="nn">sympy.polys.polytools</span> <span class="kn">import</span> <span class="n">parallel_poly_from_expr</span>
+
+<span class="kn">from</span> <span class="nn">sympy.core</span> <span class="kn">import</span> <span class="n">S</span><span class="p">,</span> <span class="n">Add</span><span class="p">,</span> <span class="n">sympify</span><span class="p">,</span> <span class="n">Symbol</span><span class="p">,</span> <span class="n">Function</span><span class="p">,</span> <span class="n">Lambda</span><span class="p">,</span> <span class="n">Dummy</span>
+<span class="kn">from</span> <span class="nn">sympy.utilities</span> <span class="kn">import</span> <span class="n">numbered_symbols</span><span class="p">,</span> <span class="n">take</span><span class="p">,</span> <span class="n">threaded</span>
+
+<span class="nd">@threaded</span>
+<div class="viewcode-block" id="apart"><a class="viewcode-back" href="../../../modules/polys/reference.html#sympy.polys.partfrac.apart">[docs]</a><span class="k">def</span> <span class="nf">apart</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">x</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">full</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compute partial fraction decomposition of a rational function.</span>
+
+<span class="sd">    Given a rational function ``f`` compute partial fraction decomposition</span>
+<span class="sd">    of ``f``. Two algorithms are available: one is based on undetermined</span>
+<span class="sd">    coefficients method and the other is Bronstein&#39;s full partial fraction</span>
+<span class="sd">    decomposition algorithm.</span>
+
+<span class="sd">    **Examples**</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.polys.partfrac import apart</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.abc import x, y</span>
+
+<span class="sd">    &gt;&gt;&gt; apart(y/(x + 2)/(x + 1), x)</span>
+<span class="sd">    -y/(x + 2) + y/(x + 1)</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">f</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">f</span><span class="o">.</span><span class="n">is_Atom</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">f</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">P</span><span class="p">,</span> <span class="n">Q</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">as_numer_denom</span><span class="p">()</span>
+
+    <span class="p">(</span><span class="n">P</span><span class="p">,</span> <span class="n">Q</span><span class="p">),</span> <span class="n">opt</span> <span class="o">=</span> <span class="n">parallel_poly_from_expr</span><span class="p">((</span><span class="n">P</span><span class="p">,</span> <span class="n">Q</span><span class="p">),</span> <span class="n">x</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">P</span><span class="o">.</span><span class="n">is_multivariate</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s">&quot;multivariate partial fraction decomposition&quot;</span><span class="p">)</span>
+
+    <span class="n">common</span><span class="p">,</span> <span class="n">P</span><span class="p">,</span> <span class="n">Q</span> <span class="o">=</span> <span class="n">P</span><span class="o">.</span><span class="n">cancel</span><span class="p">(</span><span class="n">Q</span><span class="p">)</span>
+
+    <span class="n">poly</span><span class="p">,</span> <span class="n">P</span> <span class="o">=</span> <span class="n">P</span><span class="o">.</span><span class="n">div</span><span class="p">(</span><span class="n">Q</span><span class="p">,</span> <span class="n">auto</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+    <span class="n">P</span><span class="p">,</span> <span class="n">Q</span> <span class="o">=</span> <span class="n">P</span><span class="o">.</span><span class="n">rat_clear_denoms</span><span class="p">(</span><span class="n">Q</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">Q</span><span class="o">.</span><span class="n">degree</span><span class="p">()</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">partial</span> <span class="o">=</span> <span class="n">P</span><span class="o">/</span><span class="n">Q</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">full</span><span class="p">:</span>
+            <span class="n">partial</span> <span class="o">=</span> <span class="n">apart_undetermined_coeffs</span><span class="p">(</span><span class="n">P</span><span class="p">,</span> <span class="n">Q</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">partial</span> <span class="o">=</span> <span class="n">apart_full_decomposition</span><span class="p">(</span><span class="n">P</span><span class="p">,</span> <span class="n">Q</span><span class="p">)</span>
+
+    <span class="n">terms</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span>
+
+    <span class="k">for</span> <span class="n">term</span> <span class="ow">in</span> <span class="n">Add</span><span class="o">.</span><span class="n">make_args</span><span class="p">(</span><span class="n">partial</span><span class="p">):</span>
+        <span class="n">terms</span> <span class="o">+=</span> <span class="n">factor</span><span class="p">(</span><span class="n">term</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">common</span><span class="o">*</span><span class="p">(</span><span class="n">poly</span><span class="o">.</span><span class="n">as_expr</span><span class="p">()</span> <span class="o">+</span> <span class="n">terms</span><span class="p">)</span>
+</div>
+<span class="k">def</span> <span class="nf">apart_undetermined_coeffs</span><span class="p">(</span><span class="n">P</span><span class="p">,</span> <span class="n">Q</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Partial fractions via method of undetermined coefficients. &quot;&quot;&quot;</span>
+    <span class="n">X</span> <span class="o">=</span> <span class="n">numbered_symbols</span><span class="p">(</span><span class="n">cls</span><span class="o">=</span><span class="n">Dummy</span><span class="p">)</span>
+    <span class="n">partial</span><span class="p">,</span> <span class="n">symbols</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">[]</span>
+
+    <span class="n">_</span><span class="p">,</span> <span class="n">factors</span> <span class="o">=</span> <span class="n">Q</span><span class="o">.</span><span class="n">factor_list</span><span class="p">()</span>
+
+    <span class="k">for</span> <span class="n">f</span><span class="p">,</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">factors</span><span class="p">:</span>
+        <span class="n">n</span><span class="p">,</span> <span class="n">q</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">degree</span><span class="p">(),</span> <span class="n">Q</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">k</span><span class="o">+</span><span class="mi">1</span><span class="p">):</span>
+            <span class="n">coeffs</span><span class="p">,</span> <span class="n">q</span> <span class="o">=</span> <span class="n">take</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">n</span><span class="p">),</span> <span class="n">q</span><span class="o">.</span><span class="n">quo</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+            <span class="n">partial</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">coeffs</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">i</span><span class="p">))</span>
+            <span class="n">symbols</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">coeffs</span><span class="p">)</span>
+
+    <span class="n">dom</span> <span class="o">=</span> <span class="n">Q</span><span class="o">.</span><span class="n">get_domain</span><span class="p">()</span><span class="o">.</span><span class="n">inject</span><span class="p">(</span><span class="o">*</span><span class="n">symbols</span><span class="p">)</span>
+    <span class="n">F</span> <span class="o">=</span> <span class="n">Poly</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">Q</span><span class="o">.</span><span class="n">gen</span><span class="p">,</span> <span class="n">domain</span><span class="o">=</span><span class="n">dom</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">coeffs</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">partial</span><span class="p">):</span>
+        <span class="n">h</span> <span class="o">=</span> <span class="n">Poly</span><span class="p">(</span><span class="n">coeffs</span><span class="p">,</span> <span class="n">Q</span><span class="o">.</span><span class="n">gen</span><span class="p">,</span> <span class="n">domain</span><span class="o">=</span><span class="n">dom</span><span class="p">)</span>
+        <span class="n">partial</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">h</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span>
+        <span class="n">q</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">set_domain</span><span class="p">(</span><span class="n">dom</span><span class="p">)</span>
+        <span class="n">F</span> <span class="o">+=</span> <span class="n">h</span><span class="o">*</span><span class="n">q</span>
+
+    <span class="n">system</span><span class="p">,</span> <span class="n">result</span> <span class="o">=</span> <span class="p">[],</span> <span class="n">S</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="p">(</span><span class="n">k</span><span class="p">,),</span> <span class="n">coeff</span> <span class="ow">in</span> <span class="n">F</span><span class="o">.</span><span class="n">terms</span><span class="p">():</span>
+        <span class="n">system</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">coeff</span> <span class="o">-</span> <span class="n">P</span><span class="o">.</span><span class="n">nth</span><span class="p">(</span><span class="n">k</span><span class="p">))</span>
+
+    <span class="kn">from</span> <span class="nn">sympy.solvers</span> <span class="kn">import</span> <span class="n">solve</span>
+    <span class="n">solution</span> <span class="o">=</span> <span class="n">solve</span><span class="p">(</span><span class="n">system</span><span class="p">,</span> <span class="n">symbols</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">h</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">partial</span><span class="p">:</span>
+        <span class="n">h</span> <span class="o">=</span> <span class="n">h</span><span class="o">.</span><span class="n">as_expr</span><span class="p">()</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">solution</span><span class="p">)</span>
+        <span class="n">result</span> <span class="o">+=</span> <span class="n">h</span><span class="o">/</span><span class="n">f</span><span class="o">.</span><span class="n">as_expr</span><span class="p">()</span><span class="o">**</span><span class="n">k</span>
+
+    <span class="k">return</span> <span class="n">result</span>
+
+<span class="k">def</span> <span class="nf">apart_full_decomposition</span><span class="p">(</span><span class="n">P</span><span class="p">,</span> <span class="n">Q</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Bronstein&#39;s full partial fraction decomposition algorithm.</span>
+
+<span class="sd">    Given a univariate rational function ``f``, performing only GCD</span>
+<span class="sd">    operations over the algebraic closure of the initial ground domain</span>
+<span class="sd">    of definition, compute full partial fraction decomposition with</span>
+<span class="sd">    fractions having linear denominators.</span>
+
+<span class="sd">    Note that no factorization of the initial denominator of ``f`` is</span>
+<span class="sd">    performed. The final decomposition is formed in terms of a sum of</span>
+<span class="sd">    :class:`RootSum` instances.</span>
+
+<span class="sd">    **References**</span>
+
+<span class="sd">    1. [Bronstein93]_</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">f</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">U</span> <span class="o">=</span> <span class="n">P</span><span class="o">/</span><span class="n">Q</span><span class="p">,</span> <span class="n">P</span><span class="o">.</span><span class="n">gen</span><span class="p">,</span> <span class="p">[]</span>
+
+    <span class="n">u</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="s">&#39;u&#39;</span><span class="p">)(</span><span class="n">x</span><span class="p">)</span>
+    <span class="n">a</span> <span class="o">=</span> <span class="n">Dummy</span><span class="p">(</span><span class="s">&#39;a&#39;</span><span class="p">)</span>
+
+    <span class="n">partial</span> <span class="o">=</span> <span class="n">S</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">Q</span><span class="o">.</span><span class="n">sqf_list_include</span><span class="p">(</span><span class="nb">all</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+        <span class="n">b</span> <span class="o">=</span> <span class="n">d</span><span class="o">.</span><span class="n">as_expr</span><span class="p">()</span>
+        <span class="n">U</span> <span class="o">+=</span> <span class="p">[</span> <span class="n">u</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">n</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="p">]</span>
+
+        <span class="n">h</span> <span class="o">=</span> <span class="n">cancel</span><span class="p">(</span><span class="n">f</span><span class="o">*</span><span class="n">b</span><span class="o">**</span><span class="n">n</span><span class="p">)</span> <span class="o">/</span> <span class="n">u</span><span class="o">**</span><span class="n">n</span>
+
+        <span class="n">H</span><span class="p">,</span> <span class="n">subs</span> <span class="o">=</span> <span class="p">[</span><span class="n">h</span><span class="p">],</span> <span class="p">[]</span>
+
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+            <span class="n">H</span> <span class="o">+=</span> <span class="p">[</span> <span class="n">H</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">/</span> <span class="n">j</span> <span class="p">]</span>
+
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">n</span><span class="o">+</span><span class="mi">1</span><span class="p">):</span>
+            <span class="n">subs</span> <span class="o">+=</span> <span class="p">[</span> <span class="p">(</span><span class="n">U</span><span class="p">[</span><span class="n">j</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">b</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">j</span><span class="p">)</span> <span class="o">/</span> <span class="n">j</span><span class="p">)</span> <span class="p">]</span>
+
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+            <span class="n">P</span><span class="p">,</span> <span class="n">Q</span> <span class="o">=</span> <span class="n">cancel</span><span class="p">(</span><span class="n">H</span><span class="p">[</span><span class="n">j</span><span class="p">])</span><span class="o">.</span><span class="n">as_numer_denom</span><span class="p">()</span>
+
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">j</span><span class="o">+</span><span class="mi">1</span><span class="p">):</span>
+                <span class="n">P</span> <span class="o">=</span> <span class="n">P</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="o">*</span><span class="n">subs</span><span class="p">[</span><span class="n">j</span><span class="o">-</span><span class="n">i</span><span class="p">])</span>
+
+            <span class="n">Q</span> <span class="o">=</span> <span class="n">Q</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="o">*</span><span class="n">subs</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+            <span class="n">P</span> <span class="o">=</span> <span class="n">Poly</span><span class="p">(</span><span class="n">P</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+            <span class="n">Q</span> <span class="o">=</span> <span class="n">Poly</span><span class="p">(</span><span class="n">Q</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+
+            <span class="n">G</span> <span class="o">=</span> <span class="n">P</span><span class="o">.</span><span class="n">gcd</span><span class="p">(</span><span class="n">d</span><span class="p">)</span>
+            <span class="n">D</span> <span class="o">=</span> <span class="n">d</span><span class="o">.</span><span class="n">quo</span><span class="p">(</span><span class="n">G</span><span class="p">)</span>
+
+            <span class="n">B</span><span class="p">,</span> <span class="n">g</span> <span class="o">=</span> <span class="n">Q</span><span class="o">.</span><span class="n">half_gcdex</span><span class="p">(</span><span class="n">D</span><span class="p">)</span>
+            <span class="n">b</span> <span class="o">=</span> <span class="p">(</span><span class="n">P</span> <span class="o">*</span> <span class="n">B</span><span class="o">.</span><span class="n">quo</span><span class="p">(</span><span class="n">g</span><span class="p">))</span><span class="o">.</span><span class="n">rem</span><span class="p">(</span><span class="n">D</span><span class="p">)</span>
+
+            <span class="n">numer</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">as_expr</span><span class="p">()</span>
+            <span class="n">denom</span> <span class="o">=</span> <span class="p">(</span><span class="n">x</span><span class="o">-</span><span class="n">a</span><span class="p">)</span><span class="o">**</span><span class="p">(</span><span class="n">n</span><span class="o">-</span><span class="n">j</span><span class="p">)</span>
+
+            <span class="n">expr</span> <span class="o">=</span> <span class="n">numer</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">a</span><span class="p">)</span> <span class="o">/</span> <span class="n">denom</span>
+
+            <span class="n">partial</span> <span class="o">+=</span> <span class="n">RootSum</span><span class="p">(</span><span class="n">D</span><span class="p">,</span> <span class="n">Lambda</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">expr</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">partial</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../../index.html">
+              <img class="logo" src="../../../_static/sympylogo.png" alt="Logo"/>
+            </a></p>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" size="18" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">SymPy v0.7.1 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li>
+          <li><a href="../../sympy.html" >sympy</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2008, 2009, 2010, 2011 SymPy Development Team.
+      Last updated on Jul 29, 2011.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.7.
+    </div>
+  </body>
+</html>
