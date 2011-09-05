@@ -73,6 +73,10 @@
 
 <span class="sd">        Applies associativity, all terms are commutable with respect to</span>
 <span class="sd">        addition.</span>
+
+<span class="sd">        ** Developer Notes **</span>
+<span class="sd">            See Mul.flatten</span>
+
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">terms</span> <span class="o">=</span> <span class="p">{}</span>      <span class="c"># term -&gt; coeff</span>
                         <span class="c"># e.g. x**2 -&gt; 5   for ... + 5*x**2 + ...</span>
@@ -129,8 +133,16 @@
                     <span class="n">seq</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">c</span><span class="o">*</span><span class="n">a</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">s</span><span class="o">.</span><span class="n">args</span><span class="p">])</span>
                     <span class="k">continue</span>
 
-            <span class="c"># everything else</span>
+            <span class="c"># check for unevaluated Pow, e.g. 2**3 or 2**(-1/2)</span>
+            <span class="k">elif</span> <span class="n">o</span><span class="o">.</span><span class="n">is_Pow</span><span class="p">:</span>
+                <span class="n">b</span><span class="p">,</span> <span class="n">e</span> <span class="o">=</span> <span class="n">o</span><span class="o">.</span><span class="n">as_base_exp</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">b</span><span class="o">.</span><span class="n">is_Number</span> <span class="ow">and</span> <span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">is_Integer</span> <span class="ow">or</span> <span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">is_Rational</span> <span class="ow">and</span> <span class="n">e</span><span class="o">.</span><span class="n">is_negative</span><span class="p">)):</span>
+                    <span class="n">seq</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Pow</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">e</span><span class="p">))</span>
+                    <span class="k">continue</span>
+                <span class="n">c</span><span class="p">,</span> <span class="n">s</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">,</span> <span class="n">o</span>
+
             <span class="k">else</span><span class="p">:</span>
+                <span class="c"># everything else</span>
                 <span class="n">c</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span>
                 <span class="n">s</span> <span class="o">=</span> <span class="n">o</span>
 
@@ -220,7 +232,8 @@
         <span class="c"># order args canonically</span>
         <span class="c"># Currently we sort things using hashes, as it is quite fast. A better</span>
         <span class="c"># solution is not to sort things at all - but this needs some more</span>
-        <span class="c"># fixing.</span>
+        <span class="c"># fixing. NOTE: this is used in primitive, too, so if it changes</span>
+        <span class="c"># here it should be changed there.</span>
         <span class="n">newseq</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="nb">hash</span><span class="p">)</span>
 
         <span class="c"># current code expects coeff to be always in slot-0</span>
@@ -575,9 +588,11 @@
 
 <div class="viewcode-block" id="Add.primitive"><a class="viewcode-back" href="../../../modules/core.html#sympy.core.add.Add.primitive">[docs]</a>    <span class="k">def</span> <span class="nf">primitive</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Divide ``self`` by the GCD of coefficients of ``self``.</span>
+<span class="sd">        Return ``(R, self/R)`` where ``R``` is the Rational GCD of ``self```.</span>
 
-<span class="sd">        **Example**</span>
+<span class="sd">        ``R`` is collected only from the leading coefficient of each term.</span>
+
+<span class="sd">        **Examples**</span>
 
 <span class="sd">        &gt;&gt;&gt; from sympy.abc import x, y</span>
 
@@ -590,30 +605,51 @@
 <span class="sd">        &gt;&gt;&gt; (2*x/3 + 4.1*y).primitive()</span>
 <span class="sd">        (1, 2*x/3 + 4.1*y)</span>
 
+<span class="sd">        No subprocessing of term factors is performed:</span>
+
+<span class="sd">        &gt;&gt;&gt; ((2 + 2*x)*x + 2).primitive()</span>
+<span class="sd">        (1, x*(2*x + 2) + 2)</span>
+
+<span class="sd">        See also: primtive()</span>
+
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">terms</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="n">cont</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span>
+        <span class="n">terms</span> <span class="o">=</span> <span class="p">[</span><span class="n">a</span><span class="o">.</span><span class="n">as_coeff_Mul</span><span class="p">()</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">coeff</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">terms</span><span class="p">:</span>
+            <span class="n">cont</span> <span class="o">=</span> <span class="n">cont</span><span class="o">.</span><span class="n">gcd</span><span class="p">(</span><span class="n">coeff</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">cont</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span> <span class="c"># not S.One in case Float is ever handled</span>
+                <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">,</span> <span class="bp">self</span>
 
-        <span class="k">for</span> <span class="n">term</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
-            <span class="n">coeff</span> <span class="o">=</span> <span class="n">term</span><span class="o">.</span><span class="n">as_coeff_mul</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">MUL</span> <span class="o">=</span> <span class="nb">object</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">Mul</span><span class="p">)</span><span class="o">.</span><span class="n">_new_rawargs</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">coeff</span><span class="p">,</span> <span class="n">term</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">terms</span><span class="p">):</span>
+            <span class="n">c</span> <span class="o">=</span> <span class="n">coeff</span><span class="o">/</span><span class="n">cont</span>
+            <span class="k">if</span> <span class="n">c</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>  <span class="c"># not S.One in case Float is ever handled</span>
+                <span class="n">terms</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">term</span>
+            <span class="k">elif</span> <span class="n">term</span> <span class="ow">is</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">:</span>
+                <span class="n">terms</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">c</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">terms</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">MUL</span><span class="p">(</span><span class="o">*</span><span class="p">((</span><span class="n">c</span><span class="p">,)</span> <span class="o">+</span> <span class="n">Mul</span><span class="o">.</span><span class="n">make_args</span><span class="p">(</span><span class="n">term</span><span class="p">)))</span>
 
-            <span class="k">if</span> <span class="n">coeff</span><span class="o">.</span><span class="n">is_Rational</span><span class="p">:</span>
-                <span class="n">cont</span> <span class="o">=</span> <span class="n">cont</span><span class="o">.</span><span class="n">gcd</span><span class="p">(</span><span class="n">coeff</span><span class="p">)</span>
-
-                <span class="k">if</span> <span class="n">cont</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">:</span>
-                    <span class="n">terms</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">term</span><span class="p">)</span>
-                    <span class="k">continue</span>
-
-            <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">,</span> <span class="bp">self</span>
-
-        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">term</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">terms</span><span class="p">):</span>
-            <span class="c"># XXX: this is extremely slow</span>
-            <span class="n">terms</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">term</span><span class="o">/</span><span class="n">cont</span>
-
+        <span class="c"># we don&#39;t need a complete re-flattening since no new terms will join</span>
+        <span class="c"># so we just use the same sort as is used in Add.flatten. When the</span>
+        <span class="c"># coefficient changes, the ordering of terms may change, e.g.</span>
+        <span class="c">#     (3*x, 6*y) -&gt; (2*y, x)</span>
+        <span class="c">#</span>
+        <span class="c"># We do need to make sure that term[0] stays in position 0, however.</span>
+        <span class="c">#</span>
+        <span class="k">if</span> <span class="n">terms</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">is_Rational</span><span class="p">:</span>
+            <span class="n">c</span> <span class="o">=</span> <span class="n">terms</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">c</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="n">terms</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="nb">hash</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">c</span><span class="p">:</span>
+            <span class="n">terms</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span><span class="p">]</span> <span class="o">+</span> <span class="n">terms</span>
         <span class="k">return</span> <span class="n">cont</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_new_rawargs</span><span class="p">(</span><span class="o">*</span><span class="n">terms</span><span class="p">)</span>
 </div></div>
 <span class="kn">from</span> <span class="nn">function</span> <span class="kn">import</span> <span class="n">FunctionClass</span>
 <span class="kn">from</span> <span class="nn">mul</span> <span class="kn">import</span> <span class="n">Mul</span>
+<span class="kn">from</span> <span class="nn">power</span> <span class="kn">import</span> <span class="n">Pow</span>
+<span class="kn">from</span> <span class="nn">sympy.core.numbers</span> <span class="kn">import</span> <span class="n">Rational</span>
 </pre></div>
 
           </div>
@@ -657,7 +693,7 @@
     </div>
     <div class="footer">
         &copy; Copyright 2008, 2009, 2010, 2011 SymPy Development Team.
-      Last updated on Jul 29, 2011.
+      Last updated on Sep 05, 2011.
       Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.7.
     </div>
   </body>

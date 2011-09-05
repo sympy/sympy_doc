@@ -61,18 +61,19 @@
     <span class="n">dup_isolate_real_roots_sqf</span><span class="p">)</span>
 
 <span class="kn">from</span> <span class="nn">sympy.polys.polyroots</span> <span class="kn">import</span> <span class="p">(</span>
-    <span class="n">roots_linear</span><span class="p">,</span> <span class="n">roots_quadratic</span><span class="p">,</span>
-    <span class="n">roots_binomial</span><span class="p">,</span> <span class="n">preprocess_roots</span><span class="p">)</span>
+    <span class="n">roots_linear</span><span class="p">,</span> <span class="n">roots_quadratic</span><span class="p">,</span> <span class="n">roots_binomial</span><span class="p">,</span>
+    <span class="n">preprocess_roots</span><span class="p">,</span> <span class="n">roots</span><span class="p">)</span>
 
 <span class="kn">from</span> <span class="nn">sympy.polys.polyerrors</span> <span class="kn">import</span> <span class="p">(</span>
     <span class="n">MultivariatePolynomialError</span><span class="p">,</span>
     <span class="n">GeneratorsNeeded</span><span class="p">,</span>
-    <span class="n">PolynomialError</span><span class="p">)</span>
+    <span class="n">PolynomialError</span><span class="p">,</span>
+    <span class="n">DomainError</span><span class="p">)</span>
 
 <span class="kn">from</span> <span class="nn">sympy.polys.domains</span> <span class="kn">import</span> <span class="n">QQ</span>
 
-<span class="kn">from</span> <span class="nn">sympy.mpmath</span> <span class="kn">import</span> <span class="p">(</span>
-    <span class="n">mp</span><span class="p">,</span> <span class="n">mpf</span><span class="p">,</span> <span class="n">mpc</span><span class="p">,</span> <span class="n">findroot</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">sympy.mpmath</span> <span class="kn">import</span> <span class="n">mp</span><span class="p">,</span> <span class="n">mpf</span><span class="p">,</span> <span class="n">mpc</span><span class="p">,</span> <span class="n">findroot</span>
+<span class="kn">from</span> <span class="nn">sympy.mpmath.libmp.libmpf</span> <span class="kn">import</span> <span class="n">prec_to_dps</span>
 
 <span class="kn">from</span> <span class="nn">sympy.utilities</span> <span class="kn">import</span> <span class="n">lambdify</span>
 
@@ -703,10 +704,23 @@
         <span class="k">return</span> <span class="bp">True</span>
 
     <span class="k">def</span> <span class="nf">doit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">hints</span><span class="p">):</span>
-        <span class="k">if</span> <span class="n">hints</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;roots&#39;</span><span class="p">,</span> <span class="bp">True</span><span class="p">):</span>
-            <span class="k">return</span> <span class="n">Add</span><span class="p">(</span><span class="o">*</span><span class="nb">map</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fun</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">poly</span><span class="o">.</span><span class="n">all_roots</span><span class="p">()))</span>
-        <span class="k">else</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">hints</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;roots&#39;</span><span class="p">,</span> <span class="bp">True</span><span class="p">):</span>
             <span class="k">return</span> <span class="bp">self</span>
+
+        <span class="n">_roots</span> <span class="o">=</span> <span class="n">roots</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">poly</span><span class="p">,</span> <span class="n">multiple</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">_roots</span><span class="p">)</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">poly</span><span class="o">.</span><span class="n">degree</span><span class="p">():</span>
+            <span class="k">return</span> <span class="bp">self</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">Add</span><span class="p">(</span><span class="o">*</span><span class="p">[</span> <span class="bp">self</span><span class="o">.</span><span class="n">fun</span><span class="p">(</span><span class="n">r</span><span class="p">)</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">_roots</span> <span class="p">])</span>
+
+    <span class="k">def</span> <span class="nf">_eval_evalf</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">prec</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">_roots</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">poly</span><span class="o">.</span><span class="n">nroots</span><span class="p">(</span><span class="n">n</span><span class="o">=</span><span class="n">prec_to_dps</span><span class="p">(</span><span class="n">prec</span><span class="p">))</span>
+        <span class="k">except</span> <span class="p">(</span><span class="n">DomainError</span><span class="p">,</span> <span class="n">PolynomialError</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">self</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">Add</span><span class="p">(</span><span class="o">*</span><span class="p">[</span> <span class="bp">self</span><span class="o">.</span><span class="n">fun</span><span class="p">(</span><span class="n">r</span><span class="p">)</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">_roots</span> <span class="p">])</span>
 
     <span class="k">def</span> <span class="nf">_eval_derivative</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
         <span class="n">var</span><span class="p">,</span> <span class="n">expr</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">fun</span><span class="o">.</span><span class="n">args</span>
@@ -755,7 +769,7 @@
     </div>
     <div class="footer">
         &copy; Copyright 2008, 2009, 2010, 2011 SymPy Development Team.
-      Last updated on Jul 29, 2011.
+      Last updated on Sep 05, 2011.
       Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.7.
     </div>
   </body>
