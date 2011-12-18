@@ -3,13 +3,16 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 
+
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>Printing System &mdash; SymPy v0.7.1-git documentation</title>
+    <title>Printing System &mdash; SymPy 0.7.1-git documentation</title>
+    
     <link rel="stylesheet" href="../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../',
@@ -23,7 +26,7 @@
     <script type="text/javascript" src="../_static/underscore.js"></script>
     <script type="text/javascript" src="../_static/doctools.js"></script>
     <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_HTML-full"></script>
-    <link rel="top" title="SymPy v0.7.1-git documentation" href="../index.html" />
+    <link rel="top" title="SymPy 0.7.1-git documentation" href="../index.html" />
     <link rel="up" title="SymPy Modules Reference" href="index.html" />
     <link rel="next" title="Plotting" href="plotting.html" />
     <link rel="prev" title="Literature" href="polys/literature.html" /> 
@@ -47,7 +50,7 @@
         <li class="right" >
           <a href="polys/literature.html" title="Literature"
              accesskey="P">previous</a> |</li>
-        <li><a href="../index.html">SymPy v0.7.1-git documentation</a> &raquo;</li>
+        <li><a href="../index.html">SymPy 0.7.1-git documentation</a> &raquo;</li>
           <li><a href="index.html" accesskey="U">SymPy Modules Reference</a> &raquo;</li> 
       </ul>
     </div>  
@@ -59,12 +62,79 @@
             
   <div class="section" id="printing-system">
 <h1>Printing System<a class="headerlink" href="#printing-system" title="Permalink to this headline">¶</a></h1>
-<p>See the <a class="reference internal" href="../tutorial.html#printing-tutorial"><em>Printing</em></a> section in Tutorial for introduction into
+<p>See the <a class="reference internal" href="../tutorial.ru.html#printing-tutorial"><em>Печать</em></a> section in Tutorial for introduction into
 printing.</p>
 <p>This guide documents the printing system in SymPy and how it works
 internally.</p>
 <div class="section" id="module-sympy.printing.printer">
 <span id="printer-class"></span><h2>Printer Class<a class="headerlink" href="#module-sympy.printing.printer" title="Permalink to this headline">¶</a></h2>
+<p>Printing subsystem driver</p>
+<p>SymPy&#8217;s printing system works the following way: Any expression can be passed to
+a designated Printer who then is responsible to return a adequate representation
+of that expression.</p>
+<dl class="docutils">
+<dt>The basic concept is the following:</dt>
+<dd><ol class="first last arabic simple">
+<li>Let the object print itself if it knows how.</li>
+<li>Take the best fitting method defined in the printer.</li>
+<li>As fall-back use the emptyPrinter method for the printer.</li>
+</ol>
+</dd>
+</dl>
+<p>Some more information how the single concepts work and who should use which:</p>
+<ol class="arabic">
+<li><p class="first">The object prints itself</p>
+<blockquote>
+<div><p>This was the original way of doing printing in sympy. Every class had its
+own latex, mathml, str and repr methods, but it turned out that it is hard
+to produce a high quality printer, if all the methods are spread out that
+far. Therefor all printing code was combined into the different printers,
+which works great for built-in sympy objects, but not that good for user
+defined classes where it is inconvenient to patch the printers.
+To get nevertheless a fitting representation, the printers look for a
+specific method in every object, that will be called if it&#8217;s available and
+is then responsible for the representation. The name of that method depends
+on the specific printer and is defined under Printer.printmethodname.</p>
+</div></blockquote>
+</li>
+<li><p class="first">Take the best fitting method defined in the printer.</p>
+<blockquote>
+<div><p>The printer loops through expr classes (class + its bases), and tries to dispatch the
+work to _print_&lt;EXPR_CLASS&gt;</p>
+<p>e.g., suppose we have the following class hierarchy:</p>
+<div class="highlight-python"><pre>    Basic
+    |
+    Atom
+    |
+    Number
+    |
+Rational</pre>
+</div>
+<p>then, for expr=Rational(...), in order to dispatch, we will try calling printer methods
+as shown in the figure below:</p>
+<div class="highlight-python"><pre>p._print(expr)
+|
+|-- p._print_Rational(expr)
+|
+|-- p._print_Number(expr)
+|
+|-- p._print_Atom(expr)
+|
+`-- p._print_Basic(expr)</pre>
+</div>
+<p>if ._print_Rational method exists in the printer, then it is called,
+and the result is returned back.</p>
+<p>otherwise, we proceed with trying Rational bases in the inheritance
+order.</p>
+</div></blockquote>
+</li>
+<li><p class="first">As fall-back use the emptyPrinter method for the printer.</p>
+<blockquote>
+<div><p>As fall-back self.emptyPrinter will be called with the expression. If
+not defined in the Printer subclass this will be the same as str(expr)</p>
+</div></blockquote>
+</li>
+</ol>
 <p>The main class responsible for printing is <tt class="docutils literal"><span class="pre">Printer</span></tt> (see also its
 <a class="reference external" href="https://github.com/sympy/sympy/blob/master/sympy/printing/printer.py">source code</a>):</p>
 <dl class="class">
@@ -80,37 +150,39 @@ internally.</p>
 If a object has a method with that name, this method will be used
 for printing.</p>
 </li>
-<li><p class="first">In your subclass, define _print_&lt;CLASS&gt; methods</p>
+<li><p class="first">In your subclass, define <tt class="docutils literal"><span class="pre">_print_&lt;CLASS&gt;</span></tt> methods</p>
 <p>For each class you want to provide printing to, define an appropriate
 method how to do it. For example if you want a class FOO to be printed in
 its own way, define _print_FOO:</p>
-<dl class="docutils">
-<dt>def _print_FOO(self, e):</dt>
-<dd><p class="first last">...</p>
-</dd>
-</dl>
+<div class="highlight-python"><div class="highlight"><pre><span class="k">def</span> <span class="nf">_print_FOO</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">e</span><span class="p">):</span>
+    <span class="o">...</span>
+</pre></div>
+</div>
 <p>this should return how FOO instance e is printed</p>
-<p>Also, if BAR is a subclass of FOO, _print_FOO(bar) will be called for
-instance of BAR, if no _print_BAR is provided.  Thus, usually, we don&#8217;t
-need to provide printing routines for every class we want to support &#8211;
-only generic routine has to be provided for a set of classes.</p>
-<p>A good example for this are functions - for example PrettyPrinter only
-defines _print_Function, and there is no _print_sin, _print_tan, etc...</p>
-<p>On the other hand, a good printer will probably have to define separate
-routines for Symbol, Atom, Number, Integral, Limit, etc...</p>
+<p>Also, if <tt class="docutils literal"><span class="pre">BAR</span></tt> is a subclass of <tt class="docutils literal"><span class="pre">FOO</span></tt>, <tt class="docutils literal"><span class="pre">_print_FOO(bar)</span></tt> will
+be called for instance of <tt class="docutils literal"><span class="pre">BAR</span></tt>, if no <tt class="docutils literal"><span class="pre">_print_BAR</span></tt> is provided.
+Thus, usually, we don&#8217;t need to provide printing routines for every
+class we want to support &#8211; only generic routine has to be provided
+for a set of classes.</p>
+<p>A good example for this are functions - for example <tt class="docutils literal"><span class="pre">PrettyPrinter</span></tt>
+only defines <tt class="docutils literal"><span class="pre">_print_Function</span></tt>, and there is no <tt class="docutils literal"><span class="pre">_print_sin</span></tt>,
+<tt class="docutils literal"><span class="pre">_print_tan</span></tt>, etc...</p>
+<p>On the other hand, a good printer will probably have to define
+separate routines for <tt class="docutils literal"><span class="pre">Symbol</span></tt>, <tt class="docutils literal"><span class="pre">Atom</span></tt>, <tt class="docutils literal"><span class="pre">Number</span></tt>, <tt class="docutils literal"><span class="pre">Integral</span></tt>,
+<tt class="docutils literal"><span class="pre">Limit</span></tt>, etc...</p>
 </li>
-<li><p class="first">If convenient, override self.emptyPrinter</p>
+<li><p class="first">If convenient, override <tt class="docutils literal"><span class="pre">self.emptyPrinter</span></tt></p>
 <p>This callable will be called to obtain printing result as a last resort,
 that is when no appropriate print method was found for an expression.</p>
 </li>
 </ol>
-<p>Example of overloading StrPrinter:</p>
+<p>Examples of overloading StrPrinter:</p>
 <div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">Basic</span><span class="p">,</span> <span class="n">Function</span><span class="p">,</span> <span class="n">Symbol</span>
 <span class="kn">from</span> <span class="nn">sympy.printing.str</span> <span class="kn">import</span> <span class="n">StrPrinter</span>
 
 <span class="k">class</span> <span class="nc">CustomStrPrinter</span><span class="p">(</span><span class="n">StrPrinter</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Example of how to customize the StrPrinter for both a Sympy class and a</span>
+<span class="sd">    Examples of how to customize the StrPrinter for both a Sympy class and a</span>
 <span class="sd">    user defined class subclassed from the Sympy Basic class.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
@@ -174,7 +246,7 @@ is subclassed from Basic.</p>
 <col width="48%" />
 </colgroup>
 <tbody valign="top">
-<tr><td>printmethod</td>
+<tr class="row-odd"><td>printmethod</td>
 <td>&nbsp;</td>
 </tr>
 </tbody>
@@ -200,91 +272,226 @@ is subclassed from Basic.</p>
 </dl>
 </dd></dl>
 
+<dl class="classmethod">
+<dt id="sympy.printing.printer.Printer.set_global_settings">
+<em class="property">classmethod </em><tt class="descname">set_global_settings</tt><big>(</big><em>**settings</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/printer.html#Printer.set_global_settings"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.printer.Printer.set_global_settings" title="Permalink to this definition">¶</a></dt>
+<dd><p>Set system-wide printing settings.</p>
+</dd></dl>
+
 </dd></dl>
 
 </div>
-<div class="section" id="module-sympy.printing.pretty.pretty">
-<span id="prettyprinter-class"></span><h2>PrettyPrinter Class<a class="headerlink" href="#module-sympy.printing.pretty.pretty" title="Permalink to this headline">¶</a></h2>
-<span class="target" id="module-sympy.printing.pretty.pretty_symbology"></span><span class="target" id="module-sympy.printing.pretty.pretty_stringpict"></span><p>Pretty printing subsystem is implemented in <tt class="docutils literal"><span class="pre">sympy.printing.pretty.pretty</span></tt> by
-the <tt class="docutils literal"><span class="pre">PrettyPrinter</span></tt> class deriving from <tt class="docutils literal"><span class="pre">Printer</span></tt>.  It relies on modules
-<tt class="docutils literal"><span class="pre">sympy.printing.pretty.stringPict</span></tt>, and
-<tt class="docutils literal"><span class="pre">sympy.printing.pretty.pretty_symbology</span></tt> for rendering nice-looking formulas.</p>
+<div class="section" id="prettyprinter-class">
+<h2>PrettyPrinter Class<a class="headerlink" href="#prettyprinter-class" title="Permalink to this headline">¶</a></h2>
+<p>Pretty printing subsystem is implemented in <tt class="docutils literal"><span class="pre">sympy.printing.pretty.pretty</span></tt>
+by the <tt class="docutils literal"><span class="pre">PrettyPrinter</span></tt> class deriving from <tt class="docutils literal"><span class="pre">Printer</span></tt>. It relies on
+modules <tt class="docutils literal"><span class="pre">sympy.printing.pretty.stringPict</span></tt>, and
+<tt class="docutils literal"><span class="pre">sympy.printing.pretty.pretty_symbology</span></tt> for rendering nice-looking
+formulas.</p>
 <p>The module <tt class="docutils literal"><span class="pre">stringPict</span></tt> provides a base class <tt class="docutils literal"><span class="pre">stringPict</span></tt> and a derived
-class <tt class="docutils literal"><span class="pre">prettyForm</span></tt> that ease the creation and manipulation of formulas that
-span across multiple lines.</p>
+class <tt class="docutils literal"><span class="pre">prettyForm</span></tt> that ease the creation and manipulation of formulas
+that span across multiple lines.</p>
 <p>The module <tt class="docutils literal"><span class="pre">pretty_symbology</span></tt> provides primitives to construct 2D shapes
-(hline, vline, etc) together with a technique to use unicode automatically when
-possible.</p>
-</div>
-<div class="section" id="module-sympy.printing.mathml">
-<span id="mathmlprinter"></span><h2>MathMLPrinter<a class="headerlink" href="#module-sympy.printing.mathml" title="Permalink to this headline">¶</a></h2>
-<p>This class is responsible for MathML printing. See <tt class="docutils literal"><span class="pre">sympy.printing.mathml</span></tt>.</p>
-<p>More info on mathml content: <a class="reference external" href="http://www.w3.org/TR/MathML2/chapter4.html">http://www.w3.org/TR/MathML2/chapter4.html</a></p>
-</div>
-<div class="section" id="module-sympy.printing.latex">
-<span id="latexprinter"></span><h2>LatexPrinter<a class="headerlink" href="#module-sympy.printing.latex" title="Permalink to this headline">¶</a></h2>
-<p>This class implements LaTeX printing. See <tt class="docutils literal"><span class="pre">sympy.printing.latex</span></tt>.</p>
-<p>See also the extended LatexPrinter: <a class="reference internal" href="galgebra/latex_ex/latex_ex.html#extended-latex"><em>Extended LaTeXModule for Sympy</em></a></p>
-</div>
-<div class="section" id="module-sympy.printing.gtk">
-<span id="gtk"></span><h2>Gtk<a class="headerlink" href="#module-sympy.printing.gtk" title="Permalink to this headline">¶</a></h2>
-<p>You can print to a grkmathview widget using the function print_gtk located in
-sympy.printing.gtk (it requires to have installed gtkmatmatview and
-libgtkmathview-bin in some systems).</p>
-<p>GtkMathView accepts MathML, so this rendering depends on the mathml representation of the expression</p>
-<p>Usage:</p>
-<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="o">*</span>
-<span class="n">print_gtk</span><span class="p">(</span><span class="n">x</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="mi">2</span><span class="o">*</span><span class="n">exp</span><span class="p">(</span><span class="n">x</span><span class="o">**</span><span class="mi">3</span><span class="p">))</span>
-</pre></div>
-</div>
-</div>
-<div class="section" id="module-sympy.printing.python">
-<span id="pythonprinter"></span><h2>PythonPrinter<a class="headerlink" href="#module-sympy.printing.python" title="Permalink to this headline">¶</a></h2>
-<p>This class implements Python printing. Usage:</p>
-<div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">print_python</span><span class="p">,</span> <span class="n">sin</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.abc</span> <span class="kn">import</span> <span class="n">x</span>
+(hline, vline, etc) together with a technique to use unicode automatically
+when possible.</p>
+<span class="target" id="module-sympy.printing.pretty.pretty"></span><dl class="class">
+<dt id="sympy.printing.pretty.pretty.PrettyPrinter">
+<em class="property">class </em><tt class="descclassname">sympy.printing.pretty.pretty.</tt><tt class="descname">PrettyPrinter</tt><big>(</big><em>settings=None</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/pretty/pretty.html#PrettyPrinter"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.pretty.pretty.PrettyPrinter" title="Permalink to this definition">¶</a></dt>
+<dd><p>Printer, which converts an expression into 2D ASCII-art figure.</p>
+</dd></dl>
 
-<span class="gp">&gt;&gt;&gt; </span><span class="n">print_python</span><span class="p">(</span><span class="mi">5</span><span class="o">*</span><span class="n">x</span><span class="o">**</span><span class="mi">3</span> <span class="o">+</span> <span class="n">sin</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
-<span class="go">x = Symbol(&#39;x&#39;)</span>
-<span class="go">e = 5*x**3 + sin(x)</span>
+<dl class="function">
+<dt id="sympy.printing.pretty.pretty.pretty">
+<tt class="descclassname">sympy.printing.pretty.pretty.</tt><tt class="descname">pretty</tt><big>(</big><em>expr</em>, <em>**settings</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/pretty/pretty.html#pretty"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.pretty.pretty.pretty" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns a string containing the prettified form of expr.</p>
+<p>For information on keyword arguments see pretty_print function.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.printing.pretty.pretty.pretty_print">
+<tt class="descclassname">sympy.printing.pretty.pretty.</tt><tt class="descname">pretty_print</tt><big>(</big><em>expr</em>, <em>**settings</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/pretty/pretty.html#pretty_print"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.pretty.pretty.pretty_print" title="Permalink to this definition">¶</a></dt>
+<dd><p>Prints expr in pretty form.</p>
+<p>pprint is just a shortcut for this function.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters :</th><td class="field-body"><p class="first"><strong>expr</strong> : expression</p>
+<blockquote>
+<div><p>the expression to print</p>
+</div></blockquote>
+<p><strong>wrap_line</strong> : bool, optional</p>
+<blockquote>
+<div><p>line wrapping enabled/disabled, defaults to True</p>
+</div></blockquote>
+<p><strong>num_columns</strong> : bool, optional</p>
+<blockquote>
+<div><p>number of columns before line breaking (default to None which reads
+the terminal width), useful when using SymPy without terminal.</p>
+</div></blockquote>
+<p><strong>use_unicode</strong> : bool or None, optional</p>
+<blockquote>
+<div><p>use unicode characters, such as the Greek letter pi instead of
+the string pi.</p>
+</div></blockquote>
+<p><strong>full_prec</strong> : bool or string, optional</p>
+<blockquote>
+<div><p>use full precision. Default to &#8220;auto&#8221;</p>
+</div></blockquote>
+<p><strong>order</strong> : bool or string, optional</p>
+<blockquote class="last">
+<div><p>set to &#8216;none&#8217; for long expressions if slow; default is None</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</div>
+<div class="section" id="module-sympy.printing.ccode">
+<span id="ccodeprinter"></span><h2>CCodePrinter<a class="headerlink" href="#module-sympy.printing.ccode" title="Permalink to this headline">¶</a></h2>
+<p>This class implements C code printing (i.e. it converts Python expressions
+to strings of C code).</p>
+<p>Usage:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.printing</span> <span class="kn">import</span> <span class="n">print_ccode</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.functions</span> <span class="kn">import</span> <span class="n">sin</span><span class="p">,</span> <span class="n">cos</span><span class="p">,</span> <span class="n">Abs</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.abc</span> <span class="kn">import</span> <span class="n">x</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">print_ccode</span><span class="p">(</span><span class="n">sin</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">cos</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+<span class="go">pow(sin(x), 2) + pow(cos(x), 2)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">print_ccode</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">x</span> <span class="o">+</span> <span class="n">cos</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="n">assign_to</span><span class="o">=</span><span class="s">&quot;result&quot;</span><span class="p">)</span>
+<span class="go">result = 2*x + cos(x);</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">print_ccode</span><span class="p">(</span><span class="n">Abs</span><span class="p">(</span><span class="n">x</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span>
+<span class="go">fabs(pow(x, 2))</span>
 </pre></div>
 </div>
+<dl class="data">
+<dt id="sympy.printing.ccode.known_functions">
+<tt class="descclassname">sympy.printing.ccode.</tt><tt class="descname">known_functions</tt><em class="property"> = {'ceiling': [(&lt;function &lt;lambda&gt; at 0x10f4e7aa0&gt;, 'ceil')], 'Abs': [(&lt;function &lt;lambda&gt; at 0x10f4e7500&gt;, 'fabs')]}</em><a class="headerlink" href="#sympy.printing.ccode.known_functions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="class">
+<dt id="sympy.printing.ccode.CCodePrinter">
+<em class="property">class </em><tt class="descclassname">sympy.printing.ccode.</tt><tt class="descname">CCodePrinter</tt><big>(</big><em>settings={}</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/ccode.html#CCodePrinter"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.ccode.CCodePrinter" title="Permalink to this definition">¶</a></dt>
+<dd><p>A printer to convert python expressions to strings of c code</p>
+<dl class="method">
+<dt id="sympy.printing.ccode.CCodePrinter.doprint">
+<tt class="descname">doprint</tt><big>(</big><em>expr</em>, <em>assign_to=None</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/ccode.html#CCodePrinter.doprint"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.ccode.CCodePrinter.doprint" title="Permalink to this definition">¶</a></dt>
+<dd><p>Actually format the expression as C code.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="sympy.printing.ccode.CCodePrinter.indent_code">
+<tt class="descname">indent_code</tt><big>(</big><em>code</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/ccode.html#CCodePrinter.indent_code"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.ccode.CCodePrinter.indent_code" title="Permalink to this definition">¶</a></dt>
+<dd><p>Accepts a string of code or a list of code lines</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.printing.ccode.ccode">
+<tt class="descclassname">sympy.printing.ccode.</tt><tt class="descname">ccode</tt><big>(</big><em>expr</em>, <em>assign_to=None</em>, <em>**settings</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/ccode.html#ccode"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.ccode.ccode" title="Permalink to this definition">¶</a></dt>
+<dd><p>Converts an expr to a string of c code</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters :</th><td class="field-body"><p class="first"><strong>expr</strong> : sympy.core.Expr</p>
+<blockquote>
+<div><p>a sympy expression to be converted</p>
+</div></blockquote>
+<p><strong>precision</strong> : optional</p>
+<blockquote>
+<div><p>the precision for numbers such as pi [default=15]</p>
+</div></blockquote>
+<p><strong>user_functions</strong> : optional</p>
+<blockquote>
+<div><p>A dictionary where keys are FunctionClass instances and values
+are there string representations.  Alternatively, the
+dictionary value can be a list of tuples i.e. [(argument_test,
+cfunction_string)].  See below for examples.</p>
+</div></blockquote>
+<p><strong>human</strong> : optional</p>
+<blockquote class="last">
+<div><p>If True, the result is a single string that may contain some
+constant declarations for the number symbols. If False, the
+same information is returned in a more programmer-friendly
+data structure.</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Examples</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">ccode</span><span class="p">,</span> <span class="n">symbols</span><span class="p">,</span> <span class="n">Rational</span><span class="p">,</span> <span class="n">sin</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span><span class="p">,</span> <span class="n">tau</span> <span class="o">=</span> <span class="n">symbols</span><span class="p">([</span><span class="s">&quot;x&quot;</span><span class="p">,</span> <span class="s">&quot;tau&quot;</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">ccode</span><span class="p">((</span><span class="mi">2</span><span class="o">*</span><span class="n">tau</span><span class="p">)</span><span class="o">**</span><span class="n">Rational</span><span class="p">(</span><span class="mi">7</span><span class="p">,</span><span class="mi">2</span><span class="p">))</span>
+<span class="go">&#39;8*sqrt(2)*pow(tau, 7.0/2.0)&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">ccode</span><span class="p">(</span><span class="n">sin</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="n">assign_to</span><span class="o">=</span><span class="s">&quot;s&quot;</span><span class="p">)</span>
+<span class="go">&#39;s = sin(x);&#39;</span>
+</pre></div>
 </div>
-<div class="section" id="fcode">
-<h2>fcode<a class="headerlink" href="#fcode" title="Permalink to this headline">¶</a></h2>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.printing.ccode.print_ccode">
+<tt class="descclassname">sympy.printing.ccode.</tt><tt class="descname">print_ccode</tt><big>(</big><em>expr</em>, <em>**settings</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/ccode.html#print_ccode"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.ccode.print_ccode" title="Permalink to this definition">¶</a></dt>
+<dd><p>Prints C representation of the given expression.</p>
+</dd></dl>
+
+</div>
+<div class="section" id="fortran-printing">
+<h2>Fortran Printing<a class="headerlink" href="#fortran-printing" title="Permalink to this headline">¶</a></h2>
 <p>The fcode function translates a sympy expression into Fortran code. The main
 purpose is to take away the burden of manually translating long mathematical
-expressions. Therefore the resulting expression should also require no (or very
-little) manual tweaking to make it compilable. The optional arguments of fcode
-can be used to fine-tune the behavior of fcode in such a way that manual changes
-in the result are no longer needed.</p>
+expressions. Therefore the resulting expression should also require no (or
+very little) manual tweaking to make it compilable. The optional arguments
+of fcode can be used to fine-tune the behavior of fcode in such a way that
+manual changes in the result are no longer needed.</p>
 <span class="target" id="module-sympy.printing.fcode"></span><dl class="function">
 <dt id="sympy.printing.fcode.fcode">
 <tt class="descclassname">sympy.printing.fcode.</tt><tt class="descname">fcode</tt><big>(</big><em>expr</em>, <em>**settings</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/fcode.html#fcode"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.fcode.fcode" title="Permalink to this definition">¶</a></dt>
 <dd><p>Converts an expr to a string of Fortran 77 code</p>
-<dl class="docutils">
-<dt>Arguments:</dt>
-<dd>expr  &#8211;  a sympy expression to be converted</dd>
-<dt>Optional arguments:</dt>
-<dd><dl class="first docutils">
-<dt>assign_to  &#8211;  When given, the argument is used as the name of the</dt>
-<dd>variable to which the Fortran expression is assigned.
-(This is helpful in case of line-wrapping.)</dd>
-</dl>
-<p>precision  &#8211;  the precision for numbers such as pi [default=15]
-user_functions  &#8211;  A dictionary where keys are FunctionClass instances</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters :</th><td class="field-body"><p class="first"><strong>expr</strong> : sympy.core.Expr</p>
 <blockquote>
-<div>and values are there string representations.</div></blockquote>
-<dl class="last docutils">
-<dt>human  &#8211;  If True, the result is a single string that may contain</dt>
-<dd>some parameter statements for the number symbols. If
-False, the same information is returned in a more
-programmer-friendly data structure.</dd>
-<dt>source_format  &#8211;  The source format can be either &#8216;fixed&#8217; or &#8216;free&#8217;.</dt>
-<dd>[default=&#8217;fixed&#8217;]</dd>
-</dl>
-</dd>
-</dl>
+<div><p>a sympy expression to be converted</p>
+</div></blockquote>
+<p><strong>assign_to</strong> : optional</p>
+<blockquote>
+<div><p>When given, the argument is used as the name of the
+variable to which the Fortran expression is assigned.
+(This is helpful in case of line-wrapping.)</p>
+</div></blockquote>
+<p><strong>precision</strong> : optional</p>
+<blockquote>
+<div><p>the precision for numbers such as pi [default=15]</p>
+</div></blockquote>
+<p><strong>user_functions</strong> : optional</p>
+<blockquote>
+<div><p>A dictionary where keys are FunctionClass instances and values
+are there string representations.</p>
+</div></blockquote>
+<p><strong>human</strong> : optional</p>
+<blockquote>
+<div><p>If True, the result is a single string that may contain some
+parameter statements for the number symbols. If False, the same
+information is returned in a more programmer-friendly data
+structure.</p>
+</div></blockquote>
+<p><strong>source_format</strong> : optional</p>
+<blockquote class="last">
+<div><p>The source format can be either &#8216;fixed&#8217; or &#8216;free&#8217;.
+[default=&#8217;fixed&#8217;]</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Examples</p>
 <div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">fcode</span><span class="p">,</span> <span class="n">symbols</span><span class="p">,</span> <span class="n">Rational</span><span class="p">,</span> <span class="n">pi</span><span class="p">,</span> <span class="n">sin</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">x</span><span class="p">,</span> <span class="n">tau</span> <span class="o">=</span> <span class="n">symbols</span><span class="p">(</span><span class="s">&#39;x,tau&#39;</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">fcode</span><span class="p">((</span><span class="mi">2</span><span class="o">*</span><span class="n">tau</span><span class="p">)</span><span class="o">**</span><span class="n">Rational</span><span class="p">(</span><span class="mi">7</span><span class="p">,</span><span class="mi">2</span><span class="p">))</span>
@@ -303,6 +510,24 @@ programmer-friendly data structure.</dd>
 <tt class="descclassname">sympy.printing.fcode.</tt><tt class="descname">print_fcode</tt><big>(</big><em>expr</em>, <em>**settings</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/fcode.html#print_fcode"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.fcode.print_fcode" title="Permalink to this definition">¶</a></dt>
 <dd><p>Prints the Fortran representation of the given expression.</p>
 <p>See fcode for the meaning of the optional arguments.</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="sympy.printing.fcode.FCodePrinter">
+<em class="property">class </em><tt class="descclassname">sympy.printing.fcode.</tt><tt class="descname">FCodePrinter</tt><big>(</big><em>settings=None</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/fcode.html#FCodePrinter"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.fcode.FCodePrinter" title="Permalink to this definition">¶</a></dt>
+<dd><p>A printer to convert sympy expressions to strings of Fortran code</p>
+<dl class="method">
+<dt id="sympy.printing.fcode.FCodePrinter.doprint">
+<tt class="descname">doprint</tt><big>(</big><em>expr</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/fcode.html#FCodePrinter.doprint"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.fcode.FCodePrinter.doprint" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns Fortran code for expr (as a string)</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="sympy.printing.fcode.FCodePrinter.indent_code">
+<tt class="descname">indent_code</tt><big>(</big><em>code</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/fcode.html#FCodePrinter.indent_code"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.fcode.FCodePrinter.indent_code" title="Permalink to this definition">¶</a></dt>
+<dd><p>Accepts a string of code or a list of code lines</p>
+</dd></dl>
+
 </dd></dl>
 
 <p>Two basic examples:</p>
@@ -408,6 +633,346 @@ translated in pure Fortran and (iii) a string of Fortran code. A few examples:</
 </pre></div>
 </div>
 </div>
+<div class="section" id="module-sympy.printing.gtk">
+<span id="gtk"></span><h2>Gtk<a class="headerlink" href="#module-sympy.printing.gtk" title="Permalink to this headline">¶</a></h2>
+<p>You can print to a grkmathview widget using the function <tt class="docutils literal"><span class="pre">print_gtk</span></tt>
+located in <tt class="docutils literal"><span class="pre">sympy.printing.gtk</span></tt> (it requires to have installed
+gtkmatmatview and libgtkmathview-bin in some systems).</p>
+<p>GtkMathView accepts MathML, so this rendering depends on the MathML
+representation of the expression.</p>
+<p>Usage:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="o">*</span>
+<span class="n">print_gtk</span><span class="p">(</span><span class="n">x</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="mi">2</span><span class="o">*</span><span class="n">exp</span><span class="p">(</span><span class="n">x</span><span class="o">**</span><span class="mi">3</span><span class="p">))</span>
+</pre></div>
+</div>
+<dl class="function">
+<dt id="sympy.printing.gtk.print_gtk">
+<tt class="descclassname">sympy.printing.gtk.</tt><tt class="descname">print_gtk</tt><big>(</big><em>x</em>, <em>start_viewer=True</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/gtk.html#print_gtk"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.gtk.print_gtk" title="Permalink to this definition">¶</a></dt>
+<dd><p>Print to Gtkmathview, a gtk widget capable of rendering MathML.</p>
+<p>Needs libgtkmathview-bin</p>
+</dd></dl>
+
+</div>
+<div class="section" id="module-sympy.printing.lambdarepr">
+<span id="lambdaprinter"></span><h2>LambdaPrinter<a class="headerlink" href="#module-sympy.printing.lambdarepr" title="Permalink to this headline">¶</a></h2>
+<p>This classes implements printing to strings that can be used by the
+<tt class="xref py py-func docutils literal"><span class="pre">sympy.utilities.lambdify.lambdify()</span></tt> function.</p>
+<dl class="class">
+<dt id="sympy.printing.lambdarepr.LambdaPrinter">
+<em class="property">class </em><tt class="descclassname">sympy.printing.lambdarepr.</tt><tt class="descname">LambdaPrinter</tt><big>(</big><em>settings=None</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/lambdarepr.html#LambdaPrinter"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.lambdarepr.LambdaPrinter" title="Permalink to this definition">¶</a></dt>
+<dd><p>This printer converts expressions into strings that can be used by
+lambdify.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.printing.lambdarepr.lambdarepr">
+<tt class="descclassname">sympy.printing.lambdarepr.</tt><tt class="descname">lambdarepr</tt><big>(</big><em>expr</em>, <em>**settings</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/lambdarepr.html#lambdarepr"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.lambdarepr.lambdarepr" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns a string usable for lambdifying.</p>
+</dd></dl>
+
+</div>
+<div class="section" id="module-sympy.printing.latex">
+<span id="latexprinter"></span><h2>LatexPrinter<a class="headerlink" href="#module-sympy.printing.latex" title="Permalink to this headline">¶</a></h2>
+<p>This class implements LaTeX printing. See <tt class="docutils literal"><span class="pre">sympy.printing.latex</span></tt>.</p>
+<p>See also the extended LatexPrinter: <a class="reference internal" href="galgebra/latex_ex/latex_ex.html#extended-latex"><em>Extended LaTeXModule for Sympy</em></a></p>
+<dl class="data">
+<dt id="sympy.printing.latex.accepted_latex_functions">
+<tt class="descclassname">sympy.printing.latex.</tt><tt class="descname">accepted_latex_functions</tt><em class="property"> = ['arcsin', 'arccos', 'arctan', 'sin', 'cos', 'tan', 'theta', 'beta', 'alpha', 'gamma', 'sinh', 'cosh', 'tanh', 'sqrt', 'ln', 'log', 'sec', 'csc', 'cot', 'coth', 're', 'im', 'frac', 'root', 'arg', 'zeta', 'psi']</em><a class="headerlink" href="#sympy.printing.latex.accepted_latex_functions" title="Permalink to this definition">¶</a></dt>
+<dd><p>list() -&gt; new empty list
+list(iterable) -&gt; new list initialized from iterable&#8217;s items</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="sympy.printing.latex.LatexPrinter">
+<em class="property">class </em><tt class="descclassname">sympy.printing.latex.</tt><tt class="descname">LatexPrinter</tt><big>(</big><em>settings=None</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/latex.html#LatexPrinter"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.latex.LatexPrinter" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="sympy.printing.latex.latex">
+<tt class="descclassname">sympy.printing.latex.</tt><tt class="descname">latex</tt><big>(</big><em>expr</em>, <em>**settings</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/latex.html#latex"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.latex.latex" title="Permalink to this definition">¶</a></dt>
+<dd><p>Convert the given expression to LaTeX representation.</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">latex</span><span class="p">,</span> <span class="n">sin</span><span class="p">,</span> <span class="n">asin</span><span class="p">,</span> <span class="n">Rational</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.abc</span> <span class="kn">import</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">mu</span><span class="p">,</span> <span class="n">tau</span>
+</pre></div>
+</div>
+<div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="n">latex</span><span class="p">((</span><span class="mi">2</span><span class="o">*</span><span class="n">tau</span><span class="p">)</span><span class="o">**</span><span class="n">Rational</span><span class="p">(</span><span class="mi">7</span><span class="p">,</span><span class="mi">2</span><span class="p">))</span>
+<span class="go">&#39;8 \\sqrt{2} \\tau^{\\frac{7}{2}}&#39;</span>
+</pre></div>
+</div>
+<p>order: Any of the supported monomial orderings (currently &#8220;lex&#8221;, &#8220;grlex&#8221;, or
+&#8220;grevlex&#8221;), &#8220;old&#8221;, and &#8220;none&#8221;. This parameter does nothing for Mul objects.
+Setting order to &#8220;old&#8221; uses the compatibility ordering for Add defined in
+Printer. For very large expressions, set the &#8216;order&#8217; keyword to &#8216;none&#8217; if
+speed is a concern.</p>
+<p>mode: Specifies how the generated code will be delimited. &#8216;mode&#8217; can be one
+of &#8216;plain&#8217;, &#8216;inline&#8217;, &#8216;equation&#8217; or &#8216;equation*&#8217;.  If &#8216;mode&#8217; is set to
+&#8216;plain&#8217;, then the resulting code will not be delimited at all (this is the
+default). If &#8216;mode&#8217; is set to &#8216;inline&#8217; then inline LaTeX $ $ will be used.
+If &#8216;mode&#8217; is set to &#8216;equation&#8217; or &#8216;equation*&#8217;, the resulting code will be
+enclosed in the &#8216;equation&#8217; or &#8216;equation*&#8217; environment (remember to import
+&#8216;amsmath&#8217; for &#8216;equation*&#8217;), unless the &#8216;itex&#8217; option is set. In the latter
+case, the <tt class="docutils literal"><span class="pre">$$</span> <span class="pre">$$</span></tt> syntax is used.</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="n">latex</span><span class="p">((</span><span class="mi">2</span><span class="o">*</span><span class="n">mu</span><span class="p">)</span><span class="o">**</span><span class="n">Rational</span><span class="p">(</span><span class="mi">7</span><span class="p">,</span><span class="mi">2</span><span class="p">),</span> <span class="n">mode</span><span class="o">=</span><span class="s">&#39;plain&#39;</span><span class="p">)</span>
+<span class="go">&#39;8 \\sqrt{2} \\mu^{\\frac{7}{2}}&#39;</span>
+</pre></div>
+</div>
+<div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="n">latex</span><span class="p">((</span><span class="mi">2</span><span class="o">*</span><span class="n">tau</span><span class="p">)</span><span class="o">**</span><span class="n">Rational</span><span class="p">(</span><span class="mi">7</span><span class="p">,</span><span class="mi">2</span><span class="p">),</span> <span class="n">mode</span><span class="o">=</span><span class="s">&#39;inline&#39;</span><span class="p">)</span>
+<span class="go">&#39;$8 \\sqrt{2} \\tau^{\\frac{7}{2}}$&#39;</span>
+</pre></div>
+</div>
+<div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="n">latex</span><span class="p">((</span><span class="mi">2</span><span class="o">*</span><span class="n">mu</span><span class="p">)</span><span class="o">**</span><span class="n">Rational</span><span class="p">(</span><span class="mi">7</span><span class="p">,</span><span class="mi">2</span><span class="p">),</span> <span class="n">mode</span><span class="o">=</span><span class="s">&#39;equation*&#39;</span><span class="p">)</span>
+<span class="go">&#39;\\begin{equation*}8 \\sqrt{2} \\mu^{\\frac{7}{2}}\\end{equation*}&#39;</span>
+</pre></div>
+</div>
+<div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="n">latex</span><span class="p">((</span><span class="mi">2</span><span class="o">*</span><span class="n">mu</span><span class="p">)</span><span class="o">**</span><span class="n">Rational</span><span class="p">(</span><span class="mi">7</span><span class="p">,</span><span class="mi">2</span><span class="p">),</span> <span class="n">mode</span><span class="o">=</span><span class="s">&#39;equation&#39;</span><span class="p">)</span>
+<span class="go">&#39;\\begin{equation}8 \\sqrt{2} \\mu^{\\frac{7}{2}}\\end{equation}&#39;</span>
+</pre></div>
+</div>
+<p>itex: Specifies if itex-specific syntax is used, including emitting <tt class="docutils literal"><span class="pre">$$</span> <span class="pre">$$</span></tt>.</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="n">latex</span><span class="p">((</span><span class="mi">2</span><span class="o">*</span><span class="n">mu</span><span class="p">)</span><span class="o">**</span><span class="n">Rational</span><span class="p">(</span><span class="mi">7</span><span class="p">,</span><span class="mi">2</span><span class="p">),</span> <span class="n">mode</span><span class="o">=</span><span class="s">&#39;equation&#39;</span><span class="p">,</span> <span class="n">itex</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<span class="go">&#39;$$8 \\sqrt{2} \\mu^{\\frac{7}{2}}$$&#39;</span>
+</pre></div>
+</div>
+<p>fold_frac_powers: Emit &#8220;^{p/q}&#8221; instead of &#8220;^{frac{p}{q}}&#8221; for fractional
+powers.</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="n">latex</span><span class="p">((</span><span class="mi">2</span><span class="o">*</span><span class="n">tau</span><span class="p">)</span><span class="o">**</span><span class="n">Rational</span><span class="p">(</span><span class="mi">7</span><span class="p">,</span><span class="mi">2</span><span class="p">),</span> <span class="n">fold_frac_powers</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<span class="go">&#39;8 \\sqrt{2} \\tau^{7/2}&#39;</span>
+</pre></div>
+</div>
+<p>fold_func_brackets: Fold function brackets where applicable.</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="n">latex</span><span class="p">((</span><span class="mi">2</span><span class="o">*</span><span class="n">tau</span><span class="p">)</span><span class="o">**</span><span class="n">sin</span><span class="p">(</span><span class="n">Rational</span><span class="p">(</span><span class="mi">7</span><span class="p">,</span><span class="mi">2</span><span class="p">)))</span>
+<span class="go">&#39;\\left(2 \\tau\\right)^{\\sin{\\left (\\frac{7}{2} \\right )}}&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">latex</span><span class="p">((</span><span class="mi">2</span><span class="o">*</span><span class="n">tau</span><span class="p">)</span><span class="o">**</span><span class="n">sin</span><span class="p">(</span><span class="n">Rational</span><span class="p">(</span><span class="mi">7</span><span class="p">,</span><span class="mi">2</span><span class="p">)),</span> <span class="n">fold_func_brackets</span> <span class="o">=</span> <span class="bp">True</span><span class="p">)</span>
+<span class="go">&#39;\\left(2 \\tau\\right)^{\\sin {\\frac{7}{2}}}&#39;</span>
+</pre></div>
+</div>
+<p>mul_symbol: The symbol to use for multiplication. Can be one of None,
+&#8220;ldot&#8221;, &#8220;dot&#8221;, or &#8220;times&#8221;.</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="n">latex</span><span class="p">((</span><span class="mi">2</span><span class="o">*</span><span class="n">tau</span><span class="p">)</span><span class="o">**</span><span class="n">sin</span><span class="p">(</span><span class="n">Rational</span><span class="p">(</span><span class="mi">7</span><span class="p">,</span><span class="mi">2</span><span class="p">)),</span> <span class="n">mul_symbol</span><span class="o">=</span><span class="s">&quot;times&quot;</span><span class="p">)</span>
+<span class="go">&#39;\\left(2 \\times \\tau\\right)^{\\sin{\\left (\\frac{7}{2} \\right )}}&#39;</span>
+</pre></div>
+</div>
+<p>inv_trig_style: How inverse trig functions should be displayed. Can be one
+of &#8220;abbreviated&#8221;, &#8220;full&#8221;, or &#8220;power&#8221;. Defaults to &#8220;abbreviated&#8221;.</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="n">latex</span><span class="p">(</span><span class="n">asin</span><span class="p">(</span><span class="n">Rational</span><span class="p">(</span><span class="mi">7</span><span class="p">,</span><span class="mi">2</span><span class="p">)))</span>
+<span class="go">&#39;\\operatorname{asin}{\\left (\\frac{7}{2} \\right )}&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">latex</span><span class="p">(</span><span class="n">asin</span><span class="p">(</span><span class="n">Rational</span><span class="p">(</span><span class="mi">7</span><span class="p">,</span><span class="mi">2</span><span class="p">)),</span> <span class="n">inv_trig_style</span><span class="o">=</span><span class="s">&quot;full&quot;</span><span class="p">)</span>
+<span class="go">&#39;\\arcsin{\\left (\\frac{7}{2} \\right )}&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">latex</span><span class="p">(</span><span class="n">asin</span><span class="p">(</span><span class="n">Rational</span><span class="p">(</span><span class="mi">7</span><span class="p">,</span><span class="mi">2</span><span class="p">)),</span> <span class="n">inv_trig_style</span><span class="o">=</span><span class="s">&quot;power&quot;</span><span class="p">)</span>
+<span class="go">&#39;\\sin^{-1}{\\left (\\frac{7}{2} \\right )}&#39;</span>
+</pre></div>
+</div>
+<p>mat_str: Which matrix environment string to emit. &#8220;smallmatrix&#8221;, &#8220;bmatrix&#8221;,
+etc. This paramater currently doesn&#8217;t work. Defaults to &#8220;bmatrix&#8221;.</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="n">latex</span><span class="p">([[</span><span class="mi">1</span><span class="p">]],</span> <span class="n">mat_str</span> <span class="o">=</span> <span class="s">&quot;bmatrix&quot;</span><span class="p">)</span>
+<span class="go">&#39;\\begin{bmatrix}\\begin{bmatrix}1\\end{bmatrix}\\end{bmatrix}&#39;</span>
+</pre></div>
+</div>
+<p>mat_delim: The delimiter to wrap around matrices. Can be one of &#8220;[&#8221;, &#8220;(&#8221;.
+This parameter currently doesn&#8217;t work.</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="n">latex</span><span class="p">([[</span><span class="mi">1</span><span class="p">]],</span> <span class="n">mat_delim</span><span class="o">=</span><span class="s">&quot;(&quot;</span><span class="p">)</span>
+<span class="go">&#39;\\begin{bmatrix}\\begin{bmatrix}1\\end{bmatrix}\\end{bmatrix}&#39;</span>
+</pre></div>
+</div>
+<p>symbol_names: Dictionary of symbols and the custom strings they should be emitted as.</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="n">latex</span><span class="p">(</span><span class="n">x</span><span class="o">**</span><span class="mi">2</span><span class="p">,</span> <span class="n">symbol_names</span><span class="o">=</span><span class="p">{</span><span class="n">x</span><span class="p">:</span><span class="s">&#39;x_i&#39;</span><span class="p">})</span>
+<span class="go">&#39;x_i^{2}&#39;</span>
+</pre></div>
+</div>
+<p>Besides all Basic based expressions, you can recursively
+convert Python containers (lists, tuples and dicts) and
+also SymPy matrices:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="n">latex</span><span class="p">([</span><span class="mi">2</span><span class="o">/</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">],</span> <span class="n">mode</span><span class="o">=</span><span class="s">&#39;inline&#39;</span><span class="p">)</span>
+<span class="go">&#39;$\\begin{bmatrix}\\frac{2}{x}, &amp; y\\end{bmatrix}$&#39;</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.printing.latex.print_latex">
+<tt class="descclassname">sympy.printing.latex.</tt><tt class="descname">print_latex</tt><big>(</big><em>expr</em>, <em>**settings</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/latex.html#print_latex"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.latex.print_latex" title="Permalink to this definition">¶</a></dt>
+<dd><p>Prints LaTeX representation of the given expression.</p>
+</dd></dl>
+
+</div>
+<div class="section" id="module-sympy.printing.mathml">
+<span id="mathmlprinter"></span><h2>MathMLPrinter<a class="headerlink" href="#module-sympy.printing.mathml" title="Permalink to this headline">¶</a></h2>
+<p>This class is responsible for MathML printing. See <tt class="docutils literal"><span class="pre">sympy.printing.mathml</span></tt>.</p>
+<p>More info on mathml content: <a class="reference external" href="http://www.w3.org/TR/MathML2/chapter4.html">http://www.w3.org/TR/MathML2/chapter4.html</a></p>
+<dl class="class">
+<dt id="sympy.printing.mathml.MathMLPrinter">
+<em class="property">class </em><tt class="descclassname">sympy.printing.mathml.</tt><tt class="descname">MathMLPrinter</tt><big>(</big><em>settings=None</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/mathml.html#MathMLPrinter"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.mathml.MathMLPrinter" title="Permalink to this definition">¶</a></dt>
+<dd><p>Prints an expression to the MathML markup language</p>
+<p>Whenever possible tries to use Content markup and not Presentation markup.</p>
+<p>References: <a class="reference external" href="http://www.w3.org/TR/MathML2/">http://www.w3.org/TR/MathML2/</a></p>
+<dl class="method">
+<dt id="sympy.printing.mathml.MathMLPrinter.doprint">
+<tt class="descname">doprint</tt><big>(</big><em>expr</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/mathml.html#MathMLPrinter.doprint"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.mathml.MathMLPrinter.doprint" title="Permalink to this definition">¶</a></dt>
+<dd><p>Prints the expression as MathML.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="sympy.printing.mathml.MathMLPrinter.mathml_tag">
+<tt class="descname">mathml_tag</tt><big>(</big><em>e</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/mathml.html#MathMLPrinter.mathml_tag"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.mathml.MathMLPrinter.mathml_tag" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns the MathML tag for an expression.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.printing.mathml.mathml">
+<tt class="descclassname">sympy.printing.mathml.</tt><tt class="descname">mathml</tt><big>(</big><em>expr</em>, <em>**settings</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/mathml.html#mathml"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.mathml.mathml" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns the MathML representation of expr</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.printing.mathml.print_mathml">
+<tt class="descclassname">sympy.printing.mathml.</tt><tt class="descname">print_mathml</tt><big>(</big><em>expr</em>, <em>**settings</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/mathml.html#print_mathml"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.mathml.print_mathml" title="Permalink to this definition">¶</a></dt>
+<dd><p>Prints a pretty representation of the MathML code for expr</p>
+<p class="rubric">Examples</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="c">##</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.printing.mathml</span> <span class="kn">import</span> <span class="n">print_mathml</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.abc</span> <span class="kn">import</span> <span class="n">x</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">print_mathml</span><span class="p">(</span><span class="n">x</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span> 
+<span class="go">&lt;apply&gt;</span>
+<span class="go">    &lt;plus/&gt;</span>
+<span class="go">    &lt;ci&gt;</span>
+<span class="go">            x</span>
+<span class="go">    &lt;/ci&gt;</span>
+<span class="go">    &lt;cn&gt;</span>
+<span class="go">            1</span>
+<span class="go">    &lt;/cn&gt;</span>
+<span class="go">&lt;/apply&gt;</span>
+</pre></div>
+</div>
+</dd></dl>
+
+</div>
+<div class="section" id="module-sympy.printing.python">
+<span id="pythonprinter"></span><h2>PythonPrinter<a class="headerlink" href="#module-sympy.printing.python" title="Permalink to this headline">¶</a></h2>
+<p>This class implements Python printing. Usage:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">print_python</span><span class="p">,</span> <span class="n">sin</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.abc</span> <span class="kn">import</span> <span class="n">x</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">print_python</span><span class="p">(</span><span class="mi">5</span><span class="o">*</span><span class="n">x</span><span class="o">**</span><span class="mi">3</span> <span class="o">+</span> <span class="n">sin</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
+<span class="go">x = Symbol(&#39;x&#39;)</span>
+<span class="go">e = 5*x**3 + sin(x)</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="module-sympy.printing.repr">
+<span id="reprprinter"></span><h2>ReprPrinter<a class="headerlink" href="#module-sympy.printing.repr" title="Permalink to this headline">¶</a></h2>
+<p>This printer generates executable code. This code satisfies the identity
+<tt class="docutils literal"><span class="pre">eval(srepr(expr))=expr</span></tt>.</p>
+<dl class="class">
+<dt id="sympy.printing.repr.ReprPrinter">
+<em class="property">class </em><tt class="descclassname">sympy.printing.repr.</tt><tt class="descname">ReprPrinter</tt><big>(</big><em>settings=None</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/repr.html#ReprPrinter"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.repr.ReprPrinter" title="Permalink to this definition">¶</a></dt>
+<dd><dl class="method">
+<dt id="sympy.printing.repr.ReprPrinter.emptyPrinter">
+<tt class="descname">emptyPrinter</tt><big>(</big><em>expr</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/repr.html#ReprPrinter.emptyPrinter"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.repr.ReprPrinter.emptyPrinter" title="Permalink to this definition">¶</a></dt>
+<dd><p>The fallback printer.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="sympy.printing.repr.ReprPrinter.reprify">
+<tt class="descname">reprify</tt><big>(</big><em>args</em>, <em>sep</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/repr.html#ReprPrinter.reprify"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.repr.ReprPrinter.reprify" title="Permalink to this definition">¶</a></dt>
+<dd><p>Prints each item in <span class="math">\(args\)</span> and joins them with <span class="math">\(sep\)</span>.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.printing.repr.srepr">
+<tt class="descclassname">sympy.printing.repr.</tt><tt class="descname">srepr</tt><big>(</big><em>expr</em>, <em>**settings</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/repr.html#srepr"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.repr.srepr" title="Permalink to this definition">¶</a></dt>
+<dd><p>return expr in repr form</p>
+</dd></dl>
+
+</div>
+<div class="section" id="module-sympy.printing.str">
+<span id="strprinter"></span><h2>StrPrinter<a class="headerlink" href="#module-sympy.printing.str" title="Permalink to this headline">¶</a></h2>
+<p>This module generates readable representations of SymPy expressions.</p>
+<dl class="class">
+<dt id="sympy.printing.str.StrPrinter">
+<em class="property">class </em><tt class="descclassname">sympy.printing.str.</tt><tt class="descname">StrPrinter</tt><big>(</big><em>settings=None</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/str.html#StrPrinter"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.str.StrPrinter" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="sympy.printing.str.sstrrepr">
+<tt class="descclassname">sympy.printing.str.</tt><tt class="descname">sstrrepr</tt><big>(</big><em>expr</em>, <em>**settings</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/str.html#sstrrepr"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.str.sstrrepr" title="Permalink to this definition">¶</a></dt>
+<dd><p>return expr in mixed str/repr form</p>
+<p>i.e. strings are returned in repr form with quotes, and everything else
+is returned in str form.</p>
+<p>This function could be useful for hooking into sys.displayhook</p>
+</dd></dl>
+
+</div>
+<div class="section" id="module-sympy.printing.tree">
+<span id="tree-printing"></span><h2>Tree Printing<a class="headerlink" href="#module-sympy.printing.tree" title="Permalink to this headline">¶</a></h2>
+<p>The functions in this module create a representation of an expression as a
+tree.</p>
+<dl class="function">
+<dt id="sympy.printing.tree.pprint_nodes">
+<tt class="descclassname">sympy.printing.tree.</tt><tt class="descname">pprint_nodes</tt><big>(</big><em>subtrees</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/tree.html#pprint_nodes"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.tree.pprint_nodes" title="Permalink to this definition">¶</a></dt>
+<dd><p>Prettyprints systems of nodes.</p>
+<p class="rubric">Examples</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.printing.tree</span> <span class="kn">import</span> <span class="n">pprint_nodes</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">print</span> <span class="n">pprint_nodes</span><span class="p">([</span><span class="s">&quot;a&quot;</span><span class="p">,</span> <span class="s">&quot;b1</span><span class="se">\n</span><span class="s">b2&quot;</span><span class="p">,</span> <span class="s">&quot;c&quot;</span><span class="p">])</span>
+<span class="go">+-a</span>
+<span class="go">+-b1</span>
+<span class="go">| b2</span>
+<span class="go">+-c</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.printing.tree.print_node">
+<tt class="descclassname">sympy.printing.tree.</tt><tt class="descname">print_node</tt><big>(</big><em>node</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/tree.html#print_node"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.tree.print_node" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns an information about the &#8220;node&#8221;.</p>
+<p>This includes class name, string representation and assumptions.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.printing.tree.tree">
+<tt class="descclassname">sympy.printing.tree.</tt><tt class="descname">tree</tt><big>(</big><em>node</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/tree.html#tree"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.tree.tree" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns a tree representation of &#8220;node&#8221; as a string.</p>
+<p>It uses print_node() together with pprint_nodes() on node.args recursively.</p>
+<p>See also: print_tree()</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.printing.tree.print_tree">
+<tt class="descclassname">sympy.printing.tree.</tt><tt class="descname">print_tree</tt><big>(</big><em>node</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/tree.html#print_tree"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.tree.print_tree" title="Permalink to this definition">¶</a></dt>
+<dd><p>Prints a tree representation of &#8220;node&#8221;.</p>
+<p class="rubric">Examples</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.printing</span> <span class="kn">import</span> <span class="n">print_tree</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.abc</span> <span class="kn">import</span> <span class="n">x</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">print_tree</span><span class="p">(</span><span class="n">x</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span> 
+<span class="go">Pow: x**2</span>
+<span class="go">+-Symbol: x</span>
+<span class="go">| comparable: False</span>
+<span class="go">+-Integer: 2</span>
+<span class="go">  real: True</span>
+<span class="go">  nonzero: True</span>
+<span class="go">  comparable: True</span>
+<span class="go">  commutative: True</span>
+<span class="go">  infinitesimal: False</span>
+<span class="go">  unbounded: False</span>
+<span class="go">  noninteger: False</span>
+<span class="go">  zero: False</span>
+<span class="go">  complex: True</span>
+<span class="go">  bounded: True</span>
+<span class="go">  rational: True</span>
+<span class="go">  integer: True</span>
+<span class="go">  imaginary: False</span>
+<span class="go">  finite: True</span>
+<span class="go">  irrational: False</span>
+</pre></div>
+</div>
+<p>See also: tree()</p>
+</dd></dl>
+
+</div>
 <div class="section" id="preview">
 <h2>Preview<a class="headerlink" href="#preview" title="Permalink to this headline">¶</a></h2>
 <p>A useful function is <tt class="docutils literal"><span class="pre">preview</span></tt>:</p>
@@ -457,6 +1022,385 @@ to return a file object in read-only mode.</p>
 </dd></dl>
 
 </div>
+<div class="section" id="module-sympy.printing.conventions">
+<span id="implementation-helper-classes-functions"></span><h2>Implementation - Helper Classes/Functions<a class="headerlink" href="#module-sympy.printing.conventions" title="Permalink to this headline">¶</a></h2>
+<dl class="function">
+<dt id="sympy.printing.conventions.split_super_sub">
+<tt class="descclassname">sympy.printing.conventions.</tt><tt class="descname">split_super_sub</tt><big>(</big><em>text</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/conventions.html#split_super_sub"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.conventions.split_super_sub" title="Permalink to this definition">¶</a></dt>
+<dd><p>Split a symbol name into a name, superscripts and subscripts</p>
+<p>The first part of the symbol name is considered to be its actual
+&#8216;name&#8217;, followed by super- and subscripts. Each superscript is
+preceded with a &#8220;^&#8221; character or by &#8220;__&#8221;. Each subscript is preceded
+by a &#8220;_&#8221; character.  The three return values are the actual name, a
+list with superscripts and a list with subscripts.</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.printing.conventions</span> <span class="kn">import</span> <span class="n">split_super_sub</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">split_super_sub</span><span class="p">(</span><span class="s">&#39;a_x^1&#39;</span><span class="p">)</span>
+<span class="go">(&#39;a&#39;, [&#39;1&#39;], [&#39;x&#39;])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">split_super_sub</span><span class="p">(</span><span class="s">&#39;var_sub1__sup_sub2&#39;</span><span class="p">)</span>
+<span class="go">(&#39;var&#39;, [&#39;sup&#39;], [&#39;sub1&#39;, &#39;sub2&#39;])</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<div class="section" id="module-sympy.printing.codeprinter">
+<span id="codeprinter"></span><h3>CodePrinter<a class="headerlink" href="#module-sympy.printing.codeprinter" title="Permalink to this headline">¶</a></h3>
+<p>This class is a base class for other classes that implement code-printing
+functionality, and additionally lists a number of functions that cannot be
+easily translated to C or Fortran.</p>
+<dl class="class">
+<dt id="sympy.printing.codeprinter.CodePrinter">
+<em class="property">class </em><tt class="descclassname">sympy.printing.codeprinter.</tt><tt class="descname">CodePrinter</tt><big>(</big><em>settings=None</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/codeprinter.html#CodePrinter"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.codeprinter.CodePrinter" title="Permalink to this definition">¶</a></dt>
+<dd><p>The base class for code-printing subclasses.</p>
+</dd></dl>
+
+<dl class="exception">
+<dt id="sympy.printing.codeprinter.AssignmentError">
+<em class="property">exception </em><tt class="descclassname">sympy.printing.codeprinter.</tt><tt class="descname">AssignmentError</tt><a class="reference internal" href="../_modules/sympy/printing/codeprinter.html#AssignmentError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.codeprinter.AssignmentError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Raised if an assignment variable for a loop is missing.</p>
+</dd></dl>
+
+</div>
+<div class="section" id="module-sympy.printing.precedence">
+<span id="precedence"></span><h3>Precedence<a class="headerlink" href="#module-sympy.printing.precedence" title="Permalink to this headline">¶</a></h3>
+<dl class="data">
+<dt id="sympy.printing.precedence.PRECEDENCE">
+<tt class="descclassname">sympy.printing.precedence.</tt><tt class="descname">PRECEDENCE</tt><em class="property"> = {'And': 30, 'Add': 40, 'Pow': 60, 'Mul': 50, 'Not': 100, 'Relational': 20, 'Atom': 1000, 'Or': 20, 'Lambda': 1}</em><a class="headerlink" href="#sympy.printing.precedence.PRECEDENCE" title="Permalink to this definition">¶</a></dt>
+<dd><p>Default precedence values for some basic types.</p>
+</dd></dl>
+
+<dl class="data">
+<dt id="sympy.printing.precedence.PRECEDENCE_VALUES">
+<tt class="descclassname">sympy.printing.precedence.</tt><tt class="descname">PRECEDENCE_VALUES</tt><em class="property"> = {'And': 30, 'Sub': 40, 'Pow': 60, 'Add': 40, 'Not': 100, 'Relational': 20, 'Or': 20}</em><a class="headerlink" href="#sympy.printing.precedence.PRECEDENCE_VALUES" title="Permalink to this definition">¶</a></dt>
+<dd><p>A dictionary assigning precedence values to certain classes. These values
+are treated like they were inherited, so not every single class has to be
+named here.</p>
+</dd></dl>
+
+<dl class="data">
+<dt id="sympy.printing.precedence.PRECEDENCE_FUNCTIONS">
+<tt class="descclassname">sympy.printing.precedence.</tt><tt class="descname">PRECEDENCE_FUNCTIONS</tt><em class="property"> = {'Integer': &lt;function precedence_Integer at 0x10f471578&gt;, 'Rational': &lt;function precedence_Rational at 0x10f471500&gt;, 'Mul': &lt;function precedence_Mul at 0x10f471488&gt;}</em><a class="headerlink" href="#sympy.printing.precedence.PRECEDENCE_FUNCTIONS" title="Permalink to this definition">¶</a></dt>
+<dd><p>Sometimes it&#8217;s not enough to assign a fixed precedence value to a
+class. Then a function can be inserted in this dictionary that takes an
+instance of this class as argument and returns the appropriate precedence
+value.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.printing.precedence.precedence">
+<tt class="descclassname">sympy.printing.precedence.</tt><tt class="descname">precedence</tt><big>(</big><em>item</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/precedence.html#precedence"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.precedence.precedence" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns the precedence of a given object.</p>
+</dd></dl>
+
+</div>
+</div>
+<div class="section" id="module-sympy.printing.pretty.pretty_symbology">
+<span id="pretty-printing-implementation-helpers"></span><h2>Pretty-Printing Implementation Helpers<a class="headerlink" href="#module-sympy.printing.pretty.pretty_symbology" title="Permalink to this headline">¶</a></h2>
+<dl class="function">
+<dt id="sympy.printing.pretty.pretty_symbology.U">
+<tt class="descclassname">sympy.printing.pretty.pretty_symbology.</tt><tt class="descname">U</tt><big>(</big><em>name</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/pretty/pretty_symbology.html#U"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.pretty.pretty_symbology.U" title="Permalink to this definition">¶</a></dt>
+<dd><p>unicode character by name or None if not found</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.printing.pretty.pretty_symbology.pretty_use_unicode">
+<tt class="descclassname">sympy.printing.pretty.pretty_symbology.</tt><tt class="descname">pretty_use_unicode</tt><big>(</big><em>flag=None</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/pretty/pretty_symbology.html#pretty_use_unicode"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.pretty.pretty_symbology.pretty_use_unicode" title="Permalink to this definition">¶</a></dt>
+<dd><p>Set whether pretty-printer should use unicode by default</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.printing.pretty.pretty_symbology.pretty_try_use_unicode">
+<tt class="descclassname">sympy.printing.pretty.pretty_symbology.</tt><tt class="descname">pretty_try_use_unicode</tt><big>(</big><big>)</big><a class="reference internal" href="../_modules/sympy/printing/pretty/pretty_symbology.html#pretty_try_use_unicode"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.pretty.pretty_symbology.pretty_try_use_unicode" title="Permalink to this definition">¶</a></dt>
+<dd><p>See if unicode output is available and leverage it if possible</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.printing.pretty.pretty_symbology.xstr">
+<tt class="descclassname">sympy.printing.pretty.pretty_symbology.</tt><tt class="descname">xstr</tt><big>(</big><em>*args</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/pretty/pretty_symbology.html#xstr"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.pretty.pretty_symbology.xstr" title="Permalink to this definition">¶</a></dt>
+<dd><p>call str or unicode depending on current mode</p>
+</dd></dl>
+
+<p>The following two functions return the Unicode version of the inputted Greek
+letter.</p>
+<dl class="function">
+<dt id="sympy.printing.pretty.pretty_symbology.g">
+<tt class="descclassname">sympy.printing.pretty.pretty_symbology.</tt><tt class="descname">g</tt><big>(</big><em>l</em><big>)</big><a class="headerlink" href="#sympy.printing.pretty.pretty_symbology.g" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="sympy.printing.pretty.pretty_symbology.G">
+<tt class="descclassname">sympy.printing.pretty.pretty_symbology.</tt><tt class="descname">G</tt><big>(</big><em>l</em><big>)</big><a class="headerlink" href="#sympy.printing.pretty.pretty_symbology.G" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="data">
+<dt id="sympy.printing.pretty.pretty_symbology.greek_letters">
+<tt class="descclassname">sympy.printing.pretty.pretty_symbology.</tt><tt class="descname">greek_letters</tt><em class="property"> = ['alpha', 'beta', 'gamma', 'delta', 'epsilon', 'zeta', 'eta', 'theta', 'iota', 'kappa', 'lamda', 'mu', 'nu', 'xi', 'omicron', 'pi', 'rho', 'sigma', 'tau', 'upsilon', 'phi', 'chi', 'psi', 'omega']</em><a class="headerlink" href="#sympy.printing.pretty.pretty_symbology.greek_letters" title="Permalink to this definition">¶</a></dt>
+<dd><p>list() -&gt; new empty list
+list(iterable) -&gt; new list initialized from iterable&#8217;s items</p>
+</dd></dl>
+
+<dl class="data">
+<dt id="sympy.printing.pretty.pretty_symbology.greek">
+<tt class="descclassname">sympy.printing.pretty.pretty_symbology.</tt><tt class="descname">greek</tt><em class="property"> = {'tau': (u'\u03c4', u'\u03a4'), 'lamda': (u'\u03bb', u'\u039b'), 'xi': (u'\u03be', u'\u039e'), 'alpha': (u'\u03b1', u'\u0391'), 'zeta': (u'\u03b6', u'\u0396'), 'chi': (u'\u03c7', u'\u03a7'), 'theta': (u'\u03b8', u'\u0398'), 'pi': (u'\u03c0', u'\u03a0'), 'nu': (u'\u03bd', u'\u039d'), 'phi': (u'\u03c6', u'\u03a6'), 'psi': (u'\u03c8', u'\u03a8'), 'epsilon': (u'\u03b5', u'\u0395'), 'omicron': (u'\u03bf', u'\u039f'), 'beta': (u'\u03b2', u'\u0392'), 'rho': (u'\u03c1', u'\u03a1'), 'delta': (u'\u03b4', u'\u0394'), 'upsilon': (u'\u03c5', u'\u03a5'), 'omega': (u'\u03c9', u'\u03a9'), 'kappa': (u'\u03ba', u'\u039a'), 'iota': (u'\u03b9', u'\u0399'), 'mu': (u'\u03bc', u'\u039c'), 'eta': (u'\u03b7', u'\u0397'), 'sigma': (u'\u03c3', u'\u03a3'), 'gamma': (u'\u03b3', u'\u0393'), 'lambda': (u'\u03bb', u'\u039b')}</em><a class="headerlink" href="#sympy.printing.pretty.pretty_symbology.greek" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="data">
+<dt id="sympy.printing.pretty.pretty_symbology.digit_2txt">
+<tt class="descclassname">sympy.printing.pretty.pretty_symbology.</tt><tt class="descname">digit_2txt</tt><em class="property"> = {'1': 'ONE', '0': 'ZERO', '3': 'THREE', '2': 'TWO', '5': 'FIVE', '4': 'FOUR', '7': 'SEVEN', '6': 'SIX', '9': 'NINE', '8': 'EIGHT'}</em><a class="headerlink" href="#sympy.printing.pretty.pretty_symbology.digit_2txt" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="data">
+<dt id="sympy.printing.pretty.pretty_symbology.symb_2txt">
+<tt class="descclassname">sympy.printing.pretty.pretty_symbology.</tt><tt class="descname">symb_2txt</tt><em class="property"> = {'int': 'INTEGRAL', '{}': 'CURLY BRACKET', '[': 'LEFT SQUARE BRACKET', ']': 'RIGHT SQUARE BRACKET', ')': 'RIGHT PARENTHESIS', '(': 'LEFT PARENTHESIS', 'sum': 'SUMMATION', '=': 'EQUALS SIGN', '-': 'MINUS', '{': 'LEFT CURLY BRACKET', '}': 'RIGHT CURLY BRACKET', '+': 'PLUS SIGN'}</em><a class="headerlink" href="#sympy.printing.pretty.pretty_symbology.symb_2txt" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<p>The following functions return the Unicode subscript/superscript version of
+the character.</p>
+<dl class="data">
+<dt id="sympy.printing.pretty.pretty_symbology.sub">
+<tt class="descclassname">sympy.printing.pretty.pretty_symbology.</tt><tt class="descname">sub</tt><em class="property"> = {')': u'\u208e', 'chi': u'\u1d6a', '+': u'\u208a', '-': u'\u208b', '1': u'\u2081', '0': u'\u2080', '3': u'\u2083', '2': u'\u2082', '5': u'\u2085', '4': u'\u2084', '7': u'\u2087', '6': u'\u2086', '9': u'\u2089', '8': u'\u2088', '=': u'\u208c', 'phi': u'\u1d69', 'beta': u'\u1d66', 'rho': u'\u1d68', '(': u'\u208d', 'a': u'\u2090', 'e': u'\u2091', 'i': u'\u1d62', 'o': u'\u2092', 'r': u'\u1d63', 'u': u'\u1d64', 'v': u'\u1d65', 'x': u'\u2093', 'gamma': u'\u1d67'}</em><a class="headerlink" href="#sympy.printing.pretty.pretty_symbology.sub" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="data">
+<dt id="sympy.printing.pretty.pretty_symbology.sup">
+<tt class="descclassname">sympy.printing.pretty.pretty_symbology.</tt><tt class="descname">sup</tt><em class="property"> = {')': u'\u207e', 'i': u'\u2071', '(': u'\u207d', '+': u'\u207a', '-': u'\u207b', 'n': u'\u207f', '1': u'\xb9', '0': u'\u2070', '3': u'\xb3', '2': u'\xb2', '5': u'\u2075', '4': u'\u2074', '7': u'\u2077', '6': u'\u2076', '9': u'\u2079', '8': u'\u2078', '=': u'\u207c'}</em><a class="headerlink" href="#sympy.printing.pretty.pretty_symbology.sup" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<p>The following functions return Unicode vertical objects.</p>
+<dl class="function">
+<dt id="sympy.printing.pretty.pretty_symbology.xobj">
+<tt class="descclassname">sympy.printing.pretty.pretty_symbology.</tt><tt class="descname">xobj</tt><big>(</big><em>symb</em>, <em>length</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/pretty/pretty_symbology.html#xobj"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.pretty.pretty_symbology.xobj" title="Permalink to this definition">¶</a></dt>
+<dd><p>Construct spatial object of given length.</p>
+<p>return: [] of equal-length strings</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.printing.pretty.pretty_symbology.vobj">
+<tt class="descclassname">sympy.printing.pretty.pretty_symbology.</tt><tt class="descname">vobj</tt><big>(</big><em>symb</em>, <em>height</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/pretty/pretty_symbology.html#vobj"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.pretty.pretty_symbology.vobj" title="Permalink to this definition">¶</a></dt>
+<dd><p>Construct vertical object of a given height</p>
+<p>see: xobj</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.printing.pretty.pretty_symbology.hobj">
+<tt class="descclassname">sympy.printing.pretty.pretty_symbology.</tt><tt class="descname">hobj</tt><big>(</big><em>symb</em>, <em>width</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/pretty/pretty_symbology.html#hobj"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.pretty.pretty_symbology.hobj" title="Permalink to this definition">¶</a></dt>
+<dd><p>Construct horizontal object of a given width</p>
+<p>see: xobj</p>
+</dd></dl>
+
+<p>The following constants are for rendering roots and fractions.</p>
+<dl class="data">
+<dt id="sympy.printing.pretty.pretty_symbology.root">
+<tt class="descclassname">sympy.printing.pretty.pretty_symbology.</tt><tt class="descname">root</tt><em class="property"> = {2: u'\u221a', 3: u'\u221b', 4: u'\u221c'}</em><a class="headerlink" href="#sympy.printing.pretty.pretty_symbology.root" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="sympy.printing.pretty.pretty_symbology.VF">
+<tt class="descclassname">sympy.printing.pretty.pretty_symbology.</tt><tt class="descname">VF</tt><big>(</big><em>txt</em><big>)</big><a class="headerlink" href="#sympy.printing.pretty.pretty_symbology.VF" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="data">
+<dt id="sympy.printing.pretty.pretty_symbology.frac">
+<tt class="descclassname">sympy.printing.pretty.pretty_symbology.</tt><tt class="descname">frac</tt><em class="property"> = {(1, 3): u'\u2153', (5, 6): u'\u215a', (1, 4): u'\xbc', (2, 3): u'\u2154', (2, 5): u'\u2156', (5, 8): u'\u215d', (3, 5): u'\u2157', (1, 2): u'\xbd', (7, 8): u'\u215e', (3, 8): u'\u215c', (1, 5): u'\u2155', (1, 8): u'\u215b', (4, 5): u'\u2158', (1, 6): u'\u2159', (3, 4): u'\xbe'}</em><a class="headerlink" href="#sympy.printing.pretty.pretty_symbology.frac" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<p>The following constants/functions are for rendering atoms and symbols.</p>
+<dl class="function">
+<dt id="sympy.printing.pretty.pretty_symbology.xsym">
+<tt class="descclassname">sympy.printing.pretty.pretty_symbology.</tt><tt class="descname">xsym</tt><big>(</big><em>sym</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/pretty/pretty_symbology.html#xsym"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.pretty.pretty_symbology.xsym" title="Permalink to this definition">¶</a></dt>
+<dd><p>get symbology for a &#8216;character&#8217;</p>
+</dd></dl>
+
+<dl class="data">
+<dt id="sympy.printing.pretty.pretty_symbology.atoms_table">
+<tt class="descclassname">sympy.printing.pretty.pretty_symbology.</tt><tt class="descname">atoms_table</tt><em class="property"> = {'Infinity': u'\u221e', 'NegativeInfinity': u'-\u221e', 'Union': u'\u222a', 'Exp1': u'\u212f', 'EmptySet': u'\u2205', 'Pi': u'\u03c0', 'ImaginaryUnit': u'\u2148'}</em><a class="headerlink" href="#sympy.printing.pretty.pretty_symbology.atoms_table" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="sympy.printing.pretty.pretty_symbology.pretty_atom">
+<tt class="descclassname">sympy.printing.pretty.pretty_symbology.</tt><tt class="descname">pretty_atom</tt><big>(</big><em>atom_name</em>, <em>default=None</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/pretty/pretty_symbology.html#pretty_atom"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.pretty.pretty_symbology.pretty_atom" title="Permalink to this definition">¶</a></dt>
+<dd><p>return pretty representation of an atom</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.printing.pretty.pretty_symbology.pretty_symbol">
+<tt class="descclassname">sympy.printing.pretty.pretty_symbology.</tt><tt class="descname">pretty_symbol</tt><big>(</big><em>symb_name</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/pretty/pretty_symbology.html#pretty_symbol"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.pretty.pretty_symbology.pretty_symbol" title="Permalink to this definition">¶</a></dt>
+<dd><p>return pretty representation of a symbol</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.printing.pretty.pretty_symbology.annotated">
+<tt class="descclassname">sympy.printing.pretty.pretty_symbology.</tt><tt class="descname">annotated</tt><big>(</big><em>letter</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/pretty/pretty_symbology.html#annotated"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.pretty.pretty_symbology.annotated" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a stylised drawing of the letter <tt class="docutils literal"><span class="pre">letter</span></tt>, together with
+information on how to put annotations (super- and subscripts to the
+left and to the right) on it.</p>
+<p>See pretty.py functions _print_meijerg, _print_hyper on how to use this
+information.</p>
+</dd></dl>
+
+<span class="target" id="module-sympy.printing.pretty.stringpict"></span><p>Prettyprinter by Jurjen Bos.
+(I hate spammers: mail me at pietjepuk314 at the reverse of ku.oc.oohay).
+All objects have a method that create a &#8220;stringPict&#8221;,
+that can be used in the str method for pretty printing.</p>
+<dl class="docutils">
+<dt>Updates by Jason gedge (email &lt;my last name&gt; at cs mun ca)</dt>
+<dd><ul class="first last simple">
+<li>terminal_string() method</li>
+<li>minor fixes and changes (mostly to prettyForm)</li>
+</ul>
+</dd>
+<dt>TODO:</dt>
+<dd><ul class="first last simple">
+<li>Allow left/center/right alignment options for above/below and
+top/center/bottom alignment options for left/right</li>
+</ul>
+</dd>
+</dl>
+<dl class="class">
+<dt id="sympy.printing.pretty.stringpict.stringPict">
+<em class="property">class </em><tt class="descclassname">sympy.printing.pretty.stringpict.</tt><tt class="descname">stringPict</tt><big>(</big><em>s</em>, <em>baseline=0</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/pretty/stringpict.html#stringPict"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.pretty.stringpict.stringPict" title="Permalink to this definition">¶</a></dt>
+<dd><p>An ASCII picture.
+The pictures are represented as a list of equal length strings.</p>
+<dl class="method">
+<dt id="sympy.printing.pretty.stringpict.stringPict.above">
+<tt class="descname">above</tt><big>(</big><em>*args</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/pretty/stringpict.html#stringPict.above"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.pretty.stringpict.stringPict.above" title="Permalink to this definition">¶</a></dt>
+<dd><p>Put pictures above this picture.
+Returns string, baseline arguments for stringPict.
+Baseline is baseline of bottom picture.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="sympy.printing.pretty.stringpict.stringPict.below">
+<tt class="descname">below</tt><big>(</big><em>*args</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/pretty/stringpict.html#stringPict.below"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.pretty.stringpict.stringPict.below" title="Permalink to this definition">¶</a></dt>
+<dd><p>Put pictures under this picture.
+Returns string, baseline arguments for stringPict.
+Baseline is baseline of top picture</p>
+<p class="rubric">Examples</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.printing.pretty.stringpict</span> <span class="kn">import</span> <span class="n">stringPict</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">print</span> <span class="n">stringPict</span><span class="p">(</span><span class="s">&quot;x+3&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">below</span><span class="p">(</span><span class="n">stringPict</span><span class="o">.</span><span class="n">LINE</span><span class="p">,</span> <span class="s">&#39;3&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> 
+<span class="go">x+3</span>
+<span class="go">---</span>
+<span class="go"> 3</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="method">
+<dt id="sympy.printing.pretty.stringpict.stringPict.height">
+<tt class="descname">height</tt><big>(</big><big>)</big><a class="reference internal" href="../_modules/sympy/printing/pretty/stringpict.html#stringPict.height"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.pretty.stringpict.stringPict.height" title="Permalink to this definition">¶</a></dt>
+<dd><p>The height of the picture in characters.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="sympy.printing.pretty.stringpict.stringPict.left">
+<tt class="descname">left</tt><big>(</big><em>*args</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/pretty/stringpict.html#stringPict.left"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.pretty.stringpict.stringPict.left" title="Permalink to this definition">¶</a></dt>
+<dd><p>Put pictures (left to right) at left.
+Returns string, baseline arguments for stringPict.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="sympy.printing.pretty.stringpict.stringPict.leftslash">
+<tt class="descname">leftslash</tt><big>(</big><big>)</big><a class="reference internal" href="../_modules/sympy/printing/pretty/stringpict.html#stringPict.leftslash"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.pretty.stringpict.stringPict.leftslash" title="Permalink to this definition">¶</a></dt>
+<dd><p>Precede object by a slash of the proper size.</p>
+</dd></dl>
+
+<dl class="staticmethod">
+<dt id="sympy.printing.pretty.stringpict.stringPict.next">
+<em class="property">static </em><tt class="descname">next</tt><big>(</big><em>*args</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/pretty/stringpict.html#stringPict.next"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.pretty.stringpict.stringPict.next" title="Permalink to this definition">¶</a></dt>
+<dd><p>Put a string of stringPicts next to each other.
+Returns string, baseline arguments for stringPict.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="sympy.printing.pretty.stringpict.stringPict.parens">
+<tt class="descname">parens</tt><big>(</big><em>left='('</em>, <em>right=')'</em>, <em>ifascii_nougly=False</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/pretty/stringpict.html#stringPict.parens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.pretty.stringpict.stringPict.parens" title="Permalink to this definition">¶</a></dt>
+<dd><p>Put parentheses around self.
+Returns string, baseline arguments for stringPict.</p>
+<p>left or right can be None or empty string which means &#8216;no paren from
+that side&#8217;</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="sympy.printing.pretty.stringpict.stringPict.render">
+<tt class="descname">render</tt><big>(</big><em>*args</em>, <em>**kwargs</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/pretty/stringpict.html#stringPict.render"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.pretty.stringpict.stringPict.render" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the string form of self.</p>
+<p>Unless the argument line_break is set to False, it will
+break the expression in a form that can be printed
+on the terminal without being broken up.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="sympy.printing.pretty.stringpict.stringPict.right">
+<tt class="descname">right</tt><big>(</big><em>*args</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/pretty/stringpict.html#stringPict.right"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.pretty.stringpict.stringPict.right" title="Permalink to this definition">¶</a></dt>
+<dd><p>Put pictures next to this one.
+Returns string, baseline arguments for stringPict.
+(Multiline) strings are allowed, and are given a baseline of 0.</p>
+<p class="rubric">Examples</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.printing.pretty.stringpict</span> <span class="kn">import</span> <span class="n">stringPict</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">print</span> <span class="n">stringPict</span><span class="p">(</span><span class="s">&quot;10&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">right</span><span class="p">(</span><span class="s">&quot; + &quot;</span><span class="p">,</span><span class="n">stringPict</span><span class="p">(</span><span class="s">&quot;1</span><span class="se">\r</span><span class="s">-</span><span class="se">\r</span><span class="s">2&quot;</span><span class="p">,</span><span class="mi">1</span><span class="p">))[</span><span class="mi">0</span><span class="p">]</span>
+<span class="go">     1</span>
+<span class="go">10 + -</span>
+<span class="go">     2</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="method">
+<dt id="sympy.printing.pretty.stringpict.stringPict.root">
+<tt class="descname">root</tt><big>(</big><em>n=None</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/pretty/stringpict.html#stringPict.root"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.pretty.stringpict.stringPict.root" title="Permalink to this definition">¶</a></dt>
+<dd><p>Produce a nice root symbol.
+Produces ugly results for big n inserts.</p>
+</dd></dl>
+
+<dl class="staticmethod">
+<dt id="sympy.printing.pretty.stringpict.stringPict.stack">
+<em class="property">static </em><tt class="descname">stack</tt><big>(</big><em>*args</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/pretty/stringpict.html#stringPict.stack"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.pretty.stringpict.stringPict.stack" title="Permalink to this definition">¶</a></dt>
+<dd><p>Put pictures on top of each other,
+from top to bottom.
+Returns string, baseline arguments for stringPict.
+The baseline is the baseline of the second picture.
+Everything is centered.
+Baseline is the baseline of the second picture.
+Strings are allowed.
+The special value stringPict.LINE is a row of &#8216;-&#8216; extended to the width.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="sympy.printing.pretty.stringpict.stringPict.terminal_width">
+<tt class="descname">terminal_width</tt><big>(</big><big>)</big><a class="reference internal" href="../_modules/sympy/printing/pretty/stringpict.html#stringPict.terminal_width"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.pretty.stringpict.stringPict.terminal_width" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the terminal width if possible, otherwise return 0.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="sympy.printing.pretty.stringpict.stringPict.width">
+<tt class="descname">width</tt><big>(</big><big>)</big><a class="reference internal" href="../_modules/sympy/printing/pretty/stringpict.html#stringPict.width"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.pretty.stringpict.stringPict.width" title="Permalink to this definition">¶</a></dt>
+<dd><p>The width of the picture in characters.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="sympy.printing.pretty.stringpict.prettyForm">
+<em class="property">class </em><tt class="descclassname">sympy.printing.pretty.stringpict.</tt><tt class="descname">prettyForm</tt><big>(</big><em>s</em>, <em>baseline=0</em>, <em>binding=0</em>, <em>unicode=None</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/pretty/stringpict.html#prettyForm"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.pretty.stringpict.prettyForm" title="Permalink to this definition">¶</a></dt>
+<dd><p>Extension of the stringPict class that knows about
+basic math applications, optimizing double minus signs.</p>
+<p>&#8220;Binding&#8221; is interpreted as follows:</p>
+<div class="highlight-python"><pre>ATOM this is an atom: never needs to be parenthesized
+FUNC this is a function application: parenthesize if added (?)
+DIV  this is a division: make wider division if divided
+POW  this is a power: only parenthesize if exponent
+MUL  this is a multiplication: parenthesize if powered
+ADD  this is an addition: parenthesize if multiplied or powered
+NEG  this is a negative number: optimize if added, parenthesize if multiplied or powered</pre>
+</div>
+<dl class="staticmethod">
+<dt id="sympy.printing.pretty.stringpict.prettyForm.apply">
+<em class="property">static </em><tt class="descname">apply</tt><big>(</big><em>function</em>, <em>*args</em><big>)</big><a class="reference internal" href="../_modules/sympy/printing/pretty/stringpict.html#prettyForm.apply"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.printing.pretty.stringpict.prettyForm.apply" title="Permalink to this definition">¶</a></dt>
+<dd><p>Functions of one or more variables.</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
 </div>
 
 
@@ -472,13 +1416,24 @@ to return a file object in read-only mode.</p>
   <ul>
 <li><a class="reference internal" href="#">Printing System</a><ul>
 <li><a class="reference internal" href="#module-sympy.printing.printer">Printer Class</a></li>
-<li><a class="reference internal" href="#module-sympy.printing.pretty.pretty">PrettyPrinter Class</a></li>
-<li><a class="reference internal" href="#module-sympy.printing.mathml">MathMLPrinter</a></li>
-<li><a class="reference internal" href="#module-sympy.printing.latex">LatexPrinter</a></li>
+<li><a class="reference internal" href="#prettyprinter-class">PrettyPrinter Class</a></li>
+<li><a class="reference internal" href="#module-sympy.printing.ccode">CCodePrinter</a></li>
+<li><a class="reference internal" href="#fortran-printing">Fortran Printing</a></li>
 <li><a class="reference internal" href="#module-sympy.printing.gtk">Gtk</a></li>
+<li><a class="reference internal" href="#module-sympy.printing.lambdarepr">LambdaPrinter</a></li>
+<li><a class="reference internal" href="#module-sympy.printing.latex">LatexPrinter</a></li>
+<li><a class="reference internal" href="#module-sympy.printing.mathml">MathMLPrinter</a></li>
 <li><a class="reference internal" href="#module-sympy.printing.python">PythonPrinter</a></li>
-<li><a class="reference internal" href="#fcode">fcode</a></li>
+<li><a class="reference internal" href="#module-sympy.printing.repr">ReprPrinter</a></li>
+<li><a class="reference internal" href="#module-sympy.printing.str">StrPrinter</a></li>
+<li><a class="reference internal" href="#module-sympy.printing.tree">Tree Printing</a></li>
 <li><a class="reference internal" href="#preview">Preview</a></li>
+<li><a class="reference internal" href="#module-sympy.printing.conventions">Implementation - Helper Classes/Functions</a><ul>
+<li><a class="reference internal" href="#module-sympy.printing.codeprinter">CodePrinter</a></li>
+<li><a class="reference internal" href="#module-sympy.printing.precedence">Precedence</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#module-sympy.printing.pretty.pretty_symbology">Pretty-Printing Implementation Helpers</a></li>
 </ul>
 </li>
 </ul>
@@ -497,7 +1452,7 @@ to return a file object in read-only mode.</p>
 <div id="searchbox" style="display: none">
   <h3>Quick search</h3>
     <form class="search" action="../search.html" method="get">
-      <input type="text" name="q" size="18" />
+      <input type="text" name="q" />
       <input type="submit" value="Go" />
       <input type="hidden" name="check_keywords" value="yes" />
       <input type="hidden" name="area" value="default" />
@@ -529,14 +1484,14 @@ to return a file object in read-only mode.</p>
         <li class="right" >
           <a href="polys/literature.html" title="Literature"
              >previous</a> |</li>
-        <li><a href="../index.html">SymPy v0.7.1-git documentation</a> &raquo;</li>
+        <li><a href="../index.html">SymPy 0.7.1-git documentation</a> &raquo;</li>
           <li><a href="index.html" >SymPy Modules Reference</a> &raquo;</li> 
       </ul>
     </div>
     <div class="footer">
         &copy; Copyright 2008, 2009, 2010, 2011 SymPy Development Team.
-      Last updated on Oct 11, 2011.
-      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.7.
+      Last updated on Dec 17, 2011.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.2.
     </div>
   </body>
 </html>

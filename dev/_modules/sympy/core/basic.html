@@ -3,13 +3,16 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 
+
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>sympy.core.basic &mdash; SymPy v0.7.1-git documentation</title>
+    <title>sympy.core.basic &mdash; SymPy 0.7.1-git documentation</title>
+    
     <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../../../',
@@ -23,7 +26,7 @@
     <script type="text/javascript" src="../../../_static/underscore.js"></script>
     <script type="text/javascript" src="../../../_static/doctools.js"></script>
     <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_HTML-full"></script>
-    <link rel="top" title="SymPy v0.7.1-git documentation" href="../../../index.html" />
+    <link rel="top" title="SymPy 0.7.1-git documentation" href="../../../index.html" />
     <link rel="up" title="sympy" href="../../sympy.html" /> 
   </head>
   <body>
@@ -39,7 +42,7 @@
         <li class="right" >
           <a href="../../../np-modindex.html" title="Python Module Index"
              >modules</a> |</li>
-        <li><a href="../../../index.html">SymPy v0.7.1-git documentation</a> &raquo;</li>
+        <li><a href="../../../index.html">SymPy 0.7.1-git documentation</a> &raquo;</li>
           <li><a href="../../index.html" >Module code</a> &raquo;</li>
           <li><a href="../../sympy.html" accesskey="U">sympy</a> &raquo;</li> 
       </ul>
@@ -53,46 +56,108 @@
   <h1>Source code for sympy.core.basic</h1><div class="highlight"><pre>
 <span class="sd">&quot;&quot;&quot;Base class for all the objects in SymPy&quot;&quot;&quot;</span>
 
-<span class="kn">from</span> <span class="nn">decorators</span> <span class="kn">import</span> <span class="n">_sympifyit</span>
 <span class="kn">from</span> <span class="nn">assumptions</span> <span class="kn">import</span> <span class="n">WithAssumptions</span>
 <span class="kn">from</span> <span class="nn">cache</span> <span class="kn">import</span> <span class="n">cacheit</span>
 <span class="kn">from</span> <span class="nn">core</span> <span class="kn">import</span> <span class="n">BasicType</span><span class="p">,</span> <span class="n">C</span>
 <span class="kn">from</span> <span class="nn">sympify</span> <span class="kn">import</span> <span class="n">_sympify</span><span class="p">,</span> <span class="n">sympify</span><span class="p">,</span> <span class="n">SympifyError</span>
 <span class="kn">from</span> <span class="nn">compatibility</span> <span class="kn">import</span> <span class="nb">callable</span><span class="p">,</span> <span class="nb">reduce</span><span class="p">,</span> <span class="nb">cmp</span><span class="p">,</span> <span class="n">iterable</span>
 <span class="kn">from</span> <span class="nn">sympy.core.decorators</span> <span class="kn">import</span> <span class="n">deprecated</span>
+<span class="kn">from</span> <span class="nn">sympy.core.singleton</span> <span class="kn">import</span> <span class="n">S</span>
 
-<div class="viewcode-block" id="Basic"><a class="viewcode-back" href="../../../modules/core.html#sympy.core.basic.Basic">[docs]</a><span class="k">class</span> <span class="nc">Basic</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+<span class="k">class</span> <span class="nc">PicklableWithSlots</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Mixin class that allows to pickle objects with ``__slots__``.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+
+<span class="sd">    First define a class that mixes :class:`PicklableWithSlots` in::</span>
+
+<span class="sd">        &gt;&gt;&gt; from sympy.core.basic import PicklableWithSlots</span>
+
+<span class="sd">        &gt;&gt;&gt; class Some(PicklableWithSlots):</span>
+<span class="sd">        ...     __slots__ = [&#39;foo&#39;, &#39;bar&#39;]</span>
+<span class="sd">        ...</span>
+<span class="sd">        ...     def __init__(self, foo, bar):</span>
+<span class="sd">        ...         self.foo = foo</span>
+<span class="sd">        ...         self.bar = bar</span>
+
+<span class="sd">    To make :mod:`pickle` happy in doctest we have to use this hack::</span>
+
+<span class="sd">        &gt;&gt;&gt; import __builtin__ as builtin</span>
+<span class="sd">        &gt;&gt;&gt; builtin.Some = Some</span>
+
+<span class="sd">    Next lets see if we can create an instance, pickle it and unpickle::</span>
+
+<span class="sd">        &gt;&gt;&gt; some = Some(&#39;abc&#39;, 10)</span>
+<span class="sd">        &gt;&gt;&gt; some.foo, some.bar</span>
+<span class="sd">        (&#39;abc&#39;, 10)</span>
+
+<span class="sd">        &gt;&gt;&gt; from pickle import dumps, loads</span>
+<span class="sd">        &gt;&gt;&gt; some2 = loads(dumps(some))</span>
+
+<span class="sd">        &gt;&gt;&gt; some2.foo, some2.bar</span>
+<span class="sd">        (&#39;abc&#39;, 10)</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">__slots__</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">def</span> <span class="nf">__getstate__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cls</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">cls</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="c"># This is the case for the instance that gets pickled</span>
+            <span class="n">cls</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span>
+
+        <span class="n">d</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="c"># Get all data that should be stored from super classes</span>
+        <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">cls</span><span class="o">.</span><span class="n">__bases__</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="s">&quot;__getstate__&quot;</span><span class="p">):</span>
+                <span class="n">d</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">__getstate__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">c</span><span class="p">))</span>
+
+        <span class="c"># Get all information that should be stored from cls and return the dict</span>
+        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">cls</span><span class="o">.</span><span class="n">__slots__</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+                <span class="n">d</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">d</span>
+
+    <span class="k">def</span> <span class="nf">__setstate__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">d</span><span class="p">):</span>
+        <span class="c"># All values that were pickled are now assigned to a fresh instance</span>
+        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">d</span><span class="o">.</span><span class="n">iteritems</span><span class="p">():</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="nb">setattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>    <span class="c"># This is needed in cases like Rational :&gt; Half</span>
+                <span class="k">pass</span>
+
+<div class="viewcode-block" id="Basic"><a class="viewcode-back" href="../../../modules/core.html#sympy.core.basic.Basic">[docs]</a><span class="k">class</span> <span class="nc">Basic</span><span class="p">(</span><span class="n">PicklableWithSlots</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Base class for all objects in sympy.</span>
 
 <span class="sd">    Conventions:</span>
 
-<span class="sd">    1)</span>
-<span class="sd">    When you want to access parameters of some instance, always use .args:</span>
-<span class="sd">    Example:</span>
+<span class="sd">    1) Always use ``.args``, when accessing parameters of some instance:</span>
 
-<span class="sd">    &gt;&gt;&gt; from sympy import symbols, cot</span>
-<span class="sd">    &gt;&gt;&gt; from sympy.abc import x, y</span>
+<span class="sd">        &gt;&gt;&gt; from sympy import symbols, cot</span>
+<span class="sd">        &gt;&gt;&gt; from sympy.abc import x, y</span>
 
-<span class="sd">    &gt;&gt;&gt; cot(x).args</span>
-<span class="sd">    (x,)</span>
+<span class="sd">        &gt;&gt;&gt; cot(x).args</span>
+<span class="sd">        (x,)</span>
 
-<span class="sd">    &gt;&gt;&gt; cot(x).args[0]</span>
-<span class="sd">    x</span>
+<span class="sd">        &gt;&gt;&gt; cot(x).args[0]</span>
+<span class="sd">        x</span>
 
-<span class="sd">    &gt;&gt;&gt; (x*y).args</span>
-<span class="sd">    (x, y)</span>
+<span class="sd">        &gt;&gt;&gt; (x*y).args</span>
+<span class="sd">        (x, y)</span>
 
-<span class="sd">    &gt;&gt;&gt; (x*y).args[1]</span>
-<span class="sd">    y</span>
+<span class="sd">        &gt;&gt;&gt; (x*y).args[1]</span>
+<span class="sd">        y</span>
 
 
-<span class="sd">    2) Never use internal methods or variables (the ones prefixed with &quot;_&quot;).</span>
-<span class="sd">    Example:</span>
+<span class="sd">    2) Never use internal methods or variables (the ones prefixed with ``_``):</span>
 
-<span class="sd">    &gt;&gt;&gt; cot(x)._args    #don&#39;t use this, use cot(x).args instead</span>
-<span class="sd">    (x,)</span>
-
+<span class="sd">        &gt;&gt;&gt; cot(x)._args    # do not use this, use cot(x).args instead</span>
+<span class="sd">        (x,)</span>
 
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">__metaclass__</span> <span class="o">=</span> <span class="n">WithAssumptions</span>
@@ -178,31 +243,6 @@
         <span class="c"># relevant attributes as tuple.</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_args</span>
 
-    <span class="k">def</span> <span class="nf">__getstate__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cls</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
-        <span class="k">if</span> <span class="n">cls</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
-            <span class="c"># This is the case for the instance that gets pickled</span>
-            <span class="n">cls</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span>
-
-        <span class="n">d</span> <span class="o">=</span> <span class="p">{}</span>
-        <span class="c"># Get all data that should be stored from super classes</span>
-        <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">cls</span><span class="o">.</span><span class="n">__bases__</span><span class="p">:</span>
-            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="s">&quot;__getstate__&quot;</span><span class="p">):</span>
-                <span class="n">d</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">__getstate__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">c</span><span class="p">))</span>
-
-        <span class="c"># Get all information that should be stored from cls and return the dic</span>
-        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">cls</span><span class="o">.</span><span class="n">__slots__</span><span class="p">:</span>
-            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
-                <span class="n">d</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">d</span>
-
-    <span class="k">def</span> <span class="nf">__setstate__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">d</span><span class="p">):</span>
-        <span class="c"># All values that were pickled are now assigned to a fresh instance</span>
-        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">d</span><span class="o">.</span><span class="n">iteritems</span><span class="p">():</span>
-            <span class="k">try</span><span class="p">:</span>
-                <span class="nb">setattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
-            <span class="k">except</span><span class="p">:</span>
-                <span class="k">pass</span>
-
 <div class="viewcode-block" id="Basic.compare"><a class="viewcode-back" href="../../../modules/core.html#sympy.core.basic.Basic.compare">[docs]</a>    <span class="k">def</span> <span class="nf">compare</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Return -1,0,1 if the object is smaller, equal, or greater than other.</span>
@@ -211,7 +251,8 @@
 <span class="sd">        from the &quot;other&quot; then their classes are ordered according to</span>
 <span class="sd">        the sorted_classes list.</span>
 
-<span class="sd">        Example:</span>
+<span class="sd">        Examples</span>
+<span class="sd">        ========</span>
 
 <span class="sd">        &gt;&gt;&gt; from sympy.abc import x, y</span>
 <span class="sd">        &gt;&gt;&gt; x.compare(y)</span>
@@ -285,7 +326,8 @@
 
 <span class="sd">          1 &lt; x &lt; x**2 &lt; x**3 &lt; O(x**4) etc.</span>
 
-<span class="sd">        Example:</span>
+<span class="sd">        Examples</span>
+<span class="sd">        ========</span>
 
 <span class="sd">        &gt;&gt;&gt; from sympy.abc import x</span>
 <span class="sd">        &gt;&gt;&gt; from sympy import Basic, Number</span>
@@ -332,7 +374,8 @@
 <span class="sd">        This is a convenience function that allows one to create objects from</span>
 <span class="sd">        any iterable, without having to convert to a list or tuple first.</span>
 
-<span class="sd">        Example:</span>
+<span class="sd">        Examples</span>
+<span class="sd">        ========</span>
 
 <span class="sd">        &gt;&gt;&gt; from sympy import Tuple</span>
 <span class="sd">        &gt;&gt;&gt; Tuple.fromiter(i for i in xrange(5))</span>
@@ -365,7 +408,6 @@
 <span class="sd">        [x**(-2), 1/x, x**(1/4), sqrt(x), x, x**(3/2), x**2]</span>
 
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="kn">from</span> <span class="nn">sympy.core.singleton</span> <span class="kn">import</span> <span class="n">S</span>
 
         <span class="c"># XXX: remove this when issue #2070 is fixed</span>
         <span class="k">def</span> <span class="nf">inner_key</span><span class="p">(</span><span class="n">arg</span><span class="p">):</span>
@@ -490,7 +532,8 @@
 <span class="sd">           and number symbols like I and pi. It is possible to request</span>
 <span class="sd">           atoms of any type, however, as demonstrated below.</span>
 
-<span class="sd">           Examples:</span>
+<span class="sd">           Examples</span>
+<span class="sd">           ========</span>
 
 <span class="sd">           &gt;&gt;&gt; from sympy import I, pi, sin</span>
 <span class="sd">           &gt;&gt;&gt; from sympy.abc import x, y</span>
@@ -500,7 +543,8 @@
 <span class="sd">           If one or more types are given, the results will contain only</span>
 <span class="sd">           those types of atoms.</span>
 
-<span class="sd">           Examples:</span>
+<span class="sd">           Examples</span>
+<span class="sd">           ========</span>
 
 <span class="sd">           &gt;&gt;&gt; from sympy import Number, NumberSymbol, Symbol</span>
 <span class="sd">           &gt;&gt;&gt; (1 + x + 2*sin(y + I*pi)).atoms(Symbol)</span>
@@ -634,7 +678,8 @@
 
 <span class="sd">            &gt;&gt; x == x.func(*x.args)</span>
 
-<span class="sd">        Example:</span>
+<span class="sd">        Examples</span>
+<span class="sd">        ========</span>
 
 <span class="sd">        &gt;&gt;&gt; from sympy.abc import x</span>
 <span class="sd">        &gt;&gt;&gt; a = 2*x</span>
@@ -654,7 +699,8 @@
 <div class="viewcode-block" id="Basic.args"><a class="viewcode-back" href="../../../modules/core.html#sympy.core.basic.Basic.args">[docs]</a>    <span class="k">def</span> <span class="nf">args</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Returns a tuple of arguments of &#39;self&#39;.</span>
 
-<span class="sd">        Example:</span>
+<span class="sd">        Examples</span>
+<span class="sd">        ========</span>
 
 <span class="sd">        &gt;&gt;&gt; from sympy import symbols, cot</span>
 <span class="sd">        &gt;&gt;&gt; from sympy.abc import x, y</span>
@@ -683,7 +729,8 @@
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Iterates arguments of &#39;self&#39;.</span>
 
-<span class="sd">        Example:</span>
+<span class="sd">        Examples</span>
+<span class="sd">        ========</span>
 
 <span class="sd">        &gt;&gt;&gt; from sympy.abc import x</span>
 <span class="sd">        &gt;&gt;&gt; a = 2*x</span>
@@ -723,6 +770,14 @@
         <span class="k">except</span> <span class="n">PolynomialError</span><span class="p">:</span>
             <span class="k">return</span> <span class="bp">None</span>
 </div>
+<div class="viewcode-block" id="Basic.as_content_primitive"><a class="viewcode-back" href="../../../modules/core.html#sympy.core.basic.Basic.as_content_primitive">[docs]</a>    <span class="k">def</span> <span class="nf">as_content_primitive</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;A stub to allow Basic args (like Tuple) to be skipped when computing</span>
+<span class="sd">        the content and primitive components of an expression.</span>
+
+<span class="sd">        See docstring of Expr.as_content_primitive</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">,</span> <span class="bp">self</span>
+</div>
 <div class="viewcode-block" id="Basic.subs"><a class="viewcode-back" href="../../../modules/core.html#sympy.core.basic.Basic.subs">[docs]</a>    <span class="k">def</span> <span class="nf">subs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Substitutes an expression.</span>
@@ -730,7 +785,8 @@
 <span class="sd">        Calls either _subs_old_new, _subs_dict or _subs_list depending</span>
 <span class="sd">        if you give it two arguments (old, new), a dictionary or a list.</span>
 
-<span class="sd">        Examples:</span>
+<span class="sd">        Examples</span>
+<span class="sd">        ========</span>
 
 <span class="sd">        &gt;&gt;&gt; from sympy import pi</span>
 <span class="sd">        &gt;&gt;&gt; from sympy.abc import x, y</span>
@@ -778,7 +834,8 @@
 <span class="sd">        Performs an order sensitive substitution from the</span>
 <span class="sd">        input sequence list.</span>
 
-<span class="sd">        Examples:</span>
+<span class="sd">        Examples</span>
+<span class="sd">        ========</span>
 
 <span class="sd">        &gt;&gt;&gt; from sympy.abc import x, y</span>
 <span class="sd">        &gt;&gt;&gt; (x+y)._subs_list( [(x, 3),     (y, x**2)] )</span>
@@ -840,6 +897,53 @@
 
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_subs_list</span><span class="p">(</span><span class="n">subst</span><span class="p">)</span>
 
+<div class="viewcode-block" id="Basic.xreplace"><a class="viewcode-back" href="../../../modules/core.html#sympy.core.basic.Basic.xreplace">[docs]</a>    <span class="k">def</span> <span class="nf">xreplace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rule</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Replace occurrences of objects within the expression.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        rule : dict-like</span>
+<span class="sd">            Expresses a replacement rule</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        xreplace : the result of the replacement</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        --------</span>
+<span class="sd">        &gt;&gt;&gt; from sympy import symbols, pi</span>
+<span class="sd">        &gt;&gt;&gt; x,y, z = symbols(&#39;x y z&#39;)</span>
+<span class="sd">        &gt;&gt;&gt; (1+x*y).xreplace({x: pi})</span>
+<span class="sd">        pi*y + 1</span>
+<span class="sd">        &gt;&gt;&gt; (1+x*y).xreplace({x:pi, y:2})</span>
+<span class="sd">        1 + 2*pi</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        This method operates at a low level and considers only the objects that</span>
+<span class="sd">        appear explicitly as nodes in the expression tree. It is unaware of any</span>
+<span class="sd">        specific meaning attached to an object or its arguments. For instance,</span>
+<span class="sd">        a product of several factors will only be substituted if it matches</span>
+<span class="sd">        exactly a key of the dictionary:</span>
+
+<span class="sd">        &gt;&gt;&gt; (x*y + z).xreplace({x*y: pi})</span>
+<span class="sd">        z + pi</span>
+<span class="sd">        &gt;&gt;&gt; (x*y*z).xreplace({x*y: pi})</span>
+<span class="sd">        x*y*z</span>
+<span class="sd">        &gt;&gt;&gt; (2*x).xreplace({2*x: y, x: z})</span>
+<span class="sd">        y</span>
+<span class="sd">        &gt;&gt;&gt; (2*2*x).xreplace({2*x: y, x: z})</span>
+<span class="sd">        4*z</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span> <span class="ow">in</span> <span class="n">rule</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">rule</span><span class="p">[</span><span class="bp">self</span><span class="p">]</span>
+        <span class="k">elif</span> <span class="n">rule</span><span class="p">:</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">([</span><span class="n">arg</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">rule</span><span class="p">)</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">])</span>
+            <span class="k">if</span> <span class="n">args</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span>
+</div>
     <span class="nd">@deprecated</span>
     <span class="k">def</span> <span class="nf">__contains__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
         <span class="k">if</span> <span class="bp">self</span> <span class="o">==</span> <span class="n">obj</span><span class="p">:</span>
@@ -858,7 +962,8 @@
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Test whether any subexpression matches any of the patterns.</span>
 
-<span class="sd">        Examples:</span>
+<span class="sd">        Examples</span>
+<span class="sd">        ========</span>
 
 <span class="sd">        &gt;&gt;&gt; from sympy import sin, S</span>
 <span class="sd">        &gt;&gt;&gt; from sympy.abc import x, y, z</span>
@@ -966,7 +1071,8 @@
 <span class="sd">        3.1. func -&gt; func</span>
 <span class="sd">             obj.replace(lambda expr: ..., lambda expr: ...)</span>
 
-<span class="sd">        Examples:</span>
+<span class="sd">        Examples</span>
+<span class="sd">        ========</span>
 
 <span class="sd">        &gt;&gt;&gt; from sympy import log, sin, cos, tan, Wild</span>
 <span class="sd">        &gt;&gt;&gt; from sympy.abc import x</span>
@@ -1102,7 +1208,7 @@
         <span class="sd">&quot;&quot;&quot;Count the number of matching subexpressions. &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">group</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
 </div>
-<div class="viewcode-block" id="Basic.matches"><a class="viewcode-back" href="../../../modules/core.html#sympy.core.basic.Basic.matches">[docs]</a>    <span class="k">def</span> <span class="nf">matches</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">repl_dict</span><span class="o">=</span><span class="p">{},</span> <span class="n">evaluate</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+<div class="viewcode-block" id="Basic.matches"><a class="viewcode-back" href="../../../modules/core.html#sympy.core.basic.Basic.matches">[docs]</a>    <span class="k">def</span> <span class="nf">matches</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">repl_dict</span><span class="o">=</span><span class="p">{}):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Helper method for match() - switches the pattern and expr.</span>
 
@@ -1115,9 +1221,6 @@
 <span class="sd">        {x_: -a/b}</span>
 
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="n">evaluate</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">repl_dict</span><span class="p">)</span><span class="o">.</span><span class="n">matches</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">repl_dict</span><span class="p">)</span>
-
         <span class="n">expr</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="p">):</span>
             <span class="k">return</span> <span class="bp">None</span>
@@ -1132,7 +1235,7 @@
         <span class="k">for</span> <span class="n">arg</span><span class="p">,</span> <span class="n">other_arg</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">):</span>
             <span class="k">if</span> <span class="n">arg</span> <span class="o">==</span> <span class="n">other_arg</span><span class="p">:</span>
                 <span class="k">continue</span>
-            <span class="n">d</span> <span class="o">=</span> <span class="n">arg</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">d</span><span class="p">)</span><span class="o">.</span><span class="n">matches</span><span class="p">(</span><span class="n">other_arg</span><span class="p">,</span> <span class="n">d</span><span class="p">)</span>
+            <span class="n">d</span> <span class="o">=</span> <span class="n">arg</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">d</span><span class="p">)</span><span class="o">.</span><span class="n">matches</span><span class="p">(</span><span class="n">other_arg</span><span class="p">,</span> <span class="n">d</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">d</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
                 <span class="k">return</span> <span class="bp">None</span>
         <span class="k">return</span> <span class="n">d</span>
@@ -1146,9 +1249,10 @@
 <span class="sd">        Return ``None`` when expression (self) does not match</span>
 <span class="sd">        with pattern. Otherwise return a dictionary such that::</span>
 
-<span class="sd">          pattern.subs(self.match(pattern)) == self</span>
+<span class="sd">          pattern.xreplace(self.match(pattern)) == self</span>
 
-<span class="sd">        Example:</span>
+<span class="sd">        Examples</span>
+<span class="sd">        ========</span>
 
 <span class="sd">        &gt;&gt;&gt; from sympy import symbols, Wild</span>
 <span class="sd">        &gt;&gt;&gt; from sympy.abc import x, y</span>
@@ -1163,7 +1267,7 @@
 <span class="sd">        &gt;&gt;&gt; e = (2*x)**2</span>
 <span class="sd">        &gt;&gt;&gt; e.match(p*q**r)</span>
 <span class="sd">        {p_: 4, q_: x, r_: 2}</span>
-<span class="sd">        &gt;&gt;&gt; (p*q**r).subs(e.match(p*q**r))</span>
+<span class="sd">        &gt;&gt;&gt; (p*q**r).xreplace(e.match(p*q**r))</span>
 <span class="sd">        4*x**2</span>
 
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -1257,7 +1361,9 @@
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    A parent class for atomic things. An atom is an expression with no subexpressions.</span>
 
-<span class="sd">    Examples: Symbol, Number, Rational, Integer, ...</span>
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+<span class="sd">    Symbol, Number, Rational, Integer, ...</span>
 <span class="sd">    But not: Add, Mul, Pow, ...</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
@@ -1265,7 +1371,7 @@
 
     <span class="n">__slots__</span> <span class="o">=</span> <span class="p">[]</span>
 
-    <span class="k">def</span> <span class="nf">matches</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">repl_dict</span><span class="o">=</span><span class="p">{},</span> <span class="n">evaluate</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">matches</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">repl_dict</span><span class="o">=</span><span class="p">{}):</span>
         <span class="k">if</span> <span class="bp">self</span> <span class="o">==</span> <span class="n">expr</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">repl_dict</span>
 
@@ -1274,6 +1380,9 @@
             <span class="k">return</span> <span class="n">new</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="k">def</span> <span class="nf">xreplace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rule</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">rule</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">doit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">hints</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span>
@@ -1303,7 +1412,7 @@
 <div id="searchbox" style="display: none">
   <h3>Quick search</h3>
     <form class="search" action="../../../search.html" method="get">
-      <input type="text" name="q" size="18" />
+      <input type="text" name="q" />
       <input type="submit" value="Go" />
       <input type="hidden" name="check_keywords" value="yes" />
       <input type="hidden" name="area" value="default" />
@@ -1329,15 +1438,15 @@
         <li class="right" >
           <a href="../../../np-modindex.html" title="Python Module Index"
              >modules</a> |</li>
-        <li><a href="../../../index.html">SymPy v0.7.1-git documentation</a> &raquo;</li>
+        <li><a href="../../../index.html">SymPy 0.7.1-git documentation</a> &raquo;</li>
           <li><a href="../../index.html" >Module code</a> &raquo;</li>
           <li><a href="../../sympy.html" >sympy</a> &raquo;</li> 
       </ul>
     </div>
     <div class="footer">
         &copy; Copyright 2008, 2009, 2010, 2011 SymPy Development Team.
-      Last updated on Oct 11, 2011.
-      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.7.
+      Last updated on Dec 17, 2011.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.2.
     </div>
   </body>
 </html>
