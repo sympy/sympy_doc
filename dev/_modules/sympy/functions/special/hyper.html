@@ -26,6 +26,7 @@
     <script type="text/javascript" src="../../../../_static/underscore.js"></script>
     <script type="text/javascript" src="../../../../_static/doctools.js"></script>
     <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_HTML-full"></script>
+    <link rel="shortcut icon" href="../../../../_static/SymPy-Favicon.ico"/>
     <link rel="top" title="SymPy 0.7.1-git documentation" href="../../../../index.html" />
     <link rel="up" title="sympy" href="../../../sympy.html" /> 
   </head>
@@ -57,6 +58,7 @@
 <span class="sd">&quot;&quot;&quot;Hypergeometric and Meijer G-functions&quot;&quot;&quot;</span>
 
 <span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">S</span>
+<span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="kn">import</span> <span class="n">iterable</span>
 <span class="kn">from</span> <span class="nn">sympy.core.function</span> <span class="kn">import</span> <span class="n">Function</span><span class="p">,</span> <span class="n">ArgumentIndexError</span>
 <span class="kn">from</span> <span class="nn">sympy.core.containers</span> <span class="kn">import</span> <span class="n">Tuple</span>
 <span class="kn">from</span> <span class="nn">sympy.core.sympify</span> <span class="kn">import</span> <span class="n">sympify</span>
@@ -65,31 +67,38 @@
 <span class="c"># TODO should __new__ accept **options?</span>
 <span class="c"># TODO should constructors should check if parameters are sensible?</span>
 
-<span class="c"># TODO when pull request #399 is in, this should be no longer necessary</span>
-<span class="k">def</span> <span class="nf">_make_tuple</span><span class="p">(</span><span class="n">v</span><span class="p">):</span>
+<span class="k">def</span> <span class="nf">_prep_tuple</span><span class="p">(</span><span class="n">v</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Turn an iterable argument V into a Tuple.</span>
+<span class="sd">    Turn an iterable argument V into a Tuple and unpolarify, since both</span>
+<span class="sd">    hypergeometric and meijer g-functions are unbranched in their parameters.</span>
 
 <span class="sd">    Examples:</span>
-<span class="sd">    &gt;&gt;&gt; from sympy.functions.special.hyper import _make_tuple as mt</span>
-<span class="sd">    &gt;&gt;&gt; from sympy.core.containers import Tuple</span>
-<span class="sd">    &gt;&gt;&gt; mt([1, 2, 3])</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.functions.special.hyper import _prep_tuple</span>
+<span class="sd">    &gt;&gt;&gt; _prep_tuple([1, 2, 3])</span>
 <span class="sd">    (1, 2, 3)</span>
-<span class="sd">    &gt;&gt;&gt; mt((4, 5))</span>
+<span class="sd">    &gt;&gt;&gt; _prep_tuple((4, 5))</span>
 <span class="sd">    (4, 5)</span>
-<span class="sd">    &gt;&gt;&gt; mt((7, 8, 9))</span>
+<span class="sd">    &gt;&gt;&gt; _prep_tuple((7, 8, 9))</span>
 <span class="sd">    (7, 8, 9)</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">return</span> <span class="n">Tuple</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">sympify</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">v</span><span class="p">])</span>
+    <span class="kn">from</span> <span class="nn">sympy.simplify.simplify</span> <span class="kn">import</span> <span class="n">unpolarify</span>
+    <span class="k">return</span> <span class="n">Tuple</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">unpolarify</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">v</span><span class="p">])</span>
 
 <span class="k">class</span> <span class="nc">TupleParametersBase</span><span class="p">(</span><span class="n">Function</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot; Base class that takes care of differentiation, when some of</span>
 <span class="sd">        the arguments are actually tuples. &quot;&quot;&quot;</span>
     <span class="k">def</span> <span class="nf">_eval_derivative</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">s</span><span class="p">):</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
-            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s">&#39;differentiation with respect to &#39;</span> \
-                                      <span class="s">&#39;a parameter&#39;</span><span class="p">)</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">fdiff</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+        <span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">Derivative</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">res</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+                <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">p</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_diffargs</span><span class="p">):</span>
+                    <span class="n">m</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_diffargs</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">m</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                        <span class="n">res</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">fdiff</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="n">i</span><span class="p">))</span><span class="o">*</span><span class="n">m</span>
+            <span class="k">return</span> <span class="n">res</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">fdiff</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+        <span class="k">except</span> <span class="p">(</span><span class="n">ArgumentIndexError</span><span class="p">,</span> <span class="ne">NotImplementedError</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">Derivative</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">s</span><span class="p">)</span>
 
     <span class="c"># This is not deduced automatically since there are Tuples as arguments.</span>
     <span class="n">is_commutative</span> <span class="o">=</span> <span class="bp">True</span>
@@ -191,12 +200,12 @@
 
 <span class="sd">    &gt;&gt;&gt; from sympy.abc import a</span>
 <span class="sd">    &gt;&gt;&gt; hyperexpand(hyper([-a], [], x))</span>
-<span class="sd">    (-x + 1)**a</span>
+<span class="sd">    (x*exp_polar(-I*pi) + 1)**a</span>
 
 <span class="sd">    See Also</span>
 <span class="sd">    ========</span>
 
-<span class="sd">    - :func:`sympy.simplify.hyperexpand`</span>
+<span class="sd">    sympy.simplify.hyperexpand</span>
 
 <span class="sd">    References</span>
 <span class="sd">    ==========</span>
@@ -210,7 +219,7 @@
 
     <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">ap</span><span class="p">,</span> <span class="n">bq</span><span class="p">,</span> <span class="n">z</span><span class="p">):</span>
         <span class="c"># TODO should we check convergence conditions?</span>
-        <span class="k">return</span> <span class="n">Function</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">_make_tuple</span><span class="p">(</span><span class="n">ap</span><span class="p">),</span> <span class="n">_make_tuple</span><span class="p">(</span><span class="n">bq</span><span class="p">),</span> <span class="n">z</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Function</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">_prep_tuple</span><span class="p">(</span><span class="n">ap</span><span class="p">),</span> <span class="n">_prep_tuple</span><span class="p">(</span><span class="n">bq</span><span class="p">),</span> <span class="n">z</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">fdiff</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">argindex</span><span class="o">=</span><span class="mi">3</span><span class="p">):</span>
         <span class="k">if</span> <span class="n">argindex</span> <span class="o">!=</span> <span class="mi">3</span><span class="p">:</span>
@@ -224,7 +233,7 @@
         <span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">gamma</span><span class="p">,</span> <span class="n">hyperexpand</span>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ap</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">bq</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">argument</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
             <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ap</span>
-            <span class="n">c</span>    <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">bq</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">c</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">bq</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
             <span class="k">return</span> <span class="n">gamma</span><span class="p">(</span><span class="n">c</span><span class="p">)</span><span class="o">*</span><span class="n">gamma</span><span class="p">(</span><span class="n">c</span> <span class="o">-</span> <span class="n">a</span> <span class="o">-</span> <span class="n">b</span><span class="p">)</span><span class="o">/</span><span class="n">gamma</span><span class="p">(</span><span class="n">c</span> <span class="o">-</span> <span class="n">a</span><span class="p">)</span><span class="o">/</span><span class="n">gamma</span><span class="p">(</span><span class="n">c</span> <span class="o">-</span> <span class="n">b</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">hyperexpand</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
 
@@ -243,6 +252,10 @@
         <span class="sd">&quot;&quot;&quot; Denominator parameters of the hypergeometric function. &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
 </div>
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_diffargs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">ap</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">bq</span>
+
     <span class="nd">@property</span>
 <div class="viewcode-block" id="hyper.eta"><a class="viewcode-back" href="../../../../modules/functions.html#sympy.functions.special.hyper.hyper.eta">[docs]</a>    <span class="k">def</span> <span class="nf">eta</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot; A quantity related to the convergence of the series. &quot;&quot;&quot;</span>
@@ -413,7 +426,7 @@
 <span class="sd">    &gt;&gt;&gt; from sympy import hyperexpand</span>
 <span class="sd">    &gt;&gt;&gt; from sympy.abc import a, b, c</span>
 <span class="sd">    &gt;&gt;&gt; hyperexpand(meijerg([a], [], [c], [b], x), allow_hyper=True)</span>
-<span class="sd">    x**c*gamma(-a + c + 1)*hyper((-a + c + 1,), (-b + c + 1,), -x)/gamma(-b + c + 1)</span>
+<span class="sd">    x**c*gamma(-a + c + 1)*hyper((-a + c + 1,), (-b + c + 1,), x*exp_polar(I*pi))/gamma(-b + c + 1)</span>
 
 <span class="sd">    Thus the Meijer G-function also subsumes many named functions as special</span>
 <span class="sd">    cases. You can use expand_func or hyperexpand to (try to) rewrite a</span>
@@ -428,7 +441,7 @@
 <span class="sd">    See Also</span>
 <span class="sd">    ========</span>
 
-<span class="sd">    - :func:`sympy.simplify.hyperexpand`</span>
+<span class="sd">    sympy.simplify.hyperexpand</span>
 
 <span class="sd">    References</span>
 <span class="sd">    ==========</span>
@@ -450,14 +463,14 @@
         <span class="k">def</span> <span class="nf">tr</span><span class="p">(</span><span class="n">p</span><span class="p">):</span>
             <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">2</span><span class="p">:</span>
                 <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s">&quot;wrong argument&quot;</span><span class="p">)</span>
-            <span class="k">return</span> <span class="n">Tuple</span><span class="p">(</span><span class="n">_make_tuple</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">_make_tuple</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+            <span class="k">return</span> <span class="n">Tuple</span><span class="p">(</span><span class="n">_prep_tuple</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">_prep_tuple</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
 
         <span class="c"># TODO should we check convergence conditions?</span>
         <span class="k">return</span> <span class="n">Function</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">tr</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">tr</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span> <span class="n">args</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
 
     <span class="k">def</span> <span class="nf">fdiff</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">argindex</span><span class="o">=</span><span class="mi">3</span><span class="p">):</span>
         <span class="k">if</span> <span class="n">argindex</span> <span class="o">!=</span> <span class="mi">3</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="n">ArgumentIndexError</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">argindex</span><span class="p">)</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_diff_wrt_parameter</span><span class="p">(</span><span class="n">argindex</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">an</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">1</span><span class="p">:</span>
             <span class="n">a</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">an</span><span class="p">)</span>
             <span class="n">a</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-=</span> <span class="mi">1</span>
@@ -471,6 +484,135 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span>
 
+    <span class="k">def</span> <span class="nf">_diff_wrt_parameter</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idx</span><span class="p">):</span>
+        <span class="c"># Differentiation wrt a parameter can only be done in very special</span>
+        <span class="c"># cases. In particular, if we want to differentiate with respect to</span>
+        <span class="c"># `a`, all other gamma factors have to reduce to rational functions.</span>
+        <span class="c">#</span>
+        <span class="c"># Let MT denote mellin transform. Suppose T(-s) is the gamma factor</span>
+        <span class="c"># appearing in the definition of G. Then</span>
+        <span class="c">#</span>
+        <span class="c">#   MT(log(z)G(z)) = d/ds T(s) = d/da T(s) + ...</span>
+        <span class="c">#</span>
+        <span class="c"># Thus d/da G(z) = log(z)G(z) - ...</span>
+        <span class="c"># The ... can be evaluated as a G function under the above conditions,</span>
+        <span class="c"># the formula being most easily derived by using</span>
+        <span class="c">#</span>
+        <span class="c"># d  Gamma(s + n)    Gamma(s + n) / 1    1                1     \</span>
+        <span class="c"># -- ------------ =  ------------ | - + ----  + ... + --------- |</span>
+        <span class="c"># ds Gamma(s)        Gamma(s)     \ s   s + 1         s + n - 1 /</span>
+        <span class="c">#</span>
+        <span class="c"># which follows from the difference equation of the digamma function.</span>
+        <span class="c"># (There is a similar equation for -n instead of +n).</span>
+
+        <span class="c"># We first figure out how to pair the parameters.</span>
+        <span class="kn">from</span> <span class="nn">sympy.simplify.hyperexpand</span> <span class="kn">import</span> <span class="n">Mod1</span>
+        <span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">log</span>
+        <span class="n">an</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">an</span><span class="p">)</span>
+        <span class="n">ap</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">aother</span><span class="p">)</span>
+        <span class="n">bm</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">bm</span><span class="p">)</span>
+        <span class="n">bq</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">bother</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">idx</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">an</span><span class="p">):</span>
+            <span class="n">an</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">idx</span> <span class="o">-=</span> <span class="nb">len</span><span class="p">(</span><span class="n">an</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">idx</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">ap</span><span class="p">):</span>
+                <span class="n">ap</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">idx</span> <span class="o">-=</span> <span class="nb">len</span><span class="p">(</span><span class="n">ap</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">idx</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">bm</span><span class="p">):</span>
+                    <span class="n">bm</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">bq</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">idx</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">bm</span><span class="p">))</span>
+        <span class="n">pairs1</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">pairs2</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">l1</span><span class="p">,</span> <span class="n">l2</span><span class="p">,</span> <span class="n">pairs</span> <span class="ow">in</span> <span class="p">[(</span><span class="n">an</span><span class="p">,</span> <span class="n">bq</span><span class="p">,</span> <span class="n">pairs1</span><span class="p">),</span> <span class="p">(</span><span class="n">ap</span><span class="p">,</span> <span class="n">bm</span><span class="p">,</span> <span class="n">pairs2</span><span class="p">)]:</span>
+            <span class="k">while</span> <span class="n">l1</span><span class="p">:</span>
+                <span class="n">x</span> <span class="o">=</span> <span class="n">l1</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+                <span class="n">found</span> <span class="o">=</span> <span class="bp">None</span>
+                <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">y</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">l2</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="n">Mod1</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">==</span> <span class="n">Mod1</span><span class="p">(</span><span class="n">y</span><span class="p">):</span>
+                        <span class="n">found</span> <span class="o">=</span> <span class="n">i</span>
+                        <span class="k">break</span>
+                <span class="k">if</span> <span class="n">found</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s">&#39;Derivative not expressible &#39;</span> \
+                                              <span class="s">&#39;as G-function?&#39;</span><span class="p">)</span>
+                <span class="n">y</span> <span class="o">=</span> <span class="n">l2</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+                <span class="n">l2</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+                <span class="n">pairs</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">))</span>
+
+        <span class="c"># Now build the result.</span>
+        <span class="n">res</span> <span class="o">=</span> <span class="n">log</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">argument</span><span class="p">)</span><span class="o">*</span><span class="bp">self</span>
+
+        <span class="k">for</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">pairs1</span><span class="p">:</span>
+            <span class="n">sign</span> <span class="o">=</span> <span class="mi">1</span>
+            <span class="n">n</span> <span class="o">=</span> <span class="n">a</span> <span class="o">-</span> <span class="n">b</span>
+            <span class="n">base</span> <span class="o">=</span> <span class="n">b</span>
+            <span class="k">if</span> <span class="n">n</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">sign</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+                <span class="n">n</span> <span class="o">=</span> <span class="n">b</span> <span class="o">-</span> <span class="n">a</span>
+                <span class="n">base</span> <span class="o">=</span> <span class="n">a</span>
+            <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+                <span class="n">res</span> <span class="o">-=</span> <span class="n">sign</span><span class="o">*</span><span class="n">meijerg</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">an</span> <span class="o">+</span> <span class="p">(</span><span class="n">base</span> <span class="o">+</span> <span class="n">k</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,),</span> <span class="bp">self</span><span class="o">.</span><span class="n">aother</span><span class="p">,</span>
+                                    <span class="bp">self</span><span class="o">.</span><span class="n">bm</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">bother</span> <span class="o">+</span> <span class="p">(</span><span class="n">base</span> <span class="o">+</span> <span class="n">k</span> <span class="o">+</span> <span class="mi">0</span><span class="p">,),</span>
+                                    <span class="bp">self</span><span class="o">.</span><span class="n">argument</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">pairs2</span><span class="p">:</span>
+            <span class="n">sign</span> <span class="o">=</span> <span class="mi">1</span>
+            <span class="n">n</span> <span class="o">=</span> <span class="n">b</span> <span class="o">-</span> <span class="n">a</span>
+            <span class="n">base</span> <span class="o">=</span> <span class="n">a</span>
+            <span class="k">if</span> <span class="n">n</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">sign</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+                <span class="n">n</span> <span class="o">=</span> <span class="n">a</span> <span class="o">-</span> <span class="n">b</span>
+                <span class="n">base</span> <span class="o">=</span> <span class="n">b</span>
+            <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+                <span class="n">res</span> <span class="o">-=</span> <span class="n">sign</span><span class="o">*</span><span class="n">meijerg</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">an</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">aother</span> <span class="o">+</span> <span class="p">(</span><span class="n">base</span> <span class="o">+</span> <span class="n">k</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,),</span>
+                                    <span class="bp">self</span><span class="o">.</span><span class="n">bm</span> <span class="o">+</span> <span class="p">(</span><span class="n">base</span> <span class="o">+</span> <span class="n">k</span> <span class="o">+</span> <span class="mi">0</span><span class="p">,),</span> <span class="bp">self</span><span class="o">.</span><span class="n">bother</span><span class="p">,</span>
+                                    <span class="bp">self</span><span class="o">.</span><span class="n">argument</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">res</span>
+
+<div class="viewcode-block" id="meijerg.get_period"><a class="viewcode-back" href="../../../../modules/functions.html#sympy.functions.special.hyper.meijerg.get_period">[docs]</a>    <span class="k">def</span> <span class="nf">get_period</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a number P such that G(x*exp(I*P)) == G(x).</span>
+
+<span class="sd">        &gt;&gt;&gt; from sympy.functions.special.hyper import meijerg</span>
+<span class="sd">        &gt;&gt;&gt; from sympy.abc import z</span>
+<span class="sd">        &gt;&gt;&gt; from sympy import pi, S</span>
+
+<span class="sd">        &gt;&gt;&gt; meijerg([1], [], [], [], z).get_period()</span>
+<span class="sd">        2*pi</span>
+<span class="sd">        &gt;&gt;&gt; meijerg([pi], [], [], [], z).get_period()</span>
+<span class="sd">        oo</span>
+<span class="sd">        &gt;&gt;&gt; meijerg([1, 2], [], [], [], z).get_period()</span>
+<span class="sd">        oo</span>
+<span class="sd">        &gt;&gt;&gt; meijerg([1,1], [2], [1, S(1)/2, S(1)/3], [1], z).get_period()</span>
+<span class="sd">        12*pi</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c"># This follows from slater&#39;s theorem.</span>
+        <span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">oo</span><span class="p">,</span> <span class="n">ilcm</span><span class="p">,</span> <span class="n">pi</span><span class="p">,</span> <span class="n">Min</span>
+        <span class="kn">from</span> <span class="nn">sympy.simplify.hyperexpand</span> <span class="kn">import</span> <span class="n">Mod1</span>
+        <span class="k">def</span> <span class="nf">compute</span><span class="p">(</span><span class="n">l</span><span class="p">):</span>
+            <span class="c"># first check that no two differ by an integer</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">b</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">l</span><span class="p">):</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">b</span><span class="o">.</span><span class="n">is_Rational</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">oo</span>
+                <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">l</span><span class="p">)):</span>
+                    <span class="k">if</span> <span class="n">Mod1</span><span class="p">(</span><span class="n">b</span><span class="p">)</span> <span class="o">==</span> <span class="n">Mod1</span><span class="p">(</span><span class="n">l</span><span class="p">[</span><span class="n">j</span><span class="p">]):</span>
+                        <span class="k">return</span> <span class="n">oo</span>
+            <span class="k">return</span> <span class="nb">reduce</span><span class="p">(</span><span class="n">ilcm</span><span class="p">,</span> <span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">q</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">l</span><span class="p">),</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">beta</span> <span class="o">=</span> <span class="n">compute</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">bm</span><span class="p">)</span>
+        <span class="n">alpha</span> <span class="o">=</span> <span class="n">compute</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">an</span><span class="p">)</span>
+        <span class="n">p</span><span class="p">,</span> <span class="n">q</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ap</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">bq</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">p</span> <span class="o">==</span> <span class="n">q</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">beta</span> <span class="o">==</span> <span class="n">oo</span> <span class="ow">or</span> <span class="n">alpha</span> <span class="o">==</span> <span class="n">oo</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">oo</span>
+            <span class="k">return</span> <span class="mi">2</span><span class="o">*</span><span class="n">pi</span><span class="o">*</span><span class="n">ilcm</span><span class="p">(</span><span class="n">alpha</span><span class="p">,</span> <span class="n">beta</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">p</span> <span class="o">&lt;</span> <span class="n">q</span><span class="p">:</span>
+            <span class="k">return</span> <span class="mi">2</span><span class="o">*</span><span class="n">pi</span><span class="o">*</span><span class="n">beta</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="mi">2</span><span class="o">*</span><span class="n">pi</span><span class="o">*</span><span class="n">alpha</span>
+</div>
     <span class="k">def</span> <span class="nf">_eval_expand_func</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">deep</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="o">**</span><span class="n">hints</span><span class="p">):</span>
         <span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">hyperexpand</span>
         <span class="k">return</span> <span class="n">hyperexpand</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
@@ -510,6 +652,10 @@
         <span class="sd">&quot;&quot;&quot; Second set of denominator parameters. &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
 </div>
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_diffargs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">ap</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">bq</span>
+
     <span class="nd">@property</span>
 <div class="viewcode-block" id="meijerg.nu"><a class="viewcode-back" href="../../../../modules/functions.html#sympy.functions.special.hyper.meijerg.nu">[docs]</a>    <span class="k">def</span> <span class="nf">nu</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot; A quantity related to the convergence region of the integral,</span>
@@ -566,8 +712,8 @@
       </ul>
     </div>
     <div class="footer">
-        &copy; Copyright 2008, 2009, 2010, 2011 SymPy Development Team.
-      Last updated on Dec 17, 2011.
+        &copy; Copyright 2008, 2009, 2010, 2011, 2012 SymPy Development Team.
+      Last updated on Jan 05, 2012.
       Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.2.
     </div>
   </body>

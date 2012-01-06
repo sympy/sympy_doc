@@ -26,6 +26,7 @@
     <script type="text/javascript" src="../../../_static/underscore.js"></script>
     <script type="text/javascript" src="../../../_static/doctools.js"></script>
     <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_HTML-full"></script>
+    <link rel="shortcut icon" href="../../../_static/SymPy-Favicon.ico"/>
     <link rel="top" title="SymPy 0.7.1-git documentation" href="../../../index.html" />
     <link rel="up" title="sympy" href="../../sympy.html" /> 
   </head>
@@ -67,20 +68,20 @@
 <span class="sd">unsurmountable issues that can only be tackled with dedicated code generator:</span>
 
 <span class="sd">- For C, one needs both a code and a header file, while the printing routines</span>
-<span class="sd">generate just one string. This code generator can be extended to support .pyf</span>
-<span class="sd">files for f2py.</span>
+<span class="sd">  generate just one string. This code generator can be extended to support .pyf</span>
+<span class="sd">  files for f2py.</span>
 
 <span class="sd">- Sympy functions are not concerned with programming-technical issues, such as</span>
-<span class="sd">input, output and input-output arguments. Other examples are contiguous or</span>
-<span class="sd">non-contiguous arrays, including headers of other libraries such as gsl or others.</span>
+<span class="sd">  input, output and input-output arguments. Other examples are contiguous or</span>
+<span class="sd">  non-contiguous arrays, including headers of other libraries such as gsl or others.</span>
 
 <span class="sd">- It is highly interesting to evaluate several sympy functions in one C routine,</span>
-<span class="sd">eventually sharing common intermediate results with the help of the cse routine.</span>
-<span class="sd">This is more than just printing.</span>
+<span class="sd">  eventually sharing common intermediate results with the help of the cse routine.</span>
+<span class="sd">  This is more than just printing.</span>
 
 <span class="sd">- From the programming perspective, expressions with constants should be</span>
-<span class="sd">evaluated in the code generator as much as possible. This is different for</span>
-<span class="sd">printing.</span>
+<span class="sd">  evaluated in the code generator as much as possible. This is different for</span>
+<span class="sd">  printing.</span>
 
 
 <span class="sd">--- Basic assumptions ---</span>
@@ -103,29 +104,31 @@
 <span class="sd">+ Friendly functions that are easier to use than the rigorous Routine/CodeGen</span>
 <span class="sd">  workflow.</span>
 <span class="sd">+ Integer and Real numbers as input and output</span>
-<span class="sd">- Optional extra include lines for libraries/objects that can eval special</span>
-<span class="sd">  functions</span>
-<span class="sd">- Test other C compilers and libraries: gcc, tcc, libtcc, gcc+gsl, ...</span>
 <span class="sd">+ Output arguments</span>
 <span class="sd">+ InputOutput arguments</span>
 <span class="sd">+ Sort input/output arguments properly</span>
 <span class="sd">+ Contiguous array arguments (numpy matrices)</span>
+<span class="sd">+ Also generate .pyf code for f2py (in autowrap module)</span>
+<span class="sd">+ Isolate constants and evaluate them beforehand in double precision</span>
+<span class="sd">+ Fortran 90</span>
+
+<span class="sd">- Common Subexpression Elimination</span>
+<span class="sd">- User defined comments in the generated code</span>
+<span class="sd">- Optional extra include lines for libraries/objects that can eval special</span>
+<span class="sd">  functions</span>
+<span class="sd">- Test other C compilers and libraries: gcc, tcc, libtcc, gcc+gsl, ...</span>
 <span class="sd">- Contiguous array arguments (sympy matrices)</span>
 <span class="sd">- Non-contiguous array arguments (sympy matrices)</span>
 <span class="sd">- ccode must raise an error when it encounters something that can not be</span>
 <span class="sd">  translated into c. ccode(integrate(sin(x)/x, x)) does not make sense.</span>
 <span class="sd">- Complex numbers as input and output</span>
-<span class="sd">+ Also generate .pyf code for f2py (in autowrap module)</span>
 <span class="sd">- A default complex datatype</span>
 <span class="sd">- Include extra information in the header: date, user, hostname, sha1 hash, ...</span>
-<span class="sd">+ Isolate constants and evaluate them beforehand in double precision</span>
-<span class="sd">- Common Subexpression Elimination</span>
-<span class="sd">- User defined comments in the generated code</span>
 <span class="sd">- Fortran 77</span>
-<span class="sd">+ Fortran 90</span>
 <span class="sd">- C++</span>
 <span class="sd">- Python</span>
 <span class="sd">- ...</span>
+
 <span class="sd">&quot;&quot;&quot;</span>
 <span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">with_statement</span>
 
@@ -139,7 +142,6 @@
 <span class="kn">from</span> <span class="nn">sympy.printing.ccode</span> <span class="kn">import</span> <span class="n">ccode</span><span class="p">,</span> <span class="n">CCodePrinter</span>
 <span class="kn">from</span> <span class="nn">sympy.printing.fcode</span> <span class="kn">import</span> <span class="n">fcode</span><span class="p">,</span> <span class="n">FCodePrinter</span>
 <span class="kn">from</span> <span class="nn">sympy.tensor</span> <span class="kn">import</span> <span class="n">Idx</span><span class="p">,</span> <span class="n">Indexed</span><span class="p">,</span> <span class="n">IndexedBase</span>
-<span class="kn">from</span> <span class="nn">sympy.utilities</span> <span class="kn">import</span> <span class="n">flatten</span>
 
 
 
@@ -286,7 +288,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">local_vars</span> <span class="o">=</span> <span class="n">local_vars</span>
 </div>
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">variables</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<div class="viewcode-block" id="Routine.variables"><a class="viewcode-back" href="../../../modules/utilities/codegen.html#sympy.utilities.codegen.Routine.variables">[docs]</a>    <span class="k">def</span> <span class="nf">variables</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Returns a set containing all variables possibly used in this routine.</span>
 
 <span class="sd">        For routines with unnamed return values, the dummies that may or may</span>
@@ -298,7 +300,7 @@
         <span class="k">for</span> <span class="n">res</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">results</span><span class="p">:</span>
             <span class="n">v</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">res</span><span class="o">.</span><span class="n">result_var</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">v</span>
-
+</div>
     <span class="nd">@property</span>
 <div class="viewcode-block" id="Routine.result_variables"><a class="viewcode-back" href="../../../modules/utilities/codegen.html#sympy.utilities.codegen.Routine.result_variables">[docs]</a>    <span class="k">def</span> <span class="nf">result_variables</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Returns a list of OutputArgument, InOutArgument and Result.</span>
@@ -309,27 +311,27 @@
         <span class="n">args</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">results</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">args</span>
 </div></div>
-<span class="k">class</span> <span class="nc">DataType</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+<div class="viewcode-block" id="DataType"><a class="viewcode-back" href="../../../modules/utilities/codegen.html#sympy.utilities.codegen.DataType">[docs]</a><span class="k">class</span> <span class="nc">DataType</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Holds strings for a certain datatype in different programming languages.&quot;&quot;&quot;</span>
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cname</span><span class="p">,</span> <span class="n">fname</span><span class="p">,</span> <span class="n">pyname</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">cname</span> <span class="o">=</span> <span class="n">cname</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">fname</span> <span class="o">=</span> <span class="n">fname</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">pyname</span> <span class="o">=</span> <span class="n">pyname</span>
 
-
+</div>
 <span class="n">default_datatypes</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s">&quot;int&quot;</span><span class="p">:</span> <span class="n">DataType</span><span class="p">(</span><span class="s">&quot;int&quot;</span><span class="p">,</span> <span class="s">&quot;INTEGER*4&quot;</span><span class="p">,</span> <span class="s">&quot;int&quot;</span><span class="p">),</span>
     <span class="s">&quot;float&quot;</span><span class="p">:</span> <span class="n">DataType</span><span class="p">(</span><span class="s">&quot;double&quot;</span><span class="p">,</span> <span class="s">&quot;REAL*8&quot;</span><span class="p">,</span> <span class="s">&quot;float&quot;</span><span class="p">)</span>
 <span class="p">}</span>
 
 
-<span class="k">def</span> <span class="nf">get_default_datatype</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+<div class="viewcode-block" id="get_default_datatype"><a class="viewcode-back" href="../../../modules/utilities/codegen.html#sympy.utilities.codegen.get_default_datatype">[docs]</a><span class="k">def</span> <span class="nf">get_default_datatype</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Derives a decent data type based on the assumptions on the expression.&quot;&quot;&quot;</span>
     <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_integer</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">default_datatypes</span><span class="p">[</span><span class="s">&quot;int&quot;</span><span class="p">]</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">default_datatypes</span><span class="p">[</span><span class="s">&quot;float&quot;</span><span class="p">]</span>
-
+</div>
 <span class="k">class</span> <span class="nc">Variable</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Represents a typed variable.&quot;&quot;&quot;</span>
 
@@ -383,7 +385,7 @@
             <span class="k">raise</span> <span class="n">CodeGenError</span><span class="p">(</span><span class="s">&quot;Has datatypes for languages: </span><span class="si">%s</span><span class="s">&quot;</span> <span class="o">%</span>
                     <span class="s">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_datatype</span><span class="p">))</span>
 
-<span class="k">class</span> <span class="nc">Argument</span><span class="p">(</span><span class="n">Variable</span><span class="p">):</span>
+<div class="viewcode-block" id="Argument"><a class="viewcode-back" href="../../../modules/utilities/codegen.html#sympy.utilities.codegen.Argument">[docs]</a><span class="k">class</span> <span class="nc">Argument</span><span class="p">(</span><span class="n">Variable</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;An abstract Argument data structure: a name and a data type.</span>
 
 <span class="sd">       This structure is refined in the descendants below.</span>
@@ -394,7 +396,7 @@
 <span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="n">Variable</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">datatype</span><span class="p">,</span> <span class="n">dimensions</span><span class="p">,</span> <span class="n">precision</span><span class="p">)</span>
-
+</div>
 <span class="k">class</span> <span class="nc">InputArgument</span><span class="p">(</span><span class="n">Argument</span><span class="p">):</span>
     <span class="k">pass</span>
 
@@ -428,7 +430,7 @@
         <span class="n">Argument</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">datatype</span><span class="p">,</span> <span class="n">dimensions</span><span class="p">,</span> <span class="n">precision</span><span class="p">)</span>
         <span class="n">ResultBase</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">result_var</span><span class="p">)</span>
 
-<span class="k">class</span> <span class="nc">Result</span><span class="p">(</span><span class="n">ResultBase</span><span class="p">):</span>
+<div class="viewcode-block" id="Result"><a class="viewcode-back" href="../../../modules/utilities/codegen.html#sympy.utilities.codegen.Result">[docs]</a><span class="k">class</span> <span class="nc">Result</span><span class="p">(</span><span class="n">ResultBase</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;An expression for a scalar return value.</span>
 
 <span class="sd">       The name result is used to avoid conflicts with the reserved word</span>
@@ -457,8 +459,8 @@
 <span class="c">#</span>
 <span class="c"># Transformation of routine objects into code</span>
 <span class="c">#</span>
-
-<span class="k">class</span> <span class="nc">CodeGen</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+</div>
+<div class="viewcode-block" id="CodeGen"><a class="viewcode-back" href="../../../modules/utilities/codegen.html#sympy.utilities.codegen.CodeGen">[docs]</a><span class="k">class</span> <span class="nc">CodeGen</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Abstract class for the code generators.&quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">project</span><span class="o">=</span><span class="s">&quot;project&quot;</span><span class="p">):</span>
@@ -506,7 +508,7 @@
                 <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">filename</span><span class="p">,</span> <span class="n">contents</span><span class="o">.</span><span class="n">getvalue</span><span class="p">()))</span>
             <span class="k">return</span> <span class="n">result</span>
 </div>
-    <span class="k">def</span> <span class="nf">dump_code</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">routines</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">prefix</span><span class="p">,</span> <span class="n">header</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">empty</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+<div class="viewcode-block" id="CodeGen.dump_code"><a class="viewcode-back" href="../../../modules/utilities/codegen.html#sympy.utilities.codegen.CodeGen.dump_code">[docs]</a>    <span class="k">def</span> <span class="nf">dump_code</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">routines</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">prefix</span><span class="p">,</span> <span class="n">header</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">empty</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Write the code file by calling language specific methods in correct order</span>
 
 <span class="sd">        The generated file contains all the definitions of the routines in</span>
@@ -551,7 +553,7 @@
 
         <span class="k">if</span> <span class="n">code_lines</span><span class="p">:</span>
             <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">code_lines</span><span class="p">)</span>
-
+</div></div>
 <span class="k">class</span> <span class="nc">CodeGenError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
     <span class="k">pass</span>
 
@@ -590,7 +592,7 @@
         <span class="n">code_lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s">&quot; &quot;</span> <span class="o">+</span> <span class="s">&quot;*&quot;</span><span class="o">*</span><span class="mi">78</span> <span class="o">+</span> <span class="s">&quot;/</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">code_lines</span>
 
-    <span class="k">def</span> <span class="nf">get_prototype</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">routine</span><span class="p">):</span>
+<div class="viewcode-block" id="CCodeGen.get_prototype"><a class="viewcode-back" href="../../../modules/utilities/codegen.html#sympy.utilities.codegen.CCodeGen.get_prototype">[docs]</a>    <span class="k">def</span> <span class="nf">get_prototype</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">routine</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Returns a string for the function prototype for the given routine.</span>
 
 <span class="sd">           If the routine has multiple result objects, an CodeGenError is</span>
@@ -616,7 +618,7 @@
                 <span class="n">type_args</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">arg</span><span class="o">.</span><span class="n">get_datatype</span><span class="p">(</span><span class="s">&#39;C&#39;</span><span class="p">),</span> <span class="n">name</span><span class="p">))</span>
         <span class="n">arguments</span> <span class="o">=</span> <span class="s">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span> <span class="s">&quot;</span><span class="si">%s</span><span class="s"> </span><span class="si">%s</span><span class="s">&quot;</span> <span class="o">%</span> <span class="n">t</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">type_args</span><span class="p">])</span>
         <span class="k">return</span> <span class="s">&quot;</span><span class="si">%s</span><span class="s"> </span><span class="si">%s</span><span class="s">(</span><span class="si">%s</span><span class="s">)&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">ctype</span><span class="p">,</span> <span class="n">routine</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">arguments</span><span class="p">)</span>
-
+</div>
     <span class="k">def</span> <span class="nf">_preprosessor_statements</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">prefix</span><span class="p">):</span>
         <span class="n">code_lines</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="n">code_lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s">&quot;#include </span><span class="se">\&quot;</span><span class="si">%s</span><span class="s">.h</span><span class="se">\&quot;\n</span><span class="s">&quot;</span> <span class="o">%</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">prefix</span><span class="p">))</span>
@@ -665,12 +667,12 @@
     <span class="k">def</span> <span class="nf">_get_routine_ending</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">routine</span><span class="p">):</span>
         <span class="k">return</span> <span class="p">[</span><span class="s">&quot;}</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">]</span>
 
-    <span class="k">def</span> <span class="nf">dump_c</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">routines</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">prefix</span><span class="p">,</span> <span class="n">header</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">empty</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">dump_code</span><span class="p">(</span><span class="n">routines</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">prefix</span><span class="p">,</span> <span class="n">header</span><span class="p">,</span> <span class="n">empty</span><span class="p">)</span>
+<div class="viewcode-block" id="CCodeGen.dump_c"><a class="viewcode-back" href="../../../modules/utilities/codegen.html#sympy.utilities.codegen.CCodeGen.dump_c">[docs]</a>    <span class="k">def</span> <span class="nf">dump_c</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">routines</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">prefix</span><span class="p">,</span> <span class="n">header</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">empty</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dump_code</span><span class="p">(</span><span class="n">routines</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">prefix</span><span class="p">,</span> <span class="n">header</span><span class="p">,</span> <span class="n">empty</span><span class="p">)</span></div>
     <span class="n">dump_c</span><span class="o">.</span><span class="n">extension</span> <span class="o">=</span> <span class="n">code_extension</span>
     <span class="n">dump_c</span><span class="o">.</span><span class="n">__doc__</span> <span class="o">=</span> <span class="n">CodeGen</span><span class="o">.</span><span class="n">dump_code</span><span class="o">.</span><span class="n">__doc__</span>
 
-    <span class="k">def</span> <span class="nf">dump_h</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">routines</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">prefix</span><span class="p">,</span> <span class="n">header</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">empty</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+<div class="viewcode-block" id="CCodeGen.dump_h"><a class="viewcode-back" href="../../../modules/utilities/codegen.html#sympy.utilities.codegen.CCodeGen.dump_h">[docs]</a>    <span class="k">def</span> <span class="nf">dump_h</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">routines</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">prefix</span><span class="p">,</span> <span class="n">header</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">empty</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Writes the C header file.</span>
 
 <span class="sd">           This file contains all the function declarations.</span>
@@ -708,7 +710,7 @@
         <span class="c"># end if include guards</span>
         <span class="k">if</span> <span class="n">empty</span><span class="p">:</span> <span class="k">print</span> <span class="o">&gt;&gt;</span> <span class="n">f</span>
         <span class="k">print</span> <span class="o">&gt;&gt;</span> <span class="n">f</span><span class="p">,</span> <span class="s">&quot;#endif&quot;</span>
-        <span class="k">if</span> <span class="n">empty</span><span class="p">:</span> <span class="k">print</span> <span class="o">&gt;&gt;</span> <span class="n">f</span>
+        <span class="k">if</span> <span class="n">empty</span><span class="p">:</span> <span class="k">print</span> <span class="o">&gt;&gt;</span> <span class="n">f</span></div>
     <span class="n">dump_h</span><span class="o">.</span><span class="n">extension</span> <span class="o">=</span> <span class="n">interface_extension</span>
 
     <span class="c"># This list of dump functions is used by CodeGen.write to know which dump</span>
@@ -821,7 +823,7 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="k">return</span> <span class="p">[</span><span class="s">&quot;end subroutine</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">]</span>
 
-    <span class="k">def</span> <span class="nf">get_interface</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">routine</span><span class="p">):</span>
+<div class="viewcode-block" id="FCodeGen.get_interface"><a class="viewcode-back" href="../../../modules/utilities/codegen.html#sympy.utilities.codegen.FCodeGen.get_interface">[docs]</a>    <span class="k">def</span> <span class="nf">get_interface</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">routine</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Returns a string for the function interface for the given routine and</span>
 <span class="sd">           a single result object, which can be None.</span>
 
@@ -838,7 +840,7 @@
         <span class="n">prototype</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s">&quot;end interface</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">)</span>
 
         <span class="k">return</span> <span class="s">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">prototype</span><span class="p">)</span>
-
+</div>
     <span class="k">def</span> <span class="nf">_call_printer</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">routine</span><span class="p">):</span>
         <span class="n">declarations</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="n">code_lines</span> <span class="o">=</span> <span class="p">[]</span>
@@ -869,7 +871,7 @@
         <span class="n">p</span> <span class="o">=</span> <span class="n">FCodePrinter</span><span class="p">({</span><span class="s">&#39;source_format&#39;</span><span class="p">:</span> <span class="s">&#39;free&#39;</span><span class="p">,</span> <span class="s">&#39;human&#39;</span><span class="p">:</span> <span class="bp">False</span><span class="p">})</span>
         <span class="k">return</span> <span class="n">p</span><span class="o">.</span><span class="n">indent_code</span><span class="p">(</span><span class="n">codelines</span><span class="p">)</span>
 
-    <span class="k">def</span> <span class="nf">dump_f95</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">routines</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">prefix</span><span class="p">,</span> <span class="n">header</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">empty</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+<div class="viewcode-block" id="FCodeGen.dump_f95"><a class="viewcode-back" href="../../../modules/utilities/codegen.html#sympy.utilities.codegen.FCodeGen.dump_f95">[docs]</a>    <span class="k">def</span> <span class="nf">dump_f95</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">routines</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">prefix</span><span class="p">,</span> <span class="n">header</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">empty</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
         <span class="c"># check that symbols are unique with ignorecase</span>
         <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">routines</span><span class="p">:</span>
             <span class="n">lowercase</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">(),</span> <span class="n">r</span><span class="o">.</span><span class="n">variables</span><span class="p">))</span>
@@ -877,12 +879,12 @@
             <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">lowercase</span><span class="p">)</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">orig_case</span><span class="p">):</span>
                 <span class="k">raise</span> <span class="n">CodeGenError</span><span class="p">(</span><span class="s">&quot;Fortran ignores case. Got symbols: </span><span class="si">%s</span><span class="s">&quot;</span><span class="o">%</span>
                         <span class="p">(</span><span class="s">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="nb">str</span><span class="p">(</span><span class="n">var</span><span class="p">)</span> <span class="k">for</span> <span class="n">var</span> <span class="ow">in</span> <span class="n">r</span><span class="o">.</span><span class="n">variables</span><span class="p">])))</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">dump_code</span><span class="p">(</span><span class="n">routines</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">prefix</span><span class="p">,</span> <span class="n">header</span><span class="p">,</span> <span class="n">empty</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dump_code</span><span class="p">(</span><span class="n">routines</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">prefix</span><span class="p">,</span> <span class="n">header</span><span class="p">,</span> <span class="n">empty</span><span class="p">)</span></div>
     <span class="n">dump_f95</span><span class="o">.</span><span class="n">extension</span> <span class="o">=</span> <span class="n">code_extension</span>
     <span class="n">dump_f95</span><span class="o">.</span><span class="n">__doc__</span> <span class="o">=</span> <span class="n">CodeGen</span><span class="o">.</span><span class="n">dump_code</span><span class="o">.</span><span class="n">__doc__</span>
 
 
-    <span class="k">def</span> <span class="nf">dump_h</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">routines</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">prefix</span><span class="p">,</span> <span class="n">header</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">empty</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+<div class="viewcode-block" id="FCodeGen.dump_h"><a class="viewcode-back" href="../../../modules/utilities/codegen.html#sympy.utilities.codegen.FCodeGen.dump_h">[docs]</a>    <span class="k">def</span> <span class="nf">dump_h</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">routines</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">prefix</span><span class="p">,</span> <span class="n">header</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">empty</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Writes the interface to a header file.</span>
 
 <span class="sd">           This file contains all the function declarations.</span>
@@ -912,7 +914,7 @@
         <span class="k">for</span> <span class="n">routine</span> <span class="ow">in</span> <span class="n">routines</span><span class="p">:</span>
             <span class="n">prototype</span>  <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_interface</span><span class="p">(</span><span class="n">routine</span><span class="p">)</span>
             <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">prototype</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">empty</span><span class="p">:</span> <span class="k">print</span> <span class="o">&gt;&gt;</span> <span class="n">f</span>
+        <span class="k">if</span> <span class="n">empty</span><span class="p">:</span> <span class="k">print</span> <span class="o">&gt;&gt;</span> <span class="n">f</span></div>
     <span class="n">dump_h</span><span class="o">.</span><span class="n">extension</span> <span class="o">=</span> <span class="n">interface_extension</span>
 
     <span class="c"># This list of dump functions is used by CodeGen.write to know which dump</span>
@@ -1055,8 +1057,8 @@
       </ul>
     </div>
     <div class="footer">
-        &copy; Copyright 2008, 2009, 2010, 2011 SymPy Development Team.
-      Last updated on Dec 17, 2011.
+        &copy; Copyright 2008, 2009, 2010, 2011, 2012 SymPy Development Team.
+      Last updated on Jan 05, 2012.
       Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.2.
     </div>
   </body>
