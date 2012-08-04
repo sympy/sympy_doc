@@ -1,0 +1,286 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>sympy.parsing.sympy_parser &mdash; SymPy 0.7.1-git documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="http://59.sympy-live-tests.appspot.com//static/live-core.css" type="text/css" />
+    <link rel="stylesheet" href="http://59.sympy-live-tests.appspot.com//static/live-autocomplete.css" type="text/css" />
+    <link rel="stylesheet" href="http://59.sympy-live-tests.appspot.com//static/live-sphinx.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '0.7.1-git',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="https://c328740.ssl.cf1.rackcdn.com/mathjax/latest/MathJax.js?config=TeX-AMS_HTML-full"></script>
+    <script type="text/javascript" src="http://59.sympy-live-tests.appspot.com//static/utilities.js"></script>
+    <script type="text/javascript" src="http://59.sympy-live-tests.appspot.com//static/external/classy.js"></script>
+    <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1/jquery.min.js"></script>
+    <script type="text/javascript" src="http://59.sympy-live-tests.appspot.com//static/live-core.js"></script>
+    <script type="text/javascript" src="http://59.sympy-live-tests.appspot.com//static/live-autocomplete.js"></script>
+    <script type="text/javascript" src="http://59.sympy-live-tests.appspot.com//static/live-sphinx.js"></script>
+    <link rel="shortcut icon" href="../../../_static/SymPy-Favicon.ico"/>
+    <link rel="top" title="SymPy 0.7.1-git documentation" href="../../../index.html" />
+    <link rel="up" title="sympy" href="../../sympy.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="../../../np-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">SymPy 0.7.1-git documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li>
+          <li><a href="../../sympy.html" accesskey="U">sympy</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for sympy.parsing.sympy_parser</h1><div class="highlight"><pre>
+<span class="sd">&quot;&quot;&quot;Transform a string with Python-like source code into SymPy expression. &quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">sympy_tokenize</span> <span class="kn">import</span> \
+    <span class="n">generate_tokens</span><span class="p">,</span> <span class="n">untokenize</span><span class="p">,</span> <span class="n">TokenError</span><span class="p">,</span> <span class="n">NUMBER</span><span class="p">,</span> <span class="n">STRING</span><span class="p">,</span> <span class="n">NAME</span><span class="p">,</span> <span class="n">OP</span>
+
+<span class="kn">from</span> <span class="nn">keyword</span> <span class="kn">import</span> <span class="n">iskeyword</span>
+<span class="kn">from</span> <span class="nn">StringIO</span> <span class="kn">import</span> <span class="n">StringIO</span>
+<span class="kn">import</span> <span class="nn">re</span>
+
+<span class="kn">from</span> <span class="nn">sympy.core.basic</span> <span class="kn">import</span> <span class="n">Basic</span><span class="p">,</span> <span class="n">C</span>
+
+<span class="n">_re_repeated</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s">r&quot;^(\d*)\.(\d*)\[(\d+)\]$&quot;</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">_add_factorial_tokens</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">result</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">result</span> <span class="o">==</span> <span class="p">[]</span> <span class="ow">or</span> <span class="n">result</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="s">&#39;(&#39;</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">TokenError</span><span class="p">()</span>
+
+    <span class="n">beginning</span> <span class="o">=</span> <span class="p">[(</span><span class="n">NAME</span><span class="p">,</span> <span class="n">name</span><span class="p">),</span> <span class="p">(</span><span class="n">OP</span><span class="p">,</span> <span class="s">&#39;(&#39;</span><span class="p">)]</span>
+    <span class="n">end</span> <span class="o">=</span> <span class="p">[(</span><span class="n">OP</span><span class="p">,</span> <span class="s">&#39;)&#39;</span><span class="p">)]</span>
+
+    <span class="n">diff</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">length</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">token</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">result</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]):</span>
+        <span class="n">toknum</span><span class="p">,</span> <span class="n">tokval</span> <span class="o">=</span> <span class="n">token</span>
+        <span class="n">i</span> <span class="o">=</span> <span class="n">length</span><span class="o">-</span><span class="n">index</span><span class="o">-</span><span class="mi">1</span>
+
+        <span class="k">if</span> <span class="n">tokval</span> <span class="o">==</span> <span class="s">&#39;)&#39;</span><span class="p">:</span>
+            <span class="n">diff</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">elif</span> <span class="n">tokval</span> <span class="o">==</span> <span class="s">&#39;(&#39;</span><span class="p">:</span>
+            <span class="n">diff</span> <span class="o">-=</span> <span class="mi">1</span>
+
+        <span class="k">if</span> <span class="n">diff</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">i</span><span class="o">-</span><span class="mi">1</span> <span class="o">&gt;=</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">result</span><span class="p">[</span><span class="n">i</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">NAME</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">result</span><span class="p">[:</span><span class="n">i</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">beginning</span> <span class="o">+</span> <span class="n">result</span><span class="p">[</span><span class="n">i</span><span class="o">-</span><span class="mi">1</span><span class="p">:]</span> <span class="o">+</span> <span class="n">end</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">result</span><span class="p">[:</span><span class="n">i</span><span class="p">]</span> <span class="o">+</span> <span class="n">beginning</span> <span class="o">+</span> <span class="n">result</span><span class="p">[</span><span class="n">i</span><span class="p">:]</span> <span class="o">+</span> <span class="n">end</span>
+
+    <span class="k">return</span> <span class="n">result</span>
+
+<span class="k">def</span> <span class="nf">_transform</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">local_dict</span><span class="p">,</span> <span class="n">global_dict</span><span class="p">,</span> <span class="n">rationalize</span><span class="p">,</span> <span class="n">convert_xor</span><span class="p">):</span>
+    <span class="n">g</span> <span class="o">=</span> <span class="n">generate_tokens</span><span class="p">(</span><span class="n">StringIO</span><span class="p">(</span><span class="n">s</span><span class="p">)</span><span class="o">.</span><span class="n">readline</span><span class="p">)</span>
+
+    <span class="n">result</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">prevtoken</span> <span class="o">=</span> <span class="s">&#39;&#39;</span>
+
+    <span class="k">for</span> <span class="n">toknum</span><span class="p">,</span> <span class="n">tokval</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">g</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">toknum</span> <span class="o">==</span> <span class="n">NUMBER</span><span class="p">:</span>
+            <span class="n">number</span> <span class="o">=</span> <span class="n">tokval</span>
+            <span class="n">postfix</span> <span class="o">=</span> <span class="p">[]</span>
+
+            <span class="k">if</span> <span class="n">number</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s">&#39;j&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="n">number</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s">&#39;J&#39;</span><span class="p">):</span>
+                <span class="n">number</span> <span class="o">=</span> <span class="n">number</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+                <span class="n">postfix</span> <span class="o">=</span> <span class="p">[(</span><span class="n">OP</span><span class="p">,</span> <span class="s">&#39;*&#39;</span><span class="p">),</span> <span class="p">(</span><span class="n">NAME</span><span class="p">,</span> <span class="s">&#39;I&#39;</span><span class="p">)]</span>
+
+            <span class="k">if</span> <span class="s">&#39;.&#39;</span> <span class="ow">in</span> <span class="n">number</span> <span class="ow">or</span> <span class="p">((</span><span class="s">&#39;e&#39;</span> <span class="ow">in</span> <span class="n">number</span> <span class="ow">or</span> <span class="s">&#39;E&#39;</span> <span class="ow">in</span> <span class="n">number</span><span class="p">)</span> <span class="ow">and</span>
+                    <span class="ow">not</span> <span class="p">(</span><span class="n">number</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s">&#39;0x&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="n">number</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s">&#39;0X&#39;</span><span class="p">))):</span>
+                <span class="n">match</span> <span class="o">=</span> <span class="n">_re_repeated</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">number</span><span class="p">)</span>
+
+                <span class="k">if</span> <span class="n">match</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                    <span class="c"># Clear repeating decimals, e.g. 3.4[31] -&gt; (3 + 4/10 + 31/990)</span>
+                    <span class="n">pre</span><span class="p">,</span> <span class="n">post</span><span class="p">,</span> <span class="n">repetend</span> <span class="o">=</span> <span class="n">match</span><span class="o">.</span><span class="n">groups</span><span class="p">()</span>
+
+                    <span class="n">zeros</span> <span class="o">=</span> <span class="s">&#39;0&#39;</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">post</span><span class="p">)</span>
+                    <span class="n">post</span><span class="p">,</span> <span class="n">repetends</span> <span class="o">=</span> <span class="p">[</span><span class="n">w</span><span class="o">.</span><span class="n">lstrip</span><span class="p">(</span><span class="s">&#39;0&#39;</span><span class="p">)</span> <span class="k">for</span> <span class="n">w</span> <span class="ow">in</span> <span class="p">[</span><span class="n">post</span><span class="p">,</span> <span class="n">repetend</span><span class="p">]]</span> <span class="c"># or else interpreted as octal</span>
+
+                    <span class="n">a</span> <span class="o">=</span> <span class="n">pre</span> <span class="ow">or</span> <span class="s">&#39;0&#39;</span>
+                    <span class="n">b</span><span class="p">,</span> <span class="n">c</span> <span class="o">=</span> <span class="n">post</span> <span class="ow">or</span> <span class="s">&#39;0&#39;</span><span class="p">,</span> <span class="s">&#39;1&#39;</span> <span class="o">+</span> <span class="n">zeros</span>
+                    <span class="n">d</span><span class="p">,</span> <span class="n">e</span> <span class="o">=</span> <span class="n">repetends</span><span class="p">,</span> <span class="p">(</span><span class="s">&#39;9&#39;</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">repetend</span><span class="p">))</span> <span class="o">+</span> <span class="n">zeros</span>
+
+                    <span class="n">seq</span> <span class="o">=</span> <span class="p">[</span>
+                        <span class="p">(</span><span class="n">OP</span><span class="p">,</span> <span class="s">&#39;(&#39;</span><span class="p">),</span>
+                            <span class="p">(</span><span class="n">NAME</span><span class="p">,</span> <span class="s">&#39;Integer&#39;</span><span class="p">),</span> <span class="p">(</span><span class="n">OP</span><span class="p">,</span> <span class="s">&#39;(&#39;</span><span class="p">),</span> <span class="p">(</span><span class="n">NUMBER</span><span class="p">,</span> <span class="n">a</span><span class="p">),</span> <span class="p">(</span><span class="n">OP</span><span class="p">,</span> <span class="s">&#39;)&#39;</span><span class="p">),</span>
+                        <span class="p">(</span><span class="n">OP</span><span class="p">,</span> <span class="s">&#39;+&#39;</span><span class="p">),</span>
+                            <span class="p">(</span><span class="n">NAME</span><span class="p">,</span> <span class="s">&#39;Rational&#39;</span><span class="p">),</span> <span class="p">(</span><span class="n">OP</span><span class="p">,</span> <span class="s">&#39;(&#39;</span><span class="p">),</span> <span class="p">(</span><span class="n">NUMBER</span><span class="p">,</span> <span class="n">b</span><span class="p">),</span> <span class="p">(</span><span class="n">OP</span><span class="p">,</span> <span class="s">&#39;,&#39;</span><span class="p">),</span> <span class="p">(</span><span class="n">NUMBER</span><span class="p">,</span> <span class="n">c</span><span class="p">),</span> <span class="p">(</span><span class="n">OP</span><span class="p">,</span> <span class="s">&#39;)&#39;</span><span class="p">),</span>
+                        <span class="p">(</span><span class="n">OP</span><span class="p">,</span> <span class="s">&#39;+&#39;</span><span class="p">),</span>
+                            <span class="p">(</span><span class="n">NAME</span><span class="p">,</span> <span class="s">&#39;Rational&#39;</span><span class="p">),</span> <span class="p">(</span><span class="n">OP</span><span class="p">,</span> <span class="s">&#39;(&#39;</span><span class="p">),</span> <span class="p">(</span><span class="n">NUMBER</span><span class="p">,</span> <span class="n">d</span><span class="p">),</span> <span class="p">(</span><span class="n">OP</span><span class="p">,</span> <span class="s">&#39;,&#39;</span><span class="p">),</span> <span class="p">(</span><span class="n">NUMBER</span><span class="p">,</span> <span class="n">e</span><span class="p">),</span> <span class="p">(</span><span class="n">OP</span><span class="p">,</span> <span class="s">&#39;)&#39;</span><span class="p">),</span>
+                        <span class="p">(</span><span class="n">OP</span><span class="p">,</span> <span class="s">&#39;)&#39;</span><span class="p">),</span>
+                    <span class="p">]</span>
+                <span class="k">elif</span> <span class="n">rationalize</span><span class="p">:</span>
+                    <span class="n">seq</span> <span class="o">=</span> <span class="p">[(</span><span class="n">NAME</span><span class="p">,</span> <span class="s">&#39;Rational&#39;</span><span class="p">),</span> <span class="p">(</span><span class="n">OP</span><span class="p">,</span> <span class="s">&#39;(&#39;</span><span class="p">),</span> <span class="p">(</span><span class="n">STRING</span><span class="p">,</span> <span class="nb">repr</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">number</span><span class="p">))),</span> <span class="p">(</span><span class="n">OP</span><span class="p">,</span> <span class="s">&#39;)&#39;</span><span class="p">)]</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">seq</span> <span class="o">=</span> <span class="p">[(</span><span class="n">NAME</span><span class="p">,</span> <span class="s">&#39;Float&#39;</span><span class="p">),</span> <span class="p">(</span><span class="n">OP</span><span class="p">,</span> <span class="s">&#39;(&#39;</span><span class="p">),</span> <span class="p">(</span><span class="n">NUMBER</span><span class="p">,</span> <span class="nb">repr</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">number</span><span class="p">))),</span> <span class="p">(</span><span class="n">OP</span><span class="p">,</span> <span class="s">&#39;)&#39;</span><span class="p">)]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">seq</span> <span class="o">=</span> <span class="p">[(</span><span class="n">NAME</span><span class="p">,</span> <span class="s">&#39;Integer&#39;</span><span class="p">),</span> <span class="p">(</span><span class="n">OP</span><span class="p">,</span> <span class="s">&#39;(&#39;</span><span class="p">),</span> <span class="p">(</span><span class="n">NUMBER</span><span class="p">,</span> <span class="n">number</span><span class="p">),</span> <span class="p">(</span><span class="n">OP</span><span class="p">,</span> <span class="s">&#39;)&#39;</span><span class="p">)]</span>
+
+            <span class="n">result</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">seq</span> <span class="o">+</span> <span class="n">postfix</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">toknum</span> <span class="o">==</span> <span class="n">NAME</span><span class="p">:</span>
+            <span class="n">name</span> <span class="o">=</span> <span class="n">tokval</span>
+
+            <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="p">[</span><span class="s">&#39;True&#39;</span><span class="p">,</span> <span class="s">&#39;False&#39;</span><span class="p">,</span> <span class="s">&#39;None&#39;</span><span class="p">]</span> <span class="ow">or</span> <span class="n">iskeyword</span><span class="p">(</span><span class="n">name</span><span class="p">)</span> <span class="ow">or</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">local_dict</span><span class="p">:</span>
+                <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">NAME</span><span class="p">,</span> <span class="n">name</span><span class="p">))</span>
+                <span class="k">continue</span>
+            <span class="k">elif</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">global_dict</span><span class="p">:</span>
+                <span class="n">obj</span> <span class="o">=</span> <span class="n">global_dict</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
+
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="p">(</span><span class="n">Basic</span><span class="p">,</span> <span class="nb">type</span><span class="p">))</span> <span class="ow">or</span> <span class="nb">callable</span><span class="p">(</span><span class="n">obj</span><span class="p">):</span>
+                    <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">NAME</span><span class="p">,</span> <span class="n">name</span><span class="p">))</span>
+                    <span class="k">continue</span>
+
+            <span class="n">result</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span>
+                <span class="p">(</span><span class="n">NAME</span><span class="p">,</span> <span class="s">&#39;Symbol&#39;</span><span class="p">),</span>
+                <span class="p">(</span><span class="n">OP</span><span class="p">,</span> <span class="s">&#39;(&#39;</span><span class="p">),</span>
+                <span class="p">(</span><span class="n">NAME</span><span class="p">,</span> <span class="nb">repr</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">name</span><span class="p">))),</span>
+                <span class="p">(</span><span class="n">OP</span><span class="p">,</span> <span class="s">&#39;)&#39;</span><span class="p">),</span>
+            <span class="p">])</span>
+        <span class="k">elif</span> <span class="n">toknum</span> <span class="o">==</span> <span class="n">OP</span><span class="p">:</span>
+            <span class="n">op</span> <span class="o">=</span> <span class="n">tokval</span>
+
+            <span class="k">if</span> <span class="n">op</span> <span class="o">==</span> <span class="s">&#39;^&#39;</span> <span class="ow">and</span> <span class="n">convert_xor</span><span class="p">:</span>
+                <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">OP</span><span class="p">,</span> <span class="s">&#39;**&#39;</span><span class="p">))</span>
+            <span class="k">elif</span> <span class="n">op</span> <span class="o">==</span> <span class="s">&#39;!!&#39;</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">prevtoken</span> <span class="o">==</span> <span class="s">&#39;!&#39;</span> <span class="ow">or</span> <span class="n">prevtoken</span> <span class="o">==</span> <span class="s">&#39;!!&#39;</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="n">TokenError</span>
+                <span class="n">result</span> <span class="o">=</span> <span class="n">_add_factorial_tokens</span><span class="p">(</span><span class="s">&#39;factorial2&#39;</span><span class="p">,</span> <span class="n">result</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">op</span> <span class="o">==</span> <span class="s">&#39;!&#39;</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">prevtoken</span> <span class="o">==</span> <span class="s">&#39;!&#39;</span> <span class="ow">or</span> <span class="n">prevtoken</span> <span class="o">==</span> <span class="s">&#39;!!&#39;</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="n">TokenError</span>
+                <span class="n">result</span> <span class="o">=</span> <span class="n">_add_factorial_tokens</span><span class="p">(</span><span class="s">&#39;factorial&#39;</span><span class="p">,</span> <span class="n">result</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">OP</span><span class="p">,</span> <span class="n">op</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">toknum</span><span class="p">,</span> <span class="n">tokval</span><span class="p">))</span>
+
+        <span class="n">prevtoken</span> <span class="o">=</span> <span class="n">tokval</span>
+
+    <span class="k">return</span> <span class="n">untokenize</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+
+<div class="viewcode-block" id="parse_expr"><a class="viewcode-back" href="../../../modules/parsing.html#sympy.parsing.sympy_parser.parse_expr">[docs]</a><span class="k">def</span> <span class="nf">parse_expr</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">local_dict</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">rationalize</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">convert_xor</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Converts the string ``s`` to a SymPy expression, in ``local_dict``</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.parsing.sympy_parser import parse_expr</span>
+
+<span class="sd">    &gt;&gt;&gt; parse_expr(&quot;1/2&quot;)</span>
+<span class="sd">    1/2</span>
+<span class="sd">    &gt;&gt;&gt; type(_)</span>
+<span class="sd">    &lt;class &#39;sympy.core.numbers.Half&#39;&gt;</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">local_dict</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">local_dict</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="n">global_dict</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">exec</span> <span class="s">&#39;from sympy import *&#39;</span> <span class="ow">in</span> <span class="n">global_dict</span>
+
+    <span class="c"># keep autosimplification from joining Integer or</span>
+    <span class="c"># minus sign into a Mul; this modification doesn&#39;t</span>
+    <span class="c"># prevent the 2-arg Mul from becoming and Add.</span>
+    <span class="n">hit</span> <span class="o">=</span> <span class="bp">False</span>
+    <span class="k">if</span> <span class="s">&#39;(&#39;</span> <span class="ow">in</span> <span class="n">s</span><span class="p">:</span>
+        <span class="n">kern</span> <span class="o">=</span> <span class="s">&#39;_kern&#39;</span>
+        <span class="k">while</span> <span class="n">kern</span> <span class="ow">in</span> <span class="n">s</span><span class="p">:</span>
+            <span class="n">kern</span> <span class="o">+=</span> <span class="s">&quot;_&quot;</span>
+        <span class="n">s</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="s">r&#39;(\d *\*|-) *\(&#39;</span><span class="p">,</span> <span class="s">r&#39;\1</span><span class="si">%s</span><span class="s">*(&#39;</span> <span class="o">%</span> <span class="n">kern</span><span class="p">,</span> <span class="n">s</span><span class="p">)</span>
+        <span class="n">hit</span> <span class="o">=</span> <span class="n">kern</span> <span class="ow">in</span> <span class="n">s</span>
+
+    <span class="n">code</span> <span class="o">=</span> <span class="n">_transform</span><span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">strip</span><span class="p">(),</span> <span class="n">local_dict</span><span class="p">,</span> <span class="n">global_dict</span><span class="p">,</span> <span class="n">rationalize</span><span class="p">,</span> <span class="n">convert_xor</span><span class="p">)</span>
+    <span class="n">expr</span> <span class="o">=</span> <span class="nb">eval</span><span class="p">(</span><span class="n">code</span><span class="p">,</span> <span class="n">global_dict</span><span class="p">,</span> <span class="n">local_dict</span><span class="p">)</span> <span class="c"># take local objects in preference</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">hit</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">expr</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">xreplace</span><span class="p">({</span><span class="n">C</span><span class="o">.</span><span class="n">Symbol</span><span class="p">(</span><span class="n">kern</span><span class="p">):</span> <span class="mi">1</span><span class="p">})</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">AttributeError</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">expr</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../../index.html">
+              <img class="logo" src="../../../_static/sympylogo.png" alt="Logo"/>
+            </a></p>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="../../../np-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">SymPy 0.7.1-git documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li>
+          <li><a href="../../sympy.html" >sympy</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2008, 2009, 2010, 2011, 2012 SymPy Development Team.
+      Last updated on Aug 04, 2012.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+  </body>
+</html>
