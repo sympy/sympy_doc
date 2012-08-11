@@ -12,6 +12,9 @@
     
     <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="http://live.sympy.org/static/live-core.css" type="text/css" />
+    <link rel="stylesheet" href="http://live.sympy.org/static/live-autocomplete.css" type="text/css" />
+    <link rel="stylesheet" href="http://live.sympy.org/static/live-sphinx.css" type="text/css" />
     
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
@@ -25,7 +28,14 @@
     <script type="text/javascript" src="../../../_static/jquery.js"></script>
     <script type="text/javascript" src="../../../_static/underscore.js"></script>
     <script type="text/javascript" src="../../../_static/doctools.js"></script>
-    <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_HTML-full"></script>
+    <script type="text/javascript" src="https://c328740.ssl.cf1.rackcdn.com/mathjax/latest/MathJax.js?config=TeX-AMS_HTML-full"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/utilities.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/external/classy.js"></script>
+    <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1/jquery.min.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/live-core.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/live-autocomplete.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/live-sphinx.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
     <link rel="shortcut icon" href="../../../_static/SymPy-Favicon.ico"/>
     <link rel="top" title="SymPy 0.7.1-git documentation" href="../../../index.html" />
     <link rel="up" title="sympy" href="../../sympy.html" /> 
@@ -60,13 +70,15 @@
 
 <span class="sd">Goals:</span>
 
-<span class="sd">* it should be compatible with py.test and operate very similarly (or identically)</span>
+<span class="sd">* it should be compatible with py.test and operate very similarly</span>
+<span class="sd">  (or identically)</span>
 <span class="sd">* doesn&#39;t require any external dependencies</span>
 <span class="sd">* preferably all the functionality should be in this file only</span>
 <span class="sd">* no magic, just import the test file and execute the test functions, that&#39;s it</span>
 <span class="sd">* portable</span>
 
 <span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">with_statement</span>
 <span class="kn">import</span> <span class="nn">os</span>
 <span class="kn">import</span> <span class="nn">sys</span>
 <span class="kn">import</span> <span class="nn">inspect</span>
@@ -90,8 +102,12 @@
 <span class="c"># it here to make utf8 files work in Python 2.5.</span>
 <span class="n">pdoctest</span><span class="o">.</span><span class="n">_encoding</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">__stdout__</span><span class="p">,</span> <span class="s">&#39;encoding&#39;</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span> <span class="ow">or</span> <span class="s">&#39;utf-8&#39;</span>
 
+<span class="n">IS_PYTHON_3</span> <span class="o">=</span> <span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">version_info</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">3</span><span class="p">)</span>
+<span class="n">IS_WINDOWS</span> <span class="o">=</span> <span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s">&#39;nt&#39;</span><span class="p">)</span>
+
+
 <span class="k">class</span> <span class="nc">Skipped</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
-        <span class="k">pass</span>
+    <span class="k">pass</span>
 
 <span class="k">def</span> <span class="nf">_indent</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">indent</span><span class="o">=</span><span class="mi">4</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
@@ -108,6 +124,19 @@
     <span class="k">return</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="s">&#39;(?m)^(?!$)&#39;</span><span class="p">,</span> <span class="n">indent</span><span class="o">*</span><span class="s">&#39; &#39;</span><span class="p">,</span> <span class="n">s</span><span class="p">)</span>
 
 <span class="n">pdoctest</span><span class="o">.</span><span class="n">_indent</span> <span class="o">=</span> <span class="n">_indent</span>
+
+<span class="c"># ovverride reporter to maintain windows and python3</span>
+<span class="k">def</span> <span class="nf">_report_failure</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">out</span><span class="p">,</span> <span class="n">test</span><span class="p">,</span> <span class="n">example</span><span class="p">,</span> <span class="n">got</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Report that the given example failed.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">s</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_checker</span><span class="o">.</span><span class="n">output_difference</span><span class="p">(</span><span class="n">example</span><span class="p">,</span> <span class="n">got</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">optionflags</span><span class="p">)</span>
+    <span class="n">s</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s">&#39;raw_unicode_escape&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s">&#39;utf8&#39;</span><span class="p">,</span> <span class="s">&#39;ignore&#39;</span><span class="p">)</span>
+    <span class="n">out</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_failure_header</span><span class="p">(</span><span class="n">test</span><span class="p">,</span> <span class="n">example</span><span class="p">)</span> <span class="o">+</span> <span class="n">s</span><span class="p">)</span>
+
+<span class="k">if</span> <span class="n">IS_PYTHON_3</span> <span class="ow">and</span> <span class="n">IS_WINDOWS</span><span class="p">:</span>
+    <span class="n">DocTestRunner</span><span class="o">.</span><span class="n">report_failure</span> <span class="o">=</span> <span class="n">_report_failure</span>
+
 
 <span class="k">def</span> <span class="nf">sys_normcase</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>
     <span class="k">if</span> <span class="n">sys_case_insensitive</span><span class="p">:</span>
@@ -172,10 +201,154 @@
     <span class="c"># hook our nice, hash-stable strprinter</span>
     <span class="n">init_printing</span><span class="p">(</span><span class="n">pretty_print</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
 
+<div class="viewcode-block" id="run_in_subprocess_with_hash_randomization"><a class="viewcode-back" href="../../../modules/utilities/runtests.html#sympy.utilities.runtests.run_in_subprocess_with_hash_randomization">[docs]</a><span class="k">def</span> <span class="nf">run_in_subprocess_with_hash_randomization</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">function_args</span><span class="o">=</span><span class="p">(),</span>
+    <span class="n">function_kwargs</span><span class="o">=</span><span class="p">{},</span> <span class="n">command</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">executable</span><span class="p">,</span>
+    <span class="n">module</span><span class="o">=</span><span class="s">&#39;sympy.utilities.runtests&#39;</span><span class="p">,</span> <span class="n">force</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Run a function in a Python subprocess with hash randomization enabled.</span>
+
+<span class="sd">    If hash randomization is not supported by the version of Python given, it</span>
+<span class="sd">    returns False.  Otherwise, it returns the exit value of the command.  The</span>
+<span class="sd">    function is passed to sys.exit(), so the return value of the function will</span>
+<span class="sd">    be the return value.</span>
+
+<span class="sd">    The environment variable PYTHONHASHSEED is used to seed Python&#39;s hash</span>
+<span class="sd">    randomization.  If it is set, this function will return False, because</span>
+<span class="sd">    starting a new subprocess is unnecessary in that case.  If it is not set,</span>
+<span class="sd">    one is set at random, and the tests are run.  Note that if this</span>
+<span class="sd">    environment variable is set when Python starts, hash randomization is</span>
+<span class="sd">    automatically enabled.  To force a subprocess to be created even if</span>
+<span class="sd">    PYTHONHASHSEED is set, pass ``force=True``.  This flag will not force a</span>
+<span class="sd">    subprocess in Python versions that do not support hash randomization (see</span>
+<span class="sd">    below), because those versions of Python do not support the ``-R`` flag.</span>
+
+<span class="sd">    ``function`` should be a string name of a function that is importable from</span>
+<span class="sd">    the module ``module``, like &quot;_test&quot;.  The default for ``module`` is</span>
+<span class="sd">    &quot;sympy.utilities.runtests&quot;.  ``function_args`` and ``function_kwargs``</span>
+<span class="sd">    should be a repr-able tuple and dict, respectively.  The default Python</span>
+<span class="sd">    command is sys.executable, which is the currently running Python command.</span>
+
+<span class="sd">    This function is necessary because the seed for hash randomization must be</span>
+<span class="sd">    set by the environment variable before Python starts.  Hence, in order to</span>
+<span class="sd">    use a predetermined seed for tests, we must start Python in a separate</span>
+<span class="sd">    subprocess.</span>
+
+<span class="sd">    Hash randomization was added in the minor Python versions 2.6.8, 2.7.3,</span>
+<span class="sd">    3.1.5, and 3.2.3, and is enabled by default in all Python versions after</span>
+<span class="sd">    and including 3.3.0.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.utilities.runtests import (</span>
+<span class="sd">    ... run_in_subprocess_with_hash_randomization)</span>
+<span class="sd">    &gt;&gt;&gt; # run the core tests in verbose mode</span>
+<span class="sd">    &gt;&gt;&gt; run_in_subprocess_with_hash_randomization(&quot;_test&quot;,</span>
+<span class="sd">    ... function_args=(&quot;core&quot;,), function_kwargs={&#39;verbose&#39;: True}) #doctest: +SKIP</span>
+<span class="sd">    # Will return 0 if sys.executable supports hash randomization and tests</span>
+<span class="sd">    # pass, 1 if they fail, and False if it does not support hash</span>
+<span class="sd">    # randomization.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c"># Note, we must return False everywhere, not None, as subprocess.call will</span>
+    <span class="c"># sometimes return None.</span>
+
+    <span class="c"># First check if the Python version supports hash randomization</span>
+    <span class="c"># If it doesn&#39;t have this support, it won&#39;t reconize the -R flag</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">Popen</span><span class="p">([</span><span class="n">command</span><span class="p">,</span> <span class="s">&quot;-RV&quot;</span><span class="p">],</span> <span class="n">stdout</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">PIPE</span><span class="p">,</span>
+                         <span class="n">stderr</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">STDOUT</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">communicate</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">returncode</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">False</span>
+
+    <span class="n">hash_seed</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s">&quot;PYTHONHASHSEED&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">hash_seed</span><span class="p">:</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s">&quot;PYTHONHASHSEED&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">random</span><span class="o">.</span><span class="n">randrange</span><span class="p">(</span><span class="mi">2</span><span class="o">**</span><span class="mi">32</span><span class="p">))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">force</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">False</span>
+    <span class="c"># Now run the command</span>
+    <span class="n">commandstring</span> <span class="o">=</span> <span class="p">(</span><span class="s">&quot;import sys; from </span><span class="si">%s</span><span class="s"> import </span><span class="si">%s</span><span class="s">;sys.exit(</span><span class="si">%s</span><span class="s">(*</span><span class="si">%s</span><span class="s">, **</span><span class="si">%s</span><span class="s">))&quot;</span> <span class="o">%</span>
+                     <span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">function</span><span class="p">,</span> <span class="n">function</span><span class="p">,</span> <span class="nb">repr</span><span class="p">(</span><span class="n">function_args</span><span class="p">),</span> <span class="nb">repr</span><span class="p">(</span><span class="n">function_kwargs</span><span class="p">)))</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">call</span><span class="p">([</span><span class="n">command</span><span class="p">,</span> <span class="s">&quot;-R&quot;</span><span class="p">,</span> <span class="s">&quot;-c&quot;</span><span class="p">,</span> <span class="n">commandstring</span><span class="p">])</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="c"># Put the environment variable back, so that it reads correctly for</span>
+        <span class="c"># the current Python process.</span>
+        <span class="k">if</span> <span class="n">hash_seed</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">del</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s">&quot;PYTHONHASHSEED&quot;</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s">&quot;PYTHONHASHSEED&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">hash_seed</span>
+</div>
+<div class="viewcode-block" id="run_all_tests"><a class="viewcode-back" href="../../../modules/utilities/runtests.html#sympy.utilities.runtests.run_all_tests">[docs]</a><span class="k">def</span> <span class="nf">run_all_tests</span><span class="p">(</span><span class="n">test_args</span><span class="o">=</span><span class="p">(),</span> <span class="n">test_kwargs</span><span class="o">=</span><span class="p">{},</span> <span class="n">doctest_args</span><span class="o">=</span><span class="p">(),</span>
+    <span class="n">doctest_kwargs</span><span class="o">=</span><span class="p">{},</span> <span class="n">examples_args</span><span class="o">=</span><span class="p">(),</span> <span class="n">examples_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s">&#39;quiet&#39;</span><span class="p">:</span><span class="bp">True</span><span class="p">}):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Run all tests.</span>
+
+<span class="sd">    Right now, this runs the regular tests (bin/test), the doctests</span>
+<span class="sd">    (bin/doctest), the examples (examples/all.py), and the sage tests (see</span>
+<span class="sd">    sympy/external/tests/test_sage.py).</span>
+
+<span class="sd">    This is what ``setup.py test`` uses.</span>
+
+<span class="sd">    You can pass arguments and keyword arguments to the test functions that</span>
+<span class="sd">    support them (for now, test,  doctest, and the examples).  See the docstrings of those</span>
+<span class="sd">    functions for a description of the available options.</span>
+
+<span class="sd">    For example, to run the solvers tests with colors turned off:</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.utilities.runtests import run_all_tests</span>
+
+<span class="sd">    &gt;&gt;&gt; run_all_tests(test_args=(&quot;solvers&quot;,), test_kwargs={&quot;colors:False&quot;}) # doctest: +SKIP</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">tests_successful</span> <span class="o">=</span> <span class="bp">True</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="c"># Regular tests</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">test</span><span class="p">(</span><span class="o">*</span><span class="n">test_args</span><span class="p">,</span> <span class="o">**</span><span class="n">test_kwargs</span><span class="p">):</span>
+            <span class="c"># some regular test fails, so set the tests_successful</span>
+            <span class="c"># flag to false and continue running the doctests</span>
+            <span class="n">tests_successful</span> <span class="o">=</span> <span class="bp">False</span>
+
+        <span class="c"># Doctests</span>
+        <span class="k">print</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">doctest</span><span class="p">(</span><span class="o">*</span><span class="n">doctest_args</span><span class="p">,</span> <span class="o">**</span><span class="n">doctest_kwargs</span><span class="p">):</span>
+            <span class="n">tests_successful</span> <span class="o">=</span> <span class="bp">False</span>
+
+        <span class="c"># Examples</span>
+        <span class="k">print</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s">&quot;examples&quot;</span><span class="p">)</span>
+        <span class="kn">from</span> <span class="nn">all</span> <span class="kn">import</span> <span class="n">run_examples</span> <span class="c"># examples/all.py</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">run_examples</span><span class="p">(</span><span class="o">*</span><span class="n">examples_args</span><span class="p">,</span> <span class="o">**</span><span class="n">examples_kwargs</span><span class="p">):</span>
+            <span class="n">tests_successful</span> <span class="o">=</span> <span class="bp">False</span>
+
+        <span class="c"># Sage tests</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">platform</span> <span class="o">==</span> <span class="s">&quot;win32&quot;</span> <span class="ow">or</span> <span class="n">sys</span><span class="o">.</span><span class="n">version_info</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">3</span><span class="p">):</span>
+            <span class="c"># run Sage tests; Sage currently doesn&#39;t support Windows or Python 3</span>
+            <span class="n">dev_null</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">devnull</span><span class="p">,</span> <span class="s">&#39;w&#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">call</span><span class="p">(</span><span class="s">&quot;sage -v&quot;</span><span class="p">,</span> <span class="n">shell</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">stdout</span><span class="o">=</span><span class="n">dev_null</span><span class="p">,</span> <span class="n">stderr</span><span class="o">=</span><span class="n">dev_null</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">call</span><span class="p">(</span><span class="s">&quot;sage -python bin/test sympy/external/tests/test_sage.py&quot;</span><span class="p">,</span> <span class="n">shell</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">tests_successful</span> <span class="o">=</span> <span class="bp">False</span>
+
+        <span class="k">if</span> <span class="n">tests_successful</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c"># Return nonzero exit code</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">KeyboardInterrupt</span><span class="p">:</span>
+        <span class="k">print</span>
+        <span class="k">print</span><span class="p">(</span><span class="s">&quot;DO *NOT* COMMIT!&quot;</span><span class="p">)</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+</div>
 <div class="viewcode-block" id="test"><a class="viewcode-back" href="../../../modules/utilities/runtests.html#sympy.utilities.runtests.test">[docs]</a><span class="k">def</span> <span class="nf">test</span><span class="p">(</span><span class="o">*</span><span class="n">paths</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Run all tests in test_*.py files which match any of the given</span>
-<span class="sd">    strings in `paths` or all tests if paths=[].</span>
+<span class="sd">    Run tests in the specified test_*.py files.</span>
+
+<span class="sd">    Tests in a particular test_*.py file are run if any of the given strings</span>
+<span class="sd">    in ``paths`` matches a part of the test file&#39;s path. If ``paths=[]``,</span>
+<span class="sd">    tests in all test_*.py files are run.</span>
 
 <span class="sd">    Notes:</span>
 
@@ -183,58 +356,149 @@
 <span class="sd">       * paths can be entered in native system format or in unix,</span>
 <span class="sd">         forward-slash format.</span>
 
+<span class="sd">    **Explanation of test results**</span>
+
+<span class="sd">    ======  ===============================================================</span>
+<span class="sd">    Output  Meaning</span>
+<span class="sd">    ======  ===============================================================</span>
+<span class="sd">    .       passed</span>
+<span class="sd">    F       failed</span>
+<span class="sd">    X       XPassed (expected to fail but passed)</span>
+<span class="sd">    f       XFAILed (expected to fail and indeed failed)</span>
+<span class="sd">    s       skipped</span>
+<span class="sd">    w       slow</span>
+<span class="sd">    T       timeout (e.g., when ``--timeout`` is used)</span>
+<span class="sd">    K       KeyboardInterrupt (when running the slow tests with ``--slow``,</span>
+<span class="sd">            you can interrupt one of them without killing the test runner)</span>
+<span class="sd">    ======  ===============================================================</span>
+
+
+<span class="sd">    Colors have no additional meaning and are used just to facilitate</span>
+<span class="sd">    interpreting the output.</span>
+
 <span class="sd">    Examples</span>
 <span class="sd">    ========</span>
 
-<span class="sd">    &gt;&gt; import sympy</span>
+<span class="sd">    &gt;&gt;&gt; import sympy</span>
 
 <span class="sd">    Run all tests:</span>
-<span class="sd">    &gt;&gt; sympy.test()</span>
+
+<span class="sd">    &gt;&gt;&gt; sympy.test()    # doctest: +SKIP</span>
 
 <span class="sd">    Run one file:</span>
-<span class="sd">    &gt;&gt; sympy.test(&quot;sympy/core/tests/test_basic.py&quot;)</span>
-<span class="sd">    &gt;&gt; sympy.test(&quot;_basic&quot;)</span>
+
+<span class="sd">    &gt;&gt;&gt; sympy.test(&quot;sympy/core/tests/test_basic.py&quot;)    # doctest: +SKIP</span>
+<span class="sd">    &gt;&gt;&gt; sympy.test(&quot;_basic&quot;)    # doctest: +SKIP</span>
 
 <span class="sd">    Run all tests in sympy/functions/ and some particular file:</span>
-<span class="sd">    &gt;&gt; sympy.test(&quot;sympy/core/tests/test_basic.py&quot;, &quot;sympy/functions&quot;)</span>
+
+<span class="sd">    &gt;&gt;&gt; sympy.test(&quot;sympy/core/tests/test_basic.py&quot;,</span>
+<span class="sd">    ...        &quot;sympy/functions&quot;)    # doctest: +SKIP</span>
 
 <span class="sd">    Run all tests in sympy/core and sympy/utilities:</span>
-<span class="sd">    &gt;&gt; sympy.test(&quot;/core&quot;, &quot;/util&quot;)</span>
+
+<span class="sd">    &gt;&gt;&gt; sympy.test(&quot;/core&quot;, &quot;/util&quot;)    # doctest: +SKIP</span>
 
 <span class="sd">    Run specific test from a file:</span>
-<span class="sd">    &gt;&gt; sympy.test(&quot;sympy/core/tests/test_basic.py&quot;, kw=&quot;test_equality&quot;)</span>
+
+<span class="sd">    &gt;&gt;&gt; sympy.test(&quot;sympy/core/tests/test_basic.py&quot;,</span>
+<span class="sd">    ...        kw=&quot;test_equality&quot;)    # doctest: +SKIP</span>
 
 <span class="sd">    Run specific test from any file:</span>
-<span class="sd">    &gt;&gt; sympy.test(kw=&quot;subs&quot;)</span>
+
+<span class="sd">    &gt;&gt;&gt; sympy.test(kw=&quot;subs&quot;)    # doctest: +SKIP</span>
 
 <span class="sd">    Run the tests with verbose mode on:</span>
-<span class="sd">    &gt;&gt; sympy.test(verbose=True)</span>
+
+<span class="sd">    &gt;&gt;&gt; sympy.test(verbose=True)    # doctest: +SKIP</span>
 
 <span class="sd">    Don&#39;t sort the test output:</span>
-<span class="sd">    &gt;&gt; sympy.test(sort=False)</span>
+
+<span class="sd">    &gt;&gt;&gt; sympy.test(sort=False)    # doctest: +SKIP</span>
 
 <span class="sd">    Turn on post-mortem pdb:</span>
-<span class="sd">    &gt;&gt; sympy.test(pdb=True)</span>
+
+<span class="sd">    &gt;&gt;&gt; sympy.test(pdb=True)    # doctest: +SKIP</span>
 
 <span class="sd">    Turn off colors:</span>
-<span class="sd">    &gt;&gt; sympy.test(colors=False)</span>
 
-<span class="sd">    The traceback verboseness can be set to &quot;short&quot; or &quot;no&quot; (default is &quot;short&quot;)</span>
-<span class="sd">    &gt;&gt; sympy.test(tb=&#39;no&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; sympy.test(colors=False)    # doctest: +SKIP</span>
 
+<span class="sd">    Force colors, even when the output is not to a terminal (this is useful,</span>
+<span class="sd">    e.g., if you are piping to ``less -r`` and you still want colors)</span>
+
+<span class="sd">    &gt;&gt;&gt; sympy.test(force_colors=False    # doctest: +SKIP</span>
+
+<span class="sd">    The traceback verboseness can be set to &quot;short&quot; or &quot;no&quot; (default is</span>
+<span class="sd">    &quot;short&quot;)</span>
+
+<span class="sd">    &gt;&gt;&gt; sympy.test(tb=&#39;no&#39;)    # doctest: +SKIP</span>
+
+<span class="sd">    You can disable running the tests in a separate subprocess using</span>
+<span class="sd">    ``subprocess=False``.  This is done to support seeding hash randomization,</span>
+<span class="sd">    which is enabled by default in the Python versions where it is supported.</span>
+<span class="sd">    If subprocess=False, hash randomization is enabled/disabled according to</span>
+<span class="sd">    whether it has been enabled or not in the calling Python process.</span>
+<span class="sd">    However, even if it is enabled, the seed cannot be printed unless it is</span>
+<span class="sd">    called from a new Python process.</span>
+
+<span class="sd">    Hash randomization was added in the minor Python versions 2.6.8, 2.7.3,</span>
+<span class="sd">    3.1.5, and 3.2.3, and is enabled by default in all Python versions after</span>
+<span class="sd">    and including 3.3.0.</span>
+
+<span class="sd">    If hash randomization is not supported ``subprocess=False`` is used</span>
+<span class="sd">    automatically.</span>
+
+<span class="sd">    &gt;&gt;&gt; sympy.test(subprocess=False)     # doctest: +SKIP</span>
+
+<span class="sd">    To set the hash randomization seed, set the environment variable</span>
+<span class="sd">    ``PYTHONHASHSEED`` before running the tests.  This can be done from within</span>
+<span class="sd">    Python using</span>
+
+<span class="sd">    &gt;&gt;&gt; import os</span>
+<span class="sd">    &gt;&gt;&gt; os,environ[&#39;PYTHONHASHSEED&#39;] = 42 # doctest: +SKIP</span>
+
+<span class="sd">    Or from the command line using</span>
+
+<span class="sd">    $ PYTHONHASHSEED=42 ./bin/test</span>
+
+<span class="sd">    If the seed is not set, a random seed will be chosen.</span>
+
+<span class="sd">    Note that to reproduce the same hash values, you must use both the same as</span>
+<span class="sd">    well as the same architecture (32-bit vs. 64-bit).</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">subprocess</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s">&quot;subprocess&quot;</span><span class="p">,</span> <span class="bp">True</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">subprocess</span><span class="p">:</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="n">run_in_subprocess_with_hash_randomization</span><span class="p">(</span><span class="s">&quot;_test&quot;</span><span class="p">,</span>
+            <span class="n">function_args</span><span class="o">=</span><span class="n">paths</span><span class="p">,</span> <span class="n">function_kwargs</span><span class="o">=</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">ret</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">False</span><span class="p">:</span>
+            <span class="k">return</span> <span class="ow">not</span> <span class="nb">bool</span><span class="p">(</span><span class="n">ret</span><span class="p">)</span>
+    <span class="k">return</span> <span class="ow">not</span> <span class="nb">bool</span><span class="p">(</span><span class="n">_test</span><span class="p">(</span><span class="o">*</span><span class="n">paths</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">))</span>
+</div>
+<span class="k">def</span> <span class="nf">_test</span><span class="p">(</span><span class="o">*</span><span class="n">paths</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Internal function that actually runs the tests.</span>
+
+<span class="sd">    All keyword arguments from ``test()`` are passed to this function except for</span>
+<span class="sd">    ``subprocess``.</span>
+
+<span class="sd">    Returns 0 if tests passed and 1 if they failed.  See the docstring of</span>
+<span class="sd">    ``test()`` for more information.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">verbose</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;verbose&quot;</span><span class="p">,</span> <span class="bp">False</span><span class="p">)</span>
     <span class="n">tb</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;tb&quot;</span><span class="p">,</span> <span class="s">&quot;short&quot;</span><span class="p">)</span>
     <span class="n">kw</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;kw&quot;</span><span class="p">,</span> <span class="s">&quot;&quot;</span><span class="p">)</span>
     <span class="n">post_mortem</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;pdb&quot;</span><span class="p">,</span> <span class="bp">False</span><span class="p">)</span>
     <span class="n">colors</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;colors&quot;</span><span class="p">,</span> <span class="bp">True</span><span class="p">)</span>
+    <span class="n">force_colors</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;force_colors&quot;</span><span class="p">,</span> <span class="bp">False</span><span class="p">)</span>
     <span class="n">sort</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;sort&quot;</span><span class="p">,</span> <span class="bp">True</span><span class="p">)</span>
     <span class="n">seed</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;seed&quot;</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">seed</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
         <span class="n">seed</span> <span class="o">=</span> <span class="n">random</span><span class="o">.</span><span class="n">randrange</span><span class="p">(</span><span class="mi">100000000</span><span class="p">)</span>
     <span class="n">timeout</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;timeout&quot;</span><span class="p">,</span> <span class="bp">False</span><span class="p">)</span>
     <span class="n">slow</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;slow&quot;</span><span class="p">,</span> <span class="bp">False</span><span class="p">)</span>
-    <span class="n">r</span> <span class="o">=</span> <span class="n">PyTestReporter</span><span class="p">(</span><span class="n">verbose</span><span class="p">,</span> <span class="n">tb</span><span class="p">,</span> <span class="n">colors</span><span class="p">)</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">PyTestReporter</span><span class="p">(</span><span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">,</span> <span class="n">tb</span><span class="o">=</span><span class="n">tb</span><span class="p">,</span> <span class="n">colors</span><span class="o">=</span><span class="n">colors</span><span class="p">,</span> <span class="n">force_colors</span><span class="o">=</span><span class="n">force_colors</span><span class="p">)</span>
     <span class="n">t</span> <span class="o">=</span> <span class="n">SymPyTests</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">kw</span><span class="p">,</span> <span class="n">post_mortem</span><span class="p">,</span> <span class="n">seed</span><span class="p">)</span>
 
     <span class="c"># Disable warnings for external modules</span>
@@ -257,8 +521,8 @@
                     <span class="k">break</span>
         <span class="n">t</span><span class="o">.</span><span class="n">_testfiles</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">matched</span><span class="p">)</span>
 
-    <span class="k">return</span> <span class="n">t</span><span class="o">.</span><span class="n">test</span><span class="p">(</span><span class="n">sort</span><span class="o">=</span><span class="n">sort</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="n">timeout</span><span class="p">,</span> <span class="n">slow</span><span class="o">=</span><span class="n">slow</span><span class="p">)</span>
-</div>
+    <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="ow">not</span> <span class="n">t</span><span class="o">.</span><span class="n">test</span><span class="p">(</span><span class="n">sort</span><span class="o">=</span><span class="n">sort</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="n">timeout</span><span class="p">,</span> <span class="n">slow</span><span class="o">=</span><span class="n">slow</span><span class="p">))</span>
+
 <div class="viewcode-block" id="doctest"><a class="viewcode-back" href="../../../modules/utilities/runtests.html#sympy.utilities.runtests.doctest">[docs]</a><span class="k">def</span> <span class="nf">doctest</span><span class="p">(</span><span class="o">*</span><span class="n">paths</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Runs doctests in all \*py files in the sympy directory which match</span>
@@ -273,23 +537,43 @@
 <span class="sd">    Examples</span>
 <span class="sd">    ========</span>
 
-<span class="sd">    &gt;&gt; import sympy</span>
+<span class="sd">    &gt;&gt;&gt; import sympy</span>
 
 <span class="sd">    Run all tests:</span>
-<span class="sd">    &gt;&gt; sympy.doctest()</span>
+<span class="sd">    &gt;&gt;&gt; sympy.doctest() # doctest: +SKIP</span>
 
 <span class="sd">    Run one file:</span>
-<span class="sd">    &gt;&gt; sympy.doctest(&quot;sympy/core/basic.py&quot;)</span>
-<span class="sd">    &gt;&gt; sympy.doctest(&quot;polynomial.txt&quot;)</span>
+<span class="sd">    &gt;&gt;&gt; sympy.doctest(&quot;sympy/core/basic.py&quot;) # doctest: +SKIP</span>
+<span class="sd">    &gt;&gt;&gt; sympy.doctest(&quot;polynomial.rst&quot;) # doctest: +SKIP</span>
 
 <span class="sd">    Run all tests in sympy/functions/ and some particular file:</span>
-<span class="sd">    &gt;&gt; sympy.doctest(&quot;/functions&quot;, &quot;basic.py&quot;)</span>
+<span class="sd">    &gt;&gt;&gt; sympy.doctest(&quot;/functions&quot;, &quot;basic.py&quot;) # doctest: +SKIP</span>
 
-<span class="sd">    Run any file having polynomial in its name, doc/src/modules/polynomial.txt,</span>
+<span class="sd">    Run any file having polynomial in its name, doc/src/modules/polynomial.rst,</span>
 <span class="sd">    sympy/functions/special/polynomials.py, and sympy/polys/polynomial.py:</span>
 
-<span class="sd">    &gt;&gt; sympy.doctest(&quot;polynomial&quot;)</span>
+<span class="sd">    &gt;&gt;&gt; sympy.doctest(&quot;polynomial&quot;) # doctest: +SKIP</span>
 
+<span class="sd">    The ``subprocess`` and ``verbose`` options are the same as with the function</span>
+<span class="sd">    ``test()``.  See the docstring of that function for more information.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">subprocess</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s">&quot;subprocess&quot;</span><span class="p">,</span> <span class="bp">True</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">subprocess</span><span class="p">:</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="n">run_in_subprocess_with_hash_randomization</span><span class="p">(</span><span class="s">&quot;_doctest&quot;</span><span class="p">,</span>
+            <span class="n">function_args</span><span class="o">=</span><span class="n">paths</span><span class="p">,</span> <span class="n">function_kwargs</span><span class="o">=</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">ret</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">False</span><span class="p">:</span>
+            <span class="k">return</span> <span class="ow">not</span> <span class="nb">bool</span><span class="p">(</span><span class="n">ret</span><span class="p">)</span>
+    <span class="k">return</span> <span class="ow">not</span> <span class="nb">bool</span><span class="p">(</span><span class="n">_doctest</span><span class="p">(</span><span class="o">*</span><span class="n">paths</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">))</span>
+</div>
+<span class="k">def</span> <span class="nf">_doctest</span><span class="p">(</span><span class="o">*</span><span class="n">paths</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Internal function that actually runs the doctests.</span>
+
+<span class="sd">    All keyword arguments from ``doctest()`` are passed to this function</span>
+<span class="sd">    except for ``subprocess``.</span>
+
+<span class="sd">    Returns 0 if tests passed and 1 if they failed.  See the docstrings of</span>
+<span class="sd">    ``doctest()`` and ``test()`` for more information.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">normal</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;normal&quot;</span><span class="p">,</span> <span class="bp">False</span><span class="p">)</span>
     <span class="n">verbose</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;verbose&quot;</span><span class="p">,</span> <span class="bp">False</span><span class="p">)</span>
@@ -297,8 +581,9 @@
     <span class="n">blacklist</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span>
                     <span class="s">&quot;doc/src/modules/mpmath&quot;</span><span class="p">,</span> <span class="c"># needs to be fixed upstream</span>
                     <span class="s">&quot;sympy/mpmath&quot;</span><span class="p">,</span> <span class="c"># needs to be fixed upstream</span>
-                    <span class="s">&quot;doc/src/modules/plotting.txt&quot;</span><span class="p">,</span> <span class="c"># generates live plots</span>
-                    <span class="s">&quot;sympy/plotting&quot;</span><span class="p">,</span> <span class="c"># generates live plots</span>
+                    <span class="s">&quot;doc/src/modules/plotting.rst&quot;</span><span class="p">,</span> <span class="c"># generates live plots</span>
+                    <span class="c"># &quot;sympy/plotting&quot;, # generates live plots</span>
+                    <span class="s">&quot;sympy/plotting/pygletplot&quot;</span><span class="p">,</span> <span class="c"># generates live plots</span>
                     <span class="s">&quot;sympy/utilities/compilef.py&quot;</span><span class="p">,</span> <span class="c"># needs tcc</span>
                     <span class="s">&quot;sympy/utilities/autowrap.py&quot;</span><span class="p">,</span> <span class="c"># needs installed compiler</span>
                     <span class="s">&quot;sympy/galgebra/GA.py&quot;</span><span class="p">,</span> <span class="c"># needs numpy</span>
@@ -349,13 +634,13 @@
 
     <span class="c"># N.B.</span>
     <span class="c"># --------------------------------------------------------------------</span>
-    <span class="c"># Here we test *.txt files at or below doc/src. Code from these must</span>
+    <span class="c"># Here we test *.rst files at or below doc/src. Code from these must</span>
     <span class="c"># be self supporting in terms of imports since there is no importing</span>
     <span class="c"># of necessary modules by doctest.testfile. If you try to pass *.py</span>
     <span class="c"># files through this they might fail because they will lack the needed</span>
     <span class="c"># imports and smarter parsing that can be done with source code.</span>
     <span class="c">#</span>
-    <span class="n">test_files</span> <span class="o">=</span> <span class="n">t</span><span class="o">.</span><span class="n">get_test_files</span><span class="p">(</span><span class="s">&#39;doc/src&#39;</span><span class="p">,</span> <span class="s">&#39;*.txt&#39;</span><span class="p">,</span> <span class="n">init_only</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+    <span class="n">test_files</span> <span class="o">=</span> <span class="n">t</span><span class="o">.</span><span class="n">get_test_files</span><span class="p">(</span><span class="s">&#39;doc/src&#39;</span><span class="p">,</span> <span class="s">&#39;*.rst&#39;</span><span class="p">,</span> <span class="n">init_only</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
     <span class="n">test_files</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
 
     <span class="n">not_blacklisted</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">test_files</span>
@@ -367,7 +652,7 @@
         <span class="c"># Take only what was requested as long as it&#39;s not on the blacklist.</span>
         <span class="c"># Paths were already made native in *py tests so don&#39;t repeat here.</span>
         <span class="c"># There&#39;s no chance of having a *py file slip through since we</span>
-        <span class="c"># only have *txt files in test_files.</span>
+        <span class="c"># only have *rst files in test_files.</span>
         <span class="n">matched</span> <span class="o">=</span>  <span class="p">[]</span>
         <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">not_blacklisted</span><span class="p">:</span>
             <span class="n">basename</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
@@ -378,14 +663,14 @@
 
     <span class="n">setup_pprint</span><span class="p">()</span>
     <span class="n">first_report</span> <span class="o">=</span> <span class="bp">True</span>
-    <span class="k">for</span> <span class="n">txt_file</span> <span class="ow">in</span> <span class="n">matched</span><span class="p">:</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">txt_file</span><span class="p">):</span>
+    <span class="k">for</span> <span class="n">rst_file</span> <span class="ow">in</span> <span class="n">matched</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">rst_file</span><span class="p">):</span>
             <span class="k">continue</span>
         <span class="n">old_displayhook</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">displayhook</span>
         <span class="k">try</span><span class="p">:</span>
-            <span class="c"># out = pdoctest.testfile(txt_file, module_relative=False, encoding=&#39;utf-8&#39;,</span>
+            <span class="c"># out = pdoctest.testfile(rst_file, module_relative=False, encoding=&#39;utf-8&#39;,</span>
             <span class="c">#    optionflags=pdoctest.ELLIPSIS | pdoctest.NORMALIZE_WHITESPACE)</span>
-            <span class="n">out</span> <span class="o">=</span> <span class="n">sympytestfile</span><span class="p">(</span><span class="n">txt_file</span><span class="p">,</span> <span class="n">module_relative</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s">&#39;utf-8&#39;</span><span class="p">,</span>
+            <span class="n">out</span> <span class="o">=</span> <span class="n">sympytestfile</span><span class="p">(</span><span class="n">rst_file</span><span class="p">,</span> <span class="n">module_relative</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s">&#39;utf-8&#39;</span><span class="p">,</span>
                 <span class="n">optionflags</span><span class="o">=</span><span class="n">pdoctest</span><span class="o">.</span><span class="n">ELLIPSIS</span> <span class="o">|</span> <span class="n">pdoctest</span><span class="o">.</span><span class="n">NORMALIZE_WHITESPACE</span> \
                             <span class="o">|</span> <span class="n">pdoctest</span><span class="o">.</span><span class="n">IGNORE_EXCEPTION_DETAIL</span><span class="p">)</span>
         <span class="k">finally</span><span class="p">:</span>
@@ -393,35 +678,36 @@
             <span class="c"># doctest has changed that</span>
             <span class="n">sys</span><span class="o">.</span><span class="n">displayhook</span> <span class="o">=</span> <span class="n">old_displayhook</span>
 
-        <span class="n">txtfailed</span><span class="p">,</span> <span class="n">tested</span> <span class="o">=</span> <span class="n">out</span>
+        <span class="n">rstfailed</span><span class="p">,</span> <span class="n">tested</span> <span class="o">=</span> <span class="n">out</span>
         <span class="k">if</span> <span class="n">tested</span><span class="p">:</span>
-            <span class="n">failed</span> <span class="o">=</span> <span class="n">txtfailed</span> <span class="ow">or</span> <span class="n">failed</span>
+            <span class="n">failed</span> <span class="o">=</span> <span class="n">rstfailed</span> <span class="ow">or</span> <span class="n">failed</span>
             <span class="k">if</span> <span class="n">first_report</span><span class="p">:</span>
                 <span class="n">first_report</span> <span class="o">=</span> <span class="bp">False</span>
-                <span class="n">msg</span> <span class="o">=</span> <span class="s">&#39;txt doctests start&#39;</span>
-                <span class="n">lhead</span> <span class="o">=</span> <span class="s">&#39;=&#39;</span><span class="o">*</span><span class="p">((</span><span class="n">r</span><span class="o">.</span><span class="n">terminal_width</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">msg</span><span class="p">))</span><span class="o">//</span><span class="mi">2</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
-                <span class="n">rhead</span> <span class="o">=</span> <span class="s">&#39;=&#39;</span><span class="o">*</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">terminal_width</span> <span class="o">-</span> <span class="mi">1</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">lhead</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
-                <span class="k">print</span> <span class="s">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">lhead</span><span class="p">,</span> <span class="n">msg</span><span class="p">,</span> <span class="n">rhead</span><span class="p">])</span>
-                <span class="k">print</span>
+                <span class="n">msg</span> <span class="o">=</span> <span class="s">&#39;rst doctests start&#39;</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">t</span><span class="o">.</span><span class="n">_testfiles</span><span class="p">:</span>
+                    <span class="n">r</span><span class="o">.</span><span class="n">start</span><span class="p">(</span><span class="n">msg</span><span class="o">=</span><span class="n">msg</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">r</span><span class="o">.</span><span class="n">write_center</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+                    <span class="k">print</span>
             <span class="c"># use as the id, everything past the first &#39;sympy&#39;</span>
-            <span class="n">file_id</span> <span class="o">=</span> <span class="n">txt_file</span><span class="p">[</span><span class="n">txt_file</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s">&#39;sympy&#39;</span><span class="p">)</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="s">&#39;sympy&#39;</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:]</span>
+            <span class="n">file_id</span> <span class="o">=</span> <span class="n">rst_file</span><span class="p">[</span><span class="n">rst_file</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s">&#39;sympy&#39;</span><span class="p">)</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="s">&#39;sympy&#39;</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:]</span>
             <span class="k">print</span> <span class="n">file_id</span><span class="p">,</span> <span class="c"># get at least the name out so it is know who is being tested</span>
             <span class="n">wid</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">terminal_width</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">file_id</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span> <span class="c">#update width</span>
             <span class="n">test_file</span> <span class="o">=</span> <span class="s">&#39;[</span><span class="si">%s</span><span class="s">]&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">tested</span><span class="p">)</span>
-            <span class="n">report</span> <span class="o">=</span> <span class="s">&#39;[</span><span class="si">%s</span><span class="s">]&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">txtfailed</span> <span class="ow">or</span> <span class="s">&#39;OK&#39;</span><span class="p">)</span>
+            <span class="n">report</span> <span class="o">=</span> <span class="s">&#39;[</span><span class="si">%s</span><span class="s">]&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">rstfailed</span> <span class="ow">or</span> <span class="s">&#39;OK&#39;</span><span class="p">)</span>
             <span class="k">print</span> <span class="s">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">test_file</span><span class="p">,</span><span class="s">&#39; &#39;</span><span class="o">*</span><span class="p">(</span><span class="n">wid</span><span class="o">-</span><span class="nb">len</span><span class="p">(</span><span class="n">test_file</span><span class="p">)</span><span class="o">-</span><span class="nb">len</span><span class="p">(</span><span class="n">report</span><span class="p">)),</span> <span class="n">report</span><span class="p">])</span>
 
     <span class="c"># the doctests for *py will have printed this message already if there was</span>
     <span class="c"># a failure, so now only print it if there was intervening reporting by</span>
-    <span class="c"># testing the *txt as evidenced by first_report no longer being True.</span>
+    <span class="c"># testing the *rst as evidenced by first_report no longer being True.</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">first_report</span> <span class="ow">and</span> <span class="n">failed</span><span class="p">:</span>
         <span class="k">print</span>
         <span class="k">print</span><span class="p">(</span><span class="s">&quot;DO *NOT* COMMIT!&quot;</span><span class="p">)</span>
 
-    <span class="k">return</span> <span class="ow">not</span> <span class="n">failed</span>
+    <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">failed</span><span class="p">)</span>
 
 <span class="c"># The Python 2.5 doctest runner uses a tuple, but in 2.6+, it uses a namedtuple</span>
-<span class="c"># (which doesn&#39;t exist in 2.5-)</span></div>
+<span class="c"># (which doesn&#39;t exist in 2.5-)</span>
 <span class="k">if</span> <span class="n">sys</span><span class="o">.</span><span class="n">version_info</span><span class="p">[:</span><span class="mi">2</span><span class="p">]</span> <span class="o">&gt;</span> <span class="p">(</span><span class="mi">2</span><span class="p">,</span><span class="mi">5</span><span class="p">):</span>
     <span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">namedtuple</span>
     <span class="n">SymPyTestResults</span> <span class="o">=</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s">&#39;TestResults&#39;</span><span class="p">,</span> <span class="s">&#39;failed attempted&#39;</span><span class="p">)</span>
@@ -513,10 +799,11 @@
                          <span class="s">&quot;relative paths.&quot;</span><span class="p">)</span>
 
     <span class="c"># Relativize the path</span>
-    <span class="k">if</span> <span class="n">sys</span><span class="o">.</span><span class="n">version_info</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mi">3</span><span class="p">:</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">IS_PYTHON_3</span><span class="p">:</span>
         <span class="n">text</span><span class="p">,</span> <span class="n">filename</span> <span class="o">=</span> <span class="n">pdoctest</span><span class="o">.</span><span class="n">_load_testfile</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">package</span><span class="p">,</span> <span class="n">module_relative</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">encoding</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">text</span> <span class="o">=</span> <span class="n">text</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">encoding</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="n">encoding</span> <span class="o">=</span> <span class="bp">None</span>
         <span class="n">text</span><span class="p">,</span> <span class="n">filename</span> <span class="o">=</span> <span class="n">pdoctest</span><span class="o">.</span><span class="n">_load_testfile</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">package</span><span class="p">,</span> <span class="n">module_relative</span><span class="p">,</span> <span class="n">encoding</span><span class="p">)</span>
 
     <span class="c"># If no name was given, then use the file&#39;s name.</span>
@@ -537,9 +824,6 @@
         <span class="n">runner</span> <span class="o">=</span> <span class="n">pdoctest</span><span class="o">.</span><span class="n">DebugRunner</span><span class="p">(</span><span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">,</span> <span class="n">optionflags</span><span class="o">=</span><span class="n">optionflags</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">runner</span> <span class="o">=</span> <span class="n">SymPyDocTestRunner</span><span class="p">(</span><span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">,</span> <span class="n">optionflags</span><span class="o">=</span><span class="n">optionflags</span><span class="p">)</span>
-
-    <span class="k">if</span> <span class="n">encoding</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
-        <span class="n">text</span> <span class="o">=</span> <span class="n">text</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">encoding</span><span class="p">)</span>
 
     <span class="c"># Read the file, convert it to a test, and run it.</span>
     <span class="n">test</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">get_doctest</span><span class="p">(</span><span class="n">text</span><span class="p">,</span> <span class="n">globs</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">filename</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
@@ -596,7 +880,13 @@
         <span class="n">gl</span> <span class="o">=</span> <span class="p">{</span><span class="s">&#39;__file__&#39;</span><span class="p">:</span><span class="n">filename</span><span class="p">}</span>
         <span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_seed</span><span class="p">)</span>
         <span class="k">try</span><span class="p">:</span>
-            <span class="nb">execfile</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">gl</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">IS_PYTHON_3</span> <span class="ow">and</span> <span class="n">IS_WINDOWS</span><span class="p">:</span>
+                <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s">&quot;utf8&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                    <span class="n">source</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+                <span class="n">c</span> <span class="o">=</span> <span class="nb">compile</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">filename</span><span class="p">,</span> <span class="s">&#39;exec&#39;</span><span class="p">)</span>
+                <span class="k">exec</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">gl</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="nb">execfile</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">gl</span><span class="p">)</span>
         <span class="k">except</span> <span class="p">(</span><span class="ne">SystemExit</span><span class="p">,</span> <span class="ne">KeyboardInterrupt</span><span class="p">):</span>
             <span class="k">raise</span>
         <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
@@ -655,6 +945,7 @@
                 <span class="k">if</span> <span class="n">timeout</span><span class="p">:</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">_timeout</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">timeout</span><span class="p">)</span>
                 <span class="k">else</span><span class="p">:</span>
+                    <span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_seed</span><span class="p">)</span>
                     <span class="n">f</span><span class="p">()</span>
             <span class="k">except</span> <span class="ne">KeyboardInterrupt</span><span class="p">:</span>
                 <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="s">&#39;_slow&#39;</span><span class="p">,</span> <span class="bp">False</span><span class="p">):</span>
@@ -1079,10 +1370,11 @@
 <span class="sd">    Py.test like reporter. Should produce output identical to py.test.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">tb</span><span class="o">=</span><span class="s">&quot;short&quot;</span><span class="p">,</span> <span class="n">colors</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">tb</span><span class="o">=</span><span class="s">&quot;short&quot;</span><span class="p">,</span> <span class="n">colors</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">force_colors</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_verbose</span> <span class="o">=</span> <span class="n">verbose</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_tb_style</span> <span class="o">=</span> <span class="n">tb</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_colors</span> <span class="o">=</span> <span class="n">colors</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_force_colors</span> <span class="o">=</span> <span class="n">force_colors</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_xfailed</span> <span class="o">=</span> <span class="mi">0</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_xpassed</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_failed</span> <span class="o">=</span> <span class="p">[]</span>
@@ -1164,7 +1456,7 @@
 
         <span class="k">return</span> <span class="n">width</span>
 
-<div class="viewcode-block" id="PyTestReporter.write"><a class="viewcode-back" href="../../../modules/utilities/runtests.html#sympy.utilities.runtests.PyTestReporter.write">[docs]</a>    <span class="k">def</span> <span class="nf">write</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">text</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s">&quot;&quot;</span><span class="p">,</span> <span class="n">align</span><span class="o">=</span><span class="s">&quot;left&quot;</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+<div class="viewcode-block" id="PyTestReporter.write"><a class="viewcode-back" href="../../../modules/utilities/runtests.html#sympy.utilities.runtests.PyTestReporter.write">[docs]</a>    <span class="k">def</span> <span class="nf">write</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">text</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s">&quot;&quot;</span><span class="p">,</span> <span class="n">align</span><span class="o">=</span><span class="s">&quot;left&quot;</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">force_colors</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Prints a text on the screen.</span>
 
@@ -1214,19 +1506,24 @@
                 <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&quot; &quot;</span><span class="o">*</span><span class="p">(</span><span class="n">width</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">_write_pos</span><span class="o">-</span><span class="nb">len</span><span class="p">(</span><span class="n">text</span><span class="p">)))</span>
 
-        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="p">,</span> <span class="s">&#39;isatty&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">isatty</span><span class="p">():</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_force_colors</span> <span class="ow">and</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="p">,</span> <span class="s">&#39;isatty&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">isatty</span><span class="p">():</span>
             <span class="c"># the stdout is not a terminal, this for example happens if the</span>
             <span class="c"># output is piped to less, e.g. &quot;bin/test | less&quot;. In this case,</span>
             <span class="c"># the terminal control sequences would be printed verbatim, so</span>
             <span class="c"># don&#39;t use any colors.</span>
             <span class="n">color</span> <span class="o">=</span> <span class="s">&quot;&quot;</span>
-        <span class="k">if</span> <span class="n">sys</span><span class="o">.</span><span class="n">platform</span> <span class="o">==</span> <span class="s">&quot;win32&quot;</span><span class="p">:</span>
+        <span class="k">elif</span> <span class="n">sys</span><span class="o">.</span><span class="n">platform</span> <span class="o">==</span> <span class="s">&quot;win32&quot;</span><span class="p">:</span>
             <span class="c"># Windows consoles don&#39;t support ANSI escape sequences</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="s">&quot;&quot;</span>
+        <span class="k">elif</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_colors</span><span class="p">:</span>
             <span class="n">color</span> <span class="o">=</span> <span class="s">&quot;&quot;</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_line_wrap</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">text</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">:</span>
                 <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">IS_PYTHON_3</span> <span class="ow">and</span> <span class="n">IS_WINDOWS</span><span class="p">:</span>
+            <span class="n">text</span> <span class="o">=</span> <span class="n">text</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s">&#39;raw_unicode_escape&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s">&#39;utf8&#39;</span><span class="p">,</span> <span class="s">&#39;ignore&#39;</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="n">color</span> <span class="o">==</span> <span class="s">&quot;&quot;</span><span class="p">:</span>
             <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
@@ -1258,20 +1555,27 @@
         <span class="n">t</span> <span class="o">=</span> <span class="n">traceback</span><span class="o">.</span><span class="n">format_exception_only</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">val</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">t</span><span class="p">))</span>
 
-    <span class="k">def</span> <span class="nf">start</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">write_center</span><span class="p">(</span><span class="s">&quot;test process starts&quot;</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">start</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">msg</span><span class="o">=</span><span class="s">&quot;test process starts&quot;</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">write_center</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
         <span class="n">executable</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">executable</span>
         <span class="n">v</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">version_info</span><span class="p">)</span>
         <span class="n">python_version</span> <span class="o">=</span> <span class="s">&quot;</span><span class="si">%s</span><span class="s">.</span><span class="si">%s</span><span class="s">.</span><span class="si">%s</span><span class="s">-</span><span class="si">%s</span><span class="s">-</span><span class="si">%s</span><span class="s">&quot;</span> <span class="o">%</span> <span class="n">v</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;executable:   </span><span class="si">%s</span><span class="s">  (</span><span class="si">%s</span><span class="s">)</span><span class="se">\n</span><span class="s">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">executable</span><span class="p">,</span> <span class="n">python_version</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;executable:         </span><span class="si">%s</span><span class="s">  (</span><span class="si">%s</span><span class="s">)</span><span class="se">\n</span><span class="s">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">executable</span><span class="p">,</span> <span class="n">python_version</span><span class="p">))</span>
         <span class="kn">from</span> <span class="nn">.misc</span> <span class="kn">import</span> <span class="n">ARCH</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;architecture: </span><span class="si">%s</span><span class="se">\n</span><span class="s">&quot;</span> <span class="o">%</span> <span class="n">ARCH</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;architecture:       </span><span class="si">%s</span><span class="se">\n</span><span class="s">&quot;</span> <span class="o">%</span> <span class="n">ARCH</span><span class="p">)</span>
         <span class="kn">from</span> <span class="nn">sympy.core.cache</span> <span class="kn">import</span> <span class="n">USE_CACHE</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;cache:        </span><span class="si">%s</span><span class="se">\n</span><span class="s">&quot;</span> <span class="o">%</span> <span class="n">USE_CACHE</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;cache:              </span><span class="si">%s</span><span class="se">\n</span><span class="s">&quot;</span> <span class="o">%</span> <span class="n">USE_CACHE</span><span class="p">)</span>
         <span class="kn">from</span> <span class="nn">sympy.polys.domains</span> <span class="kn">import</span> <span class="n">GROUND_TYPES</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;ground types: </span><span class="si">%s</span><span class="se">\n</span><span class="s">&quot;</span> <span class="o">%</span> <span class="n">GROUND_TYPES</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;ground types:       </span><span class="si">%s</span><span class="se">\n</span><span class="s">&quot;</span> <span class="o">%</span> <span class="n">GROUND_TYPES</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">seed</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;random seed:  </span><span class="si">%d</span><span class="se">\n</span><span class="s">&quot;</span> <span class="o">%</span> <span class="n">seed</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;random seed:        </span><span class="si">%d</span><span class="se">\n</span><span class="s">&quot;</span> <span class="o">%</span> <span class="n">seed</span><span class="p">)</span>
+        <span class="kn">from</span> <span class="nn">.misc</span> <span class="kn">import</span> <span class="n">HASH_RANDOMIZATION</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;hash randomization: &quot;</span><span class="p">)</span>
+        <span class="n">hash_seed</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s">&quot;PYTHONHASHSEED&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">HASH_RANDOMIZATION</span> <span class="ow">and</span> <span class="p">(</span><span class="n">hash_seed</span> <span class="o">==</span> <span class="s">&quot;random&quot;</span> <span class="ow">or</span> <span class="nb">int</span><span class="p">(</span><span class="n">hash_seed</span><span class="p">)):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;on (PYTHONHASHSEED=</span><span class="si">%s</span><span class="s">)</span><span class="se">\n</span><span class="s">&quot;</span> <span class="o">%</span> <span class="n">hash_seed</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;off</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&#39;</span><span class="se">\n</span><span class="s">&#39;</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_t_start</span> <span class="o">=</span> <span class="n">clock</span><span class="p">()</span>
 
@@ -1357,12 +1661,11 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;[</span><span class="si">%d</span><span class="s">] &quot;</span> <span class="o">%</span> <span class="n">n</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">leaving_filename</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_colors</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&quot; &quot;</span><span class="p">)</span>
-            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_active_file_error</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;[FAIL]&quot;</span><span class="p">,</span> <span class="s">&quot;Red&quot;</span><span class="p">,</span> <span class="n">align</span><span class="o">=</span><span class="s">&quot;right&quot;</span><span class="p">)</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;[OK]&quot;</span><span class="p">,</span> <span class="s">&quot;Green&quot;</span><span class="p">,</span> <span class="n">align</span><span class="o">=</span><span class="s">&quot;right&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&quot; &quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_active_file_error</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;[FAIL]&quot;</span><span class="p">,</span> <span class="s">&quot;Red&quot;</span><span class="p">,</span> <span class="n">align</span><span class="o">=</span><span class="s">&quot;right&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;[OK]&quot;</span><span class="p">,</span> <span class="s">&quot;Green&quot;</span><span class="p">,</span> <span class="n">align</span><span class="o">=</span><span class="s">&quot;right&quot;</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">)</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_verbose</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">)</span>
@@ -1428,9 +1731,8 @@
         <span class="n">rel_name</span> <span class="o">=</span> <span class="n">filename</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_root_dir</span><span class="p">)</span><span class="o">+</span><span class="mi">1</span><span class="p">:]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">rel_name</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;[?]   Failed to import&quot;</span><span class="p">,</span> <span class="s">&quot;Red&quot;</span><span class="p">)</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_colors</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&quot; &quot;</span><span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;[FAIL]&quot;</span><span class="p">,</span> <span class="s">&quot;Red&quot;</span><span class="p">,</span> <span class="n">align</span><span class="o">=</span><span class="s">&quot;right&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&quot; &quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;[FAIL]&quot;</span><span class="p">,</span> <span class="s">&quot;Red&quot;</span><span class="p">,</span> <span class="n">align</span><span class="o">=</span><span class="s">&quot;right&quot;</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">)</span>
 </div>
 <span class="n">sympy_dir</span> <span class="o">=</span> <span class="n">get_sympy_dir</span><span class="p">()</span>
@@ -1480,8 +1782,8 @@
     </div>
     <div class="footer">
         &copy; Copyright 2008, 2009, 2010, 2011, 2012 SymPy Development Team.
-      Last updated on Jan 05, 2012.
-      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.2.
+      Last updated on Aug 10, 2012.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
     </div>
   </body>
 </html>

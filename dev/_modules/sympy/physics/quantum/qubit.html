@@ -12,6 +12,9 @@
     
     <link rel="stylesheet" href="../../../../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="http://live.sympy.org/static/live-core.css" type="text/css" />
+    <link rel="stylesheet" href="http://live.sympy.org/static/live-autocomplete.css" type="text/css" />
+    <link rel="stylesheet" href="http://live.sympy.org/static/live-sphinx.css" type="text/css" />
     
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
@@ -25,7 +28,14 @@
     <script type="text/javascript" src="../../../../_static/jquery.js"></script>
     <script type="text/javascript" src="../../../../_static/underscore.js"></script>
     <script type="text/javascript" src="../../../../_static/doctools.js"></script>
-    <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_HTML-full"></script>
+    <script type="text/javascript" src="https://c328740.ssl.cf1.rackcdn.com/mathjax/latest/MathJax.js?config=TeX-AMS_HTML-full"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/utilities.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/external/classy.js"></script>
+    <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1/jquery.min.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/live-core.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/live-autocomplete.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/live-sphinx.js"></script>
+    <script type="text/javascript" src="../../../../_static/sidebar.js"></script>
     <link rel="shortcut icon" href="../../../../_static/SymPy-Favicon.ico"/>
     <link rel="top" title="SymPy 0.7.1-git documentation" href="../../../../index.html" />
     <link rel="up" title="sympy" href="../../../sympy.html" /> 
@@ -79,6 +89,7 @@
 <span class="kn">from</span> <span class="nn">sympy.physics.quantum.matrixutils</span> <span class="kn">import</span> <span class="p">(</span>
     <span class="n">numpy_ndarray</span><span class="p">,</span> <span class="n">scipy_sparse_matrix</span>
 <span class="p">)</span>
+<span class="kn">from</span> <span class="nn">sympy.mpmath.libmp.libintmath</span> <span class="kn">import</span> <span class="n">bitcount</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
     <span class="s">&#39;Qubit&#39;</span><span class="p">,</span>
@@ -87,6 +98,7 @@
     <span class="s">&#39;IntQubitBra&#39;</span><span class="p">,</span>
     <span class="s">&#39;qubit_to_matrix&#39;</span><span class="p">,</span>
     <span class="s">&#39;matrix_to_qubit&#39;</span><span class="p">,</span>
+    <span class="s">&#39;matrix_to_density&#39;</span><span class="p">,</span>
     <span class="s">&#39;measure_all&#39;</span><span class="p">,</span>
     <span class="s">&#39;measure_partial&#39;</span><span class="p">,</span>
     <span class="s">&#39;measure_partial_oneshot&#39;</span><span class="p">,</span>
@@ -171,11 +183,11 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="p">(</span><span class="o">*</span><span class="nb">tuple</span><span class="p">(</span><span class="n">newargs</span><span class="p">))</span>
 
 
-<div class="viewcode-block" id="Qubit"><a class="viewcode-back" href="../../../../modules/physics/quantum/computation/qubit.html#sympy.physics.quantum.qubit.Qubit">[docs]</a><span class="k">class</span> <span class="nc">Qubit</span><span class="p">(</span><span class="n">QubitState</span><span class="p">,</span> <span class="n">Ket</span><span class="p">):</span>
+<div class="viewcode-block" id="Qubit"><a class="viewcode-back" href="../../../../modules/physics/quantum/qubit.html#sympy.physics.quantum.qubit.Qubit">[docs]</a><span class="k">class</span> <span class="nc">Qubit</span><span class="p">(</span><span class="n">QubitState</span><span class="p">,</span> <span class="n">Ket</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;A multi-qubit ket in the computational (z) basis.</span>
 
 <span class="sd">    We use the normal convention that the least significant qubit is on the</span>
-<span class="sd">    right, so |00001&gt; has a 1 in the least significant qubit.</span>
+<span class="sd">    right, so ``|00001&gt;`` has a 1 in the least significant qubit.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ==========</span>
@@ -260,12 +272,57 @@
             <span class="kn">from</span> <span class="nn">scipy</span> <span class="kn">import</span> <span class="n">sparse</span>
             <span class="k">return</span> <span class="n">sparse</span><span class="o">.</span><span class="n">csr_matrix</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="s">&#39;complex&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">transpose</span><span class="p">()</span>
 
+    <span class="k">def</span> <span class="nf">_eval_trace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">bra</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">indices</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;indices&#39;</span><span class="p">,</span> <span class="p">[])</span>
+
+        <span class="c">#sort index list to begin trace from most-significant</span>
+        <span class="c">#qubit</span>
+        <span class="n">sorted_idx</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">sorted_idx</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">sorted_idx</span> <span class="o">=</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">nqubits</span><span class="p">)</span>
+        <span class="n">sorted_idx</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+
+        <span class="c">#trace out for each of index</span>
+        <span class="n">new_mat</span> <span class="o">=</span> <span class="bp">self</span><span class="o">*</span><span class="n">bra</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">sorted_idx</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+            <span class="c"># start from tracing out from leftmost qubit</span>
+            <span class="n">new_mat</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reduced_density</span><span class="p">(</span><span class="n">new_mat</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">sorted_idx</span><span class="p">[</span><span class="n">i</span><span class="p">]))</span>
+
+        <span class="k">if</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">sorted_idx</span><span class="p">)</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">nqubits</span><span class="p">):</span>
+            <span class="c">#in case full trace was requested</span>
+            <span class="k">return</span> <span class="n">new_mat</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">matrix_to_density</span><span class="p">(</span><span class="n">new_mat</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_reduced_density</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">matrix</span><span class="p">,</span> <span class="n">qubit</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Compute the reduced density matrix by tracing out one qubit.</span>
+<span class="sd">           The qubit argument should be of type python int, since it is used</span>
+<span class="sd">           in bit operations</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">def</span> <span class="nf">find_index_that_is_projected</span><span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">qubit</span><span class="p">):</span>
+            <span class="n">bit_mask</span> <span class="o">=</span> <span class="mi">2</span><span class="o">**</span><span class="n">qubit</span> <span class="o">-</span> <span class="mi">1</span>
+            <span class="k">return</span> <span class="p">((</span><span class="n">j</span> <span class="o">&gt;&gt;</span> <span class="n">qubit</span><span class="p">)</span> <span class="o">&lt;&lt;</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">qubit</span><span class="p">))</span> <span class="o">+</span> <span class="p">(</span><span class="n">j</span> <span class="o">&amp;</span> <span class="n">bit_mask</span><span class="p">)</span> <span class="o">+</span> <span class="p">(</span><span class="n">k</span> <span class="o">&lt;&lt;</span> <span class="n">qubit</span><span class="p">)</span>
+
+        <span class="n">old_matrix</span> <span class="o">=</span> <span class="n">represent</span><span class="p">(</span><span class="n">matrix</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">)</span>
+        <span class="n">old_size</span> <span class="o">=</span> <span class="n">old_matrix</span><span class="o">.</span><span class="n">cols</span>
+        <span class="c">#we expect the old_size to be even</span>
+        <span class="n">new_size</span> <span class="o">=</span> <span class="n">old_size</span><span class="o">//</span><span class="mi">2</span>
+        <span class="n">new_matrix</span> <span class="o">=</span> <span class="n">Matrix</span><span class="p">()</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">new_size</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="n">new_size</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="n">new_size</span><span class="p">):</span>
+                <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="mi">2</span><span class="p">):</span>
+                    <span class="n">col</span> <span class="o">=</span> <span class="n">find_index_that_is_projected</span><span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">qubit</span><span class="p">)</span>
+                    <span class="n">row</span> <span class="o">=</span> <span class="n">find_index_that_is_projected</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">qubit</span><span class="p">)</span>
+                    <span class="n">new_matrix</span><span class="p">[</span><span class="n">i</span><span class="p">,</span><span class="n">j</span><span class="p">]</span> <span class="o">+=</span> <span class="n">old_matrix</span><span class="p">[</span><span class="n">row</span><span class="p">,</span><span class="n">col</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">new_matrix</span>
 </div>
-<div class="viewcode-block" id="QubitBra"><a class="viewcode-back" href="../../../../modules/physics/quantum/computation/qubit.html#sympy.physics.quantum.qubit.QubitBra">[docs]</a><span class="k">class</span> <span class="nc">QubitBra</span><span class="p">(</span><span class="n">QubitState</span><span class="p">,</span> <span class="n">Bra</span><span class="p">):</span>
+<div class="viewcode-block" id="QubitBra"><a class="viewcode-back" href="../../../../modules/physics/quantum/qubit.html#sympy.physics.quantum.qubit.QubitBra">[docs]</a><span class="k">class</span> <span class="nc">QubitBra</span><span class="p">(</span><span class="n">QubitState</span><span class="p">,</span> <span class="n">Bra</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;A multi-qubit bra in the computational (z) basis.</span>
 
 <span class="sd">    We use the normal convention that the least significant qubit is on the</span>
-<span class="sd">    right, so |00001&gt; has a 1 in the least significant qubit.</span>
+<span class="sd">    right, so ``|00001&gt;`` has a 1 in the least significant qubit.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ==========</span>
@@ -273,10 +330,10 @@
 <span class="sd">    values : list, str</span>
 <span class="sd">        The qubit values as a list of ints ([0,0,0,1,1,]) or a string (&#39;011&#39;).</span>
 
-<span class="sd">    Examples</span>
+<span class="sd">    See also</span>
 <span class="sd">    ========</span>
 
-<span class="sd">    See ``Qubit`` for examples.</span>
+<span class="sd">    Qubit: Examples using qubits</span>
 
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="nd">@classmethod</span>
@@ -296,15 +353,15 @@
         <span class="c"># that integer with the minimal number of bits.</span>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
             <span class="c">#rvalues is the minimum number of bits needed to express the number</span>
-            <span class="n">rvalues</span> <span class="o">=</span> <span class="nb">reversed</span><span class="p">(</span>
-                <span class="nb">range</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">math</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="n">math</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">2</span><span class="p">)</span><span class="o">+.</span><span class="mo">01</span><span class="p">)</span><span class="o">+.</span><span class="mo">001</span><span class="p">))</span>
-            <span class="p">)</span>
+            <span class="n">rvalues</span> <span class="o">=</span> <span class="nb">reversed</span><span class="p">(</span><span class="nb">xrange</span><span class="p">(</span><span class="n">bitcount</span><span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]))))</span>
             <span class="n">qubit_values</span> <span class="o">=</span> <span class="p">[(</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">&gt;&gt;</span><span class="n">i</span><span class="p">)</span><span class="o">&amp;</span><span class="mi">1</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">rvalues</span><span class="p">]</span>
             <span class="k">return</span> <span class="n">QubitState</span><span class="o">.</span><span class="n">_eval_args</span><span class="p">(</span><span class="n">qubit_values</span><span class="p">)</span>
         <span class="c"># For two numbers, the second number is the number of bits</span>
         <span class="c"># on which it is expressed, so IntQubit(0,5) == |00000&gt;.</span>
         <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span> <span class="ow">and</span> <span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
-            <span class="c">#TODO Raise error if there are not enough bits</span>
+            <span class="n">need</span> <span class="o">=</span> <span class="n">bitcount</span><span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+            <span class="k">if</span> <span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">need</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;cannot represent </span><span class="si">%s</span><span class="s"> with </span><span class="si">%s</span><span class="s"> bits&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
             <span class="n">qubit_values</span> <span class="o">=</span> <span class="p">[(</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">&gt;&gt;</span><span class="n">i</span><span class="p">)</span><span class="o">&amp;</span><span class="mi">1</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]))]</span>
             <span class="k">return</span> <span class="n">QubitState</span><span class="o">.</span><span class="n">_eval_args</span><span class="p">(</span><span class="n">qubit_values</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
@@ -330,7 +387,7 @@
     <span class="n">_print_label_latex</span> <span class="o">=</span> <span class="n">_print_label</span>
 
 
-<div class="viewcode-block" id="IntQubit"><a class="viewcode-back" href="../../../../modules/physics/quantum/computation/qubit.html#sympy.physics.quantum.qubit.IntQubit">[docs]</a><span class="k">class</span> <span class="nc">IntQubit</span><span class="p">(</span><span class="n">IntQubitState</span><span class="p">,</span> <span class="n">Qubit</span><span class="p">):</span>
+<div class="viewcode-block" id="IntQubit"><a class="viewcode-back" href="../../../../modules/physics/quantum/qubit.html#sympy.physics.quantum.qubit.IntQubit">[docs]</a><span class="k">class</span> <span class="nc">IntQubit</span><span class="p">(</span><span class="n">IntQubitState</span><span class="p">,</span> <span class="n">Qubit</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;A qubit ket that store integers as binary numbers in qubit values.</span>
 
 <span class="sd">    The differences between this class and ``Qubit`` are:</span>
@@ -383,7 +440,7 @@
         <span class="k">return</span> <span class="n">IntQubitBra</span>
 
 </div>
-<div class="viewcode-block" id="IntQubitBra"><a class="viewcode-back" href="../../../../modules/physics/quantum/computation/qubit.html#sympy.physics.quantum.qubit.IntQubitBra">[docs]</a><span class="k">class</span> <span class="nc">IntQubitBra</span><span class="p">(</span><span class="n">IntQubitState</span><span class="p">,</span> <span class="n">QubitBra</span><span class="p">):</span>
+<div class="viewcode-block" id="IntQubitBra"><a class="viewcode-back" href="../../../../modules/physics/quantum/qubit.html#sympy.physics.quantum.qubit.IntQubitBra">[docs]</a><span class="k">class</span> <span class="nc">IntQubitBra</span><span class="p">(</span><span class="n">IntQubitState</span><span class="p">,</span> <span class="n">QubitBra</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;A qubit bra that store integers as binary numbers in qubit values.&quot;&quot;&quot;</span>
 
     <span class="nd">@classmethod</span>
@@ -396,7 +453,7 @@
 <span class="c">#-----------------------------------------------------------------------------</span>
 
 </div>
-<div class="viewcode-block" id="matrix_to_qubit"><a class="viewcode-back" href="../../../../modules/physics/quantum/computation/qubit.html#sympy.physics.quantum.qubit.matrix_to_qubit">[docs]</a><span class="k">def</span> <span class="nf">matrix_to_qubit</span><span class="p">(</span><span class="n">matrix</span><span class="p">):</span>
+<div class="viewcode-block" id="matrix_to_qubit"><a class="viewcode-back" href="../../../../modules/physics/quantum/qubit.html#sympy.physics.quantum.qubit.matrix_to_qubit">[docs]</a><span class="k">def</span> <span class="nf">matrix_to_qubit</span><span class="p">(</span><span class="n">matrix</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Convert from the matrix repr. to a sum of Qubit objects.</span>
 
 <span class="sd">    Parameters</span>
@@ -465,9 +522,22 @@
         <span class="n">result</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">expand</span><span class="p">()</span>
 
     <span class="k">return</span> <span class="n">result</span>
-
 </div>
-<div class="viewcode-block" id="qubit_to_matrix"><a class="viewcode-back" href="../../../../modules/physics/quantum/computation/qubit.html#sympy.physics.quantum.qubit.qubit_to_matrix">[docs]</a><span class="k">def</span> <span class="nf">qubit_to_matrix</span><span class="p">(</span><span class="n">qubit</span><span class="p">,</span> <span class="n">format</span><span class="o">=</span><span class="s">&#39;sympy&#39;</span><span class="p">):</span>
+<div class="viewcode-block" id="matrix_to_density"><a class="viewcode-back" href="../../../../modules/physics/quantum/qubit.html#sympy.physics.quantum.qubit.matrix_to_density">[docs]</a><span class="k">def</span> <span class="nf">matrix_to_density</span><span class="p">(</span><span class="n">mat</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Works by finding the eigenvectors and eigenvalues of the matrix.</span>
+<span class="sd">    We know we can decompose rho by doing:</span>
+<span class="sd">    sum(EigenVal*|Eigenvect&gt;&lt;Eigenvect|)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">sympy.physics.quantum.density</span> <span class="kn">import</span> <span class="n">Density</span>
+    <span class="n">eigen</span> <span class="o">=</span> <span class="n">mat</span><span class="o">.</span><span class="n">eigenvects</span><span class="p">()</span>
+    <span class="n">args</span> <span class="o">=</span> <span class="p">[[</span><span class="n">matrix_to_qubit</span><span class="p">(</span><span class="n">Matrix</span><span class="p">([</span><span class="n">vector</span><span class="p">,])),</span> <span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">eigen</span> <span class="k">for</span> <span class="n">vector</span> <span class="ow">in</span> <span class="n">x</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="k">if</span> <span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="k">if</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">):</span>
+        <span class="k">return</span> <span class="mi">0</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">Density</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="qubit_to_matrix"><a class="viewcode-back" href="../../../../modules/physics/quantum/qubit.html#sympy.physics.quantum.qubit.qubit_to_matrix">[docs]</a><span class="k">def</span> <span class="nf">qubit_to_matrix</span><span class="p">(</span><span class="n">qubit</span><span class="p">,</span> <span class="n">format</span><span class="o">=</span><span class="s">&#39;sympy&#39;</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Coverts an Add/Mul of Qubit objects into it&#39;s matrix representation</span>
 
 <span class="sd">    This function is the inverse of ``matrix_to_qubit`` and is a shorthand</span>
@@ -481,7 +551,7 @@
 <span class="c">#-----------------------------------------------------------------------------</span>
 
 </div>
-<div class="viewcode-block" id="measure_all"><a class="viewcode-back" href="../../../../modules/physics/quantum/computation/qubit.html#sympy.physics.quantum.qubit.measure_all">[docs]</a><span class="k">def</span> <span class="nf">measure_all</span><span class="p">(</span><span class="n">qubit</span><span class="p">,</span> <span class="n">format</span><span class="o">=</span><span class="s">&#39;sympy&#39;</span><span class="p">,</span> <span class="n">normalize</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+<div class="viewcode-block" id="measure_all"><a class="viewcode-back" href="../../../../modules/physics/quantum/qubit.html#sympy.physics.quantum.qubit.measure_all">[docs]</a><span class="k">def</span> <span class="nf">measure_all</span><span class="p">(</span><span class="n">qubit</span><span class="p">,</span> <span class="n">format</span><span class="o">=</span><span class="s">&#39;sympy&#39;</span><span class="p">,</span> <span class="n">normalize</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Perform an ensemble measurement of all qubits.</span>
 
 <span class="sd">    Parameters</span>
@@ -537,7 +607,7 @@
         <span class="p">)</span>
 
 </div>
-<div class="viewcode-block" id="measure_partial"><a class="viewcode-back" href="../../../../modules/physics/quantum/computation/qubit.html#sympy.physics.quantum.qubit.measure_partial">[docs]</a><span class="k">def</span> <span class="nf">measure_partial</span><span class="p">(</span><span class="n">qubit</span><span class="p">,</span> <span class="n">bits</span><span class="p">,</span> <span class="n">format</span><span class="o">=</span><span class="s">&#39;sympy&#39;</span><span class="p">,</span> <span class="n">normalize</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+<div class="viewcode-block" id="measure_partial"><a class="viewcode-back" href="../../../../modules/physics/quantum/qubit.html#sympy.physics.quantum.qubit.measure_partial">[docs]</a><span class="k">def</span> <span class="nf">measure_partial</span><span class="p">(</span><span class="n">qubit</span><span class="p">,</span> <span class="n">bits</span><span class="p">,</span> <span class="n">format</span><span class="o">=</span><span class="s">&#39;sympy&#39;</span><span class="p">,</span> <span class="n">normalize</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Perform a partial ensemble measure on the specifed qubits.</span>
 
 <span class="sd">    Parameters</span>
@@ -612,7 +682,7 @@
         <span class="p">)</span>
 
 </div>
-<div class="viewcode-block" id="measure_partial_oneshot"><a class="viewcode-back" href="../../../../modules/physics/quantum/computation/qubit.html#sympy.physics.quantum.qubit.measure_partial_oneshot">[docs]</a><span class="k">def</span> <span class="nf">measure_partial_oneshot</span><span class="p">(</span><span class="n">qubit</span><span class="p">,</span> <span class="n">bits</span><span class="p">,</span> <span class="n">format</span><span class="o">=</span><span class="s">&#39;sympy&#39;</span><span class="p">):</span>
+<div class="viewcode-block" id="measure_partial_oneshot"><a class="viewcode-back" href="../../../../modules/physics/quantum/qubit.html#sympy.physics.quantum.qubit.measure_partial_oneshot">[docs]</a><span class="k">def</span> <span class="nf">measure_partial_oneshot</span><span class="p">(</span><span class="n">qubit</span><span class="p">,</span> <span class="n">bits</span><span class="p">,</span> <span class="n">format</span><span class="o">=</span><span class="s">&#39;sympy&#39;</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Perform a partial oneshot measurement on the specified qubits.</span>
 
 <span class="sd">    A oneshot measurement is equivalent to performing a measurement on a</span>
@@ -711,7 +781,7 @@
     <span class="k">return</span> <span class="n">output_matrices</span>
 
 
-<div class="viewcode-block" id="measure_all_oneshot"><a class="viewcode-back" href="../../../../modules/physics/quantum/computation/qubit.html#sympy.physics.quantum.qubit.measure_all_oneshot">[docs]</a><span class="k">def</span> <span class="nf">measure_all_oneshot</span><span class="p">(</span><span class="n">qubit</span><span class="p">,</span> <span class="n">format</span><span class="o">=</span><span class="s">&#39;sympy&#39;</span><span class="p">):</span>
+<div class="viewcode-block" id="measure_all_oneshot"><a class="viewcode-back" href="../../../../modules/physics/quantum/qubit.html#sympy.physics.quantum.qubit.measure_all_oneshot">[docs]</a><span class="k">def</span> <span class="nf">measure_all_oneshot</span><span class="p">(</span><span class="n">qubit</span><span class="p">,</span> <span class="n">format</span><span class="o">=</span><span class="s">&#39;sympy&#39;</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Perform a oneshot ensemble measurement on all qubits.</span>
 
 <span class="sd">    A oneshot measurement is equivalent to performing a measurement on a</span>
@@ -799,8 +869,8 @@
     </div>
     <div class="footer">
         &copy; Copyright 2008, 2009, 2010, 2011, 2012 SymPy Development Team.
-      Last updated on Jan 05, 2012.
-      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.2.
+      Last updated on Aug 10, 2012.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
     </div>
   </body>
 </html>
