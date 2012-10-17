@@ -1,0 +1,560 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>sympy.core.compatibility &mdash; SymPy 0.7.2 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="http://live.sympy.org/static/live-core.css" type="text/css" />
+    <link rel="stylesheet" href="http://live.sympy.org/static/live-autocomplete.css" type="text/css" />
+    <link rel="stylesheet" href="http://live.sympy.org/static/live-sphinx.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '0.7.2',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="https://c328740.ssl.cf1.rackcdn.com/mathjax/latest/MathJax.js?config=TeX-AMS_HTML-full"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/utilities.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/external/classy.js"></script>
+    <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1/jquery.min.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/live-core.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/live-autocomplete.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/live-sphinx.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/SymPy-Favicon.ico"/>
+    <link rel="top" title="SymPy 0.7.2 documentation" href="../../../index.html" />
+    <link rel="up" title="sympy" href="../../sympy.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="../../../np-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">SymPy 0.7.2 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li>
+          <li><a href="../../sympy.html" accesskey="U">sympy</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for sympy.core.compatibility</h1><div class="highlight"><pre>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Reimplementations of constructs introduced in later versions of Python than</span>
+<span class="sd">we support. Also some functions that are needed SymPy-wide and are located</span>
+<span class="sd">here for easy import.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">defaultdict</span>
+
+<span class="c"># These are in here because telling if something is an iterable just by calling</span>
+<span class="c"># hasattr(obj, &quot;__iter__&quot;) behaves differently in Python 2 and Python 3.  In</span>
+<span class="c"># particular, hasattr(str, &quot;__iter__&quot;) is False in Python 2 and True in Python 3.</span>
+<span class="c"># I think putting them here also makes it easier to use them in the core.</span>
+
+<div class="viewcode-block" id="iterable"><a class="viewcode-back" href="../../../modules/core.html#sympy.core.compatibility.iterable">[docs]</a><span class="k">def</span> <span class="nf">iterable</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="p">(</span><span class="nb">basestring</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return a boolean indicating whether i is an iterable in the sympy sense.</span>
+
+<span class="sd">    When sympy is working with iterables, it is almost always assuming</span>
+<span class="sd">    that the iterable is not a string or a mapping, so those are excluded</span>
+<span class="sd">    by default. If you want a pure python definition, make exclude=None. To</span>
+<span class="sd">    exclude multiple items, pass them as a tuple.</span>
+
+<span class="sd">    See also: is_sequence</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.utilities.iterables import iterable</span>
+<span class="sd">    &gt;&gt;&gt; from sympy import Tuple</span>
+<span class="sd">    &gt;&gt;&gt; things = [[1], (1,), set([1]), Tuple(1), (j for j in [1, 2]), {1:2}, &#39;1&#39;, 1]</span>
+<span class="sd">    &gt;&gt;&gt; for i in things:</span>
+<span class="sd">    ...     print iterable(i), type(i)</span>
+<span class="sd">    True &lt;... &#39;list&#39;&gt;</span>
+<span class="sd">    True &lt;... &#39;tuple&#39;&gt;</span>
+<span class="sd">    True &lt;... &#39;set&#39;&gt;</span>
+<span class="sd">    True &lt;class &#39;sympy.core.containers.Tuple&#39;&gt;</span>
+<span class="sd">    True &lt;... &#39;generator&#39;&gt;</span>
+<span class="sd">    False &lt;... &#39;dict&#39;&gt;</span>
+<span class="sd">    False &lt;... &#39;str&#39;&gt;</span>
+<span class="sd">    False &lt;... &#39;int&#39;&gt;</span>
+
+<span class="sd">    &gt;&gt;&gt; iterable({}, exclude=None)</span>
+<span class="sd">    True</span>
+<span class="sd">    &gt;&gt;&gt; iterable({}, exclude=str)</span>
+<span class="sd">    True</span>
+<span class="sd">    &gt;&gt;&gt; iterable(&quot;no&quot;, exclude=str)</span>
+<span class="sd">    False</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="nb">iter</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">False</span>
+    <span class="k">if</span> <span class="n">exclude</span><span class="p">:</span>
+        <span class="k">return</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">exclude</span><span class="p">)</span>
+    <span class="k">return</span> <span class="bp">True</span>
+</div>
+<div class="viewcode-block" id="is_sequence"><a class="viewcode-back" href="../../../modules/core.html#sympy.core.compatibility.is_sequence">[docs]</a><span class="k">def</span> <span class="nf">is_sequence</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">include</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return a boolean indicating whether i is a sequence in the sympy</span>
+<span class="sd">    sense. If anything that fails the test below should be included as</span>
+<span class="sd">    being a sequence for your application, set &#39;include&#39; to that object&#39;s</span>
+<span class="sd">    type; multiple types should be passed as a tuple of types.</span>
+
+<span class="sd">    Note: although generators can generate a sequence, they often need special</span>
+<span class="sd">    handling to make sure their elements are captured before the generator is</span>
+<span class="sd">    exhausted, so these are not included by default in the definition of a</span>
+<span class="sd">    sequence.</span>
+
+<span class="sd">    See also: iterable</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.utilities.iterables import is_sequence</span>
+<span class="sd">    &gt;&gt;&gt; from types import GeneratorType</span>
+<span class="sd">    &gt;&gt;&gt; is_sequence([])</span>
+<span class="sd">    True</span>
+<span class="sd">    &gt;&gt;&gt; is_sequence(set())</span>
+<span class="sd">    False</span>
+<span class="sd">    &gt;&gt;&gt; is_sequence(&#39;abc&#39;)</span>
+<span class="sd">    False</span>
+<span class="sd">    &gt;&gt;&gt; is_sequence(&#39;abc&#39;, include=str)</span>
+<span class="sd">    True</span>
+<span class="sd">    &gt;&gt;&gt; generator = (c for c in &#39;abc&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; is_sequence(generator)</span>
+<span class="sd">    False</span>
+<span class="sd">    &gt;&gt;&gt; is_sequence(generator, include=(str, GeneratorType))</span>
+<span class="sd">    True</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="p">(</span><span class="nb">hasattr</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="s">&#39;__getitem__&#39;</span><span class="p">)</span> <span class="ow">and</span>
+            <span class="n">iterable</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="ow">or</span>
+            <span class="nb">bool</span><span class="p">(</span><span class="n">include</span><span class="p">)</span> <span class="ow">and</span>
+            <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">include</span><span class="p">))</span>
+</div>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Wrapping some imports in try/except statements to allow the same code to</span>
+<span class="sd">be used in Python 3+ as well.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="k">try</span><span class="p">:</span>
+    <span class="nb">callable</span> <span class="o">=</span> <span class="nb">callable</span>
+<span class="k">except</span> <span class="ne">NameError</span><span class="p">:</span>
+    <span class="kn">import</span> <span class="nn">collections</span>
+    <span class="k">def</span> <span class="nf">callable</span><span class="p">(</span><span class="n">obj</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">collections</span><span class="o">.</span><span class="n">Callable</span><span class="p">)</span>
+
+<span class="k">try</span><span class="p">:</span>
+    <span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="nb">reduce</span>
+<span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+    <span class="nb">reduce</span> <span class="o">=</span> <span class="nb">reduce</span>
+
+<span class="k">def</span> <span class="nf">cmp_to_key</span><span class="p">(</span><span class="n">mycmp</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Convert a cmp= function into a key= function</span>
+
+<span class="sd">    This code is included in Python 2.7 and 3.2 in functools.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">class</span> <span class="nc">K</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+        <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">obj</span> <span class="o">=</span> <span class="n">obj</span>
+        <span class="k">def</span> <span class="nf">__lt__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">mycmp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">obj</span><span class="p">,</span> <span class="n">other</span><span class="o">.</span><span class="n">obj</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">0</span>
+        <span class="k">def</span> <span class="nf">__gt__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">mycmp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">obj</span><span class="p">,</span> <span class="n">other</span><span class="o">.</span><span class="n">obj</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span>
+        <span class="k">def</span> <span class="nf">__eq__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">mycmp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">obj</span><span class="p">,</span> <span class="n">other</span><span class="o">.</span><span class="n">obj</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
+        <span class="k">def</span> <span class="nf">__le__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">mycmp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">obj</span><span class="p">,</span> <span class="n">other</span><span class="o">.</span><span class="n">obj</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="mi">0</span>
+        <span class="k">def</span> <span class="nf">__ge__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">mycmp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">obj</span><span class="p">,</span> <span class="n">other</span><span class="o">.</span><span class="n">obj</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">0</span>
+        <span class="k">def</span> <span class="nf">__ne__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">mycmp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">obj</span><span class="p">,</span> <span class="n">other</span><span class="o">.</span><span class="n">obj</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">0</span>
+    <span class="k">return</span> <span class="n">K</span>
+
+<span class="k">try</span><span class="p">:</span>
+    <span class="kn">import</span> <span class="nn">__builtin__</span>
+    <span class="nb">cmp</span> <span class="o">=</span> <span class="n">__builtin__</span><span class="o">.</span><span class="n">cmp</span>
+<span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">cmp</span><span class="p">(</span><span class="n">a</span><span class="p">,</span><span class="n">b</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">a</span> <span class="o">&gt;</span> <span class="n">b</span><span class="p">)</span> <span class="o">-</span> <span class="p">(</span><span class="n">a</span> <span class="o">&lt;</span> <span class="n">b</span><span class="p">)</span>
+
+<span class="k">try</span><span class="p">:</span>
+    <span class="kn">from</span> <span class="nn">itertools</span> <span class="kn">import</span> <span class="n">product</span>
+<span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span> <span class="c"># Python 2.5</span>
+    <span class="k">def</span> <span class="nf">product</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwds</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Cartesian product of input iterables.</span>
+
+<span class="sd">        Equivalent to nested for-loops in a generator expression. For example,</span>
+<span class="sd">        product(A, B) returns the same as ((x,y) for x in A for y in B).</span>
+
+<span class="sd">        The nested loops cycle like an odometer with the rightmost element</span>
+<span class="sd">        advancing on every iteration. This pattern creates a lexicographic</span>
+<span class="sd">        ordering so that if the input&#39;s iterables are sorted, the product</span>
+<span class="sd">        tuples are emitted in sorted order.</span>
+
+<span class="sd">        To compute the product of an iterable with itself, specify the number</span>
+<span class="sd">        of repetitions with the optional repeat keyword argument. For example,</span>
+<span class="sd">        product(A, repeat=4) means the same as product(A, A, A, A).</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        ========</span>
+
+<span class="sd">        &gt;&gt;&gt; from sympy.core.compatibility import product</span>
+<span class="sd">        &gt;&gt;&gt; [&#39;&#39;.join(p) for p in list(product(&#39;ABC&#39;, &#39;xy&#39;))]</span>
+<span class="sd">        [&#39;Ax&#39;, &#39;Ay&#39;, &#39;Bx&#39;, &#39;By&#39;, &#39;Cx&#39;, &#39;Cy&#39;]</span>
+<span class="sd">        &gt;&gt;&gt; list(product(range(2), repeat=2))</span>
+<span class="sd">        [(0, 0), (0, 1), (1, 0), (1, 1)]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">pools</span> <span class="o">=</span> <span class="nb">map</span><span class="p">(</span><span class="nb">tuple</span><span class="p">,</span> <span class="n">args</span><span class="p">)</span> <span class="o">*</span> <span class="n">kwds</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;repeat&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="p">[[]]</span>
+        <span class="k">for</span> <span class="n">pool</span> <span class="ow">in</span> <span class="n">pools</span><span class="p">:</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="o">+</span><span class="p">[</span><span class="n">y</span><span class="p">]</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">result</span> <span class="k">for</span> <span class="n">y</span> <span class="ow">in</span> <span class="n">pool</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">prod</span> <span class="ow">in</span> <span class="n">result</span><span class="p">:</span>
+            <span class="k">yield</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">prod</span><span class="p">)</span>
+
+<span class="k">try</span><span class="p">:</span>
+    <span class="kn">from</span> <span class="nn">itertools</span> <span class="kn">import</span> <span class="n">permutations</span>
+<span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span> <span class="c"># Python 2.5</span>
+    <span class="k">def</span> <span class="nf">permutations</span><span class="p">(</span><span class="n">iterable</span><span class="p">,</span> <span class="n">r</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return successive r length permutations of elements in the iterable.</span>
+
+<span class="sd">        If r is not specified or is None, then r defaults to the length of</span>
+<span class="sd">        the iterable and all possible full-length permutations are generated.</span>
+
+<span class="sd">        Permutations are emitted in lexicographic sort order. So, if the input</span>
+<span class="sd">        iterable is sorted, the permutation tuples will be produced in sorted</span>
+<span class="sd">        order.</span>
+
+<span class="sd">        Elements are treated as unique based on their position, not on their</span>
+<span class="sd">        value. So if the input elements are unique, there will be no repeat</span>
+<span class="sd">        values in each permutation.</span>
+
+<span class="sd">        Examples;</span>
+<span class="sd">        &gt;&gt;&gt; from sympy.core.compatibility import permutations</span>
+<span class="sd">        &gt;&gt;&gt; [&#39;&#39;.join(p) for p in list(permutations(&#39;ABC&#39;, 2))]</span>
+<span class="sd">        [&#39;AB&#39;, &#39;AC&#39;, &#39;BA&#39;, &#39;BC&#39;, &#39;CA&#39;, &#39;CB&#39;]</span>
+<span class="sd">        &gt;&gt;&gt; list(permutations(range(3)))</span>
+<span class="sd">        [(0, 1, 2), (0, 2, 1), (1, 0, 2), (1, 2, 0), (2, 0, 1), (2, 1, 0)]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">pool</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">iterable</span><span class="p">)</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">pool</span><span class="p">)</span>
+        <span class="n">r</span> <span class="o">=</span> <span class="n">n</span> <span class="k">if</span> <span class="n">r</span> <span class="ow">is</span> <span class="bp">None</span> <span class="k">else</span> <span class="n">r</span>
+        <span class="k">if</span> <span class="n">r</span> <span class="o">&gt;</span> <span class="n">n</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="n">indices</span> <span class="o">=</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+        <span class="n">cycles</span> <span class="o">=</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">n</span><span class="o">-</span><span class="n">r</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">yield</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">pool</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">indices</span><span class="p">[:</span><span class="n">r</span><span class="p">])</span>
+        <span class="k">while</span> <span class="n">n</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">r</span><span class="p">)):</span>
+                <span class="n">cycles</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">-=</span> <span class="mi">1</span>
+                <span class="k">if</span> <span class="n">cycles</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">indices</span><span class="p">[</span><span class="n">i</span><span class="p">:]</span> <span class="o">=</span> <span class="n">indices</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">:]</span> <span class="o">+</span> <span class="n">indices</span><span class="p">[</span><span class="n">i</span><span class="p">:</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span>
+                    <span class="n">cycles</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">n</span> <span class="o">-</span> <span class="n">i</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">j</span> <span class="o">=</span> <span class="n">cycles</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+                    <span class="n">indices</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">indices</span><span class="p">[</span><span class="o">-</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">indices</span><span class="p">[</span><span class="o">-</span><span class="n">j</span><span class="p">],</span> <span class="n">indices</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+                    <span class="k">yield</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">pool</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">indices</span><span class="p">[:</span><span class="n">r</span><span class="p">])</span>
+                    <span class="k">break</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span>
+
+<span class="k">try</span><span class="p">:</span>
+    <span class="kn">from</span> <span class="nn">itertools</span> <span class="kn">import</span> <span class="n">combinations</span><span class="p">,</span> <span class="n">combinations_with_replacement</span>
+<span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span> <span class="c"># &lt; python 2.6</span>
+    <span class="k">def</span> <span class="nf">combinations</span><span class="p">(</span><span class="n">iterable</span><span class="p">,</span> <span class="n">r</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return r length subsequences of elements from the input iterable.</span>
+
+<span class="sd">        Combinations are emitted in lexicographic sort order. So, if the</span>
+<span class="sd">        input iterable is sorted, the combination tuples will be produced</span>
+<span class="sd">        in sorted order.</span>
+
+<span class="sd">        Elements are treated as unique based on their position, not on their</span>
+<span class="sd">        value. So if the input elements are unique, there will be no repeat</span>
+<span class="sd">        values in each combination.</span>
+
+<span class="sd">        See also: combinations_with_replacement</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        ========</span>
+
+<span class="sd">        &gt;&gt;&gt; from sympy.core.compatibility import combinations</span>
+<span class="sd">        &gt;&gt;&gt; list(combinations(&#39;ABC&#39;, 2))</span>
+<span class="sd">        [(&#39;A&#39;, &#39;B&#39;), (&#39;A&#39;, &#39;C&#39;), (&#39;B&#39;, &#39;C&#39;)]</span>
+<span class="sd">        &gt;&gt;&gt; list(combinations(range(4), 3))</span>
+<span class="sd">        [(0, 1, 2), (0, 1, 3), (0, 2, 3), (1, 2, 3)]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">pool</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">iterable</span><span class="p">)</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">pool</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">r</span> <span class="o">&gt;</span> <span class="n">n</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="n">indices</span> <span class="o">=</span> <span class="nb">range</span><span class="p">(</span><span class="n">r</span><span class="p">)</span>
+        <span class="k">yield</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">pool</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">indices</span><span class="p">)</span>
+        <span class="k">while</span> <span class="bp">True</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">r</span><span class="p">)):</span>
+                <span class="k">if</span> <span class="n">indices</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">!=</span> <span class="n">i</span> <span class="o">+</span> <span class="n">n</span> <span class="o">-</span> <span class="n">r</span><span class="p">:</span>
+                    <span class="k">break</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span>
+            <span class="n">indices</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="n">r</span><span class="p">):</span>
+                <span class="n">indices</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">indices</span><span class="p">[</span><span class="n">j</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span>
+            <span class="k">yield</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">pool</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">indices</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">combinations_with_replacement</span><span class="p">(</span><span class="n">iterable</span><span class="p">,</span> <span class="n">r</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return r length subsequences of elements from the input iterable</span>
+<span class="sd">        allowing individual elements to be repeated more than once.</span>
+
+<span class="sd">        Combinations are emitted in lexicographic sort order. So, if the</span>
+<span class="sd">        input iterable is sorted, the combination tuples will be produced</span>
+<span class="sd">        in sorted order.</span>
+
+<span class="sd">        Elements are treated as unique based on their position, not on their</span>
+<span class="sd">        value. So if the input elements are unique, the generated combinations</span>
+<span class="sd">        will also be unique.</span>
+
+<span class="sd">        See also: combinations</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        ========</span>
+
+<span class="sd">        &gt;&gt;&gt; from sympy.core.compatibility import combinations_with_replacement</span>
+<span class="sd">        &gt;&gt;&gt; list(combinations_with_replacement(&#39;AB&#39;, 2))</span>
+<span class="sd">        [(&#39;A&#39;, &#39;A&#39;), (&#39;A&#39;, &#39;B&#39;), (&#39;B&#39;, &#39;B&#39;)]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">pool</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">iterable</span><span class="p">)</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">pool</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">n</span> <span class="ow">and</span> <span class="n">r</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="n">indices</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">r</span>
+        <span class="k">yield</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">pool</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">indices</span><span class="p">)</span>
+        <span class="k">while</span> <span class="bp">True</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">r</span><span class="p">)):</span>
+                <span class="k">if</span> <span class="n">indices</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">!=</span> <span class="n">n</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="k">break</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span>
+            <span class="n">indices</span><span class="p">[</span><span class="n">i</span><span class="p">:]</span> <span class="o">=</span> <span class="p">[</span><span class="n">indices</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">r</span> <span class="o">-</span> <span class="n">i</span><span class="p">)</span>
+            <span class="k">yield</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">pool</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">indices</span><span class="p">)</span>
+
+<div class="viewcode-block" id="set_intersection"><a class="viewcode-back" href="../../../modules/core.html#sympy.core.compatibility.set_intersection">[docs]</a><span class="k">def</span> <span class="nf">set_intersection</span><span class="p">(</span><span class="o">*</span><span class="n">sets</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Return the intersection of all the given sets.</span>
+
+<span class="sd">    As of Python 2.6 you can write ``set.intersection(*sets)``.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.core.compatibility import set_intersection</span>
+<span class="sd">    &gt;&gt;&gt; set_intersection(set([1, 2]), set([2, 3]))</span>
+<span class="sd">    set([2])</span>
+<span class="sd">    &gt;&gt;&gt; set_intersection()</span>
+<span class="sd">    set()</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">sets</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="n">rv</span> <span class="o">=</span> <span class="n">sets</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">sets</span><span class="p">:</span>
+        <span class="n">rv</span> <span class="o">&amp;=</span> <span class="n">s</span>
+    <span class="k">return</span> <span class="n">rv</span>
+</div>
+<div class="viewcode-block" id="set_union"><a class="viewcode-back" href="../../../modules/core.html#sympy.core.compatibility.set_union">[docs]</a><span class="k">def</span> <span class="nf">set_union</span><span class="p">(</span><span class="o">*</span><span class="n">sets</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Return the union of all the given sets.</span>
+
+<span class="sd">    As of Python 2.6 you can write ``set.union(*sets)``.</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.core.compatibility import set_union</span>
+<span class="sd">    &gt;&gt;&gt; set_union(set([1, 2]), set([2, 3]))</span>
+<span class="sd">    set([1, 2, 3])</span>
+<span class="sd">    &gt;&gt;&gt; set_union()</span>
+<span class="sd">    set()</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">rv</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">sets</span><span class="p">:</span>
+        <span class="n">rv</span> <span class="o">|=</span> <span class="n">s</span>
+    <span class="k">return</span> <span class="n">rv</span>
+</div>
+<span class="k">try</span><span class="p">:</span>
+    <span class="nb">bin</span> <span class="o">=</span> <span class="nb">bin</span>
+<span class="k">except</span> <span class="ne">NameError</span><span class="p">:</span> <span class="c"># Python 2.5</span>
+    <span class="k">def</span> <span class="nf">bin</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        bin(number) -&gt; string</span>
+
+<span class="sd">        Stringifies an int or long in base 2.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">x</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span> <span class="k">return</span> <span class="s">&#39;-&#39;</span> <span class="o">+</span> <span class="nb">bin</span><span class="p">(</span><span class="o">-</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="n">x</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span> <span class="n">out</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s">&#39;0&#39;</span><span class="p">)</span>
+        <span class="k">while</span> <span class="n">x</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">out</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s">&#39;01&#39;</span><span class="p">[</span><span class="n">x</span> <span class="o">&amp;</span> <span class="mi">1</span><span class="p">])</span>
+            <span class="n">x</span> <span class="o">&gt;&gt;=</span> <span class="mi">1</span>
+            <span class="k">pass</span>
+        <span class="k">return</span> <span class="s">&#39;0b&#39;</span> <span class="o">+</span> <span class="s">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">reversed</span><span class="p">(</span><span class="n">out</span><span class="p">))</span>
+
+<span class="k">try</span><span class="p">:</span>
+    <span class="nb">next</span> <span class="o">=</span> <span class="nb">next</span>
+<span class="k">except</span> <span class="ne">NameError</span><span class="p">:</span> <span class="c"># Python 2.5</span>
+    <span class="k">def</span> <span class="nf">next</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        next(iterator[, default])</span>
+
+<span class="sd">        Return the next item from the iterator. If default is given and the</span>
+<span class="sd">        iterator is exhausted, it is returned instead of raising StopIteration.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">next</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">next</span><span class="p">()</span>
+            <span class="k">except</span> <span class="ne">StopIteration</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s">&#39;Expected 1 or 2 arguments, got </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">))</span>
+
+<div class="viewcode-block" id="as_int"><a class="viewcode-back" href="../../../modules/core.html#sympy.core.compatibility.as_int">[docs]</a><span class="k">def</span> <span class="nf">as_int</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Convert the argument to a builtin integer.</span>
+
+<span class="sd">    The return value is guaranteed to be equal to the input. ValueError is</span>
+<span class="sd">    raised if the input has a non-integral value.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.core.compatibility import as_int</span>
+<span class="sd">    &gt;&gt;&gt; from sympy import sqrt</span>
+<span class="sd">    &gt;&gt;&gt; 3.0</span>
+<span class="sd">    3.0</span>
+<span class="sd">    &gt;&gt;&gt; as_int(3.0) # convert to int and test for equality</span>
+<span class="sd">    3</span>
+<span class="sd">    &gt;&gt;&gt; int(sqrt(10))</span>
+<span class="sd">    3</span>
+<span class="sd">    &gt;&gt;&gt; as_int(sqrt(10))</span>
+<span class="sd">    Traceback (most recent call last):</span>
+<span class="sd">    ...</span>
+<span class="sd">    ValueError: ... is not an integer</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">result</span> <span class="o">!=</span> <span class="n">n</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;</span><span class="si">%s</span><span class="s"> is not an integer&#39;</span> <span class="o">%</span> <span class="n">n</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">result</span>
+</div>
+<span class="k">def</span> <span class="nf">quick_sort</span><span class="p">(</span><span class="n">seq</span><span class="p">,</span> <span class="n">quick</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Sort by hash and break ties with default_sort_key (default)</span>
+<span class="sd">    or entirely by default_sort_key if ``quick`` is False.</span>
+
+<span class="sd">    When sorting for consistency between systems, ``quick`` should be</span>
+<span class="sd">    False; if sorting is just needed to give consistent orderings during</span>
+<span class="sd">    a given session ``quick`` can be True.</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.core.compatibility import quick_sort</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.abc import x</span>
+
+<span class="sd">    For PYTHONHASHSEED=3923375334 the x came first; for</span>
+<span class="sd">    PYTHONHASHSEED=158315900 the x came last (on a 32-bit system).</span>
+
+<span class="sd">    &gt;&gt;&gt; quick_sort([x, 1, 3]) in [(1, 3, x), (x, 1, 3)]</span>
+<span class="sd">    True</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">sympy.utilities.iterables</span> <span class="kn">import</span> <span class="n">default_sort_key</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">quick</span><span class="p">:</span>
+        <span class="n">seq</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">seq</span><span class="p">)</span>
+        <span class="n">seq</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="n">default_sort_key</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">d</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">seq</span><span class="p">:</span>
+            <span class="n">d</span><span class="p">[</span><span class="nb">hash</span><span class="p">(</span><span class="n">a</span><span class="p">)]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+        <span class="n">seq</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">keys</span><span class="p">()):</span>
+          <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">d</span><span class="p">[</span><span class="n">k</span><span class="p">])</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+              <span class="n">seq</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">d</span><span class="p">[</span><span class="n">k</span><span class="p">],</span> <span class="n">key</span><span class="o">=</span><span class="n">default_sort_key</span><span class="p">))</span>
+          <span class="k">else</span><span class="p">:</span>
+              <span class="n">seq</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">d</span><span class="p">[</span><span class="n">k</span><span class="p">])</span>
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">seq</span><span class="p">)</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../../index.html">
+              <img class="logo" src="../../../_static/sympylogo.png" alt="Logo"/>
+            </a></p>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="../../../np-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">SymPy 0.7.2 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li>
+          <li><a href="../../sympy.html" >sympy</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2008, 2009, 2010, 2011, 2012 SymPy Development Team.
+      Last updated on Oct 16, 2012.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+  </body>
+</html>
