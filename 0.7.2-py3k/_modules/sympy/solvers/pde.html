@@ -1,0 +1,323 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>sympy.solvers.pde &mdash; SymPy 0.7.2 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="http://live.sympy.org/static/live-core.css" type="text/css" />
+    <link rel="stylesheet" href="http://live.sympy.org/static/live-autocomplete.css" type="text/css" />
+    <link rel="stylesheet" href="http://live.sympy.org/static/live-sphinx.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '0.7.2',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="https://c328740.ssl.cf1.rackcdn.com/mathjax/latest/MathJax.js?config=TeX-AMS_HTML-full"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/utilities.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/external/classy.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/live-core.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/live-autocomplete.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/live-sphinx.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/SymPy-Favicon.ico"/>
+    <link rel="top" title="SymPy 0.7.2 documentation" href="../../../index.html" />
+    <link rel="up" title="sympy" href="../../sympy.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="../../../np-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">SymPy 0.7.2 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li>
+          <li><a href="../../sympy.html" accesskey="U">sympy</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for sympy.solvers.pde</h1><div class="highlight"><pre>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Analytical methods for solving Partial Differential Equations</span>
+<span class="sd">Currently implemented methods:</span>
+<span class="sd">    - separation of variables - pde_separate</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">Equality</span>
+<span class="kn">from</span> <span class="nn">sympy.simplify</span> <span class="kn">import</span> <span class="n">simplify</span>
+<span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="kn">import</span> <span class="nb">reduce</span>
+<span class="kn">from</span> <span class="nn">sympy.utilities.iterables</span> <span class="kn">import</span> <span class="n">has_dups</span>
+
+<span class="kn">import</span> <span class="nn">operator</span>
+
+<div class="viewcode-block" id="pde_separate"><a class="viewcode-back" href="../../../modules/solvers/solvers.html#sympy.solvers.pde.pde_separate">[docs]</a><span class="k">def</span> <span class="nf">pde_separate</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">fun</span><span class="p">,</span> <span class="n">sep</span><span class="p">,</span> <span class="n">strategy</span><span class="o">=</span><span class="s">&#39;mul&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Separate variables in partial differential equation either by additive</span>
+<span class="sd">    or multiplicative separation approach. It tries to rewrite an equation so</span>
+<span class="sd">    that one of the specified variables occurs on a different side of the</span>
+<span class="sd">    equation than the others.</span>
+
+<span class="sd">    :param eq: Partial differential equation</span>
+
+<span class="sd">    :param fun: Original function F(x, y, z)</span>
+
+<span class="sd">    :param sep: List of separated functions [X(x), u(y, z)]</span>
+
+<span class="sd">    :param strategy: Separation strategy. You can choose between additive</span>
+<span class="sd">        separation (&#39;add&#39;) and multiplicative separation (&#39;mul&#39;) which is</span>
+<span class="sd">        default.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy import E, Eq, Function, pde_separate, Derivative as D</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.abc import x, t</span>
+<span class="sd">    &gt;&gt;&gt; u, X, T = map(Function, &#39;uXT&#39;)</span>
+
+<span class="sd">    &gt;&gt;&gt; eq = Eq(D(u(x, t), x), E**(u(x, t))*D(u(x, t), t))</span>
+<span class="sd">    &gt;&gt;&gt; pde_separate(eq, u(x, t), [X(x), T(t)], strategy=&#39;add&#39;)</span>
+<span class="sd">    [exp(-X(x))*Derivative(X(x), x), exp(T(t))*Derivative(T(t), t)]</span>
+
+<span class="sd">    &gt;&gt;&gt; eq = Eq(D(u(x, t), x, 2), D(u(x, t), t, 2))</span>
+<span class="sd">    &gt;&gt;&gt; pde_separate(eq, u(x, t), [X(x), T(t)], strategy=&#39;mul&#39;)</span>
+<span class="sd">    [Derivative(X(x), x, x)/X(x), Derivative(T(t), t, t)/T(t)]</span>
+
+<span class="sd">    See Also</span>
+<span class="sd">    ========</span>
+<span class="sd">    pde_separate_add, pde_separate_mul</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+
+    <span class="n">do_add</span> <span class="o">=</span> <span class="bp">False</span>
+    <span class="k">if</span> <span class="n">strategy</span> <span class="o">==</span> <span class="s">&#39;add&#39;</span><span class="p">:</span>
+        <span class="n">do_add</span> <span class="o">=</span> <span class="bp">True</span>
+    <span class="k">elif</span> <span class="n">strategy</span> <span class="o">==</span> <span class="s">&#39;mul&#39;</span><span class="p">:</span>
+        <span class="n">do_add</span> <span class="o">=</span> <span class="bp">False</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">assert</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;Unknown strategy: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="n">strategy</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">Equality</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">eq</span><span class="o">.</span><span class="n">rhs</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">pde_separate</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="n">eq</span><span class="o">.</span><span class="n">lhs</span> <span class="o">-</span> <span class="n">eq</span><span class="o">.</span><span class="n">rhs</span><span class="p">),</span> <span class="n">fun</span><span class="p">,</span> <span class="n">sep</span><span class="p">,</span> <span class="n">strategy</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">eq</span><span class="o">.</span><span class="n">rhs</span> <span class="o">==</span> <span class="mi">0</span>
+
+    <span class="c"># Handle arguments</span>
+    <span class="n">orig_args</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">fun</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
+    <span class="n">subs_args</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">sep</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">args</span><span class="p">)):</span>
+            <span class="n">subs_args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="n">j</span><span class="p">])</span>
+
+    <span class="k">if</span> <span class="n">do_add</span><span class="p">:</span>
+        <span class="n">functions</span> <span class="o">=</span> <span class="nb">reduce</span><span class="p">(</span><span class="n">operator</span><span class="o">.</span><span class="n">add</span><span class="p">,</span> <span class="n">sep</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">functions</span> <span class="o">=</span> <span class="nb">reduce</span><span class="p">(</span><span class="n">operator</span><span class="o">.</span><span class="n">mul</span><span class="p">,</span> <span class="n">sep</span><span class="p">)</span>
+
+    <span class="c"># Check whether variables match</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">subs_args</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">orig_args</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;Variable counts do not match&quot;</span><span class="p">)</span>
+    <span class="c"># Check for duplicate arguments like  [X(x), u(x, y)]</span>
+    <span class="k">if</span> <span class="n">has_dups</span><span class="p">(</span><span class="n">subs_args</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;Duplicate substitution arguments detected&quot;</span><span class="p">)</span>
+    <span class="c"># Check whether the variables match</span>
+    <span class="k">if</span> <span class="nb">set</span><span class="p">(</span><span class="n">orig_args</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">set</span><span class="p">(</span><span class="n">subs_args</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;Arguments do not match&quot;</span><span class="p">)</span>
+
+    <span class="c"># Substitute original function with separated...</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">eq</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">fun</span><span class="p">,</span> <span class="n">functions</span><span class="p">)</span><span class="o">.</span><span class="n">doit</span><span class="p">()</span>
+
+    <span class="c"># Divide by terms when doing multiplicative separation</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">do_add</span><span class="p">:</span>
+        <span class="n">eq</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
+            <span class="n">eq</span> <span class="o">+=</span> <span class="n">i</span><span class="o">/</span><span class="n">functions</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">eq</span>
+
+    <span class="n">svar</span> <span class="o">=</span> <span class="n">subs_args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">dvar</span> <span class="o">=</span> <span class="n">subs_args</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>
+    <span class="k">return</span> <span class="n">_separate</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">svar</span><span class="p">,</span> <span class="n">dvar</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="pde_separate_add"><a class="viewcode-back" href="../../../modules/solvers/solvers.html#sympy.solvers.pde.pde_separate_add">[docs]</a><span class="k">def</span> <span class="nf">pde_separate_add</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">fun</span><span class="p">,</span> <span class="n">sep</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Helper function for searching additive separable solutions.</span>
+
+<span class="sd">    Consider an equation of two independent variables x, y and a dependent</span>
+<span class="sd">    variable w, we look for the product of two functions depending on different</span>
+<span class="sd">    arguments:</span>
+
+<span class="sd">    `w(x, y, z) = X(x) + y(y, z)`</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy import E, Eq, Function, pde_separate_add, Derivative as D</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.abc import x, t</span>
+<span class="sd">    &gt;&gt;&gt; u, X, T = map(Function, &#39;uXT&#39;)</span>
+
+<span class="sd">    &gt;&gt;&gt; eq = Eq(D(u(x, t), x), E**(u(x, t))*D(u(x, t), t))</span>
+<span class="sd">    &gt;&gt;&gt; pde_separate_add(eq, u(x, t), [X(x), T(t)])</span>
+<span class="sd">    [exp(-X(x))*Derivative(X(x), x), exp(T(t))*Derivative(T(t), t)]</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">pde_separate</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">fun</span><span class="p">,</span> <span class="n">sep</span><span class="p">,</span> <span class="n">strategy</span><span class="o">=</span><span class="s">&#39;add&#39;</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="pde_separate_mul"><a class="viewcode-back" href="../../../modules/solvers/solvers.html#sympy.solvers.pde.pde_separate_mul">[docs]</a><span class="k">def</span> <span class="nf">pde_separate_mul</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">fun</span><span class="p">,</span> <span class="n">sep</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Helper function for searching multiplicative separable solutions.</span>
+
+<span class="sd">    Consider an equation of two independent variables x, y and a dependent</span>
+<span class="sd">    variable w, we look for the product of two functions depending on different</span>
+<span class="sd">    arguments:</span>
+
+<span class="sd">    `w(x, y, z) = X(x)*u(y, z)`</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy import Function, Eq, pde_separate_mul, Derivative as D</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.abc import x, y</span>
+<span class="sd">    &gt;&gt;&gt; u, X, Y = map(Function, &#39;uXY&#39;)</span>
+
+<span class="sd">    &gt;&gt;&gt; eq = Eq(D(u(x, y), x, 2), D(u(x, y), y, 2))</span>
+<span class="sd">    &gt;&gt;&gt; pde_separate_mul(eq, u(x, y), [X(x), Y(y)])</span>
+<span class="sd">    [Derivative(X(x), x, x)/X(x), Derivative(Y(y), y, y)/Y(y)]</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">pde_separate</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">fun</span><span class="p">,</span> <span class="n">sep</span><span class="p">,</span> <span class="n">strategy</span><span class="o">=</span><span class="s">&#39;mul&#39;</span><span class="p">)</span>
+</div>
+<span class="k">def</span> <span class="nf">_separate</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">dep</span><span class="p">,</span> <span class="n">others</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Separate expression into two parts based on dependencies of variables.&quot;&quot;&quot;</span>
+
+    <span class="c"># FIRST PASS</span>
+    <span class="c"># Extract derivatives depending our separable variable...</span>
+    <span class="n">terms</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">term</span> <span class="ow">in</span> <span class="n">eq</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">term</span><span class="o">.</span><span class="n">is_Mul</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">term</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Derivative</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">i</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="o">*</span><span class="n">others</span><span class="p">):</span>
+                    <span class="n">terms</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">term</span><span class="p">)</span>
+                    <span class="k">continue</span>
+        <span class="k">elif</span> <span class="n">term</span><span class="o">.</span><span class="n">is_Derivative</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">term</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="o">*</span><span class="n">others</span><span class="p">):</span>
+            <span class="n">terms</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">term</span><span class="p">)</span>
+    <span class="c"># Find the factor that we need to divide by</span>
+    <span class="n">div</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">term</span> <span class="ow">in</span> <span class="n">terms</span><span class="p">:</span>
+        <span class="n">ext</span><span class="p">,</span> <span class="n">sep</span> <span class="o">=</span> <span class="n">term</span><span class="o">.</span><span class="n">expand</span><span class="p">()</span><span class="o">.</span><span class="n">as_independent</span><span class="p">(</span><span class="n">dep</span><span class="p">)</span>
+        <span class="c"># Failed?</span>
+        <span class="k">if</span> <span class="n">sep</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="o">*</span><span class="n">others</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">None</span>
+        <span class="n">div</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">ext</span><span class="p">)</span>
+    <span class="c"># FIXME: Find lcm() of all the divisors and divide with it, instead of</span>
+    <span class="c"># current hack :(</span>
+    <span class="c"># http://code.google.com/p/sympy/issues/detail?id=1498</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">div</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">final</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">term</span> <span class="ow">in</span> <span class="n">eq</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
+            <span class="n">eqn</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">div</span><span class="p">:</span>
+                <span class="n">eqn</span> <span class="o">+=</span> <span class="n">term</span> <span class="o">/</span> <span class="n">i</span>
+            <span class="n">final</span> <span class="o">+=</span> <span class="n">simplify</span><span class="p">(</span><span class="n">eqn</span><span class="p">)</span>
+        <span class="n">eq</span> <span class="o">=</span> <span class="n">final</span>
+
+    <span class="c"># SECOND PASS - separate the derivatives</span>
+    <span class="n">div</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="n">lhs</span> <span class="o">=</span> <span class="n">rhs</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">term</span> <span class="ow">in</span> <span class="n">eq</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
+        <span class="c"># Check, whether we have already term with independent variable...</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">term</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="o">*</span><span class="n">others</span><span class="p">):</span>
+            <span class="n">lhs</span> <span class="o">+=</span> <span class="n">term</span>
+            <span class="k">continue</span>
+        <span class="c"># ...otherwise, try to separate</span>
+        <span class="n">temp</span><span class="p">,</span> <span class="n">sep</span> <span class="o">=</span> <span class="n">term</span><span class="o">.</span><span class="n">expand</span><span class="p">()</span><span class="o">.</span><span class="n">as_independent</span><span class="p">(</span><span class="n">dep</span><span class="p">)</span>
+        <span class="c"># Failed?</span>
+        <span class="k">if</span> <span class="n">sep</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="o">*</span><span class="n">others</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">None</span>
+        <span class="c"># Extract the divisors</span>
+        <span class="n">div</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">sep</span><span class="p">)</span>
+        <span class="n">rhs</span> <span class="o">-=</span> <span class="n">term</span><span class="o">.</span><span class="n">expand</span><span class="p">()</span>
+    <span class="c"># Do the division</span>
+    <span class="n">fulldiv</span> <span class="o">=</span> <span class="nb">reduce</span><span class="p">(</span><span class="n">operator</span><span class="o">.</span><span class="n">add</span><span class="p">,</span> <span class="n">div</span><span class="p">)</span>
+    <span class="n">lhs</span> <span class="o">=</span> <span class="n">simplify</span><span class="p">(</span><span class="n">lhs</span><span class="o">/</span><span class="n">fulldiv</span><span class="p">)</span><span class="o">.</span><span class="n">expand</span><span class="p">()</span>
+    <span class="n">rhs</span> <span class="o">=</span> <span class="n">simplify</span><span class="p">(</span><span class="n">rhs</span><span class="o">/</span><span class="n">fulldiv</span><span class="p">)</span><span class="o">.</span><span class="n">expand</span><span class="p">()</span>
+    <span class="c"># ...and check whether we were successful :)</span>
+    <span class="k">if</span> <span class="n">lhs</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="o">*</span><span class="n">others</span><span class="p">)</span> <span class="ow">or</span> <span class="n">rhs</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">dep</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">None</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">]</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../../index.html">
+              <img class="logo" src="../../../_static/sympylogo.png" alt="Logo"/>
+            </a></p>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="../../../np-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">SymPy 0.7.2 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li>
+          <li><a href="../../sympy.html" >sympy</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2008, 2009, 2010, 2011, 2012 SymPy Development Team.
+      Last updated on Nov 20, 2012.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+  </body>
+</html>

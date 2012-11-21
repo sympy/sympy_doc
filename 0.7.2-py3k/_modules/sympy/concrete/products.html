@@ -1,0 +1,360 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>sympy.concrete.products &mdash; SymPy 0.7.2 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="http://live.sympy.org/static/live-core.css" type="text/css" />
+    <link rel="stylesheet" href="http://live.sympy.org/static/live-autocomplete.css" type="text/css" />
+    <link rel="stylesheet" href="http://live.sympy.org/static/live-sphinx.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '0.7.2',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="https://c328740.ssl.cf1.rackcdn.com/mathjax/latest/MathJax.js?config=TeX-AMS_HTML-full"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/utilities.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/external/classy.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/live-core.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/live-autocomplete.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/live-sphinx.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/SymPy-Favicon.ico"/>
+    <link rel="top" title="SymPy 0.7.2 documentation" href="../../../index.html" />
+    <link rel="up" title="sympy" href="../../sympy.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="../../../np-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">SymPy 0.7.2 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li>
+          <li><a href="../../sympy.html" accesskey="U">sympy</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for sympy.concrete.products</h1><div class="highlight"><pre>
+<span class="kn">from</span> <span class="nn">sympy.core</span> <span class="kn">import</span> <span class="n">C</span><span class="p">,</span> <span class="n">Expr</span><span class="p">,</span> <span class="n">Mul</span><span class="p">,</span> <span class="n">S</span><span class="p">,</span> <span class="n">sympify</span>
+<span class="kn">from</span> <span class="nn">sympy.functions.elementary.piecewise</span> <span class="kn">import</span> <span class="n">piecewise_fold</span>
+<span class="kn">from</span> <span class="nn">sympy.polys</span> <span class="kn">import</span> <span class="n">quo</span><span class="p">,</span> <span class="n">roots</span>
+<span class="kn">from</span> <span class="nn">sympy.simplify</span> <span class="kn">import</span> <span class="n">powsimp</span>
+
+<div class="viewcode-block" id="Product"><a class="viewcode-back" href="../../../modules/concrete.html#sympy.concrete.products.Product">[docs]</a><span class="k">class</span> <span class="nc">Product</span><span class="p">(</span><span class="n">Expr</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Represents unevaluated product.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">__slots__</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;is_commutative&#39;</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">function</span><span class="p">,</span> <span class="o">*</span><span class="n">symbols</span><span class="p">,</span> <span class="o">**</span><span class="n">assumptions</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">sympy.integrals.integrals</span> <span class="kn">import</span> <span class="n">_process_limits</span>
+
+        <span class="c"># Any embedded piecewise functions need to be brought out to the</span>
+        <span class="c"># top level so that integration can go into piecewise mode at the</span>
+        <span class="c"># earliest possible moment.</span>
+        <span class="n">function</span> <span class="o">=</span> <span class="n">piecewise_fold</span><span class="p">(</span><span class="n">sympify</span><span class="p">(</span><span class="n">function</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">function</span> <span class="ow">is</span> <span class="n">S</span><span class="o">.</span><span class="n">NaN</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">NaN</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">symbols</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;Product variables must be given&quot;</span><span class="p">)</span>
+
+        <span class="n">limits</span><span class="p">,</span> <span class="n">sign</span> <span class="o">=</span> <span class="n">_process_limits</span><span class="p">(</span><span class="o">*</span><span class="n">symbols</span><span class="p">)</span>
+
+        <span class="c"># Only limits with lower and upper bounds are supported; the indefinite</span>
+        <span class="c"># Product is not supported</span>
+        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">l</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">3</span> <span class="ow">or</span> <span class="bp">None</span> <span class="ow">in</span> <span class="n">l</span> <span class="k">for</span> <span class="n">l</span> <span class="ow">in</span> <span class="n">limits</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;Product requires values for lower and upper bounds.&#39;</span><span class="p">)</span>
+
+        <span class="n">obj</span> <span class="o">=</span> <span class="n">Expr</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">assumptions</span><span class="p">)</span>
+        <span class="n">arglist</span> <span class="o">=</span> <span class="p">[</span><span class="n">sign</span><span class="o">*</span><span class="n">function</span><span class="p">]</span>
+        <span class="n">arglist</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">limits</span><span class="p">)</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">_args</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">arglist</span><span class="p">)</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">is_commutative</span> <span class="o">=</span> <span class="n">function</span><span class="o">.</span><span class="n">is_commutative</span> <span class="c"># limits already checked</span>
+
+        <span class="k">return</span> <span class="n">obj</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">term</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">function</span> <span class="o">=</span> <span class="n">term</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">limits</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_args</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>
+
+    <span class="nd">@property</span>
+<div class="viewcode-block" id="Product.variables"><a class="viewcode-back" href="../../../modules/concrete.html#sympy.concrete.products.Product.variables">[docs]</a>    <span class="k">def</span> <span class="nf">variables</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a list of the product variables</span>
+
+<span class="sd">        &gt;&gt;&gt; from sympy import Product</span>
+<span class="sd">        &gt;&gt;&gt; from sympy.abc import x, i</span>
+<span class="sd">        &gt;&gt;&gt; Product(x**i, (i, 1, 3)).variables</span>
+<span class="sd">        [i]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">l</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">l</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">limits</span><span class="p">]</span>
+</div>
+    <span class="nd">@property</span>
+<div class="viewcode-block" id="Product.free_symbols"><a class="viewcode-back" href="../../../modules/concrete.html#sympy.concrete.products.Product.free_symbols">[docs]</a>    <span class="k">def</span> <span class="nf">free_symbols</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        This method returns the symbols that will affect the value of</span>
+<span class="sd">        the Product when evaluated. This is useful if one is trying to</span>
+<span class="sd">        determine whether a product depends on a certain symbol or not.</span>
+
+<span class="sd">        &gt;&gt;&gt; from sympy import Product</span>
+<span class="sd">        &gt;&gt;&gt; from sympy.abc import x, y</span>
+<span class="sd">        &gt;&gt;&gt; Product(x, (x, y, 1)).free_symbols</span>
+<span class="sd">        set([y])</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">sympy.concrete.summations</span> <span class="kn">import</span> <span class="n">_free_symbols</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">is_zero</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">function</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">_free_symbols</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">limits</span><span class="p">)</span>
+</div>
+    <span class="nd">@property</span>
+<div class="viewcode-block" id="Product.is_zero"><a class="viewcode-back" href="../../../modules/concrete.html#sympy.concrete.products.Product.is_zero">[docs]</a>    <span class="k">def</span> <span class="nf">is_zero</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;A Product is zero only if its term is zero.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">term</span><span class="o">.</span><span class="n">is_zero</span>
+</div>
+    <span class="nd">@property</span>
+<div class="viewcode-block" id="Product.is_number"><a class="viewcode-back" href="../../../modules/concrete.html#sympy.concrete.products.Product.is_number">[docs]</a>    <span class="k">def</span> <span class="nf">is_number</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return True if the Product will result in a number, else False.</span>
+
+<span class="sd">        sympy considers anything that will result in a number to have</span>
+<span class="sd">        is_number == True.</span>
+
+<span class="sd">        &gt;&gt;&gt; from sympy import log, Product</span>
+<span class="sd">        &gt;&gt;&gt; from sympy.abc import x, y, z</span>
+<span class="sd">        &gt;&gt;&gt; log(2).is_number</span>
+<span class="sd">        True</span>
+<span class="sd">        &gt;&gt;&gt; Product(x, (x, 1, 2)).is_number</span>
+<span class="sd">        True</span>
+<span class="sd">        &gt;&gt;&gt; Product(y, (x, 1, 2)).is_number</span>
+<span class="sd">        False</span>
+<span class="sd">        &gt;&gt;&gt; Product(1, (x, y, z)).is_number</span>
+<span class="sd">        True</span>
+<span class="sd">        &gt;&gt;&gt; Product(2, (x, y, z)).is_number</span>
+<span class="sd">        False</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">is_zero</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">function</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">or</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">free_symbols</span>
+</div>
+    <span class="k">def</span> <span class="nf">doit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">hints</span><span class="p">):</span>
+        <span class="n">f</span> <span class="o">=</span> <span class="n">g</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">function</span>
+        <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">limit</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">limits</span><span class="p">):</span>
+            <span class="n">i</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="n">limit</span>
+            <span class="n">dif</span> <span class="o">=</span> <span class="n">b</span> <span class="o">-</span> <span class="n">a</span>
+            <span class="k">if</span> <span class="n">dif</span><span class="o">.</span><span class="n">is_Integer</span> <span class="ow">and</span> <span class="n">dif</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="n">b</span><span class="p">,</span> <span class="n">a</span>
+
+            <span class="n">g</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_eval_product</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">))</span>
+            <span class="k">if</span> <span class="n">g</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">Product</span><span class="p">(</span><span class="n">powsimp</span><span class="p">(</span><span class="n">f</span><span class="p">),</span> <span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">limits</span><span class="p">[</span><span class="n">index</span><span class="p">:])</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">f</span> <span class="o">=</span> <span class="n">g</span>
+
+        <span class="k">if</span> <span class="n">hints</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;deep&#39;</span><span class="p">,</span> <span class="bp">True</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">f</span><span class="o">.</span><span class="n">doit</span><span class="p">(</span><span class="o">**</span><span class="n">hints</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">powsimp</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_eval_product</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">term</span><span class="p">,</span> <span class="n">limits</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">summation</span>
+
+        <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">n</span><span class="p">)</span> <span class="o">=</span> <span class="n">limits</span>
+
+        <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">term</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">term</span><span class="o">**</span><span class="p">(</span><span class="n">n</span> <span class="o">-</span> <span class="n">a</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">a</span> <span class="o">==</span> <span class="n">n</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">term</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">a</span><span class="p">)</span>
+
+        <span class="n">dif</span> <span class="o">=</span> <span class="n">n</span> <span class="o">-</span> <span class="n">a</span>
+        <span class="k">if</span> <span class="n">dif</span><span class="o">.</span><span class="n">is_Integer</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">term</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">a</span> <span class="o">+</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="n">dif</span>  <span class="o">+</span> <span class="mi">1</span><span class="p">)])</span>
+
+        <span class="k">elif</span> <span class="n">term</span><span class="o">.</span><span class="n">is_polynomial</span><span class="p">(</span><span class="n">k</span><span class="p">):</span>
+            <span class="n">poly</span> <span class="o">=</span> <span class="n">term</span><span class="o">.</span><span class="n">as_poly</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
+
+            <span class="n">A</span> <span class="o">=</span> <span class="n">B</span> <span class="o">=</span> <span class="n">Q</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span>
+
+            <span class="n">all_roots</span> <span class="o">=</span> <span class="n">roots</span><span class="p">(</span><span class="n">poly</span><span class="p">,</span> <span class="n">multiple</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+
+            <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">all_roots</span><span class="p">:</span>
+                <span class="n">A</span> <span class="o">*=</span> <span class="n">C</span><span class="o">.</span><span class="n">RisingFactorial</span><span class="p">(</span><span class="n">a</span><span class="o">-</span><span class="n">r</span><span class="p">,</span> <span class="n">n</span><span class="o">-</span><span class="n">a</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span>
+                <span class="n">Q</span> <span class="o">*=</span> <span class="n">n</span> <span class="o">-</span> <span class="n">r</span>
+
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">all_roots</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">poly</span><span class="o">.</span><span class="n">degree</span><span class="p">():</span>
+                <span class="n">arg</span> <span class="o">=</span> <span class="n">quo</span><span class="p">(</span><span class="n">poly</span><span class="p">,</span> <span class="n">Q</span><span class="o">.</span><span class="n">as_poly</span><span class="p">(</span><span class="n">k</span><span class="p">))</span>
+                <span class="n">B</span> <span class="o">=</span> <span class="n">Product</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">n</span><span class="p">))</span><span class="o">.</span><span class="n">doit</span><span class="p">()</span>
+
+            <span class="k">return</span> <span class="n">poly</span><span class="o">.</span><span class="n">LC</span><span class="p">()</span><span class="o">**</span><span class="p">(</span><span class="n">n</span><span class="o">-</span><span class="n">a</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">A</span> <span class="o">*</span> <span class="n">B</span>
+
+        <span class="k">elif</span> <span class="n">term</span><span class="o">.</span><span class="n">is_Add</span><span class="p">:</span>
+            <span class="n">p</span><span class="p">,</span> <span class="n">q</span> <span class="o">=</span> <span class="n">term</span><span class="o">.</span><span class="n">as_numer_denom</span><span class="p">()</span>
+
+            <span class="n">p</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_eval_product</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">n</span><span class="p">))</span>
+            <span class="n">q</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_eval_product</span><span class="p">(</span><span class="n">q</span><span class="p">,</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">n</span><span class="p">))</span>
+
+            <span class="k">return</span> <span class="n">p</span> <span class="o">/</span> <span class="n">q</span>
+
+        <span class="k">elif</span> <span class="n">term</span><span class="o">.</span><span class="n">is_Mul</span><span class="p">:</span>
+            <span class="n">exclude</span><span class="p">,</span> <span class="n">include</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">[]</span>
+
+            <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">term</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
+                <span class="n">p</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_eval_product</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">n</span><span class="p">))</span>
+
+                <span class="k">if</span> <span class="n">p</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                    <span class="n">exclude</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">include</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">exclude</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">None</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">arg</span> <span class="o">=</span> <span class="n">term</span><span class="o">.</span><span class="n">_new_rawargs</span><span class="p">(</span><span class="o">*</span><span class="n">include</span><span class="p">)</span>
+                <span class="n">A</span> <span class="o">=</span> <span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">exclude</span><span class="p">)</span>
+                <span class="n">B</span> <span class="o">=</span> <span class="n">Product</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">n</span><span class="p">))</span><span class="o">.</span><span class="n">doit</span><span class="p">()</span>
+                <span class="k">return</span> <span class="n">A</span> <span class="o">*</span> <span class="n">B</span>
+
+        <span class="k">elif</span> <span class="n">term</span><span class="o">.</span><span class="n">is_Pow</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">term</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">k</span><span class="p">):</span>
+                <span class="n">s</span> <span class="o">=</span> <span class="n">summation</span><span class="p">(</span><span class="n">term</span><span class="o">.</span><span class="n">exp</span><span class="p">,</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">n</span><span class="p">))</span>
+
+                <span class="k">return</span> <span class="n">term</span><span class="o">.</span><span class="n">base</span><span class="o">**</span><span class="n">s</span>
+            <span class="k">elif</span> <span class="ow">not</span> <span class="n">term</span><span class="o">.</span><span class="n">exp</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">k</span><span class="p">):</span>
+                <span class="n">p</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_eval_product</span><span class="p">(</span><span class="n">term</span><span class="o">.</span><span class="n">base</span><span class="p">,</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">n</span><span class="p">))</span>
+
+                <span class="k">if</span> <span class="n">p</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">p</span><span class="o">**</span><span class="n">term</span><span class="o">.</span><span class="n">exp</span>
+
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">term</span><span class="p">,</span> <span class="n">Product</span><span class="p">):</span>
+            <span class="n">evaluated</span> <span class="o">=</span> <span class="n">term</span><span class="o">.</span><span class="n">doit</span><span class="p">()</span>
+            <span class="n">f</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_eval_product</span><span class="p">(</span><span class="n">evaluated</span><span class="p">,</span> <span class="n">limits</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">f</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">Product</span><span class="p">(</span><span class="n">evaluated</span><span class="p">,</span> <span class="n">limits</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">f</span>
+</div>
+<div class="viewcode-block" id="product"><a class="viewcode-back" href="../../../modules/concrete.html#sympy.concrete.products.product">[docs]</a><span class="k">def</span> <span class="nf">product</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">r&quot;&quot;&quot;</span>
+<span class="sd">    Compute the product.</span>
+
+<span class="sd">    The notation for symbols is similiar to the notation used in Sum or</span>
+<span class="sd">    Integral. product(f, (i, a, b)) computes the product of f with</span>
+<span class="sd">    respect to i from a to b, i.e.,</span>
+
+<span class="sd">    ::</span>
+
+<span class="sd">                                     b</span>
+<span class="sd">                                   _____</span>
+<span class="sd">        product(f(n), (i, a, b)) = |   | f(n)</span>
+<span class="sd">                                   |   |</span>
+<span class="sd">                                   i = a</span>
+
+<span class="sd">    If it cannot compute the product, it returns an unevaluated Product object.</span>
+<span class="sd">    Repeated products can be computed by introducing additional symbols tuples::</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy import product, symbols</span>
+<span class="sd">    &gt;&gt;&gt; i, n, m, k = symbols(&#39;i n m k&#39;, integer=True)</span>
+
+<span class="sd">    &gt;&gt;&gt; product(i, (i, 1, k))</span>
+<span class="sd">    k!</span>
+<span class="sd">    &gt;&gt;&gt; product(m, (i, 1, k))</span>
+<span class="sd">    m**k</span>
+<span class="sd">    &gt;&gt;&gt; product(i, (i, 1, k), (k, 1, n))</span>
+<span class="sd">    Product(k!, (k, 1, n))</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">prod</span> <span class="o">=</span> <span class="n">Product</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">prod</span><span class="p">,</span> <span class="n">Product</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">prod</span><span class="o">.</span><span class="n">doit</span><span class="p">(</span><span class="n">deep</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">prod</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../../index.html">
+              <img class="logo" src="../../../_static/sympylogo.png" alt="Logo"/>
+            </a></p>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="../../../np-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">SymPy 0.7.2 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li>
+          <li><a href="../../sympy.html" >sympy</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2008, 2009, 2010, 2011, 2012 SymPy Development Team.
+      Last updated on Nov 20, 2012.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+  </body>
+</html>
