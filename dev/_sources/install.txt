@@ -10,6 +10,7 @@ distributions have SymPy packages available.
 
 Source
 ======
+
 SymPy currently recommends that users install directly from the source files.
 You will first have to download the source files via the archive. Download the
 latest release (tar.gz) from the `downloads site`_ and open it with your
@@ -43,6 +44,7 @@ You may now run SymPy statements directly within the Python shell::
 
 Git
 ===
+
 If you are a developer or like to get the latest updates as they come, be sure
 to install from git. To download the repository, execute the following from the
 command line::
@@ -59,17 +61,18 @@ To update to the latest version, go into your repository and execute::
 If you want to install SymPy, but still want to use the git version, you can run
 from your repository::
 
-    $ setup.py develop
+    $ setupegg.py develop
 
 This will cause the installed version to always point to the version in the git
 directory.
 
 If you're using the git repository with Python 3, you have to use the
 ``./bin/use2to3`` script to build the Python 3 version of SymPy. This will put
-everything in the py3ksympy directory.
+everything in the py3k-sympy directory.
 
 Other Methods
 =============
+
 An installation executable is available for Windows users at the
 `downloads site`_ (.exe). In addition, various Linux distributions have SymPy
 available as a package. Others are strongly encouraged to download from source
@@ -77,6 +80,7 @@ available as a package. Others are strongly encouraged to download from source
 
 Run SymPy
 =========
+
 After installation, it is best to verify that your freshly-installed SymPy
 works. To do this, start up Python and import the SymPy libraries::
 
@@ -91,7 +95,7 @@ From here, execute some simple SymPy statements like the ones below::
     >>> integrate(1/x, x)
     log(x)
 
-For a starter guide on using SymPy effectively, refer to the :doc:`tutorial`.
+For a starter guide on using SymPy effectively, refer to the :ref:`tutorial`.
 
 Questions
 =========
