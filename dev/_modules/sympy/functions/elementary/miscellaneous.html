@@ -1,5 +1,3 @@
-
-
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 
@@ -65,11 +63,12 @@
             
   <h1>Source code for sympy.functions.elementary.miscellaneous</h1><div class="highlight"><pre>
 <span class="kn">from</span> <span class="nn">sympy.core</span> <span class="kn">import</span> <span class="n">S</span><span class="p">,</span> <span class="n">C</span><span class="p">,</span> <span class="n">sympify</span>
+<span class="kn">from</span> <span class="nn">sympy.core.add</span> <span class="kn">import</span> <span class="n">Add</span>
 <span class="kn">from</span> <span class="nn">sympy.core.basic</span> <span class="kn">import</span> <span class="n">Basic</span>
 <span class="kn">from</span> <span class="nn">sympy.core.containers</span> <span class="kn">import</span> <span class="n">Tuple</span>
 <span class="kn">from</span> <span class="nn">sympy.core.numbers</span> <span class="kn">import</span> <span class="n">Rational</span>
 <span class="kn">from</span> <span class="nn">sympy.core.operations</span> <span class="kn">import</span> <span class="n">LatticeOp</span><span class="p">,</span> <span class="n">ShortCircuit</span>
-<span class="kn">from</span> <span class="nn">sympy.core.function</span> <span class="kn">import</span> <span class="n">Application</span><span class="p">,</span> <span class="n">Lambda</span>
+<span class="kn">from</span> <span class="nn">sympy.core.function</span> <span class="kn">import</span> <span class="n">Application</span><span class="p">,</span> <span class="n">Lambda</span><span class="p">,</span> <span class="n">ArgumentIndexError</span>
 <span class="kn">from</span> <span class="nn">sympy.core.expr</span> <span class="kn">import</span> <span class="n">Expr</span>
 <span class="kn">from</span> <span class="nn">sympy.core.singleton</span> <span class="kn">import</span> <span class="n">Singleton</span>
 <span class="kn">from</span> <span class="nn">sympy.core.rules</span> <span class="kn">import</span> <span class="n">Transform</span>
@@ -417,6 +416,21 @@
             <span class="k">return</span> <span class="bp">True</span>
         <span class="k">return</span> <span class="bp">False</span>
 
+    <span class="k">def</span> <span class="nf">_eval_derivative</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">s</span><span class="p">):</span>
+        <span class="c"># f(x).diff(s) -&gt; x.diff(s) * f.fdiff(1)(s)</span>
+        <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">l</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
+            <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="n">da</span> <span class="o">=</span> <span class="n">a</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">da</span> <span class="ow">is</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">df</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">fdiff</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+            <span class="k">except</span> <span class="n">ArgumentIndexError</span><span class="p">:</span>
+                <span class="n">df</span> <span class="o">=</span> <span class="n">Function</span><span class="o">.</span><span class="n">fdiff</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
+            <span class="n">l</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">df</span> <span class="o">*</span> <span class="n">da</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Add</span><span class="p">(</span><span class="o">*</span><span class="n">l</span><span class="p">)</span>
 
 <div class="viewcode-block" id="Max"><a class="viewcode-back" href="../../../../modules/functions/elementary.html#sympy.functions.elementary.miscellaneous.Max">[docs]</a><span class="k">class</span> <span class="nc">Max</span><span class="p">(</span><span class="n">MinMaxBase</span><span class="p">,</span> <span class="n">Application</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
@@ -523,6 +537,18 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="p">(</span><span class="n">x</span> <span class="o">&lt;</span> <span class="n">y</span><span class="p">)</span>
 
+    <span class="k">def</span> <span class="nf">fdiff</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">argindex</span> <span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">sympy.functions.special.delta_functions</span> <span class="kn">import</span> <span class="n">Heaviside</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
+        <span class="k">if</span> <span class="mi">0</span> <span class="o">&lt;</span> <span class="n">argindex</span> <span class="ow">and</span> <span class="n">argindex</span> <span class="o">&lt;=</span> <span class="n">n</span><span class="p">:</span>
+            <span class="n">argindex</span> <span class="o">-=</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="n">n</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">Heaviside</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="n">argindex</span><span class="p">]</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="o">-</span><span class="n">argindex</span><span class="p">]</span> <span class="p">)</span>
+            <span class="n">newargs</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="n">n</span><span class="p">)</span> <span class="k">if</span> <span class="n">i</span> <span class="o">!=</span> <span class="n">argindex</span><span class="p">])</span>
+            <span class="k">return</span> <span class="n">Heaviside</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="n">argindex</span><span class="p">]</span> <span class="o">-</span> <span class="n">Max</span><span class="p">(</span><span class="o">*</span><span class="n">newargs</span><span class="p">)</span> <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ArgumentIndexError</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">argindex</span><span class="p">)</span>
+
 </div>
 <div class="viewcode-block" id="Min"><a class="viewcode-back" href="../../../../modules/functions/elementary.html#sympy.functions.elementary.miscellaneous.Min">[docs]</a><span class="k">class</span> <span class="nc">Min</span><span class="p">(</span><span class="n">MinMaxBase</span><span class="p">,</span> <span class="n">Application</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
@@ -571,7 +597,19 @@
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Check if x &gt; y.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="p">(</span><span class="n">x</span> <span class="o">&gt;</span> <span class="n">y</span><span class="p">)</span></div>
+        <span class="k">return</span> <span class="p">(</span><span class="n">x</span> <span class="o">&gt;</span> <span class="n">y</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">fdiff</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">argindex</span> <span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">sympy.functions.special.delta_functions</span> <span class="kn">import</span> <span class="n">Heaviside</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
+        <span class="k">if</span> <span class="mi">0</span> <span class="o">&lt;</span> <span class="n">argindex</span> <span class="ow">and</span> <span class="n">argindex</span> <span class="o">&lt;=</span> <span class="n">n</span><span class="p">:</span>
+            <span class="n">argindex</span> <span class="o">-=</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="n">n</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">Heaviside</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="o">-</span><span class="n">argindex</span><span class="p">]</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="n">argindex</span><span class="p">]</span> <span class="p">)</span>
+            <span class="n">newargs</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">([</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="n">n</span><span class="p">)</span> <span class="k">if</span> <span class="n">i</span> <span class="o">!=</span> <span class="n">argindex</span><span class="p">])</span>
+            <span class="k">return</span> <span class="n">Heaviside</span><span class="p">(</span> <span class="n">Min</span><span class="p">(</span><span class="o">*</span><span class="n">newargs</span><span class="p">)</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="n">argindex</span><span class="p">]</span> <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ArgumentIndexError</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">argindex</span><span class="p">)</span></div>
 </pre></div>
 
           </div>
@@ -618,8 +656,8 @@
     </div>
     <div class="footer">
         &copy; Copyright 2013 SymPy Development Team.
-      Last updated on Jan 19, 2013.
-      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+      Last updated on Feb 16, 2013.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2pre.
     </div>
   </body>
 </html>

@@ -1,5 +1,3 @@
-
-
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 
@@ -66,7 +64,8 @@
   <h1>Source code for sympy.polys.rootoftools</h1><div class="highlight"><pre>
 <span class="sd">&quot;&quot;&quot;Implementation of RootOf class and related tools. &quot;&quot;&quot;</span>
 
-<span class="kn">from</span> <span class="nn">sympy.core</span> <span class="kn">import</span> <span class="n">S</span><span class="p">,</span> <span class="n">Expr</span><span class="p">,</span> <span class="n">Integer</span><span class="p">,</span> <span class="n">Float</span><span class="p">,</span> <span class="n">I</span><span class="p">,</span> <span class="n">Add</span><span class="p">,</span> <span class="n">Lambda</span><span class="p">,</span> <span class="n">symbols</span><span class="p">,</span> <span class="n">sympify</span>
+<span class="kn">from</span> <span class="nn">sympy.core</span> <span class="kn">import</span> <span class="p">(</span><span class="n">S</span><span class="p">,</span> <span class="n">Expr</span><span class="p">,</span> <span class="n">Integer</span><span class="p">,</span> <span class="n">Float</span><span class="p">,</span> <span class="n">I</span><span class="p">,</span> <span class="n">Add</span><span class="p">,</span> <span class="n">Lambda</span><span class="p">,</span> <span class="n">symbols</span><span class="p">,</span>
+        <span class="n">sympify</span><span class="p">,</span> <span class="n">Rational</span><span class="p">)</span>
 
 <span class="kn">from</span> <span class="nn">sympy.polys.polytools</span> <span class="kn">import</span> <span class="n">Poly</span><span class="p">,</span> <span class="n">PurePoly</span><span class="p">,</span> <span class="n">factor</span>
 <span class="kn">from</span> <span class="nn">sympy.polys.rationaltools</span> <span class="kn">import</span> <span class="n">together</span>
@@ -464,7 +463,14 @@
             <span class="n">func</span> <span class="o">=</span> <span class="n">lambdify</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">poly</span><span class="o">.</span><span class="n">gen</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="p">)</span>
 
             <span class="n">interval</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_interval</span><span class="p">()</span>
-            <span class="n">refined</span> <span class="o">=</span> <span class="bp">False</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_real</span><span class="p">:</span>
+                <span class="c"># For complex intervals, we need to keep refining until the</span>
+                <span class="c"># imaginary interval is disjunct with other roots, that is,</span>
+                <span class="c"># until both ends get refined.</span>
+                <span class="n">ay</span> <span class="o">=</span> <span class="n">interval</span><span class="o">.</span><span class="n">ay</span>
+                <span class="n">by</span> <span class="o">=</span> <span class="n">interval</span><span class="o">.</span><span class="n">by</span>
+                <span class="k">while</span> <span class="n">interval</span><span class="o">.</span><span class="n">ay</span> <span class="o">==</span> <span class="n">ay</span> <span class="ow">or</span> <span class="n">interval</span><span class="o">.</span><span class="n">by</span> <span class="o">==</span> <span class="n">by</span><span class="p">:</span>
+                    <span class="n">interval</span> <span class="o">=</span> <span class="n">interval</span><span class="o">.</span><span class="n">refine</span><span class="p">()</span>
 
             <span class="k">while</span> <span class="bp">True</span><span class="p">:</span>
                 <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_real</span><span class="p">:</span>
@@ -474,20 +480,70 @@
 
                 <span class="k">try</span><span class="p">:</span>
                     <span class="n">root</span> <span class="o">=</span> <span class="n">findroot</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="n">x0</span><span class="p">)</span>
+                    <span class="c"># If the (real or complex) root is not in the &#39;interval&#39;,</span>
+                    <span class="c"># then keep refining the interval. This happens if findroot</span>
+                    <span class="c"># accidentally finds a different root outside of this</span>
+                    <span class="c"># interval because our initial estimate &#39;x0&#39; was not close</span>
+                    <span class="c"># enough.</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_real</span><span class="p">:</span>
+                        <span class="n">a</span> <span class="o">=</span> <span class="n">mpf</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">interval</span><span class="o">.</span><span class="n">a</span><span class="p">))</span>
+                        <span class="n">b</span> <span class="o">=</span> <span class="n">mpf</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">interval</span><span class="o">.</span><span class="n">b</span><span class="p">))</span>
+                        <span class="c"># This is needed due to the bug #3364:</span>
+                        <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">),</span> <span class="nb">max</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span>
+                        <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">a</span> <span class="o">&lt;</span> <span class="n">root</span> <span class="o">&lt;</span> <span class="n">b</span><span class="p">):</span>
+                            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;Root not in the interval.&quot;</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">ax</span> <span class="o">=</span> <span class="n">mpf</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">interval</span><span class="o">.</span><span class="n">ax</span><span class="p">))</span>
+                        <span class="n">bx</span> <span class="o">=</span> <span class="n">mpf</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">interval</span><span class="o">.</span><span class="n">bx</span><span class="p">))</span>
+                        <span class="n">ay</span> <span class="o">=</span> <span class="n">mpf</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">interval</span><span class="o">.</span><span class="n">ay</span><span class="p">))</span>
+                        <span class="n">by</span> <span class="o">=</span> <span class="n">mpf</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">interval</span><span class="o">.</span><span class="n">by</span><span class="p">))</span>
+                        <span class="c"># This is needed due to the bug #3364:</span>
+                        <span class="n">ax</span><span class="p">,</span> <span class="n">bx</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">ax</span><span class="p">,</span> <span class="n">bx</span><span class="p">),</span> <span class="nb">max</span><span class="p">(</span><span class="n">ax</span><span class="p">,</span> <span class="n">bx</span><span class="p">)</span>
+                        <span class="n">ay</span><span class="p">,</span> <span class="n">by</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">ay</span><span class="p">,</span> <span class="n">by</span><span class="p">),</span> <span class="nb">max</span><span class="p">(</span><span class="n">ay</span><span class="p">,</span> <span class="n">by</span><span class="p">)</span>
+                        <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">ax</span> <span class="o">&lt;</span> <span class="n">root</span><span class="o">.</span><span class="n">real</span> <span class="o">&lt;</span> <span class="n">bx</span> <span class="ow">and</span> <span class="n">ay</span> <span class="o">&lt;</span> <span class="n">root</span><span class="o">.</span><span class="n">imag</span> <span class="o">&lt;</span> <span class="n">by</span><span class="p">):</span>
+                            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;Root not in the interval.&quot;</span><span class="p">)</span>
                 <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
                     <span class="n">interval</span> <span class="o">=</span> <span class="n">interval</span><span class="o">.</span><span class="n">refine</span><span class="p">()</span>
-                    <span class="n">refined</span> <span class="o">=</span> <span class="bp">True</span>
                     <span class="k">continue</span>
                 <span class="k">else</span><span class="p">:</span>
-                    <span class="k">if</span> <span class="n">refined</span><span class="p">:</span>
-                        <span class="bp">self</span><span class="o">.</span><span class="n">_set_interval</span><span class="p">(</span><span class="n">interval</span><span class="p">)</span>
-
                     <span class="k">break</span>
         <span class="k">finally</span><span class="p">:</span>
             <span class="n">mp</span><span class="o">.</span><span class="n">prec</span> <span class="o">=</span> <span class="n">_prec</span>
 
         <span class="k">return</span> <span class="n">Float</span><span class="o">.</span><span class="n">_new</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">real</span><span class="o">.</span><span class="n">_mpf_</span><span class="p">,</span> <span class="n">prec</span><span class="p">)</span> <span class="o">+</span> <span class="n">I</span><span class="o">*</span><span class="n">Float</span><span class="o">.</span><span class="n">_new</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">imag</span><span class="o">.</span><span class="n">_mpf_</span><span class="p">,</span> <span class="n">prec</span><span class="p">)</span>
 
+    <span class="k">def</span> <span class="nf">eval_rational</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tol</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a Rational approximation to ``self`` with the tolerance ``tol``.</span>
+
+<span class="sd">        This method uses bisection, which is very robust and it will always</span>
+<span class="sd">        converge. The returned Rational instance will be at most &#39;tol&#39; from the</span>
+<span class="sd">        exact root.</span>
+
+<span class="sd">        The following example first obtains Rational approximation to 1e-7</span>
+<span class="sd">        accuracy for all roots of the 4-th order Legendre polynomial, and then</span>
+<span class="sd">        evaluates it to 5 decimal digits (so all digits will be correct</span>
+<span class="sd">        including rounding):</span>
+
+<span class="sd">        &gt;&gt;&gt; from sympy import S, legendre_poly, Symbol</span>
+<span class="sd">        &gt;&gt;&gt; x = Symbol(&quot;x&quot;)</span>
+<span class="sd">        &gt;&gt;&gt; p = legendre_poly(4, x, polys=True)</span>
+<span class="sd">        &gt;&gt;&gt; roots = [r.eval_rational(S(1)/10**7) for r in p.real_roots()]</span>
+<span class="sd">        &gt;&gt;&gt; roots = [str(r.n(5)) for r in roots]</span>
+<span class="sd">        &gt;&gt;&gt; roots</span>
+<span class="sd">        [&#39;-0.86114&#39;, &#39;-0.33998&#39;, &#39;0.33998&#39;, &#39;0.86114&#39;]</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_real</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s">&quot;eval_rational() only works for real polynomials so far&quot;</span><span class="p">)</span>
+        <span class="n">func</span> <span class="o">=</span> <span class="n">lambdify</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">poly</span><span class="o">.</span><span class="n">gen</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="p">)</span>
+        <span class="n">interval</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_interval</span><span class="p">()</span>
+        <span class="n">a</span> <span class="o">=</span> <span class="n">Rational</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">interval</span><span class="o">.</span><span class="n">a</span><span class="p">))</span>
+        <span class="n">b</span> <span class="o">=</span> <span class="n">Rational</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">interval</span><span class="o">.</span><span class="n">b</span><span class="p">))</span>
+        <span class="c"># This is needed due to the bug #3364:</span>
+        <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">),</span> <span class="nb">max</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">bisect</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">tol</span><span class="p">)</span>
 </div>
 <div class="viewcode-block" id="RootSum"><a class="viewcode-back" href="../../../modules/polys/reference.html#sympy.polys.rootoftools.RootSum">[docs]</a><span class="k">class</span> <span class="nc">RootSum</span><span class="p">(</span><span class="n">Expr</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Represents a sum of all roots of a univariate polynomial. &quot;&quot;&quot;</span>
@@ -688,7 +744,41 @@
     <span class="k">def</span> <span class="nf">_eval_derivative</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
         <span class="n">var</span><span class="p">,</span> <span class="n">expr</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">fun</span><span class="o">.</span><span class="n">args</span>
         <span class="n">func</span> <span class="o">=</span> <span class="n">Lambda</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">expr</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">new</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">poly</span><span class="p">,</span> <span class="n">func</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">auto</span><span class="p">)</span></div>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">new</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">poly</span><span class="p">,</span> <span class="n">func</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">auto</span><span class="p">)</span>
+</div>
+<span class="k">def</span> <span class="nf">bisect</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">tol</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Implements bisection. This function is used in RootOf.eval_rational() and</span>
+<span class="sd">    it needs to be robust.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy import S</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.polys.rootoftools import bisect</span>
+<span class="sd">    &gt;&gt;&gt; bisect(lambda x: x**2-1, -10, 0, S(1)/10**2)</span>
+<span class="sd">    -1025/1024</span>
+<span class="sd">    &gt;&gt;&gt; bisect(lambda x: x**2-1, -10, 0, S(1)/10**4)</span>
+<span class="sd">    -131075/131072</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">a</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+    <span class="n">b</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">b</span><span class="p">)</span>
+    <span class="n">fa</span> <span class="o">=</span> <span class="n">f</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+    <span class="n">fb</span> <span class="o">=</span> <span class="n">f</span><span class="p">(</span><span class="n">b</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">fa</span> <span class="o">*</span> <span class="n">fb</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;bisect: f(a) and f(b) must have opposite signs&quot;</span><span class="p">)</span>
+    <span class="k">while</span> <span class="p">(</span><span class="n">b</span><span class="o">-</span><span class="n">a</span> <span class="o">&gt;</span> <span class="n">tol</span><span class="p">):</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="p">(</span><span class="n">a</span><span class="o">+</span><span class="n">b</span><span class="p">)</span><span class="o">/</span><span class="mi">2</span>
+        <span class="n">fc</span> <span class="o">=</span> <span class="n">f</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">fc</span> <span class="o">==</span> <span class="mi">0</span><span class="p">):</span> <span class="k">return</span> <span class="n">c</span> <span class="c"># We need to make sure f(c) is not zero below</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">fa</span> <span class="o">*</span> <span class="n">fc</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">):</span>
+            <span class="n">b</span> <span class="o">=</span> <span class="n">c</span>
+            <span class="n">fb</span> <span class="o">=</span> <span class="n">fc</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">a</span> <span class="o">=</span> <span class="n">c</span>
+            <span class="n">fa</span> <span class="o">=</span> <span class="n">fc</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">a</span><span class="o">+</span><span class="n">b</span><span class="p">)</span><span class="o">/</span><span class="mi">2</span>
 </pre></div>
 
           </div>
@@ -735,8 +825,8 @@
     </div>
     <div class="footer">
         &copy; Copyright 2013 SymPy Development Team.
-      Last updated on Jan 19, 2013.
-      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+      Last updated on Feb 16, 2013.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2pre.
     </div>
   </body>
 </html>
