@@ -116,7 +116,7 @@
 
 <span class="k">def</span> <span class="nf">_ispow</span><span class="p">(</span><span class="n">e</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Return True if e is a Pow or is exp.&quot;&quot;&quot;</span>
-    <span class="k">return</span> <span class="n">e</span><span class="o">.</span><span class="n">is_Pow</span> <span class="ow">or</span> <span class="n">e</span><span class="o">.</span><span class="n">func</span> <span class="ow">is</span> <span class="n">exp</span>
+    <span class="k">return</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">Expr</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">is_Pow</span> <span class="ow">or</span> <span class="n">e</span><span class="o">.</span><span class="n">func</span> <span class="ow">is</span> <span class="n">exp</span><span class="p">)</span>
 
 
 <span class="k">def</span> <span class="nf">denoms</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">symbols</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
@@ -518,12 +518,12 @@
 
 <span class="sd">            &gt;&gt;&gt; solve(x - 3)</span>
 <span class="sd">            [3]</span>
-<span class="sd">            &gt;&gt;&gt; solve(x**2 - y**2) # doctest: +SKIP</span>
+<span class="sd">            &gt;&gt;&gt; solve(x**2 - y**2)</span>
 <span class="sd">            [{x: -y}, {x: y}]</span>
-<span class="sd">            &gt;&gt;&gt; solve(z**2*x**2 - z**2*y**2) # doctest: +SKIP</span>
-<span class="sd">            [{x: -y}, {x: y}]</span>
+<span class="sd">            &gt;&gt;&gt; solve(z**2*x**2 - z**2*y**2)</span>
+<span class="sd">            [{x: -y}, {x: y}, {z: 0}]</span>
 <span class="sd">            &gt;&gt;&gt; solve(z**2*x - z**2*y**2)</span>
-<span class="sd">            [{x: y**2}]</span>
+<span class="sd">            [{x: y**2}, {z: 0}]</span>
 
 <span class="sd">    * when an object other than a Symbol is given as a symbol, it is</span>
 <span class="sd">      isolated algebraically and an implicit solution may be obtained.</span>
@@ -608,11 +608,11 @@
 <span class="sd">        * if there is no linear solution then the first successful</span>
 <span class="sd">          attempt for a nonlinear solution will be returned</span>
 
-<span class="sd">            &gt;&gt;&gt; solve(x**2 - y**2, x, y) # doctest: +SKIP</span>
+<span class="sd">            &gt;&gt;&gt; solve(x**2 - y**2, x, y)</span>
 <span class="sd">            [{x: -y}, {x: y}]</span>
 <span class="sd">            &gt;&gt;&gt; solve(x**2 - y**2/exp(x), x, y)</span>
 <span class="sd">            [{x: 2*LambertW(y/2)}]</span>
-<span class="sd">            &gt;&gt;&gt; solve(x**2 - y**2/exp(x), y, x) # doctest: +SKIP</span>
+<span class="sd">            &gt;&gt;&gt; solve(x**2 - y**2/exp(x), y, x)</span>
 <span class="sd">            [{y: -x*exp(x/2)}, {y: x*exp(x/2)}]</span>
 
 <span class="sd">    * iterable of one or more of the above</span>
@@ -736,6 +736,12 @@
         <span class="c"># Any embedded piecewise functions need to be brought out to the</span>
         <span class="c"># top level so that the appropriate strategy gets selected.</span>
         <span class="n">f</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">piecewise_fold</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+
+        <span class="c"># if we have a Matrix, we need to iterate over its elements again</span>
+        <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">is_Matrix</span><span class="p">:</span>
+            <span class="n">bare_f</span> <span class="o">=</span> <span class="bp">False</span>
+            <span class="n">f</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="n">i</span><span class="p">]))</span>
+            <span class="n">f</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span>
 
     <span class="c"># preprocess symbol(s)</span>
     <span class="c">###########################################################################</span>
@@ -1082,23 +1088,36 @@
             <span class="k">return</span> <span class="n">soln</span>
         <span class="c"># find first successful solution</span>
         <span class="n">failed</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">got_s</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([])</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">symbols</span><span class="p">:</span>
             <span class="n">n</span><span class="p">,</span> <span class="n">d</span> <span class="o">=</span> <span class="n">solve_linear</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">symbols</span><span class="o">=</span><span class="p">[</span><span class="n">s</span><span class="p">])</span>
             <span class="k">if</span> <span class="n">n</span><span class="o">.</span><span class="n">is_Symbol</span><span class="p">:</span>
                 <span class="c"># no need to check but we should simplify if desired</span>
                 <span class="k">if</span> <span class="n">flags</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;simplify&#39;</span><span class="p">,</span> <span class="bp">True</span><span class="p">):</span>
                     <span class="n">d</span> <span class="o">=</span> <span class="n">simplify</span><span class="p">(</span><span class="n">d</span><span class="p">)</span>
-                <span class="k">return</span> <span class="p">[{</span><span class="n">n</span><span class="p">:</span> <span class="n">d</span><span class="p">}]</span>
+                <span class="k">if</span> <span class="n">got_s</span> <span class="ow">and</span> <span class="nb">any</span><span class="p">([</span><span class="n">ss</span> <span class="ow">in</span> <span class="n">d</span><span class="o">.</span><span class="n">free_symbols</span> <span class="k">for</span> <span class="n">ss</span> <span class="ow">in</span> <span class="n">got_s</span><span class="p">]):</span>
+                    <span class="c"># sol depends on previously solved symbols: discard it</span>
+                    <span class="k">continue</span>
+                <span class="n">got_s</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+                <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="n">n</span><span class="p">:</span> <span class="n">d</span><span class="p">})</span>
             <span class="k">elif</span> <span class="n">n</span> <span class="ow">and</span> <span class="n">d</span><span class="p">:</span>  <span class="c"># otherwise there was no solution for s</span>
                 <span class="n">failed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">failed</span><span class="p">:</span>
-            <span class="k">return</span> <span class="p">[]</span>
+            <span class="k">return</span> <span class="n">result</span>
         <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">failed</span><span class="p">:</span>
             <span class="k">try</span><span class="p">:</span>
                 <span class="n">soln</span> <span class="o">=</span> <span class="n">_solve</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="o">**</span><span class="n">flags</span><span class="p">)</span>
-                <span class="k">return</span> <span class="p">[{</span><span class="n">s</span><span class="p">:</span> <span class="n">sol</span><span class="p">}</span> <span class="k">for</span> <span class="n">sol</span> <span class="ow">in</span> <span class="n">soln</span><span class="p">]</span>
+                <span class="k">for</span> <span class="n">sol</span> <span class="ow">in</span> <span class="n">soln</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">got_s</span> <span class="ow">and</span> <span class="nb">any</span><span class="p">([</span><span class="n">ss</span> <span class="ow">in</span> <span class="n">sol</span><span class="o">.</span><span class="n">free_symbols</span> <span class="k">for</span> <span class="n">ss</span> <span class="ow">in</span> <span class="n">got_s</span><span class="p">]):</span>
+                        <span class="c"># sol depends on previously solved symbols: discard it</span>
+                        <span class="k">continue</span>
+                    <span class="n">got_s</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+                    <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="n">s</span><span class="p">:</span> <span class="n">sol</span><span class="p">})</span>
             <span class="k">except</span> <span class="ne">NotImplementedError</span><span class="p">:</span>
                 <span class="k">continue</span>
+        <span class="k">if</span> <span class="n">got_s</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">result</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">msg</span> <span class="o">=</span> <span class="s">&quot;No algorithms are implemented to solve equation </span><span class="si">%s</span><span class="s">&quot;</span>
             <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="n">msg</span> <span class="o">%</span> <span class="n">f</span><span class="p">)</span>
@@ -1122,24 +1141,25 @@
 
     <span class="k">elif</span> <span class="n">f</span><span class="o">.</span><span class="n">is_Piecewise</span><span class="p">:</span>
         <span class="n">result</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
-        <span class="k">for</span> <span class="n">expr</span><span class="p">,</span> <span class="n">cond</span> <span class="ow">in</span> <span class="n">f</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">n</span><span class="p">,</span> <span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">cond</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">args</span><span class="p">):</span>
             <span class="n">candidates</span> <span class="o">=</span> <span class="n">_solve</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="o">*</span><span class="n">symbols</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">cond</span> <span class="ow">is</span> <span class="bp">True</span><span class="p">:</span>
-                <span class="c"># Only include solutions that do not match the condition</span>
-                <span class="c"># of any of the other pieces.</span>
-                <span class="k">for</span> <span class="n">candidate</span> <span class="ow">in</span> <span class="n">candidates</span><span class="p">:</span>
+
+            <span class="k">for</span> <span class="n">candidate</span> <span class="ow">in</span> <span class="n">candidates</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">candidate</span> <span class="ow">in</span> <span class="n">result</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="k">if</span> <span class="n">cond</span> <span class="ow">is</span> <span class="bp">True</span> <span class="ow">or</span> <span class="n">cond</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">symbol</span><span class="p">,</span> <span class="n">candidate</span><span class="p">):</span>
+                    <span class="c"># Only include solutions that do not match the condition</span>
+                    <span class="c"># of any previous pieces.</span>
                     <span class="n">matches_other_piece</span> <span class="o">=</span> <span class="bp">False</span>
-                    <span class="k">for</span> <span class="n">other_expr</span><span class="p">,</span> <span class="n">other_cond</span> <span class="ow">in</span> <span class="n">f</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
-                        <span class="k">if</span> <span class="n">other_cond</span> <span class="ow">is</span> <span class="bp">True</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">other_n</span><span class="p">,</span> <span class="p">(</span><span class="n">other_expr</span><span class="p">,</span> <span class="n">other_cond</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">args</span><span class="p">):</span>
+                        <span class="k">if</span> <span class="n">other_n</span> <span class="o">==</span> <span class="n">n</span><span class="p">:</span>
+                            <span class="k">break</span>
+                        <span class="k">if</span> <span class="n">other_cond</span> <span class="ow">is</span> <span class="bp">False</span><span class="p">:</span>
                             <span class="k">continue</span>
-                        <span class="k">if</span> <span class="nb">bool</span><span class="p">(</span><span class="n">other_cond</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">symbol</span><span class="p">,</span> <span class="n">candidate</span><span class="p">)):</span>
+                        <span class="k">if</span> <span class="n">other_cond</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">symbol</span><span class="p">,</span> <span class="n">candidate</span><span class="p">):</span>
                             <span class="n">matches_other_piece</span> <span class="o">=</span> <span class="bp">True</span>
                             <span class="k">break</span>
                     <span class="k">if</span> <span class="ow">not</span> <span class="n">matches_other_piece</span><span class="p">:</span>
-                        <span class="n">result</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">candidate</span><span class="p">)</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="k">for</span> <span class="n">candidate</span> <span class="ow">in</span> <span class="n">candidates</span><span class="p">:</span>
-                    <span class="k">if</span> <span class="nb">bool</span><span class="p">(</span><span class="n">cond</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">symbol</span><span class="p">,</span> <span class="n">candidate</span><span class="p">)):</span>
                         <span class="n">result</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">candidate</span><span class="p">)</span>
         <span class="n">check</span> <span class="o">=</span> <span class="bp">False</span>
     <span class="k">else</span><span class="p">:</span>
@@ -1162,151 +1182,199 @@
         <span class="c"># a polynomial and tell us the different generators that it</span>
         <span class="c"># contains, so we will inspect the generators identified by</span>
         <span class="c"># polys to figure out what to do.</span>
-        <span class="n">poly</span> <span class="o">=</span> <span class="n">Poly</span><span class="p">(</span><span class="n">f_num</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">poly</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;could not convert </span><span class="si">%s</span><span class="s"> to Poly&#39;</span> <span class="o">%</span> <span class="n">f_num</span><span class="p">)</span>
-        <span class="n">gens</span> <span class="o">=</span> <span class="p">[</span><span class="n">g</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">poly</span><span class="o">.</span><span class="n">gens</span> <span class="k">if</span> <span class="n">g</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">symbol</span><span class="p">)]</span>
 
-        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">gens</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
-            <span class="c"># If there is more than one generator, it could be that the</span>
-            <span class="c"># generators have the same base but different powers, e.g.</span>
-            <span class="c">#   &gt;&gt;&gt; Poly(exp(x)+1/exp(x))</span>
-            <span class="c">#   Poly(exp(-x) + exp(x), exp(-x), exp(x), domain=&#39;ZZ&#39;)</span>
-            <span class="c">#   &gt;&gt;&gt; Poly(sqrt(x)+sqrt(sqrt(x)))</span>
-            <span class="c">#   Poly(sqrt(x) + x**(1/4), sqrt(x), x**(1/4), domain=&#39;ZZ&#39;)</span>
-            <span class="c"># If the exponents are Rational then a change of variables</span>
-            <span class="c"># will make this a polynomial equation in a single base.</span>
+        <span class="c"># but first remove radicals as this will help Polys</span>
+        <span class="k">if</span> <span class="n">flags</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s">&#39;unrad&#39;</span><span class="p">,</span> <span class="bp">True</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="c"># try remove all...</span>
+                <span class="n">u</span> <span class="o">=</span> <span class="n">unrad</span><span class="p">(</span><span class="n">f_num</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+                <span class="c"># ...else hope for the best while letting some remain</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">u</span> <span class="o">=</span> <span class="n">unrad</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">symbol</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+                    <span class="k">pass</span>  <span class="c"># hope for best with original equation</span>
+            <span class="k">if</span> <span class="n">u</span><span class="p">:</span>
+                <span class="n">flags</span><span class="p">[</span><span class="s">&#39;unrad&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">False</span>  <span class="c"># don&#39;t unrad next time</span>
+                <span class="n">eq</span><span class="p">,</span> <span class="n">cov</span><span class="p">,</span> <span class="n">dens2</span> <span class="o">=</span> <span class="n">u</span>
+                <span class="n">dens</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">dens2</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">cov</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">cov</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s">&#39;Not sure how to handle this.&#39;</span><span class="p">)</span>
+                    <span class="n">isym</span><span class="p">,</span> <span class="n">ieq</span> <span class="o">=</span> <span class="n">cov</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                    <span class="c"># since cov is written in terms of positive symbols, set</span>
+                    <span class="c"># check to False or else 0 would be excluded; the solution</span>
+                    <span class="c"># will be checked below</span>
+                    <span class="n">absent</span> <span class="o">=</span> <span class="n">Dummy</span><span class="p">()</span>
+                    <span class="n">check</span> <span class="o">=</span> <span class="n">flags</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;check&#39;</span><span class="p">,</span> <span class="n">absent</span><span class="p">)</span>
+                    <span class="n">flags</span><span class="p">[</span><span class="s">&#39;check&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">False</span>
+                    <span class="n">sol</span> <span class="o">=</span> <span class="n">_solve</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">isym</span><span class="p">,</span> <span class="o">**</span><span class="n">flags</span><span class="p">)</span>
+                    <span class="n">inv</span> <span class="o">=</span> <span class="n">_solve</span><span class="p">(</span><span class="n">ieq</span><span class="p">,</span> <span class="n">symbol</span><span class="p">,</span> <span class="o">**</span><span class="n">flags</span><span class="p">)</span>
+                    <span class="n">result</span> <span class="o">=</span> <span class="p">[]</span>
+                    <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">sol</span><span class="p">:</span>
+                        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">inv</span><span class="p">:</span>
+                            <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">isym</span><span class="p">,</span> <span class="n">s</span><span class="p">))</span>
+                    <span class="k">if</span> <span class="n">check</span> <span class="o">==</span> <span class="n">absent</span><span class="p">:</span>
+                        <span class="n">flags</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s">&#39;check&#39;</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">flags</span><span class="p">[</span><span class="s">&#39;check&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">check</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">result</span> <span class="o">=</span> <span class="n">_solve</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">symbol</span><span class="p">,</span> <span class="o">**</span><span class="n">flags</span><span class="p">)</span>
 
-            <span class="k">def</span> <span class="nf">_as_base_q</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
-                <span class="sd">&quot;&quot;&quot;Return (b**e, q) for x = b**(p*e/q) where p/q is the leading</span>
-<span class="sd">                Rational of the exponent of x, e.g. exp(-2*x/3) -&gt; (exp(x), 3)</span>
-<span class="sd">                &quot;&quot;&quot;</span>
-                <span class="n">b</span><span class="p">,</span> <span class="n">e</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">as_base_exp</span><span class="p">()</span>
-                <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">is_Rational</span><span class="p">:</span>
-                    <span class="k">return</span> <span class="n">b</span><span class="p">,</span> <span class="n">e</span><span class="o">.</span><span class="n">q</span>
-                <span class="k">if</span> <span class="ow">not</span> <span class="n">e</span><span class="o">.</span><span class="n">is_Mul</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">result</span> <span class="ow">is</span> <span class="bp">False</span><span class="p">:</span>
+            <span class="n">poly</span> <span class="o">=</span> <span class="n">Poly</span><span class="p">(</span><span class="n">f_num</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">poly</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;could not convert </span><span class="si">%s</span><span class="s"> to Poly&#39;</span> <span class="o">%</span> <span class="n">f_num</span><span class="p">)</span>
+            <span class="n">gens</span> <span class="o">=</span> <span class="p">[</span><span class="n">g</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">poly</span><span class="o">.</span><span class="n">gens</span> <span class="k">if</span> <span class="n">g</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">symbol</span><span class="p">)]</span>
+
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">gens</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="c"># If there is more than one generator, it could be that the</span>
+                <span class="c"># generators have the same base but different powers, e.g.</span>
+                <span class="c">#   &gt;&gt;&gt; Poly(exp(x)+1/exp(x))</span>
+                <span class="c">#   Poly(exp(-x) + exp(x), exp(-x), exp(x), domain=&#39;ZZ&#39;)</span>
+                <span class="c">#   &gt;&gt;&gt; Poly(sqrt(x)+sqrt(sqrt(x)))</span>
+                <span class="c">#   Poly(sqrt(x) + x**(1/4), sqrt(x), x**(1/4), domain=&#39;ZZ&#39;)</span>
+                <span class="c"># If the exponents are Rational then a change of variables</span>
+                <span class="c"># will make this a polynomial equation in a single base.</span>
+
+                <span class="k">def</span> <span class="nf">_as_base_q</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+                    <span class="sd">&quot;&quot;&quot;Return (b**e, q) for x = b**(p*e/q) where p/q is the leading</span>
+<span class="sd">                    Rational of the exponent of x, e.g. exp(-2*x/3) -&gt; (exp(x), 3)</span>
+<span class="sd">                    &quot;&quot;&quot;</span>
+                    <span class="n">b</span><span class="p">,</span> <span class="n">e</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">as_base_exp</span><span class="p">()</span>
+                    <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">is_Rational</span><span class="p">:</span>
+                        <span class="k">return</span> <span class="n">b</span><span class="p">,</span> <span class="n">e</span><span class="o">.</span><span class="n">q</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">e</span><span class="o">.</span><span class="n">is_Mul</span><span class="p">:</span>
+                        <span class="k">return</span> <span class="n">x</span><span class="p">,</span> <span class="mi">1</span>
+                    <span class="n">c</span><span class="p">,</span> <span class="n">ee</span> <span class="o">=</span> <span class="n">e</span><span class="o">.</span><span class="n">as_coeff_Mul</span><span class="p">()</span>
+                    <span class="k">if</span> <span class="n">c</span><span class="o">.</span><span class="n">is_Rational</span> <span class="ow">and</span> <span class="n">c</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">:</span>  <span class="c"># c could be a Float</span>
+                        <span class="k">return</span> <span class="n">b</span><span class="o">**</span><span class="n">ee</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">q</span>
                     <span class="k">return</span> <span class="n">x</span><span class="p">,</span> <span class="mi">1</span>
-                <span class="n">c</span><span class="p">,</span> <span class="n">ee</span> <span class="o">=</span> <span class="n">e</span><span class="o">.</span><span class="n">as_coeff_Mul</span><span class="p">()</span>
-                <span class="k">if</span> <span class="n">c</span><span class="o">.</span><span class="n">is_Rational</span> <span class="ow">and</span> <span class="n">c</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">:</span>  <span class="c"># c could be a Float</span>
-                    <span class="k">return</span> <span class="n">b</span><span class="o">**</span><span class="n">ee</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">q</span>
-                <span class="k">return</span> <span class="n">x</span><span class="p">,</span> <span class="mi">1</span>
 
-            <span class="n">bases</span><span class="p">,</span> <span class="n">qs</span> <span class="o">=</span> <span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">_as_base_q</span><span class="p">(</span><span class="n">g</span><span class="p">)</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">gens</span><span class="p">])</span>
-            <span class="n">bases</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">bases</span><span class="p">)</span>
+                <span class="n">bases</span><span class="p">,</span> <span class="n">qs</span> <span class="o">=</span> <span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">_as_base_q</span><span class="p">(</span><span class="n">g</span><span class="p">)</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">gens</span><span class="p">])</span>
+                <span class="n">bases</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">bases</span><span class="p">)</span>
 
-            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">bases</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
-                <span class="n">funcs</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">b</span><span class="o">.</span><span class="n">func</span> <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">bases</span> <span class="k">if</span> <span class="n">b</span><span class="o">.</span><span class="n">is_Function</span><span class="p">)</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">bases</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="n">funcs</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">b</span><span class="o">.</span><span class="n">func</span> <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">bases</span> <span class="k">if</span> <span class="n">b</span><span class="o">.</span><span class="n">is_Function</span><span class="p">)</span>
 
-                <span class="n">trig</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([</span><span class="n">cos</span><span class="p">,</span> <span class="n">sin</span><span class="p">,</span> <span class="n">tan</span><span class="p">,</span> <span class="n">cot</span><span class="p">])</span>
-                <span class="n">other</span> <span class="o">=</span> <span class="n">funcs</span> <span class="o">-</span> <span class="n">trig</span>
-                <span class="k">if</span> <span class="ow">not</span> <span class="n">other</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">funcs</span><span class="o">.</span><span class="n">intersection</span><span class="p">(</span><span class="n">trig</span><span class="p">))</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
-                    <span class="k">return</span> <span class="n">_solve</span><span class="p">(</span><span class="n">f_num</span><span class="o">.</span><span class="n">rewrite</span><span class="p">(</span><span class="n">tan</span><span class="p">),</span> <span class="n">symbol</span><span class="p">,</span> <span class="o">**</span><span class="n">flags</span><span class="p">)</span>
+                    <span class="n">trig</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([</span><span class="n">cos</span><span class="p">,</span> <span class="n">sin</span><span class="p">,</span> <span class="n">tan</span><span class="p">,</span> <span class="n">cot</span><span class="p">])</span>
+                    <span class="n">other</span> <span class="o">=</span> <span class="n">funcs</span> <span class="o">-</span> <span class="n">trig</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">other</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">funcs</span><span class="o">.</span><span class="n">intersection</span><span class="p">(</span><span class="n">trig</span><span class="p">))</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                        <span class="k">return</span> <span class="n">_solve</span><span class="p">(</span><span class="n">f_num</span><span class="o">.</span><span class="n">rewrite</span><span class="p">(</span><span class="n">tan</span><span class="p">),</span> <span class="n">symbol</span><span class="p">,</span> <span class="o">**</span><span class="n">flags</span><span class="p">)</span>
 
-                <span class="n">trigh</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([</span><span class="n">cosh</span><span class="p">,</span> <span class="n">sinh</span><span class="p">,</span> <span class="n">tanh</span><span class="p">,</span> <span class="n">coth</span><span class="p">])</span>
-                <span class="n">other</span> <span class="o">=</span> <span class="n">funcs</span> <span class="o">-</span> <span class="n">trigh</span>
-                <span class="k">if</span> <span class="ow">not</span> <span class="n">other</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">funcs</span><span class="o">.</span><span class="n">intersection</span><span class="p">(</span><span class="n">trigh</span><span class="p">))</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
-                    <span class="k">return</span> <span class="n">_solve</span><span class="p">(</span><span class="n">f_num</span><span class="o">.</span><span class="n">rewrite</span><span class="p">(</span><span class="n">tanh</span><span class="p">),</span> <span class="n">symbol</span><span class="p">,</span> <span class="o">**</span><span class="n">flags</span><span class="p">)</span>
+                    <span class="n">trigh</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([</span><span class="n">cosh</span><span class="p">,</span> <span class="n">sinh</span><span class="p">,</span> <span class="n">tanh</span><span class="p">,</span> <span class="n">coth</span><span class="p">])</span>
+                    <span class="n">other</span> <span class="o">=</span> <span class="n">funcs</span> <span class="o">-</span> <span class="n">trigh</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">other</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">funcs</span><span class="o">.</span><span class="n">intersection</span><span class="p">(</span><span class="n">trigh</span><span class="p">))</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                        <span class="k">return</span> <span class="n">_solve</span><span class="p">(</span><span class="n">f_num</span><span class="o">.</span><span class="n">rewrite</span><span class="p">(</span><span class="n">tanh</span><span class="p">),</span> <span class="n">symbol</span><span class="p">,</span> <span class="o">**</span><span class="n">flags</span><span class="p">)</span>
 
-                <span class="c"># just a simple case - see if replacement of single function</span>
-                <span class="c"># clears all symbol-dependent functions, e.g.</span>
-                <span class="c"># log(x) - log(log(x) - 1) - 3 can be solved even though it has</span>
-                <span class="c"># two generators.</span>
+                    <span class="c"># just a simple case - see if replacement of single function</span>
+                    <span class="c"># clears all symbol-dependent functions, e.g.</span>
+                    <span class="c"># log(x) - log(log(x) - 1) - 3 can be solved even though it has</span>
+                    <span class="c"># two generators.</span>
 
-                <span class="n">funcs</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">bases</span> <span class="k">if</span> <span class="n">f</span><span class="o">.</span><span class="n">is_Function</span><span class="p">]</span>
-                <span class="k">if</span> <span class="n">funcs</span><span class="p">:</span>
-                    <span class="n">funcs</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="n">count_ops</span><span class="p">)</span>  <span class="c"># put shallowest function first</span>
-                    <span class="n">f1</span> <span class="o">=</span> <span class="n">funcs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                    <span class="n">funcs</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">bases</span> <span class="k">if</span> <span class="n">f</span><span class="o">.</span><span class="n">is_Function</span><span class="p">]</span>
+                    <span class="k">if</span> <span class="n">funcs</span><span class="p">:</span>
+                        <span class="n">funcs</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="n">count_ops</span><span class="p">)</span>  <span class="c"># put shallowest function first</span>
+                        <span class="n">f1</span> <span class="o">=</span> <span class="n">funcs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                        <span class="n">t</span> <span class="o">=</span> <span class="n">Dummy</span><span class="p">()</span>
+                        <span class="c"># perform the substitution</span>
+                        <span class="n">ftry</span> <span class="o">=</span> <span class="n">f_num</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">f1</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span>
+
+                        <span class="c"># if no Functions left, we can proceed with usual solve</span>
+                        <span class="k">if</span> <span class="ow">not</span> <span class="n">ftry</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">symbol</span><span class="p">):</span>
+                            <span class="n">cv_sols</span> <span class="o">=</span> <span class="n">_solve</span><span class="p">(</span><span class="n">ftry</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span>
+                            <span class="n">cv_inv</span> <span class="o">=</span> <span class="n">_solve</span><span class="p">(</span><span class="n">t</span> <span class="o">-</span> <span class="n">f1</span><span class="p">,</span> <span class="n">symbol</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+                            <span class="n">sols</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+                            <span class="k">for</span> <span class="n">sol</span> <span class="ow">in</span> <span class="n">cv_sols</span><span class="p">:</span>
+                                <span class="n">sols</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cv_inv</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">sol</span><span class="p">))</span>
+                            <span class="k">return</span> <span class="n">sols</span>
+
+                    <span class="n">msg</span> <span class="o">=</span> <span class="s">&#39;multiple generators </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="n">gens</span>
+
+                <span class="k">elif</span> <span class="nb">any</span><span class="p">(</span><span class="n">q</span> <span class="o">!=</span> <span class="mi">1</span> <span class="k">for</span> <span class="n">q</span> <span class="ow">in</span> <span class="n">qs</span><span class="p">):</span>
+                    <span class="c"># e.g. for x**(1/2) + x**(1/4) a change of variables</span>
+                    <span class="c"># can be made using p**4 to give p**2 + p</span>
+                    <span class="n">base</span> <span class="o">=</span> <span class="n">bases</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+                    <span class="n">m</span> <span class="o">=</span> <span class="nb">reduce</span><span class="p">(</span><span class="n">ilcm</span><span class="p">,</span> <span class="n">qs</span><span class="p">)</span>
+                    <span class="n">p</span> <span class="o">=</span> <span class="n">Dummy</span><span class="p">(</span><span class="s">&#39;p&#39;</span><span class="p">,</span> <span class="n">positive</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+                    <span class="n">cov</span> <span class="o">=</span> <span class="n">p</span><span class="o">**</span><span class="n">m</span>
+                    <span class="n">fnew</span> <span class="o">=</span> <span class="n">f_num</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="n">cov</span><span class="p">)</span>
+                    <span class="n">poly</span> <span class="o">=</span> <span class="n">Poly</span><span class="p">(</span><span class="n">fnew</span><span class="p">,</span> <span class="n">p</span><span class="p">)</span>  <span class="c"># we now have a single generator, p</span>
+
+                    <span class="c"># for cubics and quartics, if the flag wasn&#39;t set, DON&#39;T do it</span>
+                    <span class="c"># by default since the results are quite long. Perhaps one</span>
+                    <span class="c"># could base this decision on a certain critical length of the</span>
+                    <span class="c"># roots.</span>
+                    <span class="k">if</span> <span class="n">poly</span><span class="o">.</span><span class="n">degree</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mi">2</span><span class="p">:</span>
+                        <span class="n">flags</span><span class="p">[</span><span class="s">&#39;simplify&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">flags</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;simplify&#39;</span><span class="p">,</span> <span class="bp">False</span><span class="p">)</span>
+
+                    <span class="n">soln</span> <span class="o">=</span> <span class="n">roots</span><span class="p">(</span><span class="n">poly</span><span class="p">,</span> <span class="n">cubics</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">quartics</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">soln</span><span class="p">:</span>
+                        <span class="n">soln</span> <span class="o">=</span> <span class="n">poly</span><span class="o">.</span><span class="n">all_roots</span><span class="p">()</span>
+                        <span class="n">check</span> <span class="o">=</span> <span class="bp">False</span>  <span class="c"># RootOf instances can not be checked</span>
+
+                    <span class="c"># We now know what the values of p are equal to. Now find out</span>
+                    <span class="c"># how they are related to the original x, e.g. if p**2 = cos(x)</span>
+                    <span class="c"># then x = acos(p**2)</span>
+                    <span class="c">#</span>
+                    <span class="n">inversion</span> <span class="o">=</span> <span class="n">_solve</span><span class="p">(</span><span class="n">cov</span> <span class="o">-</span> <span class="n">base</span><span class="p">,</span> <span class="n">symbol</span><span class="p">,</span> <span class="o">**</span><span class="n">flags</span><span class="p">)</span>
+                    <span class="n">result</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">inversion</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">soln</span><span class="p">]</span>
+
+                <span class="k">else</span><span class="p">:</span>  <span class="c"># len(bases) == 1 and all(q == 1 for q in qs):</span>
+                    <span class="c"># e.g. case where gens are exp(x), exp(-x)</span>
+                    <span class="n">u</span> <span class="o">=</span> <span class="n">bases</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
                     <span class="n">t</span> <span class="o">=</span> <span class="n">Dummy</span><span class="p">(</span><span class="s">&#39;t&#39;</span><span class="p">)</span>
-                    <span class="c"># perform the substitution</span>
-                    <span class="n">ftry</span> <span class="o">=</span> <span class="n">f_num</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">f1</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span>
-
-                    <span class="c"># if no Functions left, we can proceed with usual solve</span>
+                    <span class="n">inv</span> <span class="o">=</span> <span class="n">_solve</span><span class="p">(</span><span class="n">u</span> <span class="o">-</span> <span class="n">t</span><span class="p">,</span> <span class="n">symbol</span><span class="p">)</span>
+                    <span class="n">ftry</span> <span class="o">=</span> <span class="n">f_num</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span>
                     <span class="k">if</span> <span class="ow">not</span> <span class="n">ftry</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">symbol</span><span class="p">):</span>
-                        <span class="n">cv_sols</span> <span class="o">=</span> <span class="n">_solve</span><span class="p">(</span><span class="n">ftry</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span>
-                        <span class="n">cv_inv</span> <span class="o">=</span> <span class="n">_solve</span><span class="p">(</span><span class="n">t</span> <span class="o">-</span> <span class="n">f1</span><span class="p">,</span> <span class="n">symbol</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+                        <span class="n">soln</span> <span class="o">=</span> <span class="n">_solve</span><span class="p">(</span><span class="n">ftry</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span>
                         <span class="n">sols</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
-                        <span class="k">for</span> <span class="n">sol</span> <span class="ow">in</span> <span class="n">cv_sols</span><span class="p">:</span>
-                            <span class="n">sols</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cv_inv</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">sol</span><span class="p">))</span>
+                        <span class="k">for</span> <span class="n">sol</span> <span class="ow">in</span> <span class="n">soln</span><span class="p">:</span>
+                            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">inv</span><span class="p">:</span>
+                                <span class="n">sols</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">sol</span><span class="p">))</span>
                         <span class="k">return</span> <span class="n">sols</span>
 
-                <span class="n">msg</span> <span class="o">=</span> <span class="s">&#39;multiple generators </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="n">gens</span>
+            <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">gens</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
 
-            <span class="k">elif</span> <span class="nb">any</span><span class="p">(</span><span class="n">q</span> <span class="o">!=</span> <span class="mi">1</span> <span class="k">for</span> <span class="n">q</span> <span class="ow">in</span> <span class="n">qs</span><span class="p">):</span>
-                <span class="c"># e.g. for x**(1/2) + x**(1/4) a change of variables</span>
-                <span class="c"># can be made using p**4 to give p**2 + p</span>
-                <span class="n">base</span> <span class="o">=</span> <span class="n">bases</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
-                <span class="n">m</span> <span class="o">=</span> <span class="nb">reduce</span><span class="p">(</span><span class="n">ilcm</span><span class="p">,</span> <span class="n">qs</span><span class="p">)</span>
-                <span class="n">p</span> <span class="o">=</span> <span class="n">Dummy</span><span class="p">(</span><span class="s">&#39;p&#39;</span><span class="p">,</span> <span class="n">positive</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
-                <span class="n">cov</span> <span class="o">=</span> <span class="n">p</span><span class="o">**</span><span class="n">m</span>
-                <span class="n">fnew</span> <span class="o">=</span> <span class="n">f_num</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="n">cov</span><span class="p">)</span>
-                <span class="n">poly</span> <span class="o">=</span> <span class="n">Poly</span><span class="p">(</span><span class="n">fnew</span><span class="p">,</span> <span class="n">p</span><span class="p">)</span>  <span class="c"># we now have a single generator, p</span>
+                <span class="c"># There is only one generator that we are interested in, but there</span>
+                <span class="c"># may have been more than one generator identified by polys (e.g.</span>
+                <span class="c"># for symbols other than the one we are interested in) so recast</span>
+                <span class="c"># the poly in terms of our generator of interest.</span>
 
-                <span class="c"># for cubics and quartics, if the flag wasn&#39;t set, DON&#39;T do it</span>
-                <span class="c"># by default since the results are quite long. Perhaps one</span>
-                <span class="c"># could base this decision on a certain critical length of the</span>
-                <span class="c"># roots.</span>
-                <span class="k">if</span> <span class="n">poly</span><span class="o">.</span><span class="n">degree</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mi">2</span><span class="p">:</span>
-                    <span class="n">flags</span><span class="p">[</span><span class="s">&#39;simplify&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">flags</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;simplify&#39;</span><span class="p">,</span> <span class="bp">False</span><span class="p">)</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">poly</span><span class="o">.</span><span class="n">gens</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="n">poly</span> <span class="o">=</span> <span class="n">Poly</span><span class="p">(</span><span class="n">poly</span><span class="p">,</span> <span class="n">gens</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
 
-                <span class="n">soln</span> <span class="o">=</span> <span class="n">roots</span><span class="p">(</span><span class="n">poly</span><span class="p">,</span> <span class="n">cubics</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">quartics</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span>
-                <span class="k">if</span> <span class="ow">not</span> <span class="n">soln</span><span class="p">:</span>
-                    <span class="n">soln</span> <span class="o">=</span> <span class="n">poly</span><span class="o">.</span><span class="n">all_roots</span><span class="p">()</span>
-                    <span class="n">check</span> <span class="o">=</span> <span class="bp">False</span>  <span class="c"># RootOf instances can not be checked</span>
-
-                <span class="c"># We now know what the values of p are equal to. Now find out</span>
-                <span class="c"># how they are related to the original x, e.g. if p**2 = cos(x)</span>
-                <span class="c"># then x = acos(p**2)</span>
-                <span class="c">#</span>
-                <span class="n">inversion</span> <span class="o">=</span> <span class="n">_solve</span><span class="p">(</span><span class="n">cov</span> <span class="o">-</span> <span class="n">base</span><span class="p">,</span> <span class="n">symbol</span><span class="p">,</span> <span class="o">**</span><span class="n">flags</span><span class="p">)</span>
-                <span class="n">result</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">inversion</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">soln</span><span class="p">]</span>
-
-            <span class="k">else</span><span class="p">:</span>  <span class="c"># len(bases) == 1 and all(q == 1 for q in qs):</span>
-                <span class="c"># e.g. case where gens are exp(x), exp(-x)</span>
-                <span class="n">u</span> <span class="o">=</span> <span class="n">bases</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
-                <span class="n">t</span> <span class="o">=</span> <span class="n">Dummy</span><span class="p">(</span><span class="s">&#39;t&#39;</span><span class="p">)</span>
-                <span class="n">inv</span> <span class="o">=</span> <span class="n">_solve</span><span class="p">(</span><span class="n">u</span> <span class="o">-</span> <span class="n">t</span><span class="p">,</span> <span class="n">symbol</span><span class="p">)</span>
-                <span class="n">ftry</span> <span class="o">=</span> <span class="n">f_num</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span>
-                <span class="k">if</span> <span class="ow">not</span> <span class="n">ftry</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">symbol</span><span class="p">):</span>
-                    <span class="n">soln</span> <span class="o">=</span> <span class="n">_solve</span><span class="p">(</span><span class="n">ftry</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span>
-                    <span class="n">sols</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
-                    <span class="k">for</span> <span class="n">sol</span> <span class="ow">in</span> <span class="n">soln</span><span class="p">:</span>
-                        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">inv</span><span class="p">:</span>
-                            <span class="n">sols</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">sol</span><span class="p">))</span>
-                    <span class="k">return</span> <span class="n">sols</span>
-
-        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">gens</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
-
-            <span class="c"># There is only one generator that we are interested in, but there</span>
-            <span class="c"># may have been more than one generator identified by polys (e.g.</span>
-            <span class="c"># for symbols other than the one we are interested in) so recast</span>
-            <span class="c"># the poly in terms of our generator of interest.</span>
-
-            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">poly</span><span class="o">.</span><span class="n">gens</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
-                <span class="n">poly</span> <span class="o">=</span> <span class="n">Poly</span><span class="p">(</span><span class="n">poly</span><span class="p">,</span> <span class="n">gens</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
-
-            <span class="c"># if we haven&#39;t tried tsolve yet, do so now</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="n">flags</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s">&#39;tsolve&#39;</span><span class="p">,</span> <span class="bp">False</span><span class="p">):</span>
-                <span class="c"># for cubics and quartics, if the flag wasn&#39;t set, DON&#39;T do it</span>
-                <span class="c"># by default since the results are quite long. Perhaps one</span>
-                <span class="c"># could base this decision on a certain critical length of the</span>
-                <span class="c"># roots.</span>
-                <span class="k">if</span> <span class="n">poly</span><span class="o">.</span><span class="n">degree</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mi">2</span><span class="p">:</span>
-                    <span class="n">flags</span><span class="p">[</span><span class="s">&#39;simplify&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">flags</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;simplify&#39;</span><span class="p">,</span> <span class="bp">False</span><span class="p">)</span>
-                <span class="n">soln</span> <span class="o">=</span> <span class="n">roots</span><span class="p">(</span><span class="n">poly</span><span class="p">,</span> <span class="n">cubics</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">quartics</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span>
-                <span class="k">if</span> <span class="ow">not</span> <span class="n">soln</span><span class="p">:</span>
-                    <span class="n">soln</span> <span class="o">=</span> <span class="n">poly</span><span class="o">.</span><span class="n">all_roots</span><span class="p">()</span>
-                    <span class="n">check</span> <span class="o">=</span> <span class="bp">False</span>  <span class="c"># RootOf instances can not be checked</span>
-                <span class="n">gen</span> <span class="o">=</span> <span class="n">poly</span><span class="o">.</span><span class="n">gen</span>
-                <span class="k">if</span> <span class="n">gen</span> <span class="o">!=</span> <span class="n">symbol</span><span class="p">:</span>
-                    <span class="n">u</span> <span class="o">=</span> <span class="n">Dummy</span><span class="p">()</span>
+                <span class="c"># if we haven&#39;t tried tsolve yet, do so now</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">flags</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s">&#39;tsolve&#39;</span><span class="p">,</span> <span class="bp">False</span><span class="p">):</span>
                     <span class="n">flags</span><span class="p">[</span><span class="s">&#39;tsolve&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">True</span>
-                    <span class="n">inversion</span> <span class="o">=</span> <span class="n">_solve</span><span class="p">(</span><span class="n">gen</span> <span class="o">-</span> <span class="n">u</span><span class="p">,</span> <span class="n">symbol</span><span class="p">,</span> <span class="o">**</span><span class="n">flags</span><span class="p">)</span>
-                    <span class="n">soln</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">set</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">s</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span>
-                                <span class="n">inversion</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">soln</span><span class="p">]))</span>
-                <span class="n">result</span> <span class="o">=</span> <span class="n">soln</span>
+                    <span class="k">if</span> <span class="n">poly</span><span class="o">.</span><span class="n">degree</span><span class="p">()</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="p">(</span>
+                            <span class="n">poly</span><span class="o">.</span><span class="n">gen</span><span class="o">.</span><span class="n">is_Pow</span> <span class="ow">and</span>
+                            <span class="n">poly</span><span class="o">.</span><span class="n">gen</span><span class="o">.</span><span class="n">exp</span><span class="o">.</span><span class="n">is_Rational</span> <span class="ow">and</span>
+                            <span class="ow">not</span> <span class="n">poly</span><span class="o">.</span><span class="n">gen</span><span class="o">.</span><span class="n">exp</span><span class="o">.</span><span class="n">is_Integer</span><span class="p">):</span>
+                        <span class="k">pass</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="c"># for cubics and quartics, if the flag wasn&#39;t set, DON&#39;T do it</span>
+                        <span class="c"># by default since the results are quite long. Perhaps one</span>
+                        <span class="c"># could base this decision on a certain critical length of the</span>
+                        <span class="c"># roots.</span>
+                        <span class="k">if</span> <span class="n">poly</span><span class="o">.</span><span class="n">degree</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mi">2</span><span class="p">:</span>
+                            <span class="n">flags</span><span class="p">[</span><span class="s">&#39;simplify&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">flags</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;simplify&#39;</span><span class="p">,</span> <span class="bp">False</span><span class="p">)</span>
+                        <span class="n">soln</span> <span class="o">=</span> <span class="n">roots</span><span class="p">(</span><span class="n">poly</span><span class="p">,</span> <span class="n">cubics</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">quartics</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span>
+                        <span class="k">if</span> <span class="ow">not</span> <span class="n">soln</span><span class="p">:</span>
+                            <span class="n">soln</span> <span class="o">=</span> <span class="n">poly</span><span class="o">.</span><span class="n">all_roots</span><span class="p">()</span>
+                            <span class="n">check</span> <span class="o">=</span> <span class="bp">False</span>  <span class="c"># RootOf instances can not be checked</span>
+                        <span class="n">gen</span> <span class="o">=</span> <span class="n">poly</span><span class="o">.</span><span class="n">gen</span>
+                        <span class="k">if</span> <span class="n">gen</span> <span class="o">!=</span> <span class="n">symbol</span><span class="p">:</span>
+                            <span class="n">u</span> <span class="o">=</span> <span class="n">Dummy</span><span class="p">()</span>
+                            <span class="n">inversion</span> <span class="o">=</span> <span class="n">_solve</span><span class="p">(</span><span class="n">gen</span> <span class="o">-</span> <span class="n">u</span><span class="p">,</span> <span class="n">symbol</span><span class="p">,</span> <span class="o">**</span><span class="n">flags</span><span class="p">)</span>
+                            <span class="n">soln</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">set</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">s</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span>
+                                        <span class="n">inversion</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">soln</span><span class="p">]))</span>
+                        <span class="n">result</span> <span class="o">=</span> <span class="n">soln</span>
 
     <span class="c"># fallback if above fails</span>
     <span class="k">if</span> <span class="n">result</span> <span class="ow">is</span> <span class="bp">False</span><span class="p">:</span>
+        <span class="c"># allow tsolve to be used on next pass if needed</span>
+        <span class="n">flags</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s">&#39;tsolve&#39;</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
         <span class="n">result</span> <span class="o">=</span> <span class="n">_tsolve</span><span class="p">(</span><span class="n">f_num</span><span class="p">,</span> <span class="n">symbol</span><span class="p">,</span> <span class="o">**</span><span class="n">flags</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">result</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
             <span class="n">result</span> <span class="o">=</span> <span class="bp">False</span>
@@ -1398,15 +1466,28 @@
                 <span class="n">free</span> <span class="o">=</span> <span class="n">set_union</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">p</span><span class="o">.</span><span class="n">free_symbols</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">polys</span><span class="p">])</span>
                 <span class="n">free</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">free</span><span class="o">.</span><span class="n">intersection</span><span class="p">(</span><span class="n">symbols</span><span class="p">))</span>
                 <span class="n">free</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="n">default_sort_key</span><span class="p">)</span>
+                <span class="n">got_s</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([])</span>
+                <span class="n">result</span> <span class="o">=</span> <span class="p">[]</span>
                 <span class="k">for</span> <span class="n">syms</span> <span class="ow">in</span> <span class="n">subsets</span><span class="p">(</span><span class="n">free</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">polys</span><span class="p">)):</span>
                     <span class="k">try</span><span class="p">:</span>
                         <span class="c"># returns [] or list of tuples of solutions for syms</span>
-                        <span class="n">result</span> <span class="o">=</span> <span class="n">solve_poly_system</span><span class="p">(</span><span class="n">polys</span><span class="p">,</span> <span class="o">*</span><span class="n">syms</span><span class="p">)</span>
-                        <span class="k">if</span> <span class="n">result</span><span class="p">:</span>
-                            <span class="n">solved_syms</span> <span class="o">=</span> <span class="n">syms</span>
-                            <span class="k">break</span>
+                        <span class="n">res</span> <span class="o">=</span> <span class="n">solve_poly_system</span><span class="p">(</span><span class="n">polys</span><span class="p">,</span> <span class="o">*</span><span class="n">syms</span><span class="p">)</span>
+                        <span class="k">if</span> <span class="n">res</span><span class="p">:</span>
+                            <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">res</span><span class="p">:</span>
+                                <span class="n">skip</span> <span class="o">=</span> <span class="bp">False</span>
+                                <span class="k">for</span> <span class="n">r1</span> <span class="ow">in</span> <span class="n">r</span><span class="p">:</span>
+                                    <span class="k">if</span> <span class="n">got_s</span> <span class="ow">and</span> <span class="nb">any</span><span class="p">([</span><span class="n">ss</span> <span class="ow">in</span> <span class="n">r1</span><span class="o">.</span><span class="n">free_symbols</span>
+                                           <span class="k">for</span> <span class="n">ss</span> <span class="ow">in</span> <span class="n">got_s</span><span class="p">]):</span>
+                                        <span class="c"># sol depends on previously</span>
+                                        <span class="c"># solved symbols: discard it</span>
+                                        <span class="n">skip</span> <span class="o">=</span> <span class="bp">True</span>
+                                <span class="k">if</span> <span class="ow">not</span> <span class="n">skip</span><span class="p">:</span>
+                                    <span class="n">got_s</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">syms</span><span class="p">)</span>
+                                    <span class="n">result</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">syms</span><span class="p">,</span> <span class="n">r</span><span class="p">))])</span>
                     <span class="k">except</span> <span class="ne">NotImplementedError</span><span class="p">:</span>
                         <span class="k">pass</span>
+                <span class="k">if</span> <span class="n">got_s</span><span class="p">:</span>
+                    <span class="n">solved_syms</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">got_s</span><span class="p">)</span>
                 <span class="k">else</span><span class="p">:</span>
                     <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s">&#39;no valid subset found&#39;</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
@@ -1416,14 +1497,13 @@
                 <span class="k">except</span> <span class="ne">NotImplementedError</span><span class="p">:</span>
                     <span class="n">failed</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">g</span><span class="o">.</span><span class="n">as_expr</span><span class="p">()</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">polys</span><span class="p">])</span>
                     <span class="n">solved_syms</span> <span class="o">=</span> <span class="p">[]</span>
-
-            <span class="k">if</span> <span class="n">result</span><span class="p">:</span>
-                <span class="c"># we don&#39;t know here if the symbols provided were given</span>
-                <span class="c"># or not, so let solve resolve that. A list of dictionaries</span>
-                <span class="c"># is going to always be returned from here.</span>
-                <span class="c">#</span>
-                <span class="c"># We do not check the solution obtained from polys, either.</span>
-                <span class="n">result</span> <span class="o">=</span> <span class="p">[</span><span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">solved_syms</span><span class="p">,</span> <span class="n">r</span><span class="p">))</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">result</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">result</span><span class="p">:</span>
+                    <span class="c"># we don&#39;t know here if the symbols provided were given</span>
+                    <span class="c"># or not, so let solve resolve that. A list of dictionaries</span>
+                    <span class="c"># is going to always be returned from here.</span>
+                    <span class="c">#</span>
+                    <span class="c"># We do not check the solution obtained from polys, either.</span>
+                    <span class="n">result</span> <span class="o">=</span> <span class="p">[</span><span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">solved_syms</span><span class="p">,</span> <span class="n">r</span><span class="p">))</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">result</span><span class="p">]</span>
 
     <span class="k">if</span> <span class="n">failed</span><span class="p">:</span>
         <span class="c"># For each failed equation, see if we can solve for one of the</span>
@@ -1452,7 +1532,7 @@
         <span class="k">for</span> <span class="n">eq</span> <span class="ow">in</span> <span class="n">ordered</span><span class="p">(</span><span class="n">failed</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">_</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">_ok_syms</span><span class="p">(</span><span class="n">_</span><span class="p">))):</span>
             <span class="n">newresult</span> <span class="o">=</span> <span class="p">[]</span>
             <span class="n">bad_results</span> <span class="o">=</span> <span class="p">[]</span>
-            <span class="n">got_s</span> <span class="o">=</span> <span class="bp">None</span>
+            <span class="n">got_s</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([])</span>
             <span class="n">u</span> <span class="o">=</span> <span class="n">Dummy</span><span class="p">()</span>
             <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">result</span><span class="p">:</span>
                 <span class="c"># update eq with everything that is known so far</span>
@@ -1488,6 +1568,9 @@
                     <span class="k">if</span> <span class="n">do_simplify</span><span class="p">:</span>
                         <span class="n">flags</span><span class="p">[</span><span class="s">&#39;simplify&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">False</span>  <span class="c"># for checksol&#39;s sake</span>
                     <span class="k">for</span> <span class="n">sol</span> <span class="ow">in</span> <span class="n">soln</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="n">got_s</span> <span class="ow">and</span> <span class="nb">any</span><span class="p">([</span><span class="n">ss</span> <span class="ow">in</span> <span class="n">sol</span><span class="o">.</span><span class="n">free_symbols</span> <span class="k">for</span> <span class="n">ss</span> <span class="ow">in</span> <span class="n">got_s</span><span class="p">]):</span>
+                            <span class="c"># sol depends on previously solved symbols: discard it</span>
+                            <span class="k">continue</span>
                         <span class="k">if</span> <span class="n">check</span><span class="p">:</span>
                             <span class="c"># check that it satisfies *other* equations</span>
                             <span class="n">ok</span> <span class="o">=</span> <span class="bp">False</span>
@@ -1510,13 +1593,11 @@
                         <span class="n">newresult</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">rnew</span><span class="p">)</span>
                     <span class="k">if</span> <span class="n">simplify_flag</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
                         <span class="n">flags</span><span class="p">[</span><span class="s">&#39;simplify&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">simplify_flag</span>
-                    <span class="n">got_s</span> <span class="o">=</span> <span class="n">s</span>
-                    <span class="k">break</span>
-                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">got_s</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">got_s</span><span class="p">:</span>
                     <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s">&#39;could not solve </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="n">eq2</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">got_s</span><span class="p">:</span>
                 <span class="n">result</span> <span class="o">=</span> <span class="n">newresult</span>
-                <span class="n">solved_syms</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">got_s</span><span class="p">)</span>
             <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">bad_results</span><span class="p">:</span>
                 <span class="n">result</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">b</span><span class="p">)</span>
         <span class="c"># if there is only one result should we return just the dictionary?</span>
@@ -2086,30 +2167,6 @@
             <span class="k">if</span> <span class="n">sym</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">soln</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">:</span>
                 <span class="k">return</span> <span class="p">[</span><span class="n">soln</span><span class="p">]</span>
 
-    <span class="k">try</span><span class="p">:</span>
-        <span class="n">u</span> <span class="o">=</span> <span class="n">unrad</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">sym</span><span class="p">)</span>
-    <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s">&#39;Radicals cannot be cleared from </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="n">eq</span><span class="p">)</span>
-    <span class="k">if</span> <span class="n">u</span><span class="p">:</span>
-        <span class="n">eq</span><span class="p">,</span> <span class="n">cov</span><span class="p">,</span> <span class="n">dens</span> <span class="o">=</span> <span class="n">u</span>
-        <span class="k">if</span> <span class="n">cov</span><span class="p">:</span>
-            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">cov</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
-                <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s">&#39;Not sure how to handle this.&#39;</span><span class="p">)</span>
-            <span class="n">isym</span><span class="p">,</span> <span class="n">ieq</span> <span class="o">=</span> <span class="n">cov</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-            <span class="c"># since cov is written in terms of positive symbols, set</span>
-            <span class="c"># check to False or else 0 would be excluded; _solve will check</span>
-            <span class="c"># the results</span>
-            <span class="n">flags</span><span class="p">[</span><span class="s">&#39;check&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">False</span>
-            <span class="n">sol</span> <span class="o">=</span> <span class="n">_solve</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">isym</span><span class="p">,</span> <span class="o">**</span><span class="n">flags</span><span class="p">)</span>
-            <span class="n">inv</span> <span class="o">=</span> <span class="n">_solve</span><span class="p">(</span><span class="n">ieq</span><span class="p">,</span> <span class="n">sym</span><span class="p">,</span> <span class="o">**</span><span class="n">flags</span><span class="p">)</span>
-            <span class="n">result</span> <span class="o">=</span> <span class="p">[]</span>
-            <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">sol</span><span class="p">:</span>
-                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">inv</span><span class="p">:</span>
-                    <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">isym</span><span class="p">,</span> <span class="n">s</span><span class="p">))</span>
-            <span class="k">return</span> <span class="n">result</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">_solve</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">sym</span><span class="p">,</span> <span class="o">**</span><span class="n">flags</span><span class="p">)</span>
-
     <span class="n">rhs</span><span class="p">,</span> <span class="n">lhs</span> <span class="o">=</span> <span class="n">_invert</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">sym</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="n">lhs</span><span class="o">.</span><span class="n">is_Add</span><span class="p">:</span>
@@ -2160,6 +2217,7 @@
         <span class="k">except</span> <span class="ne">NotImplementedError</span><span class="p">:</span>
             <span class="k">return</span>
         <span class="k">return</span> <span class="p">[</span><span class="n">s</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">reps</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">soln</span><span class="p">]</span>
+
 
 <span class="c"># TODO: option for calculating J numerically</span>
 
@@ -2367,7 +2425,8 @@
 
         <span class="c"># if it&#39;s a two-term Add with rhs = 0 and two powers we can get the</span>
         <span class="c"># dependent terms together, e.g. 3*f(x) + 2*g(x) -&gt; f(x)/g(x) = -2/3</span>
-        <span class="k">if</span> <span class="n">lhs</span><span class="o">.</span><span class="n">is_Add</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">rhs</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">lhs</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">lhs</span><span class="o">.</span><span class="n">is_Add</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">rhs</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">lhs</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span> <span class="ow">and</span> \
+                <span class="ow">not</span> <span class="n">lhs</span><span class="o">.</span><span class="n">is_polynomial</span><span class="p">(</span><span class="o">*</span><span class="n">symbols</span><span class="p">):</span>
             <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="n">lhs</span><span class="o">.</span><span class="n">as_two_terms</span><span class="p">()</span>
             <span class="n">ai</span><span class="p">,</span> <span class="n">ad</span> <span class="o">=</span> <span class="n">a</span><span class="o">.</span><span class="n">as_independent</span><span class="p">(</span><span class="o">*</span><span class="n">symbols</span><span class="p">)</span>
             <span class="n">bi</span><span class="p">,</span> <span class="n">bd</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">as_independent</span><span class="p">(</span><span class="o">*</span><span class="n">symbols</span><span class="p">)</span>
@@ -2653,7 +2712,7 @@
     </div>
     <div class="footer">
         &copy; Copyright 2013 SymPy Development Team.
-      Last updated on Feb 16, 2013.
+      Last updated on Mar 08, 2013.
       Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2pre.
     </div>
   </body>
