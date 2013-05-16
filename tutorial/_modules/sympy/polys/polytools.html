@@ -72,6 +72,8 @@
 
 <span class="kn">from</span> <span class="nn">sympy.core.mul</span> <span class="kn">import</span> <span class="n">_keep_coeff</span>
 
+<span class="kn">from</span> <span class="nn">sympy.core.basic</span> <span class="kn">import</span> <span class="n">preorder_traversal</span>
+
 <span class="kn">from</span> <span class="nn">sympy.core.sympify</span> <span class="kn">import</span> <span class="p">(</span>
     <span class="n">sympify</span><span class="p">,</span> <span class="n">SympifyError</span><span class="p">,</span>
 <span class="p">)</span>
@@ -5459,6 +5461,182 @@
     <span class="n">opt</span> <span class="o">=</span> <span class="n">options</span><span class="o">.</span><span class="n">build_options</span><span class="p">(</span><span class="n">gens</span><span class="p">,</span> <span class="n">args</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">_symbolic_factor</span><span class="p">(</span><span class="n">sympify</span><span class="p">(</span><span class="n">expr</span><span class="p">),</span> <span class="n">opt</span><span class="p">,</span> <span class="n">method</span><span class="p">)</span>
 
+<span class="k">def</span> <span class="nf">to_rational_coeffs</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    try to transform a polynomial to have rational coefficients</span>
+
+<span class="sd">    try to find a transformation ``x = alpha*y``</span>
+
+<span class="sd">    ``f(x) = lc*alpha**n * g(y)`` where ``g`` is a polynomial with</span>
+<span class="sd">    rational coefficients, ``lc`` the leading coefficient.</span>
+
+<span class="sd">    If this fails, try ``x = y + beta``</span>
+<span class="sd">    ``f(x) = g(y)``</span>
+
+<span class="sd">    Returns ``None`` if ``g`` not found;</span>
+<span class="sd">    ``(lc, alpha, None, g)`` in case of rescaling</span>
+<span class="sd">    ``(None, None, beta, g)`` in case of translation</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    =====</span>
+
+<span class="sd">    Currently it transforms only polynomials without roots larger than 2.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy import sqrt, Poly, simplify, expand</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.polys.polytools import to_rational_coeffs</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.abc import x</span>
+<span class="sd">    &gt;&gt;&gt; p = Poly(((x**2-1)*(x-2)).subs({x:x*(1 + sqrt(2))}), x, domain=&#39;EX&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; lc, r, _, g = to_rational_coeffs(p)</span>
+<span class="sd">    &gt;&gt;&gt; lc, r</span>
+<span class="sd">    (7 + 5*sqrt(2), -2*sqrt(2) + 2)</span>
+<span class="sd">    &gt;&gt;&gt; g</span>
+<span class="sd">    Poly(x**3 + x**2 - 1/4*x - 1/4, x, domain=&#39;QQ&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; r1 = simplify(1/r)</span>
+<span class="sd">    &gt;&gt;&gt; Poly(lc*r**3*(g.as_expr()).subs({x:x*r1}), x, domain=&#39;EX&#39;) == p</span>
+<span class="sd">    True</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">sympy.simplify.simplify</span> <span class="kn">import</span> <span class="n">simplify</span>
+
+    <span class="k">def</span> <span class="nf">_try_rescale</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        try rescaling ``x -&gt; alpha*x`` to convert f to a polynomial</span>
+<span class="sd">        with rational coefficients.</span>
+<span class="sd">        Returns ``alpha, f``; if the rescaling is successful,</span>
+<span class="sd">        ``alpha`` is the rescaling factor, and ``f`` is the rescaled</span>
+<span class="sd">        polynomial; else ``alpha`` is ``None``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">sympy.core.add</span> <span class="kn">import</span> <span class="n">Add</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">len</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">gens</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">or</span> <span class="ow">not</span> <span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">gens</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">.</span><span class="n">is_Atom</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">None</span><span class="p">,</span> <span class="n">f</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">degree</span><span class="p">()</span>
+        <span class="n">lc</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">LC</span><span class="p">()</span>
+        <span class="n">coeffs</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">monic</span><span class="p">()</span><span class="o">.</span><span class="n">all_coeffs</span><span class="p">()[</span><span class="mi">1</span><span class="p">:]</span>
+        <span class="n">coeffs</span> <span class="o">=</span> <span class="p">[</span><span class="n">simplify</span><span class="p">(</span><span class="n">coeffx</span><span class="p">)</span> <span class="k">for</span> <span class="n">coeffx</span> <span class="ow">in</span> <span class="n">coeffs</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">coeffs</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">]</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">(</span><span class="n">coeffx</span><span class="o">.</span><span class="n">is_rational</span> <span class="k">for</span> <span class="n">coeffx</span> <span class="ow">in</span> <span class="n">coeffs</span><span class="p">):</span>
+            <span class="n">rescale1_x</span> <span class="o">=</span> <span class="n">simplify</span><span class="p">(</span><span class="n">coeffs</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">]</span><span class="o">/</span><span class="n">coeffs</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+            <span class="n">coeffs1</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">coeffs</span><span class="p">)):</span>
+                <span class="n">coeffx</span> <span class="o">=</span> <span class="n">simplify</span><span class="p">(</span><span class="n">coeffs</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">*</span><span class="n">rescale1_x</span><span class="o">**</span><span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">coeffx</span><span class="o">.</span><span class="n">is_rational</span><span class="p">:</span>
+                    <span class="k">break</span>
+                <span class="n">coeffs1</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">coeffx</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">rescale_x</span> <span class="o">=</span> <span class="n">simplify</span><span class="p">(</span><span class="mi">1</span><span class="o">/</span><span class="n">rescale1_x</span><span class="p">)</span>
+                <span class="n">x</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">gens</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">v</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="o">**</span><span class="n">n</span><span class="p">]</span>
+                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+                    <span class="n">v</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">coeffs1</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">x</span><span class="o">**</span><span class="p">(</span><span class="n">n</span> <span class="o">-</span> <span class="n">i</span><span class="p">))</span>
+                <span class="n">f</span> <span class="o">=</span> <span class="n">Add</span><span class="p">(</span><span class="o">*</span><span class="n">v</span><span class="p">)</span>
+                <span class="n">f</span> <span class="o">=</span> <span class="n">Poly</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+                <span class="k">return</span> <span class="n">lc</span><span class="p">,</span> <span class="n">rescale_x</span><span class="p">,</span> <span class="n">f</span>
+        <span class="k">return</span> <span class="bp">None</span>
+
+    <span class="k">def</span> <span class="nf">_try_translate</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        try translating ``x -&gt; x + alpha`` to convert f to a polynomial</span>
+<span class="sd">        with rational coefficients.</span>
+<span class="sd">        Returns ``alpha, f``; if the translating is successful,</span>
+<span class="sd">        ``alpha`` is the translating factor, and ``f`` is the shifted</span>
+<span class="sd">        polynomial; else ``alpha`` is ``None``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">sympy.core.add</span> <span class="kn">import</span> <span class="n">Add</span>
+        <span class="kn">from</span> <span class="nn">sympy.utilities.iterables</span> <span class="kn">import</span> <span class="n">sift</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">len</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">gens</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">or</span> <span class="ow">not</span> <span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">gens</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">.</span><span class="n">is_Atom</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">None</span><span class="p">,</span> <span class="n">f</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">degree</span><span class="p">()</span>
+        <span class="n">f1</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">monic</span><span class="p">()</span>
+        <span class="n">coeffs</span> <span class="o">=</span> <span class="n">f1</span><span class="o">.</span><span class="n">all_coeffs</span><span class="p">()[</span><span class="mi">1</span><span class="p">:]</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="n">simplify</span><span class="p">(</span><span class="n">coeffs</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="k">if</span> <span class="n">c</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">c</span><span class="o">.</span><span class="n">is_rational</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">c</span><span class="o">.</span><span class="n">is_Add</span><span class="p">:</span>
+                <span class="n">args</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">args</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">args</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span><span class="p">]</span>
+            <span class="n">sifted</span> <span class="o">=</span> <span class="n">sift</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">z</span><span class="p">:</span> <span class="n">z</span><span class="o">.</span><span class="n">is_rational</span><span class="p">)</span>
+            <span class="n">c1</span><span class="p">,</span> <span class="n">c2</span> <span class="o">=</span> <span class="n">sifted</span><span class="p">[</span><span class="bp">True</span><span class="p">],</span> <span class="n">sifted</span><span class="p">[</span><span class="bp">False</span><span class="p">]</span>
+            <span class="n">alpha</span> <span class="o">=</span> <span class="o">-</span><span class="n">Add</span><span class="p">(</span><span class="o">*</span><span class="n">c2</span><span class="p">)</span><span class="o">/</span><span class="n">n</span>
+            <span class="n">f2</span> <span class="o">=</span> <span class="n">f1</span><span class="o">.</span><span class="n">shift</span><span class="p">(</span><span class="n">alpha</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">alpha</span><span class="p">,</span> <span class="n">f2</span>
+        <span class="k">return</span> <span class="bp">None</span>
+
+    <span class="k">def</span> <span class="nf">_has_square_roots</span><span class="p">(</span><span class="n">p</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return True if ``f`` is a sum with square roots but no other root</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">sympy.core.exprtools</span> <span class="kn">import</span> <span class="n">Factors</span>
+        <span class="n">coeffs</span> <span class="o">=</span> <span class="n">p</span><span class="o">.</span><span class="n">coeffs</span><span class="p">()</span>
+        <span class="n">has_sq</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="k">for</span> <span class="n">y</span> <span class="ow">in</span> <span class="n">coeffs</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">Add</span><span class="o">.</span><span class="n">make_args</span><span class="p">(</span><span class="n">y</span><span class="p">):</span>
+                <span class="n">f</span> <span class="o">=</span> <span class="n">Factors</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">factors</span>
+                <span class="n">r</span> <span class="o">=</span> <span class="p">[</span><span class="n">wx</span><span class="o">.</span><span class="n">q</span> <span class="k">for</span> <span class="n">wx</span> <span class="ow">in</span> <span class="n">f</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="k">if</span> <span class="n">wx</span><span class="o">.</span><span class="n">is_Rational</span> <span class="ow">and</span> <span class="n">wx</span><span class="o">.</span><span class="n">q</span> <span class="o">&gt;=</span> <span class="mi">2</span><span class="p">]</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">r</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="k">if</span> <span class="nb">min</span><span class="p">(</span><span class="n">r</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+                    <span class="n">has_sq</span> <span class="o">=</span> <span class="bp">True</span>
+                <span class="k">if</span> <span class="nb">max</span><span class="p">(</span><span class="n">r</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">2</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="bp">False</span>
+        <span class="k">return</span> <span class="n">has_sq</span>
+
+    <span class="k">if</span> <span class="n">f</span><span class="o">.</span><span class="n">get_domain</span><span class="p">()</span><span class="o">.</span><span class="n">is_EX</span> <span class="ow">and</span> <span class="n">_has_square_roots</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>
+        <span class="n">rescale_x</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="n">translate_x</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="n">r</span> <span class="o">=</span> <span class="n">_try_rescale</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">r</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">r</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">r</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="bp">None</span><span class="p">,</span> <span class="n">r</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">r</span> <span class="o">=</span> <span class="n">_try_translate</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">r</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">None</span><span class="p">,</span> <span class="bp">None</span><span class="p">,</span> <span class="n">r</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">r</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">return</span> <span class="bp">None</span>
+
+<span class="k">def</span> <span class="nf">_torational_factor_list</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    helper function to factor polynomial using to_rational_coeffs</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.polys.polytools import _torational_factor_list</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.abc import x</span>
+<span class="sd">    &gt;&gt;&gt; from sympy import sqrt, expand, Mul</span>
+<span class="sd">    &gt;&gt;&gt; p = expand(((x**2-1)*(x-2)).subs({x:x*(1 + sqrt(2))}))</span>
+<span class="sd">    &gt;&gt;&gt; factors = _torational_factor_list(p, x); factors</span>
+<span class="sd">    (-2, [(-x*(1 + sqrt(2))/2 + 1, 1), (-x*(1 + sqrt(2)) - 1, 1), (-x*(1 + sqrt(2)) + 1, 1)])</span>
+<span class="sd">    &gt;&gt;&gt; expand(factors[0]*Mul(*[z[0] for z in factors[1]])) == p</span>
+<span class="sd">    True</span>
+<span class="sd">    &gt;&gt;&gt; p = expand(((x**2-1)*(x-2)).subs({x:x + sqrt(2)}))</span>
+<span class="sd">    &gt;&gt;&gt; factors = _torational_factor_list(p, x); factors</span>
+<span class="sd">    (1, [(x - 2 + sqrt(2), 1), (x - 1 + sqrt(2), 1), (x + 1 + sqrt(2), 1)])</span>
+<span class="sd">    &gt;&gt;&gt; expand(factors[0]*Mul(*[z[0] for z in factors[1]])) == p</span>
+<span class="sd">    True</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">sympy.simplify.simplify</span> <span class="kn">import</span> <span class="n">simplify</span>
+    <span class="n">p1</span> <span class="o">=</span> <span class="n">Poly</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">domain</span><span class="o">=</span><span class="s">&#39;EX&#39;</span><span class="p">)</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="n">p1</span><span class="o">.</span><span class="n">degree</span><span class="p">()</span>
+    <span class="n">res</span> <span class="o">=</span> <span class="n">to_rational_coeffs</span><span class="p">(</span><span class="n">p1</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">res</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">None</span>
+    <span class="n">lc</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">g</span> <span class="o">=</span> <span class="n">res</span>
+    <span class="n">factors</span> <span class="o">=</span> <span class="n">factor_list</span><span class="p">(</span><span class="n">g</span><span class="o">.</span><span class="n">as_expr</span><span class="p">())</span>
+    <span class="k">if</span> <span class="n">lc</span><span class="p">:</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="n">simplify</span><span class="p">(</span><span class="n">factors</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">lc</span><span class="o">*</span><span class="n">r</span><span class="o">**</span><span class="n">n</span><span class="p">)</span>
+        <span class="n">r1</span> <span class="o">=</span> <span class="n">simplify</span><span class="p">(</span><span class="mi">1</span><span class="o">/</span><span class="n">r</span><span class="p">)</span>
+        <span class="n">a</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">z</span> <span class="ow">in</span> <span class="n">factors</span><span class="p">[</span><span class="mi">1</span><span class="p">:][</span><span class="mi">0</span><span class="p">]:</span>
+            <span class="n">a</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">simplify</span><span class="p">(</span><span class="n">z</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">subs</span><span class="p">({</span><span class="n">x</span><span class="p">:</span><span class="n">x</span><span class="o">*</span><span class="n">r1</span><span class="p">})),</span> <span class="n">z</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="n">factors</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">a</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">z</span> <span class="ow">in</span> <span class="n">factors</span><span class="p">[</span><span class="mi">1</span><span class="p">:][</span><span class="mi">0</span><span class="p">]:</span>
+            <span class="n">a</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">z</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">subs</span><span class="p">({</span><span class="n">x</span><span class="p">:</span><span class="n">x</span> <span class="o">-</span> <span class="n">t</span><span class="p">}),</span> <span class="n">z</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">a</span><span class="p">)</span>
+
 
 <div class="viewcode-block" id="sqf_list"><a class="viewcode-back" href="../../../modules/polys/reference.html#sympy.polys.polytools.sqf_list">[docs]</a><span class="k">def</span> <span class="nf">sqf_list</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="o">*</span><span class="n">gens</span><span class="p">,</span> <span class="o">**</span><span class="n">args</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
@@ -5786,13 +5964,16 @@
 <span class="sd">    Examples</span>
 <span class="sd">    ========</span>
 
-<span class="sd">    &gt;&gt;&gt; from sympy import cancel</span>
+<span class="sd">    &gt;&gt;&gt; from sympy import cancel, sqrt, Symbol</span>
 <span class="sd">    &gt;&gt;&gt; from sympy.abc import x</span>
+<span class="sd">    &gt;&gt;&gt; A = Symbol(&#39;A&#39;, commutative=False)</span>
 
 <span class="sd">    &gt;&gt;&gt; cancel((2*x**2 - 2)/(x**2 - 2*x + 1))</span>
 <span class="sd">    (2*x + 2)/(x - 1)</span>
-
+<span class="sd">    &gt;&gt;&gt; cancel((sqrt(3) + sqrt(15)*A)/(sqrt(2) + sqrt(10)*A))</span>
+<span class="sd">    sqrt(6)/2</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">sympy.core.exprtools</span> <span class="kn">import</span> <span class="n">factor_terms</span>
     <span class="n">options</span><span class="o">.</span><span class="n">allowed_flags</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="p">[</span><span class="s">&#39;polys&#39;</span><span class="p">])</span>
 
     <span class="n">f</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
@@ -5800,11 +5981,15 @@
     <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="p">(</span><span class="nb">tuple</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">)):</span>
         <span class="k">if</span> <span class="n">f</span><span class="o">.</span><span class="n">is_Number</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">f</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">p</span><span class="p">,</span> <span class="n">q</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">as_numer_denom</span><span class="p">()</span>
+        <span class="n">f</span> <span class="o">=</span> <span class="n">factor_terms</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">radical</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+        <span class="n">p</span><span class="p">,</span> <span class="n">q</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">as_numer_denom</span><span class="p">()</span>
 
-    <span class="k">else</span><span class="p">:</span>
+    <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">f</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
         <span class="n">p</span><span class="p">,</span> <span class="n">q</span> <span class="o">=</span> <span class="n">f</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">factor_terms</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;unexpected argument: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="n">f</span><span class="p">)</span>
 
     <span class="k">try</span><span class="p">:</span>
         <span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">G</span><span class="p">),</span> <span class="n">opt</span> <span class="o">=</span> <span class="n">parallel_poly_from_expr</span><span class="p">((</span><span class="n">p</span><span class="p">,</span> <span class="n">q</span><span class="p">),</span> <span class="o">*</span><span class="n">gens</span><span class="p">,</span> <span class="o">**</span><span class="n">args</span><span class="p">)</span>
@@ -5813,6 +5998,34 @@
             <span class="k">return</span> <span class="n">f</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">q</span>
+    <span class="k">except</span> <span class="n">PolynomialError</span><span class="p">,</span> <span class="n">msg</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">f</span><span class="o">.</span><span class="n">is_commutative</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">PolynomialError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+        <span class="c"># non-commutative</span>
+        <span class="k">if</span> <span class="n">f</span><span class="o">.</span><span class="n">is_Mul</span><span class="p">:</span>
+            <span class="n">c</span><span class="p">,</span> <span class="n">nc</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">args_cnc</span><span class="p">(</span><span class="n">split_1</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+            <span class="n">nc</span> <span class="o">=</span> <span class="p">[</span><span class="n">cancel</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">nc</span><span class="p">]</span>
+            <span class="k">return</span> <span class="n">cancel</span><span class="p">(</span><span class="n">Mul</span><span class="o">.</span><span class="n">_from_args</span><span class="p">(</span><span class="n">c</span><span class="p">))</span><span class="o">*</span><span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">nc</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">f</span><span class="o">.</span><span class="n">is_Add</span><span class="p">:</span>
+            <span class="n">c</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">nc</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">f</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_commutative</span><span class="p">:</span>
+                    <span class="n">c</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">nc</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cancel</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
+            <span class="k">return</span> <span class="n">cancel</span><span class="p">(</span><span class="n">Add</span><span class="p">(</span><span class="o">*</span><span class="n">c</span><span class="p">))</span> <span class="o">+</span> <span class="n">Add</span><span class="p">(</span><span class="o">*</span><span class="n">nc</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">reps</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">pot</span> <span class="o">=</span> <span class="n">preorder_traversal</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+            <span class="n">pot</span><span class="o">.</span><span class="n">next</span><span class="p">()</span>
+            <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">pot</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">reps</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">e</span><span class="p">,</span> <span class="n">cancel</span><span class="p">(</span><span class="n">e</span><span class="p">)))</span>
+                    <span class="n">pot</span><span class="o">.</span><span class="n">skip</span><span class="p">()</span>  <span class="c"># this was handled successfully</span>
+                <span class="k">except</span> <span class="ne">NotImplementedError</span><span class="p">:</span>
+                    <span class="k">pass</span>
+            <span class="k">return</span> <span class="n">f</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="n">reps</span><span class="p">))</span>
 
     <span class="n">c</span><span class="p">,</span> <span class="n">P</span><span class="p">,</span> <span class="n">Q</span> <span class="o">=</span> <span class="n">F</span><span class="o">.</span><span class="n">cancel</span><span class="p">(</span><span class="n">G</span><span class="p">)</span>
 

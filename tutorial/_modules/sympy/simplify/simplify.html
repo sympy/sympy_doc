@@ -71,12 +71,13 @@
 <span class="kn">from</span> <span class="nn">sympy.core</span> <span class="kn">import</span> <span class="p">(</span><span class="n">Basic</span><span class="p">,</span> <span class="n">S</span><span class="p">,</span> <span class="n">C</span><span class="p">,</span> <span class="n">Add</span><span class="p">,</span> <span class="n">Mul</span><span class="p">,</span> <span class="n">Pow</span><span class="p">,</span> <span class="n">Rational</span><span class="p">,</span> <span class="n">Integer</span><span class="p">,</span>
     <span class="n">Derivative</span><span class="p">,</span> <span class="n">Wild</span><span class="p">,</span> <span class="n">Symbol</span><span class="p">,</span> <span class="n">sympify</span><span class="p">,</span> <span class="n">expand</span><span class="p">,</span> <span class="n">expand_mul</span><span class="p">,</span> <span class="n">expand_func</span><span class="p">,</span>
     <span class="n">Function</span><span class="p">,</span> <span class="n">Equality</span><span class="p">,</span> <span class="n">Dummy</span><span class="p">,</span> <span class="n">Atom</span><span class="p">,</span> <span class="n">count_ops</span><span class="p">,</span> <span class="n">Expr</span><span class="p">,</span> <span class="n">factor_terms</span><span class="p">,</span>
-    <span class="n">expand_multinomial</span><span class="p">,</span> <span class="n">FunctionClass</span><span class="p">,</span> <span class="n">expand_power_base</span><span class="p">,</span> <span class="n">symbols</span><span class="p">,</span> <span class="n">igcd</span><span class="p">)</span>
-
+    <span class="n">expand_multinomial</span><span class="p">,</span> <span class="n">FunctionClass</span><span class="p">,</span> <span class="n">expand_power_base</span><span class="p">,</span> <span class="n">symbols</span><span class="p">,</span> <span class="n">igcd</span><span class="p">,</span>
+    <span class="n">expand_power_exp</span><span class="p">,</span> <span class="n">expand_log</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">sympy.core.add</span> <span class="kn">import</span> <span class="n">_unevaluated_Add</span>
 <span class="kn">from</span> <span class="nn">sympy.core.cache</span> <span class="kn">import</span> <span class="n">cacheit</span>
 <span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="kn">import</span> <span class="p">(</span>
     <span class="n">iterable</span><span class="p">,</span> <span class="nb">reduce</span><span class="p">,</span> <span class="n">default_sort_key</span><span class="p">,</span> <span class="n">set_union</span><span class="p">,</span> <span class="n">ordered</span><span class="p">)</span>
-<span class="kn">from</span> <span class="nn">sympy.core.exprtools</span> <span class="kn">import</span> <span class="n">Factors</span>
+<span class="kn">from</span> <span class="nn">sympy.core.exprtools</span> <span class="kn">import</span> <span class="n">Factors</span><span class="p">,</span> <span class="n">gcd_terms</span>
 <span class="kn">from</span> <span class="nn">sympy.core.numbers</span> <span class="kn">import</span> <span class="n">Float</span><span class="p">,</span> <span class="n">Number</span>
 <span class="kn">from</span> <span class="nn">sympy.core.function</span> <span class="kn">import</span> <span class="n">expand_log</span><span class="p">,</span> <span class="n">count_ops</span>
 <span class="kn">from</span> <span class="nn">sympy.core.mul</span> <span class="kn">import</span> <span class="n">_keep_coeff</span><span class="p">,</span> <span class="n">prod</span>
@@ -91,6 +92,7 @@
 <span class="kn">from</span> <span class="nn">sympy.simplify.cse_main</span> <span class="kn">import</span> <span class="n">cse</span>
 <span class="kn">from</span> <span class="nn">sympy.simplify.cse_opts</span> <span class="kn">import</span> <span class="n">sub_pre</span><span class="p">,</span> <span class="n">sub_post</span>
 <span class="kn">from</span> <span class="nn">sympy.simplify.sqrtdenest</span> <span class="kn">import</span> <span class="n">sqrtdenest</span>
+<span class="kn">from</span> <span class="nn">sympy.ntheory.factor_</span> <span class="kn">import</span> <span class="n">multiplicity</span>
 
 <span class="kn">from</span> <span class="nn">sympy.polys</span> <span class="kn">import</span> <span class="p">(</span><span class="n">Poly</span><span class="p">,</span> <span class="n">together</span><span class="p">,</span> <span class="n">reduced</span><span class="p">,</span> <span class="n">cancel</span><span class="p">,</span> <span class="n">factor</span><span class="p">,</span>
     <span class="n">ComputationFailed</span><span class="p">,</span> <span class="n">lcm</span><span class="p">,</span> <span class="n">gcd</span><span class="p">)</span>
@@ -1629,14 +1631,14 @@
         <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">Add</span><span class="o">.</span><span class="n">make_args</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
             <span class="n">f</span> <span class="o">=</span> <span class="n">Factors</span><span class="p">(</span><span class="n">m</span><span class="p">)</span>
             <span class="n">q</span><span class="p">,</span> <span class="n">r</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">div</span><span class="p">(</span><span class="n">Fv</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">r</span><span class="o">.</span><span class="n">is_zero</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">r</span><span class="o">.</span><span class="n">is_one</span><span class="p">:</span>
                 <span class="c"># only accept this as a true factor if</span>
                 <span class="c"># it didn&#39;t change an exponent from an Integer</span>
                 <span class="c"># to a non-Integer, e.g. 2/sqrt(2) -&gt; sqrt(2)</span>
-                <span class="c"># but we aren&#39;t looking for this sort of change</span>
+                <span class="c"># -- we aren&#39;t looking for this sort of change</span>
                 <span class="n">fwas</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">factors</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
                 <span class="n">fnow</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">factors</span>
-                <span class="k">if</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span><span class="n">fwas</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">is_Integer</span> <span class="ow">and</span> <span class="ow">not</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span><span class="n">k</span> <span class="ow">in</span> <span class="n">fwas</span> <span class="ow">and</span> <span class="n">fwas</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">is_Integer</span> <span class="ow">and</span> <span class="ow">not</span>
                         <span class="n">fnow</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">is_Integer</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">fnow</span><span class="p">):</span>
                     <span class="n">terms</span><span class="p">[</span><span class="n">v</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">q</span><span class="o">.</span><span class="n">as_expr</span><span class="p">())</span>
                     <span class="k">continue</span>
@@ -1679,48 +1681,6 @@
     <span class="k">return</span> <span class="n">expr</span>
 
 </div>
-<span class="k">def</span> <span class="nf">_unevaluated_Add</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Return a well-formed unevaluated Add: Number</span>
-<span class="sd">    is in slot 0 and args are sorted.</span>
-
-<span class="sd">    Examples</span>
-<span class="sd">    ========</span>
-
-<span class="sd">    &gt;&gt;&gt; from sympy.simplify.simplify import _unevaluated_Add as uAdd</span>
-<span class="sd">    &gt;&gt;&gt; from sympy import S, Add, ordered</span>
-<span class="sd">    &gt;&gt;&gt; from sympy.abc import x, y</span>
-<span class="sd">    &gt;&gt;&gt; a = uAdd(*[S(1), x, S(2)])</span>
-<span class="sd">    &gt;&gt;&gt; a.args[0]</span>
-<span class="sd">    3</span>
-<span class="sd">    &gt;&gt;&gt; a.args[1]</span>
-<span class="sd">    x</span>
-
-<span class="sd">    Beyond the Number being in slot 0, there is no other assurance of</span>
-<span class="sd">    order for the arguments since they are hash sorted. So, for testing</span>
-<span class="sd">    purposes, output produced by this in some other function can only</span>
-<span class="sd">    be tested against the output of this function or as one of several</span>
-<span class="sd">    options:</span>
-
-<span class="sd">    &gt;&gt;&gt; opts = (Add(x, y, evaluated=False), Add(y, x, evaluated=False))</span>
-<span class="sd">    &gt;&gt;&gt; a = uAdd(x, y)</span>
-<span class="sd">    &gt;&gt;&gt; assert a in opts and a == uAdd(x, y)</span>
-
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">args</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
-    <span class="n">args</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="nb">hash</span><span class="p">)</span>  <span class="c"># same as in Add.flatten</span>
-    <span class="n">c</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">args</span><span class="p">:</span>
-        <span class="k">if</span> <span class="n">a</span><span class="o">.</span><span class="n">is_Number</span><span class="p">:</span>
-            <span class="n">c</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
-    <span class="k">if</span> <span class="n">c</span><span class="p">:</span>
-        <span class="k">for</span> <span class="n">ci</span> <span class="ow">in</span> <span class="n">c</span><span class="p">:</span>
-            <span class="n">args</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">ci</span><span class="p">)</span>
-        <span class="n">c</span> <span class="o">=</span> <span class="n">Add</span><span class="p">(</span><span class="o">*</span><span class="n">c</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">c</span><span class="p">:</span>
-            <span class="n">args</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">Add</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="nb">dict</span><span class="p">(</span><span class="n">evaluate</span><span class="o">=</span><span class="bp">False</span><span class="p">))</span>
-
-
 <span class="k">def</span> <span class="nf">_split_gcd</span><span class="p">(</span><span class="o">*</span><span class="n">a</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    split the list of integers ``a`` into a list of integers, ``a1`` having</span>
@@ -1746,7 +1706,98 @@
             <span class="n">b1</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">g</span><span class="p">,</span> <span class="n">b1</span><span class="p">,</span> <span class="n">b2</span>
 
+<span class="k">def</span> <span class="nf">_is_sum_surds</span><span class="p">(</span><span class="n">p</span><span class="p">):</span>
+    <span class="n">args</span> <span class="o">=</span> <span class="n">p</span><span class="o">.</span><span class="n">args</span> <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">is_Add</span> <span class="k">else</span> <span class="p">[</span><span class="n">p</span><span class="p">]</span>
+    <span class="k">for</span> <span class="n">y</span> <span class="ow">in</span> <span class="n">args</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="p">((</span><span class="n">y</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">is_Rational</span> <span class="ow">and</span> <span class="n">y</span><span class="o">.</span><span class="n">is_real</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">False</span>
+    <span class="k">return</span> <span class="bp">True</span>
 
+<span class="k">def</span> <span class="nf">_nthroot_solve</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">prec</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">     helper function for ``nthroot``</span>
+<span class="sd">     It denests ``p**Rational(1, n)`` using its minimal polynomial</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">sympy.polys.numberfields</span> <span class="kn">import</span> <span class="n">_minimal_polynomial_sq</span>
+    <span class="kn">from</span> <span class="nn">sympy.solvers</span> <span class="kn">import</span> <span class="n">solve</span>
+    <span class="k">while</span> <span class="n">n</span> <span class="o">%</span> <span class="mi">2</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">p</span> <span class="o">=</span> <span class="n">sqrtdenest</span><span class="p">(</span><span class="n">sqrt</span><span class="p">(</span><span class="n">p</span><span class="p">))</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="n">n</span> <span class="o">//</span> <span class="mi">2</span>
+    <span class="k">if</span> <span class="n">n</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">p</span>
+    <span class="n">pn</span> <span class="o">=</span> <span class="n">p</span><span class="o">**</span><span class="n">Rational</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">n</span><span class="p">)</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">Symbol</span><span class="p">(</span><span class="s">&#39;x&#39;</span><span class="p">)</span>
+    <span class="n">f</span> <span class="o">=</span> <span class="n">_minimal_polynomial_sq</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">prec</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">f</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">None</span>
+    <span class="n">sols</span> <span class="o">=</span> <span class="n">solve</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">sol</span> <span class="ow">in</span> <span class="n">sols</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">abs</span><span class="p">(</span><span class="n">sol</span> <span class="o">-</span> <span class="n">pn</span><span class="p">)</span><span class="o">.</span><span class="n">n</span><span class="p">()</span> <span class="o">&lt;</span> <span class="mf">1.</span><span class="o">/</span><span class="mi">10</span><span class="o">**</span><span class="n">prec</span><span class="p">:</span>
+            <span class="n">sol</span> <span class="o">=</span> <span class="n">sqrtdenest</span><span class="p">(</span><span class="n">sol</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">_mexpand</span><span class="p">(</span><span class="n">sol</span><span class="o">**</span><span class="n">n</span><span class="p">)</span> <span class="o">==</span> <span class="n">p</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">sol</span>
+
+<div class="viewcode-block" id="nthroot"><a class="viewcode-back" href="../../../modules/simplify/simplify.html#sympy.simplify.simplify.nthroot">[docs]</a><span class="k">def</span> <span class="nf">nthroot</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">max_len</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">prec</span><span class="o">=</span><span class="mi">15</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    compute a real nth-root of a sum of surds</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    expr : sum of surds</span>
+<span class="sd">    n : integer</span>
+<span class="sd">    max_len : maximum number of surds passed as constants to ``nsimplify``</span>
+
+<span class="sd">    Algorithm</span>
+<span class="sd">    =========</span>
+
+<span class="sd">    First ``nsimplify`` is used to get a candidate root; if it is not a</span>
+<span class="sd">    root the minimal polynomial is computed; the answer is one of its</span>
+<span class="sd">    roots.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.simplify.simplify import nthroot</span>
+<span class="sd">    &gt;&gt;&gt; from sympy import Rational, sqrt</span>
+<span class="sd">    &gt;&gt;&gt; nthroot(90 + 34*sqrt(7), 3)</span>
+<span class="sd">    sqrt(7) + 3</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">sympy.simplify.sqrtdenest</span> <span class="kn">import</span> <span class="n">sqrt_depth</span><span class="p">,</span> <span class="n">is_algebraic</span>
+    <span class="n">expr</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">expr</span><span class="o">**</span><span class="n">Rational</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">n</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">n</span><span class="o">.</span><span class="n">is_integer</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">p</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">_is_sum_surds</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">p</span>
+    <span class="n">surds</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">coeff_muls</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">as_coeff_Mul</span><span class="p">()</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">]</span>
+    <span class="k">for</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="ow">in</span> <span class="n">coeff_muls</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">x</span><span class="o">.</span><span class="n">is_rational</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">p</span>
+        <span class="k">if</span> <span class="n">y</span> <span class="ow">is</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">y</span><span class="o">.</span><span class="n">is_Pow</span> <span class="ow">and</span> <span class="n">y</span><span class="o">.</span><span class="n">exp</span> <span class="o">==</span> <span class="n">S</span><span class="o">.</span><span class="n">Half</span> <span class="ow">and</span> <span class="n">y</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">is_integer</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">p</span>
+        <span class="n">surds</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">y</span><span class="p">)</span>
+    <span class="n">surds</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+    <span class="n">surds</span> <span class="o">=</span> <span class="n">surds</span><span class="p">[:</span><span class="n">max_len</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">expr</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">n</span> <span class="o">%</span> <span class="mi">2</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">p</span> <span class="o">=</span> <span class="p">(</span><span class="o">-</span><span class="n">expr</span><span class="p">)</span><span class="o">**</span><span class="n">Rational</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">n</span><span class="p">)</span>
+        <span class="n">a</span> <span class="o">=</span> <span class="n">nsimplify</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">constants</span><span class="o">=</span><span class="n">surds</span><span class="p">)</span>
+        <span class="n">res</span> <span class="o">=</span> <span class="n">a</span> <span class="k">if</span> <span class="n">_mexpand</span><span class="p">(</span><span class="n">a</span><span class="o">**</span><span class="n">n</span><span class="p">)</span> <span class="o">==</span> <span class="n">_mexpand</span><span class="p">(</span><span class="o">-</span><span class="n">expr</span><span class="p">)</span> <span class="k">else</span> <span class="n">p</span>
+        <span class="k">return</span> <span class="o">-</span><span class="n">res</span>
+    <span class="n">a</span> <span class="o">=</span> <span class="n">nsimplify</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">constants</span><span class="o">=</span><span class="n">surds</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">_mexpand</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">_mexpand</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="ow">and</span> <span class="n">_mexpand</span><span class="p">(</span><span class="n">a</span><span class="o">**</span><span class="n">n</span><span class="p">)</span> <span class="o">==</span> <span class="n">_mexpand</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">_mexpand</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+    <span class="n">expr</span> <span class="o">=</span> <span class="n">_nthroot_solve</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">prec</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">expr</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">p</span>
+    <span class="k">return</span> <span class="n">expr</span>
+
+</div>
 <span class="k">def</span> <span class="nf">split_surds</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    split an expression with terms whose squares are rationals</span>
@@ -1823,12 +1874,15 @@
 <span class="sd">    you do not want the simplification to occur for symbolic denominators, set</span>
 <span class="sd">    ``symbolic`` to False.</span>
 
-<span class="sd">    If there are more than ``max_terms`` radical terms do not simplify.</span>
+<span class="sd">    If there are more than ``max_terms`` radical terms then the expression is</span>
+<span class="sd">    returned unchanged.</span>
 
 <span class="sd">    Examples</span>
 <span class="sd">    ========</span>
 
 <span class="sd">    &gt;&gt;&gt; from sympy import radsimp, sqrt, Symbol, denom, pprint, I</span>
+<span class="sd">    &gt;&gt;&gt; from sympy import factor_terms, fraction, signsimp</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.simplify.simplify import collect_sqrt</span>
 <span class="sd">    &gt;&gt;&gt; from sympy.abc import a, b, c</span>
 
 <span class="sd">    &gt;&gt;&gt; radsimp(1/(I + 1))</span>
@@ -1840,23 +1894,32 @@
 <span class="sd">    &gt;&gt;&gt; radsimp(e)</span>
 <span class="sd">    sqrt(2)*(x + y)</span>
 
-<span class="sd">    Terms are collected automatically:</span>
+<span class="sd">    No simplification beyond removal of the gcd is done. One might</span>
+<span class="sd">    want to polish the result a little, however, by collecting</span>
+<span class="sd">    square root terms:</span>
 
 <span class="sd">    &gt;&gt;&gt; r2 = sqrt(2)</span>
 <span class="sd">    &gt;&gt;&gt; r5 = sqrt(5)</span>
-<span class="sd">    &gt;&gt;&gt; pprint(radsimp(1/(y*r2 + x*r2 + a*r5 + b*r5)))</span>
-<span class="sd">             ___              ___</span>
-<span class="sd">           \/ 5 *(-a - b) + \/ 2 *(x + y)</span>
-<span class="sd">    --------------------------------------------</span>
-<span class="sd">         2               2      2              2</span>
-<span class="sd">    - 5*a  - 10*a*b - 5*b  + 2*x  + 4*x*y + 2*y</span>
+<span class="sd">    &gt;&gt;&gt; ans = radsimp(1/(y*r2 + x*r2 + a*r5 + b*r5)); pprint(ans)</span>
+<span class="sd">        ___       ___       ___       ___</span>
+<span class="sd">      \/ 5 *a + \/ 5 *b - \/ 2 *x - \/ 2 *y</span>
+<span class="sd">    ------------------------------------------</span>
+<span class="sd">       2               2      2              2</span>
+<span class="sd">    5*a  + 10*a*b + 5*b  - 2*x  - 4*x*y - 2*y</span>
 
-<span class="sd">    If radicals in the denominator cannot be removed, the original expression</span>
-<span class="sd">    will be returned. If the denominator was 1 then any square roots will also</span>
-<span class="sd">    be collected:</span>
+<span class="sd">    &gt;&gt;&gt; n, d = fraction(ans)</span>
+<span class="sd">    &gt;&gt;&gt; pprint(factor_terms(signsimp(collect_sqrt(n))/d, radical=True))</span>
+<span class="sd">            ___             ___</span>
+<span class="sd">          \/ 5 *(a + b) - \/ 2 *(x + y)</span>
+<span class="sd">    ------------------------------------------</span>
+<span class="sd">       2               2      2              2</span>
+<span class="sd">    5*a  + 10*a*b + 5*b  - 2*x  - 4*x*y - 2*y</span>
+
+<span class="sd">    If radicals in the denominator cannot be removed or there is no denominator,</span>
+<span class="sd">    the original expression will be returned.</span>
 
 <span class="sd">    &gt;&gt;&gt; radsimp(sqrt(2)*x + sqrt(2))</span>
-<span class="sd">    sqrt(2)*(x + 1)</span>
+<span class="sd">    sqrt(2)*x + sqrt(2)</span>
 
 <span class="sd">    Results with symbols will not always be valid for all substitutions:</span>
 
@@ -1871,104 +1934,161 @@
 
 <span class="sd">    &gt;&gt;&gt; radsimp(eq, symbolic=False)</span>
 <span class="sd">    1/(a + b*sqrt(c))</span>
+
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">sympy.core.mul</span> <span class="kn">import</span> <span class="n">_unevaluated_Mul</span> <span class="k">as</span> <span class="n">_umul</span>
+    <span class="kn">from</span> <span class="nn">sympy.core.exprtools</span> <span class="kn">import</span> <span class="n">Factors</span>
+
+    <span class="n">syms</span> <span class="o">=</span> <span class="n">symbols</span><span class="p">(</span><span class="s">&quot;a:d A:D&quot;</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">_num</span><span class="p">(</span><span class="n">rterms</span><span class="p">):</span>
+        <span class="c"># return the multiplier that will simplify the expression described</span>
+        <span class="c"># by rterms [(sqrt arg, coeff), ... ]</span>
+        <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">A</span><span class="p">,</span> <span class="n">B</span><span class="p">,</span> <span class="n">C</span><span class="p">,</span> <span class="n">D</span> <span class="o">=</span> <span class="n">syms</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">rterms</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="n">reps</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">([</span><span class="n">A</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">B</span><span class="p">,</span> <span class="n">b</span><span class="p">],</span> <span class="p">[</span><span class="n">j</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">rterms</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">i</span><span class="p">]))</span>
+            <span class="k">return</span> <span class="p">(</span>
+            <span class="n">sqrt</span><span class="p">(</span><span class="n">A</span><span class="p">)</span><span class="o">*</span><span class="n">a</span> <span class="o">-</span> <span class="n">sqrt</span><span class="p">(</span><span class="n">B</span><span class="p">)</span><span class="o">*</span><span class="n">b</span><span class="p">)</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">reps</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">rterms</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="n">reps</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">([</span><span class="n">A</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">B</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">C</span><span class="p">,</span> <span class="n">c</span><span class="p">],</span> <span class="p">[</span><span class="n">j</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">rterms</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">i</span><span class="p">]))</span>
+            <span class="k">return</span> <span class="p">(</span>
+            <span class="p">(</span><span class="n">sqrt</span><span class="p">(</span><span class="n">A</span><span class="p">)</span><span class="o">*</span><span class="n">a</span> <span class="o">+</span> <span class="n">sqrt</span><span class="p">(</span><span class="n">B</span><span class="p">)</span><span class="o">*</span><span class="n">b</span> <span class="o">-</span> <span class="n">sqrt</span><span class="p">(</span><span class="n">C</span><span class="p">)</span><span class="o">*</span><span class="n">c</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">sqrt</span><span class="p">(</span><span class="n">A</span><span class="p">)</span><span class="o">*</span><span class="n">sqrt</span><span class="p">(</span><span class="n">B</span><span class="p">)</span><span class="o">*</span><span class="n">a</span><span class="o">*</span><span class="n">b</span> <span class="o">-</span> <span class="n">A</span><span class="o">*</span><span class="n">a</span><span class="o">**</span><span class="mi">2</span> <span class="o">-</span>
+            <span class="n">B</span><span class="o">*</span><span class="n">b</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">C</span><span class="o">*</span><span class="n">c</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">reps</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">rterms</span><span class="p">)</span> <span class="o">==</span> <span class="mi">4</span><span class="p">:</span>
+            <span class="n">reps</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">([</span><span class="n">A</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">B</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">C</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">D</span><span class="p">,</span> <span class="n">d</span><span class="p">],</span> <span class="p">[</span><span class="n">j</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">rterms</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">i</span><span class="p">]))</span>
+            <span class="k">return</span> <span class="p">((</span><span class="n">sqrt</span><span class="p">(</span><span class="n">A</span><span class="p">)</span><span class="o">*</span><span class="n">a</span> <span class="o">+</span> <span class="n">sqrt</span><span class="p">(</span><span class="n">B</span><span class="p">)</span><span class="o">*</span><span class="n">b</span> <span class="o">-</span> <span class="n">sqrt</span><span class="p">(</span><span class="n">C</span><span class="p">)</span><span class="o">*</span><span class="n">c</span> <span class="o">-</span> <span class="n">sqrt</span><span class="p">(</span><span class="n">D</span><span class="p">)</span><span class="o">*</span><span class="n">d</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">sqrt</span><span class="p">(</span><span class="n">A</span><span class="p">)</span><span class="o">*</span><span class="n">sqrt</span><span class="p">(</span><span class="n">B</span><span class="p">)</span><span class="o">*</span><span class="n">a</span><span class="o">*</span><span class="n">b</span>
+                <span class="o">-</span> <span class="n">A</span><span class="o">*</span><span class="n">a</span><span class="o">**</span><span class="mi">2</span> <span class="o">-</span> <span class="n">B</span><span class="o">*</span><span class="n">b</span><span class="o">**</span><span class="mi">2</span> <span class="o">-</span> <span class="mi">2</span><span class="o">*</span><span class="n">sqrt</span><span class="p">(</span><span class="n">C</span><span class="p">)</span><span class="o">*</span><span class="n">sqrt</span><span class="p">(</span><span class="n">D</span><span class="p">)</span><span class="o">*</span><span class="n">c</span><span class="o">*</span><span class="n">d</span> <span class="o">+</span> <span class="n">C</span><span class="o">*</span><span class="n">c</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span>
+                <span class="n">D</span><span class="o">*</span><span class="n">d</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="o">-</span><span class="mi">8</span><span class="o">*</span><span class="n">sqrt</span><span class="p">(</span><span class="n">A</span><span class="p">)</span><span class="o">*</span><span class="n">sqrt</span><span class="p">(</span><span class="n">B</span><span class="p">)</span><span class="o">*</span><span class="n">sqrt</span><span class="p">(</span><span class="n">C</span><span class="p">)</span><span class="o">*</span><span class="n">sqrt</span><span class="p">(</span><span class="n">D</span><span class="p">)</span><span class="o">*</span><span class="n">a</span><span class="o">*</span><span class="n">b</span><span class="o">*</span><span class="n">c</span><span class="o">*</span><span class="n">d</span> <span class="o">+</span> <span class="n">A</span><span class="o">**</span><span class="mi">2</span><span class="o">*</span><span class="n">a</span><span class="o">**</span><span class="mi">4</span> <span class="o">-</span>
+                <span class="mi">2</span><span class="o">*</span><span class="n">A</span><span class="o">*</span><span class="n">B</span><span class="o">*</span><span class="n">a</span><span class="o">**</span><span class="mi">2</span><span class="o">*</span><span class="n">b</span><span class="o">**</span><span class="mi">2</span> <span class="o">-</span> <span class="mi">2</span><span class="o">*</span><span class="n">A</span><span class="o">*</span><span class="n">C</span><span class="o">*</span><span class="n">a</span><span class="o">**</span><span class="mi">2</span><span class="o">*</span><span class="n">c</span><span class="o">**</span><span class="mi">2</span> <span class="o">-</span> <span class="mi">2</span><span class="o">*</span><span class="n">A</span><span class="o">*</span><span class="n">D</span><span class="o">*</span><span class="n">a</span><span class="o">**</span><span class="mi">2</span><span class="o">*</span><span class="n">d</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">B</span><span class="o">**</span><span class="mi">2</span><span class="o">*</span><span class="n">b</span><span class="o">**</span><span class="mi">4</span> <span class="o">-</span>
+                <span class="mi">2</span><span class="o">*</span><span class="n">B</span><span class="o">*</span><span class="n">C</span><span class="o">*</span><span class="n">b</span><span class="o">**</span><span class="mi">2</span><span class="o">*</span><span class="n">c</span><span class="o">**</span><span class="mi">2</span> <span class="o">-</span> <span class="mi">2</span><span class="o">*</span><span class="n">B</span><span class="o">*</span><span class="n">D</span><span class="o">*</span><span class="n">b</span><span class="o">**</span><span class="mi">2</span><span class="o">*</span><span class="n">d</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">C</span><span class="o">**</span><span class="mi">2</span><span class="o">*</span><span class="n">c</span><span class="o">**</span><span class="mi">4</span> <span class="o">-</span> <span class="mi">2</span><span class="o">*</span><span class="n">C</span><span class="o">*</span><span class="n">D</span><span class="o">*</span><span class="n">c</span><span class="o">**</span><span class="mi">2</span><span class="o">*</span><span class="n">d</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span>
+                <span class="n">D</span><span class="o">**</span><span class="mi">2</span><span class="o">*</span><span class="n">d</span><span class="o">**</span><span class="mi">4</span><span class="p">))</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">reps</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">rterms</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">sqrt</span><span class="p">(</span><span class="n">rterms</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span>
 
     <span class="k">def</span> <span class="nf">handle</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
-        <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Atom</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">symbolic</span> <span class="ow">and</span> <span class="n">expr</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Atom</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">expr</span>
+
         <span class="n">n</span><span class="p">,</span> <span class="n">d</span> <span class="o">=</span> <span class="n">fraction</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">d</span> <span class="ow">is</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">:</span>
-            <span class="n">nexpr</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">handle</span><span class="p">(</span><span class="n">ai</span><span class="p">)</span> <span class="k">for</span> <span class="n">ai</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">])</span>
-            <span class="k">return</span> <span class="n">nexpr</span>
+
+        <span class="k">if</span> <span class="n">d</span><span class="o">.</span><span class="n">is_Atom</span><span class="p">:</span>
+            <span class="c"># n can&#39;t be an Atom since expr is not an Atom</span>
+            <span class="n">n</span> <span class="o">=</span> <span class="n">n</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">handle</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">n</span><span class="o">.</span><span class="n">args</span><span class="p">])</span>
+            <span class="k">return</span> <span class="n">_umul</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="mi">1</span><span class="o">/</span><span class="n">d</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">n</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">Mul</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">handle</span><span class="p">(</span><span class="mi">1</span><span class="o">/</span><span class="n">d</span><span class="p">))</span>
         <span class="k">elif</span> <span class="n">d</span><span class="o">.</span><span class="n">is_Mul</span><span class="p">:</span>
-            <span class="n">nargs</span> <span class="o">=</span> <span class="p">[]</span>
-            <span class="n">dargs</span> <span class="o">=</span> <span class="p">[]</span>
-            <span class="k">for</span> <span class="n">di</span> <span class="ow">in</span> <span class="n">d</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
-                <span class="n">ni</span><span class="p">,</span> <span class="n">di</span> <span class="o">=</span> <span class="n">fraction</span><span class="p">(</span><span class="n">handle</span><span class="p">(</span><span class="mi">1</span><span class="o">/</span><span class="n">di</span><span class="p">))</span>
-                <span class="n">nargs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ni</span><span class="p">)</span>
-                <span class="n">dargs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">di</span><span class="p">)</span>
-            <span class="k">return</span> <span class="n">n</span><span class="o">*</span><span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">nargs</span><span class="p">)</span><span class="o">/</span><span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">dargs</span><span class="p">)</span>
-        <span class="k">elif</span> <span class="n">d</span><span class="o">.</span><span class="n">is_Add</span><span class="p">:</span>
-            <span class="n">d</span> <span class="o">=</span> <span class="n">radsimp</span><span class="p">(</span><span class="n">d</span><span class="p">)</span>
-        <span class="k">elif</span> <span class="n">d</span><span class="o">.</span><span class="n">is_Pow</span> <span class="ow">and</span> <span class="n">d</span><span class="o">.</span><span class="n">exp</span><span class="o">.</span><span class="n">is_Rational</span> <span class="ow">and</span> <span class="n">d</span><span class="o">.</span><span class="n">exp</span><span class="o">.</span><span class="n">q</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
-            <span class="n">d</span> <span class="o">=</span> <span class="n">sqrtdenest</span><span class="p">(</span><span class="n">sqrt</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">base</span><span class="p">))</span><span class="o">**</span><span class="n">d</span><span class="o">.</span><span class="n">exp</span><span class="o">.</span><span class="n">p</span>
+            <span class="k">return</span> <span class="n">_umul</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">handle</span><span class="p">(</span><span class="mi">1</span><span class="o">/</span><span class="n">d</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">d</span><span class="o">.</span><span class="n">args</span><span class="p">])</span>
 
-        <span class="n">changed</span> <span class="o">=</span> <span class="bp">False</span>
-        <span class="k">while</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">symbolic</span> <span class="ow">and</span> <span class="n">d</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">expr</span>
+
+        <span class="k">if</span> <span class="n">d</span><span class="o">.</span><span class="n">is_Pow</span> <span class="ow">and</span> <span class="n">d</span><span class="o">.</span><span class="n">exp</span><span class="o">.</span><span class="n">is_Rational</span> <span class="ow">and</span> <span class="n">d</span><span class="o">.</span><span class="n">exp</span><span class="o">.</span><span class="n">q</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="n">d2</span> <span class="o">=</span> <span class="n">sqrtdenest</span><span class="p">(</span><span class="n">sqrt</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">base</span><span class="p">))</span><span class="o">**</span><span class="n">d</span><span class="o">.</span><span class="n">exp</span><span class="o">.</span><span class="n">p</span>
+            <span class="k">if</span> <span class="n">d2</span> <span class="o">!=</span> <span class="n">d</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">handle</span><span class="p">(</span><span class="mi">1</span><span class="o">/</span><span class="n">d2</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">d</span><span class="o">.</span><span class="n">is_Pow</span> <span class="ow">and</span> <span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">exp</span><span class="o">.</span><span class="n">is_integer</span> <span class="ow">or</span> <span class="n">d</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">is_positive</span><span class="p">):</span>
+            <span class="c"># (1/d**i) = (1/d)**i</span>
+            <span class="k">return</span> <span class="n">handle</span><span class="p">(</span><span class="mi">1</span><span class="o">/</span><span class="n">d</span><span class="o">.</span><span class="n">base</span><span class="p">)</span><span class="o">**</span><span class="n">d</span><span class="o">.</span><span class="n">exp</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">is_Add</span> <span class="ow">or</span> <span class="n">d</span><span class="o">.</span><span class="n">is_Pow</span> <span class="ow">and</span> <span class="n">d</span><span class="o">.</span><span class="n">exp</span><span class="o">.</span><span class="n">is_Rational</span> <span class="ow">and</span> <span class="n">d</span><span class="o">.</span><span class="n">exp</span><span class="o">.</span><span class="n">q</span> <span class="o">==</span> <span class="mi">2</span><span class="p">):</span>
+            <span class="k">return</span> <span class="mi">1</span><span class="o">/</span><span class="n">d</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">handle</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">d</span><span class="o">.</span><span class="n">args</span><span class="p">])</span>
+
+        <span class="c"># handle 1/d treating d as an Add (though it may not be)</span>
+
+        <span class="n">keep</span> <span class="o">=</span> <span class="bp">True</span>  <span class="c"># keep changes that are made</span>
+
+        <span class="c"># flatten it and collect radicals after checking for special</span>
+        <span class="c"># conditions</span>
+        <span class="n">d</span> <span class="o">=</span> <span class="n">_mexpand</span><span class="p">(</span><span class="n">d</span><span class="p">)</span>
+
+        <span class="c"># did it change?</span>
+        <span class="k">if</span> <span class="n">d</span><span class="o">.</span><span class="n">is_Atom</span><span class="p">:</span>
+            <span class="k">return</span> <span class="mi">1</span><span class="o">/</span><span class="n">d</span>
+
+        <span class="c"># is it a number that might be handled easily?</span>
+        <span class="k">if</span> <span class="n">d</span><span class="o">.</span><span class="n">is_number</span><span class="p">:</span>
+            <span class="n">_d</span> <span class="o">=</span> <span class="n">nsimplify</span><span class="p">(</span><span class="n">d</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">_d</span><span class="o">.</span><span class="n">is_Number</span> <span class="ow">and</span> <span class="n">_d</span><span class="o">.</span><span class="n">equals</span><span class="p">(</span><span class="n">d</span><span class="p">):</span>
+                <span class="k">return</span> <span class="mi">1</span><span class="o">/</span><span class="n">_d</span>
+
+        <span class="k">while</span> <span class="bp">True</span><span class="p">:</span>
             <span class="c"># collect similar terms</span>
-            <span class="n">d</span><span class="p">,</span> <span class="n">nterms</span> <span class="o">=</span> <span class="n">collect_sqrt</span><span class="p">(</span><span class="n">_mexpand</span><span class="p">(</span><span class="n">d</span><span class="p">),</span> <span class="n">evaluate</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
-            <span class="n">d</span> <span class="o">=</span> <span class="n">Add</span><span class="o">.</span><span class="n">_from_args</span><span class="p">(</span><span class="n">d</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">nterms</span> <span class="o">&gt;</span> <span class="n">max_terms</span><span class="p">:</span>
+            <span class="n">collected</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">Add</span><span class="o">.</span><span class="n">make_args</span><span class="p">(</span><span class="n">d</span><span class="p">):</span>  <span class="c"># d might have become non-Add</span>
+                <span class="n">p2</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="n">other</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">Mul</span><span class="o">.</span><span class="n">make_args</span><span class="p">(</span><span class="n">m</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Pow</span> <span class="ow">and</span> <span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">exp</span> <span class="ow">is</span> <span class="n">S</span><span class="o">.</span><span class="n">Half</span> <span class="ow">or</span>
+                            <span class="n">i</span><span class="o">.</span><span class="n">exp</span><span class="o">.</span><span class="n">is_Rational</span> <span class="ow">and</span> <span class="n">i</span><span class="o">.</span><span class="n">exp</span><span class="o">.</span><span class="n">q</span> <span class="o">!=</span> <span class="mi">1</span> <span class="ow">and</span>
+                            <span class="n">log</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">exp</span><span class="o">.</span><span class="n">q</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">is_Integer</span><span class="p">):</span>
+                        <span class="n">p2</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">base</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">exp</span> <span class="ow">is</span> <span class="n">S</span><span class="o">.</span><span class="n">Half</span> <span class="k">else</span> <span class="n">i</span><span class="o">.</span><span class="n">base</span><span class="o">**</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">i</span><span class="o">.</span><span class="n">exp</span><span class="p">))</span>
+                    <span class="k">elif</span> <span class="n">i</span> <span class="ow">is</span> <span class="n">S</span><span class="o">.</span><span class="n">ImaginaryUnit</span><span class="p">:</span>
+                        <span class="n">p2</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">S</span><span class="o">.</span><span class="n">NegativeOne</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">other</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+                <span class="n">collected</span><span class="p">[</span><span class="nb">tuple</span><span class="p">(</span><span class="n">ordered</span><span class="p">(</span><span class="n">p2</span><span class="p">))]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">other</span><span class="p">))</span>
+            <span class="n">rterms</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">ordered</span><span class="p">(</span><span class="n">collected</span><span class="o">.</span><span class="n">items</span><span class="p">()))</span>
+            <span class="n">rterms</span> <span class="o">=</span> <span class="p">[(</span><span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">i</span><span class="p">),</span> <span class="n">Add</span><span class="p">(</span><span class="o">*</span><span class="n">j</span><span class="p">))</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">rterms</span><span class="p">]</span>
+            <span class="n">nrad</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">rterms</span><span class="p">)</span> <span class="o">-</span> <span class="p">(</span><span class="mi">1</span> <span class="k">if</span> <span class="n">rterms</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="ow">is</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span> <span class="k">else</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">nrad</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">break</span>
+            <span class="k">elif</span> <span class="n">nrad</span> <span class="o">&gt;</span> <span class="n">max_terms</span><span class="p">:</span>
+                <span class="c"># there may have been invalid operations leading to this point</span>
+                <span class="c"># so don&#39;t keep changes, e.g. this expression is troublesome</span>
+                <span class="c"># in collecting terms so as not to raise the issue of 2834:</span>
+                <span class="c"># r = sqrt(sqrt(5) + 5)</span>
+                <span class="c"># eq = 1/(sqrt(5)*r + 2*sqrt(5)*sqrt(-sqrt(5) + 5) + 5*r)</span>
+                <span class="n">keep</span> <span class="o">=</span> <span class="bp">False</span>
+                <span class="k">break</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">rterms</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">4</span><span class="p">:</span>
+                <span class="c"># in general, only 4 terms can be removed with repeated squaring</span>
+                <span class="c"># but other considerations can guide selection of radical terms</span>
+                <span class="c"># so that radicals are removed</span>
+                <span class="k">if</span> <span class="nb">all</span><span class="p">([</span><span class="n">x</span><span class="o">.</span><span class="n">is_Integer</span> <span class="ow">and</span> <span class="p">(</span><span class="n">y</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">is_Rational</span> <span class="k">for</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="ow">in</span> <span class="n">rterms</span><span class="p">]):</span>
+                    <span class="n">nd</span><span class="p">,</span> <span class="n">d</span> <span class="o">=</span> <span class="n">rad_rationalize</span><span class="p">(</span><span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">,</span> <span class="n">Add</span><span class="o">.</span><span class="n">_from_args</span><span class="p">(</span>
+                        <span class="p">[</span><span class="n">sqrt</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">*</span><span class="n">y</span> <span class="k">for</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="ow">in</span> <span class="n">rterms</span><span class="p">]))</span>
+                    <span class="n">n</span> <span class="o">*=</span> <span class="n">nd</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="c"># is there anything else that might be attempted?</span>
+                    <span class="n">keep</span> <span class="o">=</span> <span class="bp">False</span>
                 <span class="k">break</span>
 
-            <span class="c"># check to see if we are done:</span>
-            <span class="c"># - no radical terms</span>
-            <span class="c"># - if there are more than 3 radical terms, or</span>
-            <span class="c">#   there 3 radical terms and a constant, use rad_rationalize</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="n">nterms</span><span class="p">:</span>
+            <span class="n">num</span> <span class="o">=</span> <span class="n">powsimp</span><span class="p">(</span><span class="n">_num</span><span class="p">(</span><span class="n">rterms</span><span class="p">))</span>
+            <span class="n">n</span> <span class="o">*=</span> <span class="n">num</span>
+            <span class="n">d</span> <span class="o">*=</span> <span class="n">num</span>
+            <span class="n">d</span> <span class="o">=</span> <span class="n">_mexpand</span><span class="p">(</span><span class="n">d</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">d</span><span class="o">.</span><span class="n">is_Atom</span><span class="p">:</span>
                 <span class="k">break</span>
-            <span class="k">if</span> <span class="n">nterms</span> <span class="o">&gt;</span> <span class="mi">3</span> <span class="ow">or</span> <span class="n">nterms</span> <span class="o">==</span> <span class="mi">3</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">4</span><span class="p">:</span>
-                <span class="k">if</span> <span class="nb">all</span><span class="p">([(</span><span class="n">x</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">is_Integer</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">d</span><span class="o">.</span><span class="n">args</span><span class="p">]):</span>
-                    <span class="n">nd</span><span class="p">,</span> <span class="n">d</span> <span class="o">=</span> <span class="n">rad_rationalize</span><span class="p">(</span><span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">,</span> <span class="n">d</span><span class="p">)</span>
-                    <span class="n">n</span> <span class="o">=</span> <span class="n">_mexpand</span><span class="p">(</span><span class="n">n</span><span class="o">*</span><span class="n">nd</span><span class="p">)</span>
-                <span class="k">else</span><span class="p">:</span>
-                    <span class="n">n</span><span class="p">,</span> <span class="n">d</span> <span class="o">=</span> <span class="n">fraction</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
-                <span class="k">break</span>
-            <span class="n">changed</span> <span class="o">=</span> <span class="bp">True</span>
 
-            <span class="c"># now match for a radical</span>
-            <span class="k">if</span> <span class="n">d</span><span class="o">.</span><span class="n">is_Add</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">4</span><span class="p">:</span>
-                <span class="n">r</span> <span class="o">=</span> <span class="n">d</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">a</span> <span class="o">+</span> <span class="n">b</span><span class="o">*</span><span class="n">sqrt</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="o">+</span> <span class="n">D</span><span class="o">*</span><span class="n">sqrt</span><span class="p">(</span><span class="n">E</span><span class="p">))</span>
-                <span class="n">nmul</span> <span class="o">=</span> <span class="p">(</span><span class="n">a</span> <span class="o">-</span> <span class="n">b</span><span class="o">*</span><span class="n">sqrt</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="o">-</span> <span class="n">D</span><span class="o">*</span><span class="n">sqrt</span><span class="p">(</span><span class="n">E</span><span class="p">))</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">r</span><span class="p">)</span>
-                <span class="n">d</span> <span class="o">=</span> <span class="p">(</span><span class="n">a</span><span class="o">**</span><span class="mi">2</span> <span class="o">-</span> <span class="n">c</span><span class="o">*</span><span class="n">b</span><span class="o">**</span><span class="mi">2</span> <span class="o">-</span> <span class="n">E</span><span class="o">*</span><span class="n">D</span><span class="o">**</span><span class="mi">2</span> <span class="o">-</span> <span class="mi">2</span><span class="o">*</span><span class="n">b</span><span class="o">*</span><span class="n">D</span><span class="o">*</span><span class="n">sqrt</span><span class="p">(</span><span class="n">c</span><span class="o">*</span><span class="n">E</span><span class="p">))</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">r</span><span class="p">)</span>
-                <span class="n">n1</span> <span class="o">=</span> <span class="n">n</span><span class="o">/</span><span class="n">d</span>
-                <span class="k">if</span> <span class="n">denom</span><span class="p">(</span><span class="n">n1</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">:</span>
-                    <span class="n">n</span> <span class="o">=</span> <span class="o">-</span><span class="p">(</span><span class="o">-</span><span class="n">n</span><span class="o">/</span><span class="n">d</span><span class="p">)</span>
-                <span class="k">else</span><span class="p">:</span>
-                    <span class="n">n</span> <span class="o">=</span> <span class="n">n1</span>
-                <span class="n">n</span><span class="p">,</span> <span class="n">d</span> <span class="o">=</span> <span class="n">fraction</span><span class="p">(</span><span class="n">n</span><span class="o">*</span><span class="n">nmul</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">keep</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">expr</span>
+        <span class="k">return</span> <span class="n">_umul</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="mi">1</span><span class="o">/</span><span class="n">d</span><span class="p">)</span>
 
-            <span class="k">else</span><span class="p">:</span>
-                <span class="n">r</span> <span class="o">=</span> <span class="n">d</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">a</span> <span class="o">+</span> <span class="n">b</span><span class="o">*</span><span class="n">sqrt</span><span class="p">(</span><span class="n">c</span><span class="p">))</span>
-                <span class="k">if</span> <span class="ow">not</span> <span class="n">r</span> <span class="ow">or</span> <span class="n">r</span><span class="p">[</span><span class="n">b</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-                    <span class="n">r</span> <span class="o">=</span> <span class="n">d</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">b</span><span class="o">*</span><span class="n">sqrt</span><span class="p">(</span><span class="n">c</span><span class="p">))</span>
-                    <span class="k">if</span> <span class="n">r</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
-                        <span class="k">break</span>
-                    <span class="n">r</span><span class="p">[</span><span class="n">a</span><span class="p">]</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span>
-                <span class="n">va</span><span class="p">,</span> <span class="n">vb</span><span class="p">,</span> <span class="n">vc</span> <span class="o">=</span> <span class="n">r</span><span class="p">[</span><span class="n">a</span><span class="p">],</span> <span class="n">r</span><span class="p">[</span><span class="n">b</span><span class="p">],</span> <span class="n">r</span><span class="p">[</span><span class="n">c</span><span class="p">]</span>
+    <span class="n">coeff</span><span class="p">,</span> <span class="n">expr</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">as_coeff_Add</span><span class="p">()</span>
+    <span class="n">expr</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">normal</span><span class="p">()</span>
+    <span class="n">old</span> <span class="o">=</span> <span class="n">fraction</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+    <span class="n">n</span><span class="p">,</span> <span class="n">d</span> <span class="o">=</span> <span class="n">fraction</span><span class="p">(</span><span class="n">handle</span><span class="p">(</span><span class="n">expr</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">old</span> <span class="o">!=</span> <span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">d</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">d</span><span class="o">.</span><span class="n">is_Atom</span><span class="p">:</span>
+            <span class="n">was</span> <span class="o">=</span> <span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">d</span><span class="p">)</span>
+            <span class="n">n</span> <span class="o">=</span> <span class="n">signsimp</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+            <span class="n">d</span> <span class="o">=</span> <span class="n">signsimp</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+            <span class="n">u</span> <span class="o">=</span> <span class="n">Factors</span><span class="p">(</span><span class="n">_umul</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="mi">1</span><span class="o">/</span><span class="n">d</span><span class="p">))</span>
+            <span class="n">u</span> <span class="o">=</span> <span class="n">_umul</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">k</span><span class="o">**</span><span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">u</span><span class="o">.</span><span class="n">factors</span><span class="o">.</span><span class="n">iteritems</span><span class="p">()])</span>
+            <span class="n">n</span><span class="p">,</span> <span class="n">d</span> <span class="o">=</span> <span class="n">fraction</span><span class="p">(</span><span class="n">u</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">old</span> <span class="o">==</span> <span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">d</span><span class="p">):</span>
+                <span class="n">n</span><span class="p">,</span> <span class="n">d</span> <span class="o">=</span> <span class="n">was</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="n">expand_mul</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">d</span><span class="o">.</span><span class="n">is_Number</span> <span class="ow">or</span> <span class="n">d</span><span class="o">.</span><span class="n">is_Add</span><span class="p">:</span>
+            <span class="n">n2</span><span class="p">,</span> <span class="n">d2</span> <span class="o">=</span> <span class="n">fraction</span><span class="p">(</span><span class="n">gcd_terms</span><span class="p">(</span><span class="n">_umul</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="mi">1</span><span class="o">/</span><span class="n">d</span><span class="p">)))</span>
+            <span class="k">if</span> <span class="n">d2</span><span class="o">.</span><span class="n">is_Number</span> <span class="ow">or</span> <span class="p">(</span><span class="n">d2</span><span class="o">.</span><span class="n">count_ops</span><span class="p">()</span> <span class="o">&lt;=</span> <span class="n">d</span><span class="o">.</span><span class="n">count_ops</span><span class="p">()):</span>
+                <span class="n">n</span><span class="p">,</span> <span class="n">d</span> <span class="o">=</span> <span class="p">[</span><span class="n">signsimp</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">(</span><span class="n">n2</span><span class="p">,</span> <span class="n">d2</span><span class="p">)]</span>
+                <span class="k">if</span> <span class="n">n</span><span class="o">.</span><span class="n">is_Mul</span> <span class="ow">and</span> <span class="n">n</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">is_Number</span><span class="p">:</span>
+                    <span class="n">n</span> <span class="o">=</span> <span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">n</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
 
-                <span class="n">dold</span> <span class="o">=</span> <span class="n">d</span>
-                <span class="n">d</span> <span class="o">=</span> <span class="n">va</span><span class="o">**</span><span class="mi">2</span> <span class="o">-</span> <span class="n">vc</span><span class="o">*</span><span class="n">vb</span><span class="o">**</span><span class="mi">2</span>
-                <span class="n">nmul</span> <span class="o">=</span> <span class="n">va</span> <span class="o">-</span> <span class="n">vb</span><span class="o">*</span><span class="n">sqrt</span><span class="p">(</span><span class="n">vc</span><span class="p">)</span>
-                <span class="n">n1</span> <span class="o">=</span> <span class="n">n</span><span class="o">/</span><span class="n">d</span>
-                <span class="k">if</span> <span class="n">denom</span><span class="p">(</span><span class="n">n1</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">:</span>
-                    <span class="n">n1</span> <span class="o">=</span> <span class="o">-</span><span class="p">(</span><span class="o">-</span><span class="n">n</span><span class="o">/</span><span class="n">d</span><span class="p">)</span>
-                <span class="n">n1</span><span class="p">,</span> <span class="n">d1</span> <span class="o">=</span> <span class="n">fraction</span><span class="p">(</span><span class="n">n1</span><span class="o">*</span><span class="n">nmul</span><span class="p">)</span>
-                <span class="k">if</span> <span class="n">d1</span> <span class="o">!=</span> <span class="n">dold</span><span class="p">:</span>
-                    <span class="n">n</span><span class="p">,</span> <span class="n">d</span> <span class="o">=</span> <span class="n">n1</span><span class="p">,</span> <span class="n">d1</span>
-                <span class="k">else</span><span class="p">:</span>
-                    <span class="n">n</span> <span class="o">*=</span> <span class="n">nmul</span>
-
-        <span class="n">nexpr</span> <span class="o">=</span> <span class="n">collect_sqrt</span><span class="p">(</span><span class="n">expand_mul</span><span class="p">(</span><span class="n">n</span><span class="p">))</span><span class="o">/</span><span class="n">d</span>
-        <span class="k">if</span> <span class="n">changed</span> <span class="ow">or</span> <span class="n">nexpr</span> <span class="o">!=</span> <span class="n">expr</span><span class="p">:</span>
-            <span class="n">expr</span> <span class="o">=</span> <span class="n">nexpr</span>
-        <span class="k">return</span> <span class="n">expr</span>
-
-    <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">D</span><span class="p">,</span> <span class="n">E</span><span class="p">,</span> <span class="n">F</span><span class="p">,</span> <span class="n">G</span> <span class="o">=</span> <span class="nb">map</span><span class="p">(</span><span class="n">Wild</span><span class="p">,</span> <span class="s">&#39;abcDEFG&#39;</span><span class="p">)</span>
-    <span class="c"># do this at the start in case no other change is made since</span>
-    <span class="c"># it is done if a change is made</span>
-    <span class="n">coeff</span><span class="p">,</span> <span class="n">expr</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">as_content_primitive</span><span class="p">()</span>
-
-    <span class="n">newe</span> <span class="o">=</span> <span class="n">handle</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
-    <span class="k">if</span> <span class="n">newe</span> <span class="o">!=</span> <span class="n">expr</span><span class="p">:</span>
-        <span class="n">co</span><span class="p">,</span> <span class="n">expr</span> <span class="o">=</span> <span class="n">newe</span><span class="o">.</span><span class="n">as_content_primitive</span><span class="p">()</span>
-        <span class="n">coeff</span> <span class="o">*=</span> <span class="n">co</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="n">nexpr</span><span class="p">,</span> <span class="n">hit</span> <span class="o">=</span> <span class="n">collect_sqrt</span><span class="p">(</span><span class="n">expand_mul</span><span class="p">(</span><span class="n">expr</span><span class="p">),</span> <span class="n">evaluate</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
-        <span class="n">nexpr</span> <span class="o">=</span> <span class="n">Add</span><span class="o">.</span><span class="n">_from_args</span><span class="p">(</span><span class="n">nexpr</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">hit</span> <span class="ow">and</span> <span class="n">expr</span><span class="o">.</span><span class="n">count_ops</span><span class="p">()</span> <span class="o">&gt;=</span> <span class="n">nexpr</span><span class="o">.</span><span class="n">count_ops</span><span class="p">():</span>
-            <span class="n">expr</span> <span class="o">=</span> <span class="n">Add</span><span class="p">(</span><span class="o">*</span><span class="n">Add</span><span class="o">.</span><span class="n">make_args</span><span class="p">(</span><span class="n">nexpr</span><span class="p">))</span>
-    <span class="k">return</span> <span class="n">_keep_coeff</span><span class="p">(</span><span class="n">coeff</span><span class="p">,</span> <span class="n">expr</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">coeff</span> <span class="o">+</span> <span class="n">_umul</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="mi">1</span><span class="o">/</span><span class="n">d</span><span class="p">)</span>
 
 </div>
 <div class="viewcode-block" id="posify"><a class="viewcode-back" href="../../../modules/simplify/simplify.html#sympy.simplify.simplify.posify">[docs]</a><span class="k">def</span> <span class="nf">posify</span><span class="p">(</span><span class="n">eq</span><span class="p">):</span>
@@ -2225,7 +2345,7 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">kernel</span><span class="o">.</span><span class="n">is_Integer</span><span class="p">:</span>
                 <span class="c"># use log to see if there is a power here</span>
-                <span class="n">logkernel</span> <span class="o">=</span> <span class="n">log</span><span class="p">(</span><span class="n">kernel</span><span class="p">)</span>
+                <span class="n">logkernel</span> <span class="o">=</span> <span class="n">expand_log</span><span class="p">(</span><span class="n">log</span><span class="p">(</span><span class="n">kernel</span><span class="p">))</span>
                 <span class="k">if</span> <span class="n">logkernel</span><span class="o">.</span><span class="n">is_Mul</span><span class="p">:</span>
                     <span class="n">c</span><span class="p">,</span> <span class="n">logk</span> <span class="o">=</span> <span class="n">logkernel</span><span class="o">.</span><span class="n">args</span>
                     <span class="n">e</span> <span class="o">*=</span> <span class="n">c</span>
@@ -2495,14 +2615,19 @@
         <span class="k">return</span> <span class="n">expr</span>
 
     <span class="c"># handle the Mul</span>
-
     <span class="k">if</span> <span class="n">combine</span> <span class="ow">in</span> <span class="p">(</span><span class="s">&#39;exp&#39;</span><span class="p">,</span> <span class="s">&#39;all&#39;</span><span class="p">):</span>
         <span class="c"># Collect base/exp data, while maintaining order in the</span>
         <span class="c"># non-commutative parts of the product</span>
         <span class="n">c_powers</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
         <span class="n">nc_part</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="n">newexpr</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">coeff</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span>
         <span class="k">for</span> <span class="n">term</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">term</span><span class="o">.</span><span class="n">is_Rational</span><span class="p">:</span>
+                <span class="n">coeff</span> <span class="o">*=</span> <span class="n">term</span>
+                <span class="k">continue</span>
+            <span class="k">if</span> <span class="n">term</span><span class="o">.</span><span class="n">is_Pow</span><span class="p">:</span>
+                <span class="n">term</span> <span class="o">=</span> <span class="n">_denest_pow</span><span class="p">(</span><span class="n">term</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">term</span><span class="o">.</span><span class="n">is_commutative</span><span class="p">:</span>
                 <span class="n">b</span><span class="p">,</span> <span class="n">e</span> <span class="o">=</span> <span class="n">term</span><span class="o">.</span><span class="n">as_base_exp</span><span class="p">()</span>
                 <span class="k">if</span> <span class="n">deep</span><span class="p">:</span>
@@ -2521,8 +2646,24 @@
                 <span class="n">nc_part</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">term</span><span class="p">)</span>
 
         <span class="c"># add up exponents of common bases</span>
-        <span class="k">for</span> <span class="n">b</span><span class="p">,</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">c_powers</span><span class="o">.</span><span class="n">iteritems</span><span class="p">():</span>
+        <span class="k">for</span> <span class="n">b</span><span class="p">,</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">ordered</span><span class="p">(</span><span class="n">c_powers</span><span class="o">.</span><span class="n">iteritems</span><span class="p">()):</span>
+            <span class="c"># allow 2**x/4 -&gt; 2**(x - 2); don&#39;t do this when b and e are</span>
+            <span class="c"># Numbers since autoevaluation will undo it, e.g.</span>
+            <span class="c"># 2**(1/3)/4 -&gt; 2**(1/3 - 2) -&gt; 2**(1/3)/4</span>
+            <span class="k">assert</span> <span class="mi">2</span><span class="o">**</span><span class="p">(</span><span class="n">S</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">/</span><span class="mi">3</span> <span class="o">-</span> <span class="mi">2</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="o">**</span><span class="p">(</span><span class="n">S</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">/</span><span class="mi">3</span><span class="p">)</span><span class="o">/</span><span class="mi">4</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">b</span> <span class="ow">and</span> <span class="n">b</span><span class="o">.</span><span class="n">is_Number</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">(</span><span class="n">ei</span><span class="o">.</span><span class="n">is_Number</span> <span class="k">for</span> <span class="n">ei</span> <span class="ow">in</span> <span class="n">e</span><span class="p">)</span> <span class="ow">and</span> \
+                    <span class="n">coeff</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span> <span class="ow">and</span>
+                    <span class="n">b</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">,</span> <span class="n">S</span><span class="o">.</span><span class="n">NegativeOne</span><span class="p">)):</span>
+                <span class="n">m</span> <span class="o">=</span> <span class="n">multiplicity</span><span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">b</span><span class="p">),</span> <span class="nb">abs</span><span class="p">(</span><span class="n">coeff</span><span class="p">))</span>
+                <span class="k">if</span> <span class="n">m</span><span class="p">:</span>
+                    <span class="n">e</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">m</span><span class="p">)</span>
+                    <span class="n">coeff</span> <span class="o">/=</span> <span class="n">b</span><span class="o">**</span><span class="n">m</span>
             <span class="n">c_powers</span><span class="p">[</span><span class="n">b</span><span class="p">]</span> <span class="o">=</span> <span class="n">Add</span><span class="p">(</span><span class="o">*</span><span class="n">e</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">coeff</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">coeff</span> <span class="ow">in</span> <span class="n">c_powers</span><span class="p">:</span>
+                <span class="n">c_powers</span><span class="p">[</span><span class="n">coeff</span><span class="p">]</span> <span class="o">+=</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">c_powers</span><span class="p">[</span><span class="n">coeff</span><span class="p">]</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span>
 
         <span class="c"># check for base and inverted base pairs</span>
         <span class="n">be</span> <span class="o">=</span> <span class="n">c_powers</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
@@ -3553,8 +3694,10 @@
 <span class="sd">    function, we get a completely different result that is still different</span>
 <span class="sd">    from the input expression by doing this.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">sympy.simplify.hyperexpand</span> <span class="kn">import</span> <span class="n">hyperexpand</span>
+    <span class="kn">from</span> <span class="nn">sympy.functions.special.bessel</span> <span class="kn">import</span> <span class="n">BesselBase</span>
 
-    <span class="n">original_expr</span> <span class="o">=</span> <span class="n">expr</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+    <span class="n">original_expr</span> <span class="o">=</span> <span class="n">expr</span> <span class="o">=</span> <span class="n">signsimp</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
 
     <span class="k">try</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">_eval_simplify</span><span class="p">(</span><span class="n">ratio</span><span class="o">=</span><span class="n">ratio</span><span class="p">,</span> <span class="n">measure</span><span class="o">=</span><span class="n">measure</span><span class="p">)</span>
@@ -3564,9 +3707,7 @@
     <span class="kn">from</span> <span class="nn">sympy.simplify.hyperexpand</span> <span class="kn">import</span> <span class="n">hyperexpand</span>
     <span class="kn">from</span> <span class="nn">sympy.functions.special.bessel</span> <span class="kn">import</span> <span class="n">BesselBase</span>
 
-    <span class="n">expr</span> <span class="o">=</span> <span class="n">signsimp</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
-
-    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">Basic</span><span class="p">):</span>  <span class="c"># XXX: temporary hack</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">Basic</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">Atom</span><span class="p">):</span>  <span class="c"># XXX: temporary hack</span>
         <span class="k">return</span> <span class="n">expr</span>
 
     <span class="c"># TODO: Apply different strategies, considering expression pattern:</span>
@@ -3580,28 +3721,11 @@
             <span class="k">return</span> <span class="n">choices</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
         <span class="k">return</span> <span class="nb">min</span><span class="p">(</span><span class="n">choices</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">measure</span><span class="p">)</span>
 
-    <span class="n">expr0</span> <span class="o">=</span> <span class="n">powsimp</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
-    <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_commutative</span> <span class="ow">is</span> <span class="bp">False</span><span class="p">:</span>
-        <span class="n">expr1</span> <span class="o">=</span> <span class="n">together</span><span class="p">(</span><span class="n">expr0</span><span class="p">)</span>
-        <span class="n">expr2</span> <span class="o">=</span> <span class="n">factor_terms</span><span class="p">(</span><span class="n">expr1</span><span class="p">)</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="n">expr1</span> <span class="o">=</span> <span class="n">cancel</span><span class="p">(</span><span class="n">expr0</span><span class="p">)</span>
-        <span class="n">expr2</span> <span class="o">=</span> <span class="n">together</span><span class="p">(</span><span class="n">expr1</span><span class="o">.</span><span class="n">expand</span><span class="p">(),</span> <span class="n">deep</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
-
-    <span class="c"># sometimes factors in the denominators need to be allowed to join</span>
-    <span class="c"># factors in numerators (see issue 3270)</span>
-    <span class="n">n</span><span class="p">,</span> <span class="n">d</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">as_numer_denom</span><span class="p">()</span>
-    <span class="k">if</span> <span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">d</span><span class="p">)</span> <span class="o">!=</span> <span class="n">fraction</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
-        <span class="n">expr0b</span> <span class="o">=</span> <span class="n">powsimp</span><span class="p">(</span><span class="n">n</span><span class="p">)</span><span class="o">/</span><span class="n">powsimp</span><span class="p">(</span><span class="n">d</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">expr0b</span> <span class="o">!=</span> <span class="n">expr0</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_commutative</span> <span class="ow">is</span> <span class="bp">False</span><span class="p">:</span>
-                <span class="n">expr1b</span> <span class="o">=</span> <span class="n">together</span><span class="p">(</span><span class="n">expr0b</span><span class="p">)</span>
-                <span class="n">expr2b</span> <span class="o">=</span> <span class="n">factor_terms</span><span class="p">(</span><span class="n">expr1b</span><span class="p">)</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="n">expr1b</span> <span class="o">=</span> <span class="n">cancel</span><span class="p">(</span><span class="n">expr0b</span><span class="p">)</span>
-                <span class="n">expr2b</span> <span class="o">=</span> <span class="n">together</span><span class="p">(</span><span class="n">expr1b</span><span class="o">.</span><span class="n">expand</span><span class="p">(),</span> <span class="n">deep</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">shorter</span><span class="p">(</span><span class="n">expr2b</span><span class="p">,</span> <span class="n">expr</span><span class="p">)</span> <span class="o">==</span> <span class="n">expr2b</span><span class="p">:</span>
-                <span class="n">expr1</span><span class="p">,</span> <span class="n">expr2</span> <span class="o">=</span> <span class="n">expr1b</span><span class="p">,</span> <span class="n">expr2b</span>
+    <span class="n">expr</span> <span class="o">=</span> <span class="n">bottom_up</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">w</span><span class="p">:</span> <span class="n">w</span><span class="o">.</span><span class="n">normal</span><span class="p">())</span>
+    <span class="n">expr</span> <span class="o">=</span> <span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">powsimp</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span><span class="o">.</span><span class="n">as_content_primitive</span><span class="p">())</span>
+    <span class="n">_e</span> <span class="o">=</span> <span class="n">cancel</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+    <span class="n">expr1</span> <span class="o">=</span> <span class="n">shorter</span><span class="p">(</span><span class="n">_e</span><span class="p">,</span> <span class="n">_mexpand</span><span class="p">(</span><span class="n">_e</span><span class="p">)</span><span class="o">.</span><span class="n">cancel</span><span class="p">())</span>  <span class="c"># issue 3730</span>
+    <span class="n">expr2</span> <span class="o">=</span> <span class="n">shorter</span><span class="p">(</span><span class="n">together</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">deep</span><span class="o">=</span><span class="bp">True</span><span class="p">),</span> <span class="n">together</span><span class="p">(</span><span class="n">expr1</span><span class="p">,</span> <span class="n">deep</span><span class="o">=</span><span class="bp">True</span><span class="p">))</span>
 
     <span class="k">if</span> <span class="n">ratio</span> <span class="ow">is</span> <span class="n">S</span><span class="o">.</span><span class="n">Infinity</span><span class="p">:</span>
         <span class="n">expr</span> <span class="o">=</span> <span class="n">expr2</span>
@@ -3609,6 +3733,8 @@
         <span class="n">expr</span> <span class="o">=</span> <span class="n">shorter</span><span class="p">(</span><span class="n">expr2</span><span class="p">,</span> <span class="n">expr1</span><span class="p">,</span> <span class="n">expr</span><span class="p">)</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">Basic</span><span class="p">):</span>  <span class="c"># XXX: temporary hack</span>
         <span class="k">return</span> <span class="n">expr</span>
+
+    <span class="n">expr</span> <span class="o">=</span> <span class="n">factor_terms</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">sign</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
 
     <span class="c"># hyperexpand automatically only works on hypergeometric terms</span>
     <span class="n">expr</span> <span class="o">=</span> <span class="n">hyperexpand</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
@@ -3626,20 +3752,21 @@
     <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">C</span><span class="o">.</span><span class="n">CombinatorialFunction</span><span class="p">,</span> <span class="n">gamma</span><span class="p">):</span>
         <span class="n">expr</span> <span class="o">=</span> <span class="n">combsimp</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
 
-    <span class="n">expr</span> <span class="o">=</span> <span class="n">powsimp</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">combine</span><span class="o">=</span><span class="s">&#39;exp&#39;</span><span class="p">,</span> <span class="n">deep</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
-    <span class="n">short</span> <span class="o">=</span> <span class="n">shorter</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">powsimp</span><span class="p">(</span><span class="n">factor_terms</span><span class="p">(</span><span class="n">expr</span><span class="p">)))</span>
-    <span class="k">if</span> <span class="n">short</span> <span class="o">!=</span> <span class="n">expr</span><span class="p">:</span>
-        <span class="c"># get rid of hollow 2-arg Mul factorization</span>
-        <span class="kn">from</span> <span class="nn">sympy.core.rules</span> <span class="kn">import</span> <span class="n">Transform</span>
-        <span class="n">hollow_mul</span> <span class="o">=</span> <span class="n">Transform</span><span class="p">(</span>
-            <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">x</span><span class="o">.</span><span class="n">args</span><span class="p">),</span>
-            <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span>
-            <span class="n">x</span><span class="o">.</span><span class="n">is_Mul</span> <span class="ow">and</span>
-            <span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span> <span class="ow">and</span>
-            <span class="n">x</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">is_Number</span> <span class="ow">and</span>
-            <span class="n">x</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">is_Add</span> <span class="ow">and</span>
-            <span class="n">x</span><span class="o">.</span><span class="n">is_commutative</span><span class="p">)</span>
-        <span class="n">expr</span> <span class="o">=</span> <span class="n">shorter</span><span class="p">(</span><span class="n">short</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">hollow_mul</span><span class="p">),</span> <span class="n">expr</span><span class="p">)</span>
+    <span class="n">short</span> <span class="o">=</span> <span class="n">shorter</span><span class="p">(</span><span class="n">powsimp</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">combine</span><span class="o">=</span><span class="s">&#39;exp&#39;</span><span class="p">,</span> <span class="n">deep</span><span class="o">=</span><span class="bp">True</span><span class="p">),</span> <span class="n">powsimp</span><span class="p">(</span><span class="n">expr</span><span class="p">),</span> <span class="n">expr</span><span class="p">)</span>
+    <span class="n">short</span> <span class="o">=</span> <span class="n">shorter</span><span class="p">(</span><span class="n">short</span><span class="p">,</span> <span class="n">factor_terms</span><span class="p">(</span><span class="n">short</span><span class="p">),</span> <span class="n">expand_power_exp</span><span class="p">(</span><span class="n">expand_mul</span><span class="p">(</span><span class="n">short</span><span class="p">)))</span>
+
+    <span class="c"># get rid of hollow 2-arg Mul factorization</span>
+    <span class="kn">from</span> <span class="nn">sympy.core.rules</span> <span class="kn">import</span> <span class="n">Transform</span>
+    <span class="n">hollow_mul</span> <span class="o">=</span> <span class="n">Transform</span><span class="p">(</span>
+        <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">x</span><span class="o">.</span><span class="n">args</span><span class="p">),</span>
+        <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span>
+        <span class="n">x</span><span class="o">.</span><span class="n">is_Mul</span> <span class="ow">and</span>
+        <span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span> <span class="ow">and</span>
+        <span class="n">x</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">is_Number</span> <span class="ow">and</span>
+        <span class="n">x</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">is_Add</span> <span class="ow">and</span>
+        <span class="n">x</span><span class="o">.</span><span class="n">is_commutative</span><span class="p">)</span>
+    <span class="n">expr</span> <span class="o">=</span> <span class="n">short</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">hollow_mul</span><span class="p">)</span>
+
     <span class="n">numer</span><span class="p">,</span> <span class="n">denom</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">as_numer_denom</span><span class="p">()</span>
     <span class="k">if</span> <span class="n">denom</span><span class="o">.</span><span class="n">is_Add</span><span class="p">:</span>
         <span class="n">n</span><span class="p">,</span> <span class="n">d</span> <span class="o">=</span> <span class="n">fraction</span><span class="p">(</span><span class="n">radsimp</span><span class="p">(</span><span class="mi">1</span><span class="o">/</span><span class="n">denom</span><span class="p">,</span> <span class="n">symbolic</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">max_terms</span><span class="o">=</span><span class="mi">1</span><span class="p">))</span>
@@ -3647,12 +3774,12 @@
             <span class="n">expr</span> <span class="o">=</span> <span class="p">(</span><span class="n">numer</span><span class="o">*</span><span class="n">n</span><span class="p">)</span><span class="o">.</span><span class="n">expand</span><span class="p">()</span><span class="o">/</span><span class="n">d</span>
 
     <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">could_extract_minus_sign</span><span class="p">():</span>
-        <span class="n">n</span><span class="p">,</span> <span class="n">d</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">as_numer_denom</span><span class="p">()</span>
+        <span class="n">n</span><span class="p">,</span> <span class="n">d</span> <span class="o">=</span> <span class="n">fraction</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">d</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
-            <span class="n">expr</span> <span class="o">=</span> <span class="o">-</span><span class="n">n</span><span class="o">/</span><span class="p">(</span><span class="o">-</span><span class="n">d</span><span class="p">)</span>
+            <span class="n">expr</span> <span class="o">=</span> <span class="n">signsimp</span><span class="p">(</span><span class="o">-</span><span class="n">n</span><span class="o">/</span><span class="p">(</span><span class="o">-</span><span class="n">d</span><span class="p">))</span>
 
     <span class="k">if</span> <span class="n">measure</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">ratio</span><span class="o">*</span><span class="n">measure</span><span class="p">(</span><span class="n">original_expr</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">original_expr</span>
+        <span class="n">expr</span> <span class="o">=</span> <span class="n">original_expr</span>
 
     <span class="k">return</span> <span class="n">expr</span>
 
@@ -3742,7 +3869,7 @@
     <span class="k">if</span> <span class="n">rational</span> <span class="ow">or</span> <span class="n">expr</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">_real_to_rational</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">tolerance</span><span class="p">)</span>
 
-    <span class="c"># sympy&#39;s default tolarance for Rationals is 15; other numbers may have</span>
+    <span class="c"># SymPy&#39;s default tolerance for Rationals is 15; other numbers may have</span>
     <span class="c"># lower tolerances set, so use them to pick the largest tolerance if None</span>
     <span class="c"># was given</span>
     <span class="k">if</span> <span class="n">tolerance</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
@@ -3977,8 +4104,11 @@
 <span class="sd">    This routine tries to simplify bessel-type functions. Currently it only</span>
 <span class="sd">    works on the Bessel J and I functions, however. It works by looking at all</span>
 <span class="sd">    such functions in turn, and eliminating factors of &quot;I&quot; and &quot;-1&quot; (actually</span>
-<span class="sd">    their polar equivalents) in front of the argument. After that, functions of</span>
-<span class="sd">    half-integer order are rewritten using trigonometric functions.</span>
+<span class="sd">    their polar equivalents) in front of the argument. Then, functions of</span>
+<span class="sd">    half-integer order are rewritten using trigonometric functions and</span>
+<span class="sd">    functions of integer order (&gt; 1) are rewritten using functions</span>
+<span class="sd">    of low order.  Finally, if the expression was changed, compute</span>
+<span class="sd">    factorization of the result with factor().</span>
 
 <span class="sd">    &gt;&gt;&gt; from sympy import besselj, besseli, besselsimp, polar_lift, I, S</span>
 <span class="sd">    &gt;&gt;&gt; from sympy.abc import z, nu</span>
@@ -3988,6 +4118,8 @@
 <span class="sd">    exp(-I*pi*nu/2)*besselj(nu, z)</span>
 <span class="sd">    &gt;&gt;&gt; besselsimp(besseli(S(-1)/2, z))</span>
 <span class="sd">    sqrt(2)*cosh(z)/(sqrt(pi)*sqrt(z))</span>
+<span class="sd">    &gt;&gt;&gt; besselsimp(z*besseli(0, z) + z*(besseli(2, z))/2 + besseli(1, z))</span>
+<span class="sd">    3*z*besseli(0, z)/2</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">besselj</span><span class="p">,</span> <span class="n">besseli</span><span class="p">,</span> <span class="n">jn</span><span class="p">,</span> <span class="n">I</span><span class="p">,</span> <span class="n">pi</span><span class="p">,</span> <span class="n">Dummy</span>
     <span class="c"># TODO</span>
@@ -4017,6 +4149,8 @@
             <span class="k">return</span> <span class="n">exp</span><span class="p">(</span><span class="n">I</span><span class="o">*</span><span class="n">pi</span><span class="o">*</span><span class="n">nu</span><span class="p">)</span><span class="o">*</span><span class="n">fro</span><span class="p">(</span><span class="n">nu</span><span class="p">,</span> <span class="n">exp_polar</span><span class="p">(</span><span class="o">-</span><span class="n">I</span><span class="o">*</span><span class="n">pi</span><span class="p">)</span><span class="o">*</span><span class="n">z</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">tofunc</span>
 
+    <span class="n">orig_expr</span> <span class="o">=</span> <span class="n">expr</span>
+
     <span class="n">ifactors</span> <span class="o">=</span> <span class="p">[</span><span class="n">I</span><span class="p">,</span> <span class="n">exp_polar</span><span class="p">(</span><span class="n">I</span><span class="o">*</span><span class="n">pi</span><span class="o">/</span><span class="mi">2</span><span class="p">),</span> <span class="n">exp_polar</span><span class="p">(</span><span class="o">-</span><span class="n">I</span><span class="o">*</span><span class="n">pi</span><span class="o">/</span><span class="mi">2</span><span class="p">)]</span>
     <span class="n">expr</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span>
         <span class="n">besselj</span><span class="p">,</span> <span class="n">replacer</span><span class="p">(</span><span class="n">besselj</span><span class="p">,</span>
@@ -4035,14 +4169,19 @@
 
     <span class="k">def</span> <span class="nf">expander</span><span class="p">(</span><span class="n">fro</span><span class="p">):</span>
         <span class="k">def</span> <span class="nf">repl</span><span class="p">(</span><span class="n">nu</span><span class="p">,</span> <span class="n">z</span><span class="p">):</span>
-            <span class="k">if</span> <span class="p">(</span><span class="n">nu</span> <span class="o">%</span> <span class="mi">1</span><span class="p">)</span> <span class="o">!=</span> <span class="n">S</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">/</span><span class="mi">2</span><span class="p">:</span>
-                <span class="k">return</span> <span class="n">fro</span><span class="p">(</span><span class="n">nu</span><span class="p">,</span> <span class="n">z</span><span class="p">)</span>
-            <span class="k">return</span> <span class="n">unpolarify</span><span class="p">(</span><span class="n">fro</span><span class="p">(</span><span class="n">nu</span><span class="p">,</span> <span class="n">z0</span><span class="p">)</span><span class="o">.</span><span class="n">rewrite</span><span class="p">(</span><span class="n">besselj</span><span class="p">)</span><span class="o">.</span><span class="n">rewrite</span><span class="p">(</span><span class="n">jn</span><span class="p">)</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span>
-                <span class="n">func</span><span class="o">=</span><span class="bp">True</span><span class="p">))</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">z0</span><span class="p">,</span> <span class="n">z</span><span class="p">)</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">nu</span> <span class="o">%</span> <span class="mi">1</span><span class="p">)</span> <span class="o">==</span> <span class="n">S</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">/</span><span class="mi">2</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">unpolarify</span><span class="p">(</span><span class="n">fro</span><span class="p">(</span><span class="n">nu</span><span class="p">,</span> <span class="n">z0</span><span class="p">)</span><span class="o">.</span><span class="n">rewrite</span><span class="p">(</span><span class="n">besselj</span><span class="p">)</span><span class="o">.</span><span class="n">rewrite</span><span class="p">(</span><span class="n">jn</span><span class="p">)</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span>
+                    <span class="n">func</span><span class="o">=</span><span class="bp">True</span><span class="p">))</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">z0</span><span class="p">,</span> <span class="n">z</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">nu</span><span class="o">.</span><span class="n">is_Integer</span> <span class="ow">and</span> <span class="n">nu</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">fro</span><span class="p">(</span><span class="n">nu</span><span class="p">,</span> <span class="n">z</span><span class="p">)</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">fro</span><span class="p">(</span><span class="n">nu</span><span class="p">,</span> <span class="n">z</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">repl</span>
 
     <span class="n">expr</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">besselj</span><span class="p">,</span> <span class="n">expander</span><span class="p">(</span><span class="n">besselj</span><span class="p">))</span>
     <span class="n">expr</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">besseli</span><span class="p">,</span> <span class="n">expander</span><span class="p">(</span><span class="n">besseli</span><span class="p">))</span>
+
+    <span class="k">if</span> <span class="n">expr</span> <span class="o">!=</span> <span class="n">orig_expr</span><span class="p">:</span>
+        <span class="n">expr</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">factor</span><span class="p">()</span>
 
     <span class="k">return</span> <span class="n">expr</span>
 

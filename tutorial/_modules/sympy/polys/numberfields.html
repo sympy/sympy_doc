@@ -95,6 +95,153 @@
 <span class="kn">from</span> <span class="nn">sympy.mpmath</span> <span class="kn">import</span> <span class="n">pslq</span><span class="p">,</span> <span class="n">mp</span>
 
 
+<span class="k">def</span> <span class="nf">_choose_factor</span><span class="p">(</span><span class="n">factors</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">prec</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return a factor having root ``v``</span>
+<span class="sd">    It is assumed that one of the factors has root ``v``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">factors</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="nb">tuple</span><span class="p">):</span>
+        <span class="n">factors</span> <span class="o">=</span> <span class="p">[</span><span class="n">xx</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">xx</span> <span class="ow">in</span> <span class="n">factors</span><span class="p">]</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">factors</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">factors</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">prec1</span> <span class="o">=</span> <span class="mi">10</span>
+    <span class="n">reps</span> <span class="o">=</span> <span class="p">{</span><span class="n">x</span><span class="p">:</span> <span class="n">v</span><span class="p">}</span>
+    <span class="n">eps</span> <span class="o">=</span> <span class="mf">1.0</span><span class="o">/</span><span class="mi">10</span><span class="o">**</span><span class="n">prec</span>
+    <span class="k">while</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">candidates</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">factors</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">abs</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">evalf</span><span class="p">(</span><span class="n">prec1</span><span class="p">,</span> <span class="n">subs</span><span class="o">=</span><span class="n">reps</span><span class="p">))</span> <span class="o">&lt;</span> <span class="n">eps</span><span class="p">:</span>
+                <span class="n">candidates</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">candidates</span><span class="p">:</span>
+            <span class="n">factors</span> <span class="o">=</span> <span class="n">candidates</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">factors</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">factors</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">prec1</span> <span class="o">&gt;</span> <span class="n">prec</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">None</span>
+        <span class="n">prec1</span> <span class="o">*=</span> <span class="mi">2</span>
+<span class="k">def</span> <span class="nf">_separate_sq</span><span class="p">(</span><span class="n">p</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    helper function for ``_minimal_polynomial_sq``</span>
+
+<span class="sd">    It selects a rational ``g`` such that the polynomial ``p``</span>
+<span class="sd">    consists of a sum of terms whose surds squared have gcd equal to ``g``</span>
+<span class="sd">    and a sum of terms with surds squared prime with ``g``;</span>
+<span class="sd">    then it takes the field norm to eliminate ``sqrt(g)``</span>
+
+<span class="sd">    See simplify.simplify.split_surds and polytools.sqf_norm.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy import sqrt</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.abc import x</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.polys.numberfields import _separate_sq</span>
+<span class="sd">    &gt;&gt;&gt; p= -x + sqrt(2) + sqrt(3) + sqrt(7)</span>
+<span class="sd">    &gt;&gt;&gt; p = _separate_sq(p); p</span>
+<span class="sd">    -x**2 + 2*sqrt(3)*x + 2*sqrt(7)*x - 2*sqrt(21) - 8</span>
+<span class="sd">    &gt;&gt;&gt; p = _separate_sq(p); p</span>
+<span class="sd">    -x**4 + 4*sqrt(7)*x**3 - 32*x**2 + 8*sqrt(7)*x + 20</span>
+<span class="sd">    &gt;&gt;&gt; p = _separate_sq(p); p</span>
+<span class="sd">    -x**8 + 48*x**6 - 536*x**4 + 1728*x**2 - 400</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">sympy.simplify.simplify</span> <span class="kn">import</span> <span class="n">_split_gcd</span><span class="p">,</span> <span class="n">_mexpand</span>
+    <span class="kn">from</span> <span class="nn">sympy.utilities.iterables</span> <span class="kn">import</span> <span class="n">sift</span>
+    <span class="k">def</span> <span class="nf">is_sqrt</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Pow</span> <span class="ow">and</span> <span class="n">expr</span><span class="o">.</span><span class="n">exp</span> <span class="ow">is</span> <span class="n">S</span><span class="o">.</span><span class="n">Half</span>
+    <span class="c"># p = c1*sqrt(q1) + ... + cn*sqrt(qn) -&gt; a = [(c1, q1), .., (cn, qn)]</span>
+    <span class="n">a</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">y</span> <span class="ow">in</span> <span class="n">p</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">y</span><span class="o">.</span><span class="n">is_Mul</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">is_sqrt</span><span class="p">(</span><span class="n">y</span><span class="p">):</span>
+                <span class="n">a</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">,</span> <span class="n">y</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span>
+            <span class="k">elif</span> <span class="n">y</span><span class="o">.</span><span class="n">is_Atom</span><span class="p">:</span>
+                <span class="n">a</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">y</span><span class="p">,</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">NotImplementedError</span>
+            <span class="k">continue</span>
+        <span class="n">sifted</span> <span class="o">=</span> <span class="n">sift</span><span class="p">(</span><span class="n">y</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="n">is_sqrt</span><span class="p">)</span>
+        <span class="n">a</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">sifted</span><span class="p">[</span><span class="bp">False</span><span class="p">]),</span> <span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">sifted</span><span class="p">[</span><span class="bp">True</span><span class="p">])</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span>
+    <span class="n">a</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">z</span><span class="p">:</span> <span class="n">z</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+    <span class="k">if</span> <span class="n">a</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="ow">is</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">:</span>
+        <span class="c"># there are no surds</span>
+        <span class="k">return</span> <span class="n">p</span>
+    <span class="n">surds</span> <span class="o">=</span> <span class="p">[</span><span class="n">z</span> <span class="k">for</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span> <span class="ow">in</span> <span class="n">a</span><span class="p">]</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">surds</span><span class="p">)):</span>
+        <span class="k">if</span> <span class="n">surds</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">break</span>
+    <span class="n">g</span><span class="p">,</span> <span class="n">b1</span><span class="p">,</span> <span class="n">b2</span> <span class="o">=</span> <span class="n">_split_gcd</span><span class="p">(</span><span class="o">*</span><span class="n">surds</span><span class="p">[</span><span class="n">i</span><span class="p">:])</span>
+    <span class="n">a1</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">a2</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span> <span class="ow">in</span> <span class="n">a</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">z</span> <span class="ow">in</span> <span class="n">b1</span><span class="p">:</span>
+            <span class="n">a1</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">y</span><span class="o">*</span><span class="n">z</span><span class="o">**</span><span class="n">S</span><span class="o">.</span><span class="n">Half</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">a2</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">y</span><span class="o">*</span><span class="n">z</span><span class="o">**</span><span class="n">S</span><span class="o">.</span><span class="n">Half</span><span class="p">)</span>
+    <span class="n">p1</span> <span class="o">=</span> <span class="n">Add</span><span class="p">(</span><span class="o">*</span><span class="n">a1</span><span class="p">)</span>
+    <span class="n">p2</span> <span class="o">=</span> <span class="n">Add</span><span class="p">(</span><span class="o">*</span><span class="n">a2</span><span class="p">)</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">_mexpand</span><span class="p">(</span><span class="n">p1</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span> <span class="o">-</span> <span class="n">_mexpand</span><span class="p">(</span><span class="n">p2</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">p</span>
+
+<span class="k">def</span> <span class="nf">_minimal_polynomial_sq</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">prec</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns the minimal polynomial for the ``nth-root`` of a sum of surds</span>
+<span class="sd">    or ``None`` if it fails.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    p : sum of surds</span>
+<span class="sd">    n : positive integer</span>
+<span class="sd">    x : variable of the returned polynomial</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.polys.numberfields import _minimal_polynomial_sq</span>
+<span class="sd">    &gt;&gt;&gt; from sympy import sqrt</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.abc import x</span>
+<span class="sd">    &gt;&gt;&gt; q = 1 + sqrt(2) + sqrt(3)</span>
+<span class="sd">    &gt;&gt;&gt; _minimal_polynomial_sq(q, 3, x, 15)</span>
+<span class="sd">    x**12 - 4*x**9 - 4*x**6 + 16*x**3 - 8</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">sympy.simplify.simplify</span> <span class="kn">import</span> <span class="n">_is_sum_surds</span>
+
+    <span class="n">p</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">_is_sum_surds</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">n</span><span class="o">.</span><span class="n">is_Integer</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">n</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">_is_sum_surds</span><span class="p">(</span><span class="n">p</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">None</span>
+    <span class="n">pn</span> <span class="o">=</span> <span class="n">p</span><span class="o">**</span><span class="n">Rational</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">n</span><span class="p">)</span>
+    <span class="c"># eliminate the square roots</span>
+    <span class="n">p</span> <span class="o">-=</span> <span class="n">x</span>
+    <span class="k">while</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">p1</span> <span class="o">=</span> <span class="n">_separate_sq</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">p1</span> <span class="ow">is</span> <span class="n">p</span><span class="p">:</span>
+            <span class="n">p</span> <span class="o">=</span> <span class="n">p1</span><span class="o">.</span><span class="n">subs</span><span class="p">({</span><span class="n">x</span><span class="p">:</span><span class="n">x</span><span class="o">**</span><span class="n">n</span><span class="p">})</span>
+            <span class="k">break</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">p</span> <span class="o">=</span> <span class="n">p1</span>
+
+    <span class="c"># _separate_sq eliminates field extensions in a minimal way, so that</span>
+    <span class="c"># if n = 1 then `p = constant*(minimal_polynomial(p))`</span>
+    <span class="c"># if n &gt; 1 it contains the minimal polynomial as a factor.</span>
+    <span class="k">if</span> <span class="n">n</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">p1</span> <span class="o">=</span> <span class="n">Poly</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">coeff</span><span class="p">(</span><span class="n">x</span><span class="o">**</span><span class="n">p1</span><span class="o">.</span><span class="n">degree</span><span class="p">())</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">p</span> <span class="o">=</span> <span class="o">-</span><span class="n">p</span>
+        <span class="n">p</span> <span class="o">=</span> <span class="n">p</span><span class="o">.</span><span class="n">primitive</span><span class="p">()[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">p</span>
+    <span class="c"># by construction `p` has root `pn`</span>
+    <span class="c"># the minimal polynomial is the factor vanishing in x = pn</span>
+    <span class="n">factors</span> <span class="o">=</span> <span class="n">factor_list</span><span class="p">(</span><span class="n">p</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="n">result</span> <span class="o">=</span> <span class="n">_choose_factor</span><span class="p">(</span><span class="n">factors</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">pn</span><span class="p">,</span> <span class="n">prec</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">result</span>
+
+
 <div class="viewcode-block" id="minimal_polynomial"><a class="viewcode-back" href="../../../modules/polys/reference.html#sympy.polys.numberfields.minimal_polynomial">[docs]</a><span class="k">def</span> <span class="nf">minimal_polynomial</span><span class="p">(</span><span class="n">ex</span><span class="p">,</span> <span class="n">x</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="o">**</span><span class="n">args</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Computes the minimal polynomial of an algebraic number.</span>
@@ -111,6 +258,10 @@
 <span class="sd">    x**4 - 10*x**2 + 1</span>
 
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">sympy.polys.polytools</span> <span class="kn">import</span> <span class="n">degree</span>
+    <span class="kn">from</span> <span class="nn">sympy.core.function</span> <span class="kn">import</span> <span class="p">(</span><span class="n">expand_mul</span><span class="p">,</span> <span class="n">expand_multinomial</span><span class="p">)</span>
+    <span class="kn">from</span> <span class="nn">sympy.simplify.simplify</span> <span class="kn">import</span> <span class="n">_is_sum_surds</span>
+
     <span class="n">generator</span> <span class="o">=</span> <span class="n">numbered_symbols</span><span class="p">(</span><span class="s">&#39;a&#39;</span><span class="p">,</span> <span class="n">cls</span><span class="o">=</span><span class="n">Dummy</span><span class="p">)</span>
     <span class="n">mapping</span><span class="p">,</span> <span class="n">symbols</span><span class="p">,</span> <span class="n">replace</span> <span class="o">=</span> <span class="p">{},</span> <span class="p">{},</span> <span class="p">[]</span>
 
@@ -161,13 +312,11 @@
                         <span class="k">return</span> <span class="n">bottom_up_scan</span><span class="p">(</span><span class="n">base</span><span class="p">)</span>
                     <span class="k">else</span><span class="p">:</span>
                         <span class="n">ex</span> <span class="o">=</span> <span class="n">base</span><span class="o">**</span><span class="p">(</span><span class="o">-</span><span class="n">ex</span><span class="o">.</span><span class="n">exp</span><span class="p">)</span>
-
                 <span class="k">if</span> <span class="ow">not</span> <span class="n">ex</span><span class="o">.</span><span class="n">exp</span><span class="o">.</span><span class="n">is_Integer</span><span class="p">:</span>
                     <span class="n">base</span><span class="p">,</span> <span class="n">exp</span> <span class="o">=</span> <span class="p">(</span>
                         <span class="n">ex</span><span class="o">.</span><span class="n">base</span><span class="o">**</span><span class="n">ex</span><span class="o">.</span><span class="n">exp</span><span class="o">.</span><span class="n">p</span><span class="p">)</span><span class="o">.</span><span class="n">expand</span><span class="p">(),</span> <span class="n">Rational</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">ex</span><span class="o">.</span><span class="n">exp</span><span class="o">.</span><span class="n">q</span><span class="p">)</span>
                 <span class="k">else</span><span class="p">:</span>
                     <span class="n">base</span><span class="p">,</span> <span class="n">exp</span> <span class="o">=</span> <span class="n">ex</span><span class="o">.</span><span class="n">base</span><span class="p">,</span> <span class="n">ex</span><span class="o">.</span><span class="n">exp</span>
-
                 <span class="n">base</span> <span class="o">=</span> <span class="n">bottom_up_scan</span><span class="p">(</span><span class="n">base</span><span class="p">)</span>
                 <span class="n">expr</span> <span class="o">=</span> <span class="n">base</span><span class="o">**</span><span class="n">exp</span>
 
@@ -183,8 +332,34 @@
 
         <span class="k">raise</span> <span class="n">NotAlgebraic</span><span class="p">(</span><span class="s">&quot;</span><span class="si">%s</span><span class="s"> doesn&#39;t seem to be an algebraic number&quot;</span> <span class="o">%</span> <span class="n">ex</span><span class="p">)</span>
 
-    <span class="n">polys</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;polys&#39;</span><span class="p">,</span> <span class="bp">False</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">simpler_inverse</span><span class="p">(</span><span class="n">ex</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns True if it is more likely that the minimal polynomial</span>
+<span class="sd">        algorithm works better with the inverse</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">ex</span><span class="o">.</span><span class="n">is_Pow</span><span class="p">:</span>
+            <span class="k">if</span> <span class="p">(</span><span class="mi">1</span><span class="o">/</span><span class="n">ex</span><span class="o">.</span><span class="n">exp</span><span class="p">)</span><span class="o">.</span><span class="n">is_integer</span> <span class="ow">and</span> <span class="n">ex</span><span class="o">.</span><span class="n">exp</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">ex</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">is_Add</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="bp">True</span>
+        <span class="k">if</span> <span class="n">ex</span><span class="o">.</span><span class="n">is_Mul</span><span class="p">:</span>
+            <span class="n">hit</span> <span class="o">=</span> <span class="bp">True</span>
+            <span class="n">a</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">ex</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">is_Add</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="bp">False</span>
+                <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">is_Pow</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">is_Add</span> <span class="ow">and</span> <span class="n">p</span><span class="o">.</span><span class="n">exp</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                        <span class="k">return</span> <span class="bp">False</span>
 
+            <span class="k">if</span> <span class="n">hit</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">True</span>
+        <span class="k">return</span> <span class="bp">False</span>
+
+    <span class="n">polys</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;polys&#39;</span><span class="p">,</span> <span class="bp">False</span><span class="p">)</span>
+    <span class="n">prec</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s">&#39;prec&#39;</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+
+    <span class="n">inverted</span> <span class="o">=</span> <span class="bp">False</span>
+    <span class="n">ex</span> <span class="o">=</span> <span class="n">expand_multinomial</span><span class="p">(</span><span class="n">ex</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">ex</span><span class="o">.</span><span class="n">is_AlgebraicNumber</span><span class="p">:</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">polys</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">ex</span><span class="o">.</span><span class="n">minpoly</span><span class="o">.</span><span class="n">as_expr</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
@@ -193,20 +368,34 @@
     <span class="k">elif</span> <span class="n">ex</span><span class="o">.</span><span class="n">is_Rational</span><span class="p">:</span>
         <span class="n">result</span> <span class="o">=</span> <span class="n">ex</span><span class="o">.</span><span class="n">q</span><span class="o">*</span><span class="n">x</span> <span class="o">-</span> <span class="n">ex</span><span class="o">.</span><span class="n">p</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="n">F</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span> <span class="o">-</span> <span class="n">bottom_up_scan</span><span class="p">(</span><span class="n">ex</span><span class="p">)]</span> <span class="o">+</span> <span class="n">mapping</span><span class="o">.</span><span class="n">values</span><span class="p">()</span>
-        <span class="n">G</span> <span class="o">=</span> <span class="n">groebner</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">symbols</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="o">+</span> <span class="p">[</span><span class="n">x</span><span class="p">],</span> <span class="n">order</span><span class="o">=</span><span class="s">&#39;lex&#39;</span><span class="p">)</span>
+        <span class="n">inverted</span> <span class="o">=</span> <span class="n">simpler_inverse</span><span class="p">(</span><span class="n">ex</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">inverted</span><span class="p">:</span>
+            <span class="n">ex</span> <span class="o">=</span> <span class="n">ex</span><span class="o">**-</span><span class="mi">1</span>
+        <span class="n">res</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="k">if</span> <span class="n">ex</span><span class="o">.</span><span class="n">is_Pow</span> <span class="ow">and</span> <span class="p">(</span><span class="mi">1</span><span class="o">/</span><span class="n">ex</span><span class="o">.</span><span class="n">exp</span><span class="p">)</span><span class="o">.</span><span class="n">is_Integer</span><span class="p">:</span>
+            <span class="n">n</span> <span class="o">=</span> <span class="mi">1</span><span class="o">/</span><span class="n">ex</span><span class="o">.</span><span class="n">exp</span>
+            <span class="n">res</span> <span class="o">=</span> <span class="n">_minimal_polynomial_sq</span><span class="p">(</span><span class="n">ex</span><span class="o">.</span><span class="n">base</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">prec</span><span class="p">)</span>
 
-        <span class="n">_</span><span class="p">,</span> <span class="n">factors</span> <span class="o">=</span> <span class="n">factor_list</span><span class="p">(</span><span class="n">G</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+        <span class="k">elif</span> <span class="n">_is_sum_surds</span><span class="p">(</span><span class="n">ex</span><span class="p">):</span>
+            <span class="n">res</span> <span class="o">=</span> <span class="n">_minimal_polynomial_sq</span><span class="p">(</span><span class="n">ex</span><span class="p">,</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">prec</span><span class="p">)</span>
 
-        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">factors</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
-            <span class="p">((</span><span class="n">result</span><span class="p">,</span> <span class="n">_</span><span class="p">),)</span> <span class="o">=</span> <span class="n">factors</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">for</span> <span class="n">result</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">factors</span><span class="p">:</span>
-                <span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">ex</span><span class="p">)</span><span class="o">.</span><span class="n">evalf</span><span class="p">(</span><span class="n">chop</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-                    <span class="k">break</span>
-            <span class="k">else</span><span class="p">:</span>  <span class="c"># pragma: no cover</span>
+        <span class="k">if</span> <span class="n">res</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="n">res</span>
+
+        <span class="k">if</span> <span class="n">res</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">bus</span> <span class="o">=</span> <span class="n">bottom_up_scan</span><span class="p">(</span><span class="n">ex</span><span class="p">)</span>
+            <span class="n">F</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span> <span class="o">-</span> <span class="n">bus</span><span class="p">]</span> <span class="o">+</span> <span class="n">mapping</span><span class="o">.</span><span class="n">values</span><span class="p">()</span>
+            <span class="n">G</span> <span class="o">=</span> <span class="n">groebner</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">symbols</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="o">+</span> <span class="p">[</span><span class="n">x</span><span class="p">],</span> <span class="n">order</span><span class="o">=</span><span class="s">&#39;lex&#39;</span><span class="p">)</span>
+
+            <span class="n">_</span><span class="p">,</span> <span class="n">factors</span> <span class="o">=</span> <span class="n">factor_list</span><span class="p">(</span><span class="n">G</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+            <span class="c"># by construction G[-1] has root `ex`</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="n">_choose_factor</span><span class="p">(</span><span class="n">factors</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">ex</span><span class="p">,</span> <span class="n">prec</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">result</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
                 <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s">&quot;multiple candidates for the minimal polynomial of </span><span class="si">%s</span><span class="s">&quot;</span> <span class="o">%</span> <span class="n">ex</span><span class="p">)</span>
-
+    <span class="k">if</span> <span class="n">inverted</span><span class="p">:</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">expand_mul</span><span class="p">(</span><span class="n">x</span><span class="o">**</span><span class="n">degree</span><span class="p">(</span><span class="n">result</span><span class="p">)</span><span class="o">*</span><span class="n">result</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="mi">1</span><span class="o">/</span><span class="n">x</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">coeff</span><span class="p">(</span><span class="n">x</span><span class="o">**</span><span class="n">degree</span><span class="p">(</span><span class="n">result</span><span class="p">))</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="n">expand_mul</span><span class="p">(</span><span class="o">-</span><span class="n">result</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">polys</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">cls</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">field</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
@@ -230,7 +419,6 @@
         <span class="n">x</span><span class="p">,</span> <span class="n">cls</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="n">Poly</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">x</span><span class="p">,</span> <span class="n">cls</span> <span class="o">=</span> <span class="n">Dummy</span><span class="p">(</span><span class="s">&#39;x&#39;</span><span class="p">),</span> <span class="n">PurePoly</span>
-
     <span class="k">if</span> <span class="ow">not</span> <span class="n">args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;ex&#39;</span><span class="p">,</span> <span class="bp">False</span><span class="p">):</span>
         <span class="n">extension</span> <span class="o">=</span> <span class="p">[</span> <span class="n">AlgebraicNumber</span><span class="p">(</span><span class="n">ext</span><span class="p">,</span> <span class="n">gen</span><span class="o">=</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">ext</span> <span class="ow">in</span> <span class="n">extension</span> <span class="p">]</span>
 
