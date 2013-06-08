@@ -1,3 +1,5 @@
+
+
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 
@@ -63,8 +65,6 @@
             
   <h1>Source code for sympy.core.mod</h1><div class="highlight"><pre>
 <span class="kn">from</span> <span class="nn">function</span> <span class="kn">import</span> <span class="n">Function</span>
-<span class="kn">from</span> <span class="nn">sympy.core.numbers</span> <span class="kn">import</span> <span class="n">Float</span>
-<span class="kn">from</span> <span class="nn">sympy.core.function</span> <span class="kn">import</span> <span class="n">expand_mul</span>
 
 
 <div class="viewcode-block" id="Mod"><a class="viewcode-back" href="../../../modules/core.html#sympy.core.mod.Mod">[docs]</a><span class="k">class</span> <span class="nc">Mod</span><span class="p">(</span><span class="n">Function</span><span class="p">):</span>
@@ -72,7 +72,7 @@
 
 <span class="sd">    Receives two arguments, dividend p and divisor q.</span>
 
-<span class="sd">    The convention used is the same as python&#39;s: the remainder always has the</span>
+<span class="sd">    The convention used is the same as Python&#39;s: the remainder always has the</span>
 <span class="sd">    same sign as the divisor.</span>
 
 <span class="sd">    Examples</span>
@@ -89,19 +89,110 @@
 
     <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">eval</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">q</span><span class="p">):</span>
-        <span class="kn">from</span> <span class="nn">sympy.simplify.simplify</span> <span class="kn">import</span> <span class="n">nsimplify</span>
-        <span class="k">if</span> <span class="n">q</span><span class="o">.</span><span class="n">is_Number</span><span class="p">:</span>
-            <span class="nb">float</span> <span class="o">=</span> <span class="ow">not</span> <span class="n">q</span><span class="o">.</span><span class="n">is_Rational</span>
-            <span class="n">pnew</span> <span class="o">=</span> <span class="n">expand_mul</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">pnew</span><span class="o">.</span><span class="n">is_Number</span><span class="p">:</span>
-                <span class="nb">float</span> <span class="o">=</span> <span class="nb">float</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">pnew</span><span class="o">.</span><span class="n">is_Rational</span>
-                <span class="k">if</span> <span class="ow">not</span> <span class="nb">float</span><span class="p">:</span>
-                    <span class="k">return</span> <span class="n">pnew</span> <span class="o">%</span> <span class="n">q</span>
-                <span class="k">return</span> <span class="n">Float</span><span class="p">(</span><span class="n">nsimplify</span><span class="p">(</span><span class="n">pnew</span><span class="p">)</span> <span class="o">%</span> <span class="n">nsimplify</span><span class="p">(</span><span class="n">q</span><span class="p">))</span>
-            <span class="k">elif</span> <span class="n">pnew</span><span class="o">.</span><span class="n">is_Add</span> <span class="ow">and</span> <span class="n">pnew</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">is_Number</span><span class="p">:</span>
-                <span class="n">r</span><span class="p">,</span> <span class="n">p</span> <span class="o">=</span> <span class="n">pnew</span><span class="o">.</span><span class="n">as_two_terms</span><span class="p">()</span>
-                <span class="n">p</span> <span class="o">+=</span> <span class="n">Mod</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">q</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">Mod</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span></div>
+        <span class="kn">from</span> <span class="nn">sympy.core.add</span> <span class="kn">import</span> <span class="n">Add</span>
+        <span class="kn">from</span> <span class="nn">sympy.core.mul</span> <span class="kn">import</span> <span class="n">Mul</span>
+        <span class="kn">from</span> <span class="nn">sympy.core.singleton</span> <span class="kn">import</span> <span class="n">S</span>
+        <span class="kn">from</span> <span class="nn">sympy.core.exprtools</span> <span class="kn">import</span> <span class="n">gcd_terms</span>
+        <span class="kn">from</span> <span class="nn">sympy.polys.polytools</span> <span class="kn">import</span> <span class="n">gcd</span>
+
+        <span class="k">def</span> <span class="nf">doit</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">q</span><span class="p">):</span>
+            <span class="sd">&quot;&quot;&quot;Try to return p % q if both are numbers or +/-p is known</span>
+<span class="sd">            to be less than q.</span>
+<span class="sd">            &quot;&quot;&quot;</span>
+
+            <span class="k">if</span> <span class="n">p</span> <span class="o">==</span> <span class="n">q</span> <span class="ow">or</span> <span class="n">p</span> <span class="o">==</span> <span class="o">-</span><span class="n">q</span> <span class="ow">or</span> <span class="n">p</span><span class="o">.</span><span class="n">is_Pow</span> <span class="ow">and</span> <span class="n">p</span><span class="o">.</span><span class="n">exp</span><span class="o">.</span><span class="n">is_Integer</span> <span class="ow">and</span> <span class="n">p</span><span class="o">.</span><span class="n">base</span> <span class="o">==</span> <span class="n">q</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span>
+
+            <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">is_Number</span> <span class="ow">and</span> <span class="n">q</span><span class="o">.</span><span class="n">is_Number</span><span class="p">:</span>
+                <span class="k">return</span> <span class="p">(</span><span class="n">p</span> <span class="o">%</span> <span class="n">q</span><span class="p">)</span>
+
+            <span class="c"># by ratio</span>
+            <span class="n">r</span> <span class="o">=</span> <span class="n">p</span><span class="o">/</span><span class="n">q</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">d</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">r</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+                <span class="k">pass</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">d</span><span class="p">)</span> <span class="ow">is</span> <span class="nb">int</span><span class="p">:</span>
+                    <span class="n">rv</span> <span class="o">=</span> <span class="n">p</span> <span class="o">-</span> <span class="n">d</span><span class="o">*</span><span class="n">q</span>
+                    <span class="k">if</span> <span class="n">rv</span><span class="o">*</span><span class="n">q</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                        <span class="n">rv</span> <span class="o">+=</span> <span class="n">q</span>
+                    <span class="k">return</span> <span class="n">rv</span>
+
+            <span class="c"># by differencec</span>
+            <span class="n">d</span> <span class="o">=</span> <span class="n">p</span> <span class="o">-</span> <span class="n">q</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">d</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">is</span> <span class="bp">True</span><span class="p">:</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">q</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">is</span> <span class="bp">True</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">d</span>
+                <span class="k">elif</span> <span class="p">(</span><span class="n">q</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">is</span> <span class="bp">True</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">p</span>
+
+        <span class="n">rv</span> <span class="o">=</span> <span class="n">doit</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">q</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">rv</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">rv</span>
+
+        <span class="c"># denest</span>
+        <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">func</span> <span class="ow">is</span> <span class="n">cls</span><span class="p">:</span>
+            <span class="c"># easy</span>
+            <span class="n">qinner</span> <span class="o">=</span> <span class="n">p</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">qinner</span> <span class="o">==</span> <span class="n">q</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">p</span>
+            <span class="c"># XXX other possibilities?</span>
+
+        <span class="c"># extract gcd; any further simplification should be done by the user</span>
+        <span class="n">G</span> <span class="o">=</span> <span class="n">gcd</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">q</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">G</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">:</span>
+            <span class="n">p</span><span class="p">,</span> <span class="n">q</span> <span class="o">=</span> <span class="p">[</span>
+                <span class="n">gcd_terms</span><span class="p">(</span><span class="n">i</span><span class="o">/</span><span class="n">G</span><span class="p">,</span> <span class="n">clear</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">fraction</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">q</span><span class="p">)]</span>
+        <span class="n">pwas</span><span class="p">,</span> <span class="n">qwas</span> <span class="o">=</span> <span class="n">p</span><span class="p">,</span> <span class="n">q</span>
+
+        <span class="c"># simplify terms</span>
+        <span class="c"># (x + y + 2) % x -&gt; Mod(y + 2, x)</span>
+        <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">is_Add</span><span class="p">:</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">p</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
+                <span class="n">a</span> <span class="o">=</span> <span class="n">cls</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">q</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">a</span><span class="o">.</span><span class="n">count</span><span class="p">(</span><span class="n">cls</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">i</span><span class="o">.</span><span class="n">count</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+                    <span class="n">args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">args</span> <span class="o">!=</span> <span class="nb">list</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">args</span><span class="p">):</span>
+                <span class="n">p</span> <span class="o">=</span> <span class="n">Add</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">)</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c"># handle coefficients if they are not Rational</span>
+            <span class="c"># since those are not handled by factor_terms</span>
+            <span class="c"># e.g. Mod(.6*x, .3*y) -&gt; 0.3*Mod(2*x, y)</span>
+            <span class="n">cp</span><span class="p">,</span> <span class="n">p</span> <span class="o">=</span> <span class="n">p</span><span class="o">.</span><span class="n">as_coeff_Mul</span><span class="p">()</span>
+            <span class="n">cq</span><span class="p">,</span> <span class="n">q</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">as_coeff_Mul</span><span class="p">()</span>
+            <span class="n">ok</span> <span class="o">=</span> <span class="bp">False</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">cp</span><span class="o">.</span><span class="n">is_Rational</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">cq</span><span class="o">.</span><span class="n">is_Rational</span><span class="p">:</span>
+                <span class="n">r</span> <span class="o">=</span> <span class="n">cp</span> <span class="o">%</span> <span class="n">cq</span>
+                <span class="k">if</span> <span class="n">r</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">G</span> <span class="o">*=</span> <span class="n">cq</span>
+                    <span class="n">p</span> <span class="o">*=</span> <span class="nb">int</span><span class="p">(</span><span class="n">cp</span><span class="o">/</span><span class="n">cq</span><span class="p">)</span>
+                    <span class="n">ok</span> <span class="o">=</span> <span class="bp">True</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">ok</span><span class="p">:</span>
+                <span class="n">p</span> <span class="o">=</span> <span class="n">cp</span><span class="o">*</span><span class="n">p</span>
+                <span class="n">q</span> <span class="o">=</span> <span class="n">cq</span><span class="o">*</span><span class="n">q</span>
+
+        <span class="c"># simple -1 extraction</span>
+        <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">could_extract_minus_sign</span><span class="p">()</span> <span class="ow">and</span> <span class="n">q</span><span class="o">.</span><span class="n">could_extract_minus_sign</span><span class="p">():</span>
+            <span class="n">G</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">q</span> <span class="o">=</span> <span class="p">[</span><span class="o">-</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">(</span><span class="n">G</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">q</span><span class="p">)]</span>
+
+        <span class="c"># check again to see if p and q can now be handled as numbers</span>
+        <span class="n">rv</span> <span class="o">=</span> <span class="n">doit</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">q</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">rv</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">rv</span><span class="o">*</span><span class="n">G</span>
+
+        <span class="c"># put 1.0 from G on inside</span>
+        <span class="k">if</span> <span class="n">G</span><span class="o">.</span><span class="n">is_Float</span> <span class="ow">and</span> <span class="n">G</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">p</span> <span class="o">*=</span> <span class="n">G</span>
+            <span class="k">return</span> <span class="n">cls</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">G</span><span class="o">.</span><span class="n">is_Mul</span> <span class="ow">and</span> <span class="n">G</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">is_Float</span> <span class="ow">and</span> <span class="n">G</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">p</span> <span class="o">=</span> <span class="n">G</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">p</span>
+            <span class="n">G</span> <span class="o">=</span> <span class="n">Mul</span><span class="o">.</span><span class="n">_from_args</span><span class="p">(</span><span class="n">G</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
+        <span class="k">return</span> <span class="n">G</span><span class="o">*</span><span class="n">cls</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">q</span><span class="p">)</span> <span class="o">!=</span> <span class="p">(</span><span class="n">pwas</span><span class="p">,</span> <span class="n">qwas</span><span class="p">))</span></div>
 </pre></div>
 
           </div>
@@ -148,8 +239,8 @@
     </div>
     <div class="footer">
         &copy; Copyright 2013 SymPy Development Team.
-      Last updated on Mar 08, 2013.
-      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2pre.
+      Last updated on Jun 08, 2013.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
     </div>
   </body>
 </html>

@@ -1,3 +1,5 @@
+
+
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 
@@ -71,16 +73,20 @@
 <span class="kn">from</span> <span class="nn">sympy.core.basic</span> <span class="kn">import</span> <span class="n">Basic</span><span class="p">,</span> <span class="n">preorder_traversal</span>
 <span class="kn">from</span> <span class="nn">sympy.core.expr</span> <span class="kn">import</span> <span class="n">Expr</span>
 <span class="kn">from</span> <span class="nn">sympy.core.sympify</span> <span class="kn">import</span> <span class="n">sympify</span>
-<span class="kn">from</span> <span class="nn">sympy.core.numbers</span> <span class="kn">import</span> <span class="n">Rational</span><span class="p">,</span> <span class="n">Integer</span>
+<span class="kn">from</span> <span class="nn">sympy.core.numbers</span> <span class="kn">import</span> <span class="n">Rational</span><span class="p">,</span> <span class="n">Integer</span><span class="p">,</span> <span class="n">Number</span><span class="p">,</span> <span class="n">I</span>
 <span class="kn">from</span> <span class="nn">sympy.core.singleton</span> <span class="kn">import</span> <span class="n">S</span>
 <span class="kn">from</span> <span class="nn">sympy.core.symbol</span> <span class="kn">import</span> <span class="n">Dummy</span>
 <span class="kn">from</span> <span class="nn">sympy.core.coreerrors</span> <span class="kn">import</span> <span class="n">NonCommutativeExpression</span>
 <span class="kn">from</span> <span class="nn">sympy.core.containers</span> <span class="kn">import</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">Dict</span>
 <span class="kn">from</span> <span class="nn">sympy.utilities</span> <span class="kn">import</span> <span class="n">default_sort_key</span>
 <span class="kn">from</span> <span class="nn">sympy.utilities.iterables</span> <span class="kn">import</span> <span class="p">(</span><span class="n">common_prefix</span><span class="p">,</span> <span class="n">common_suffix</span><span class="p">,</span>
-        <span class="n">variations</span><span class="p">)</span>
+        <span class="n">variations</span><span class="p">,</span> <span class="n">ordered</span><span class="p">)</span>
 
 <span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">defaultdict</span>
+
+
+<span class="k">def</span> <span class="nf">_isnumber</span><span class="p">(</span><span class="n">i</span><span class="p">):</span>
+    <span class="k">return</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">SYMPY_INTS</span><span class="p">,</span> <span class="nb">float</span><span class="p">))</span> <span class="ow">or</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Number</span>
 
 
 <span class="k">def</span> <span class="nf">decompose_power</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
@@ -133,60 +139,194 @@
 
 
 <span class="k">class</span> <span class="nc">Factors</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Efficient representation of ``f_1*f_2*...*f_n``. &quot;&quot;&quot;</span>
+    <span class="sd">&quot;&quot;&quot;Efficient representation of ``f_1*f_2*...*f_n``.&quot;&quot;&quot;</span>
 
     <span class="n">__slots__</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;factors&#39;</span><span class="p">,</span> <span class="s">&#39;gens&#39;</span><span class="p">]</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">factors</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>  <span class="c"># Factors</span>
-        <span class="k">if</span> <span class="n">factors</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Initialize Factors from dict or expr.</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        ========</span>
+
+<span class="sd">        &gt;&gt;&gt; from sympy.core.exprtools import Factors</span>
+<span class="sd">        &gt;&gt;&gt; from sympy.abc import x</span>
+<span class="sd">        &gt;&gt;&gt; from sympy import I</span>
+<span class="sd">        &gt;&gt;&gt; e = 2*x**3</span>
+<span class="sd">        &gt;&gt;&gt; Factors(e)</span>
+<span class="sd">        Factors({2: 1, x: 3})</span>
+<span class="sd">        &gt;&gt;&gt; Factors(e.as_powers_dict())</span>
+<span class="sd">        Factors({2: 1, x: 3})</span>
+<span class="sd">        &gt;&gt;&gt; f = _</span>
+<span class="sd">        &gt;&gt;&gt; f.factors  # underlying dictionary</span>
+<span class="sd">        {2: 1, x: 3}</span>
+<span class="sd">        &gt;&gt;&gt; f.gens  # base of each factor</span>
+<span class="sd">        frozenset([2, x])</span>
+<span class="sd">        &gt;&gt;&gt; Factors(0)</span>
+<span class="sd">        Factors({0: 1})</span>
+<span class="sd">        &gt;&gt;&gt; Factors(I)</span>
+<span class="sd">        Factors({I: 1})</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        =====</span>
+
+<span class="sd">        Although a dictionary can be passed, only minimal checking is</span>
+<span class="sd">        performed: powers of -1 and I are made canonical.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">factors</span><span class="p">,</span> <span class="p">(</span><span class="n">SYMPY_INTS</span><span class="p">,</span> <span class="nb">float</span><span class="p">)):</span>
+            <span class="n">factors</span> <span class="o">=</span> <span class="n">S</span><span class="p">(</span><span class="n">factors</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">factors</span><span class="p">,</span> <span class="n">Factors</span><span class="p">):</span>
+            <span class="n">factors</span> <span class="o">=</span> <span class="n">factors</span><span class="o">.</span><span class="n">factors</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="n">factors</span> <span class="ow">is</span> <span class="bp">None</span> <span class="ow">or</span> <span class="n">factors</span> <span class="ow">is</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">:</span>
             <span class="n">factors</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">elif</span> <span class="n">factors</span> <span class="ow">is</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span> <span class="ow">or</span> <span class="n">factors</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">factors</span> <span class="o">=</span> <span class="p">{</span><span class="n">S</span><span class="o">.</span><span class="n">Zero</span><span class="p">:</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">}</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">factors</span><span class="p">,</span> <span class="n">Number</span><span class="p">):</span>
+            <span class="n">n</span> <span class="o">=</span> <span class="n">factors</span>
+            <span class="n">factors</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="k">if</span> <span class="n">n</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">factors</span><span class="p">[</span><span class="n">S</span><span class="o">.</span><span class="n">NegativeOne</span><span class="p">]</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span>
+                <span class="n">n</span> <span class="o">=</span> <span class="o">-</span><span class="n">n</span>
+            <span class="k">if</span> <span class="n">n</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">n</span><span class="o">.</span><span class="n">is_Float</span> <span class="ow">or</span> <span class="n">n</span><span class="o">.</span><span class="n">is_Integer</span> <span class="ow">or</span> <span class="n">n</span> <span class="ow">is</span> <span class="n">S</span><span class="o">.</span><span class="n">Infinity</span><span class="p">:</span>
+                    <span class="n">factors</span><span class="p">[</span><span class="n">n</span><span class="p">]</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span>
+                <span class="k">elif</span> <span class="n">n</span><span class="o">.</span><span class="n">is_Rational</span><span class="p">:</span>
+                    <span class="c"># since we&#39;re processing Numbers, the denominator is</span>
+                    <span class="c"># stored with a negative exponent; all other factors</span>
+                    <span class="c"># are left .</span>
+                    <span class="k">if</span> <span class="n">n</span><span class="o">.</span><span class="n">p</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+                        <span class="n">factors</span><span class="p">[</span><span class="n">Integer</span><span class="p">(</span><span class="n">n</span><span class="o">.</span><span class="n">p</span><span class="p">)]</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span>
+                    <span class="n">factors</span><span class="p">[</span><span class="n">Integer</span><span class="p">(</span><span class="n">n</span><span class="o">.</span><span class="n">q</span><span class="p">)]</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">NegativeOne</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;Expected Float|Rational|Integer, not </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="n">n</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">factors</span><span class="p">,</span> <span class="n">Basic</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">factors</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
+            <span class="n">factors</span> <span class="o">=</span> <span class="p">{</span><span class="n">factors</span><span class="p">:</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">}</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">factors</span><span class="p">,</span> <span class="n">Expr</span><span class="p">):</span>
+            <span class="n">c</span><span class="p">,</span> <span class="n">nc</span> <span class="o">=</span> <span class="n">factors</span><span class="o">.</span><span class="n">args_cnc</span><span class="p">()</span>
+            <span class="n">i</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">count</span><span class="p">(</span><span class="n">I</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">i</span><span class="p">):</span>
+                <span class="n">c</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">I</span><span class="p">)</span>
+            <span class="n">factors</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">Mul</span><span class="o">.</span><span class="n">_from_args</span><span class="p">(</span><span class="n">c</span><span class="p">)</span><span class="o">.</span><span class="n">as_powers_dict</span><span class="p">())</span>
+            <span class="k">if</span> <span class="n">i</span><span class="p">:</span>
+                <span class="n">factors</span><span class="p">[</span><span class="n">I</span><span class="p">]</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="o">*</span><span class="n">i</span>
+            <span class="k">if</span> <span class="n">nc</span><span class="p">:</span>
+                <span class="n">factors</span><span class="p">[</span><span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">nc</span><span class="p">,</span> <span class="o">**</span><span class="nb">dict</span><span class="p">(</span><span class="n">evaluate</span><span class="o">=</span><span class="bp">False</span><span class="p">))]</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">factors</span> <span class="o">=</span> <span class="n">factors</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>  <span class="c"># /!\ should be dict-like</span>
+
+            <span class="c"># tidy up -/+1 and I exponents if Rational</span>
+
+            <span class="n">handle</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">factors</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">k</span> <span class="ow">is</span> <span class="n">I</span> <span class="ow">or</span> <span class="n">k</span> <span class="ow">in</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">):</span>
+                    <span class="n">handle</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">handle</span><span class="p">:</span>
+                <span class="n">i1</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span>
+                <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">handle</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">_isnumber</span><span class="p">(</span><span class="n">factors</span><span class="p">[</span><span class="n">k</span><span class="p">]):</span>
+                        <span class="k">continue</span>
+                    <span class="n">i1</span> <span class="o">*=</span> <span class="n">k</span><span class="o">**</span><span class="n">factors</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">i1</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">i1</span><span class="o">.</span><span class="n">args</span> <span class="k">if</span> <span class="n">i1</span><span class="o">.</span><span class="n">is_Mul</span> <span class="k">else</span> <span class="p">[</span><span class="n">i1</span><span class="p">]:</span>  <span class="c"># at worst, -1.0*I*(-1)**e</span>
+                        <span class="k">if</span> <span class="n">a</span> <span class="ow">is</span> <span class="n">S</span><span class="o">.</span><span class="n">NegativeOne</span><span class="p">:</span>
+                            <span class="n">factors</span><span class="p">[</span><span class="n">a</span><span class="p">]</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span>
+                        <span class="k">elif</span> <span class="n">a</span> <span class="ow">is</span> <span class="n">I</span><span class="p">:</span>
+                            <span class="n">factors</span><span class="p">[</span><span class="n">I</span><span class="p">]</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span>
+                        <span class="k">elif</span> <span class="n">a</span><span class="o">.</span><span class="n">is_Pow</span><span class="p">:</span>
+                            <span class="k">if</span> <span class="n">S</span><span class="o">.</span><span class="n">NegativeOne</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">factors</span><span class="p">:</span>
+                                <span class="n">factors</span><span class="p">[</span><span class="n">S</span><span class="o">.</span><span class="n">NegativeOne</span><span class="p">]</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span>
+                            <span class="n">factors</span><span class="p">[</span><span class="n">S</span><span class="o">.</span><span class="n">NegativeOne</span><span class="p">]</span> <span class="o">+=</span> <span class="n">a</span><span class="o">.</span><span class="n">exp</span>
+                        <span class="k">elif</span> <span class="n">a</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                            <span class="n">factors</span><span class="p">[</span><span class="n">a</span><span class="p">]</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span>
+                        <span class="k">elif</span> <span class="n">a</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span><span class="p">:</span>
+                            <span class="n">factors</span><span class="p">[</span><span class="o">-</span><span class="n">a</span><span class="p">]</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span>
+                            <span class="n">factors</span><span class="p">[</span><span class="n">S</span><span class="o">.</span><span class="n">NegativeOne</span><span class="p">]</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;unexpected factor in i1: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="n">a</span><span class="p">)</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">factors</span> <span class="o">=</span> <span class="n">factors</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">gens</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span><span class="n">factors</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">gens</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span><span class="n">factors</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s">&#39;expecting Expr or dictionary&#39;</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">__hash__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>  <span class="c"># Factors</span>
-        <span class="k">return</span> <span class="nb">hash</span><span class="p">((</span><span class="nb">tuple</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">factors</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">gens</span><span class="p">))</span>
+        <span class="n">keys</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">ordered</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">factors</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span>
+        <span class="n">values</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">factors</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">]</span>
+        <span class="k">return</span> <span class="nb">hash</span><span class="p">((</span><span class="n">keys</span><span class="p">,</span> <span class="n">values</span><span class="p">))</span>
 
     <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>  <span class="c"># Factors</span>
-        <span class="k">return</span> <span class="s">&quot;Factors(</span><span class="si">%s</span><span class="s">)&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">factors</span>
+        <span class="k">return</span> <span class="s">&quot;Factors({</span><span class="si">%s</span><span class="s">})&quot;</span> <span class="o">%</span> <span class="s">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+            <span class="p">[</span><span class="s">&#39;</span><span class="si">%s</span><span class="s">: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">ordered</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">factors</span><span class="o">.</span><span class="n">items</span><span class="p">())])</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_zero</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>  <span class="c"># Factors</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        &gt;&gt;&gt; from sympy.core.exprtools import Factors</span>
+<span class="sd">        &gt;&gt;&gt; Factors(0).is_zero</span>
+<span class="sd">        True</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">f</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">factors</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">f</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span> <span class="ow">in</span> <span class="n">f</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_one</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>  <span class="c"># Factors</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        &gt;&gt;&gt; from sympy.core.exprtools import Factors</span>
+<span class="sd">        &gt;&gt;&gt; Factors(1).is_one</span>
+<span class="sd">        True</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">factors</span>
 
     <span class="k">def</span> <span class="nf">as_expr</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>  <span class="c"># Factors</span>
+        <span class="sd">&quot;&quot;&quot;Return the underlying expression.</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        ========</span>
+
+<span class="sd">        &gt;&gt;&gt; from sympy.core.exprtools import Factors</span>
+<span class="sd">        &gt;&gt;&gt; from sympy.abc import x, y</span>
+<span class="sd">        &gt;&gt;&gt; Factors((x*y**2).as_powers_dict()).as_expr()</span>
+<span class="sd">        x*y**2</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
         <span class="n">args</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">for</span> <span class="n">factor</span><span class="p">,</span> <span class="n">exp</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">factors</span><span class="o">.</span><span class="n">iteritems</span><span class="p">():</span>
             <span class="k">if</span> <span class="n">exp</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
                 <span class="n">b</span><span class="p">,</span> <span class="n">e</span> <span class="o">=</span> <span class="n">factor</span><span class="o">.</span><span class="n">as_base_exp</span><span class="p">()</span>
-                <span class="n">e</span> <span class="o">=</span> <span class="n">_keep_coeff</span><span class="p">(</span><span class="n">Integer</span><span class="p">(</span><span class="n">exp</span><span class="p">),</span> <span class="n">e</span><span class="p">)</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">exp</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+                    <span class="n">e</span> <span class="o">=</span> <span class="n">_keep_coeff</span><span class="p">(</span><span class="n">Integer</span><span class="p">(</span><span class="n">exp</span><span class="p">),</span> <span class="n">e</span><span class="p">)</span>
+                <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">exp</span><span class="p">,</span> <span class="n">Rational</span><span class="p">):</span>
+                    <span class="n">e</span> <span class="o">=</span> <span class="n">_keep_coeff</span><span class="p">(</span><span class="n">exp</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">e</span> <span class="o">*=</span> <span class="n">exp</span>
                 <span class="n">args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">b</span><span class="o">**</span><span class="n">e</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">factor</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">)</span>
 
-    <span class="k">def</span> <span class="nf">normal</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>  <span class="c"># Factors</span>
-        <span class="n">self_factors</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">factors</span><span class="p">)</span>
-        <span class="n">other_factors</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">other</span><span class="o">.</span><span class="n">factors</span><span class="p">)</span>
-
-        <span class="k">for</span> <span class="n">factor</span><span class="p">,</span> <span class="n">self_exp</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">factors</span><span class="o">.</span><span class="n">iteritems</span><span class="p">():</span>
-            <span class="k">try</span><span class="p">:</span>
-                <span class="n">other_exp</span> <span class="o">=</span> <span class="n">other</span><span class="o">.</span><span class="n">factors</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span>
-            <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
-                <span class="k">continue</span>
-
-            <span class="n">exp</span> <span class="o">=</span> <span class="n">self_exp</span> <span class="o">-</span> <span class="n">other_exp</span>
-
-            <span class="k">if</span> <span class="ow">not</span> <span class="n">exp</span><span class="p">:</span>
-                <span class="k">del</span> <span class="n">self_factors</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span>
-                <span class="k">del</span> <span class="n">other_factors</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="k">if</span> <span class="n">exp</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-                    <span class="n">self_factors</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span> <span class="o">=</span> <span class="n">exp</span>
-                    <span class="k">del</span> <span class="n">other_factors</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span>
-                <span class="k">else</span><span class="p">:</span>
-                    <span class="k">del</span> <span class="n">self_factors</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span>
-                    <span class="n">other_factors</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">exp</span>
-
-        <span class="k">return</span> <span class="n">Factors</span><span class="p">(</span><span class="n">self_factors</span><span class="p">),</span> <span class="n">Factors</span><span class="p">(</span><span class="n">other_factors</span><span class="p">)</span>
-
     <span class="k">def</span> <span class="nf">mul</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>  <span class="c"># Factors</span>
+        <span class="sd">&quot;&quot;&quot;Return Factors of ``self * other``.</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        ========</span>
+
+<span class="sd">        &gt;&gt;&gt; from sympy.core.exprtools import Factors</span>
+<span class="sd">        &gt;&gt;&gt; from sympy.abc import x, y, z</span>
+<span class="sd">        &gt;&gt;&gt; a = Factors((x*y**2).as_powers_dict())</span>
+<span class="sd">        &gt;&gt;&gt; b = Factors((x*y/z).as_powers_dict())</span>
+<span class="sd">        &gt;&gt;&gt; a.mul(b)</span>
+<span class="sd">        Factors({x: 2, y: 3, z: -1})</span>
+<span class="sd">        &gt;&gt;&gt; a*b</span>
+<span class="sd">        Factors({x: 2, y: 3, z: -1})</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">Factors</span><span class="p">):</span>
+            <span class="n">other</span> <span class="o">=</span> <span class="n">Factors</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">is_zero</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">)):</span>
+            <span class="k">return</span> <span class="n">Factors</span><span class="p">(</span><span class="n">S</span><span class="o">.</span><span class="n">Zero</span><span class="p">)</span>
         <span class="n">factors</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">factors</span><span class="p">)</span>
 
         <span class="k">for</span> <span class="n">factor</span><span class="p">,</span> <span class="n">exp</span> <span class="ow">in</span> <span class="n">other</span><span class="o">.</span><span class="n">factors</span><span class="o">.</span><span class="n">iteritems</span><span class="p">():</span>
@@ -201,35 +341,227 @@
 
         <span class="k">return</span> <span class="n">Factors</span><span class="p">(</span><span class="n">factors</span><span class="p">)</span>
 
+    <span class="k">def</span> <span class="nf">normal</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return ``self`` and ``other`` with ``gcd`` removed from each.</span>
+<span class="sd">        The only differences between this and method ``div`` is that this</span>
+<span class="sd">        is 1) optimized for the case when there are few factors in common and</span>
+<span class="sd">        2) this does not raise an error if ``other`` is zero.</span>
+
+<span class="sd">        See Also</span>
+<span class="sd">        ========</span>
+<span class="sd">        div</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">Factors</span><span class="p">):</span>
+            <span class="n">other</span> <span class="o">=</span> <span class="n">Factors</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">other</span><span class="o">.</span><span class="n">is_zero</span><span class="p">:</span>
+                <span class="k">return</span> <span class="p">(</span><span class="n">Factors</span><span class="p">(),</span> <span class="n">Factors</span><span class="p">(</span><span class="n">S</span><span class="o">.</span><span class="n">Zero</span><span class="p">))</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_zero</span><span class="p">:</span>
+                <span class="k">return</span> <span class="p">(</span><span class="n">Factors</span><span class="p">(</span><span class="n">S</span><span class="o">.</span><span class="n">Zero</span><span class="p">),</span> <span class="n">Factors</span><span class="p">())</span>
+
+        <span class="n">self_factors</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">factors</span><span class="p">)</span>
+        <span class="n">other_factors</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">other</span><span class="o">.</span><span class="n">factors</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">factor</span><span class="p">,</span> <span class="n">self_exp</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">factors</span><span class="o">.</span><span class="n">iteritems</span><span class="p">():</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">other_exp</span> <span class="o">=</span> <span class="n">other</span><span class="o">.</span><span class="n">factors</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span>
+            <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                <span class="k">continue</span>
+
+            <span class="n">exp</span> <span class="o">=</span> <span class="n">self_exp</span> <span class="o">-</span> <span class="n">other_exp</span>
+
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">exp</span><span class="p">:</span>
+                <span class="k">del</span> <span class="n">self_factors</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span>
+                <span class="k">del</span> <span class="n">other_factors</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span>
+            <span class="k">elif</span> <span class="n">_isnumber</span><span class="p">(</span><span class="n">exp</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">exp</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">self_factors</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span> <span class="o">=</span> <span class="n">exp</span>
+                    <span class="k">del</span> <span class="n">other_factors</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">del</span> <span class="n">self_factors</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span>
+                    <span class="n">other_factors</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">exp</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">r</span> <span class="o">=</span> <span class="n">self_exp</span><span class="o">.</span><span class="n">extract_additively</span><span class="p">(</span><span class="n">other_exp</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">r</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">r</span><span class="p">:</span>
+                        <span class="n">self_factors</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span> <span class="o">=</span> <span class="n">r</span>
+                        <span class="k">del</span> <span class="n">other_factors</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span>
+                    <span class="k">else</span><span class="p">:</span>  <span class="c"># should be handled already</span>
+                        <span class="k">del</span> <span class="n">self_factors</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span>
+                        <span class="k">del</span> <span class="n">other_factors</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">sc</span><span class="p">,</span> <span class="n">sa</span> <span class="o">=</span> <span class="n">self_exp</span><span class="o">.</span><span class="n">as_coeff_Add</span><span class="p">()</span>
+                    <span class="k">if</span> <span class="n">sc</span><span class="p">:</span>
+                        <span class="n">oc</span><span class="p">,</span> <span class="n">oa</span> <span class="o">=</span> <span class="n">other_exp</span><span class="o">.</span><span class="n">as_coeff_Add</span><span class="p">()</span>
+                        <span class="n">diff</span> <span class="o">=</span> <span class="n">sc</span> <span class="o">-</span> <span class="n">oc</span>
+                        <span class="k">if</span> <span class="n">diff</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                            <span class="n">self_factors</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span> <span class="o">-=</span> <span class="n">oc</span>
+                            <span class="n">other_exp</span> <span class="o">=</span> <span class="n">oa</span>
+                        <span class="k">elif</span> <span class="n">diff</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                            <span class="n">self_factors</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span> <span class="o">-=</span> <span class="n">sc</span>
+                            <span class="n">other_factors</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span> <span class="o">-=</span> <span class="n">sc</span>
+                            <span class="n">other_exp</span> <span class="o">=</span> <span class="n">oa</span> <span class="o">-</span> <span class="n">diff</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="n">self_factors</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span> <span class="o">=</span> <span class="n">sa</span>
+                            <span class="n">other_exp</span> <span class="o">=</span> <span class="n">oa</span>
+                    <span class="k">if</span> <span class="n">other_exp</span><span class="p">:</span>
+                        <span class="n">other_factors</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span> <span class="o">=</span> <span class="n">other_exp</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="k">del</span> <span class="n">other_factors</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">Factors</span><span class="p">(</span><span class="n">self_factors</span><span class="p">),</span> <span class="n">Factors</span><span class="p">(</span><span class="n">other_factors</span><span class="p">)</span>
+
     <span class="k">def</span> <span class="nf">div</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>  <span class="c"># Factors</span>
+        <span class="sd">&quot;&quot;&quot;Return ``self`` and ``other`` with ``gcd`` removed from each.</span>
+<span class="sd">        This is optimized for the case when there are many factors in common.</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        ========</span>
+
+<span class="sd">        &gt;&gt;&gt; from sympy.core.exprtools import Factors</span>
+<span class="sd">        &gt;&gt;&gt; from sympy.abc import x, y, z</span>
+<span class="sd">        &gt;&gt;&gt; from sympy import S</span>
+
+<span class="sd">        &gt;&gt;&gt; a = Factors((x*y**2).as_powers_dict())</span>
+<span class="sd">        &gt;&gt;&gt; a.div(a)</span>
+<span class="sd">        (Factors({}), Factors({}))</span>
+<span class="sd">        &gt;&gt;&gt; a.div(x*z)</span>
+<span class="sd">        (Factors({y: 2}), Factors({z: 1}))</span>
+
+<span class="sd">        The ``/`` operator only gives ``quo``:</span>
+
+<span class="sd">        &gt;&gt;&gt; a/x</span>
+<span class="sd">        Factors({y: 2})</span>
+
+<span class="sd">        Factors treats its factors as though they are all in the numerator, so</span>
+<span class="sd">        if you violate this assumption the results will be correct but will</span>
+<span class="sd">        not strictly correspond to the numerator and denominator of the ratio:</span>
+
+<span class="sd">        &gt;&gt;&gt; a.div(x/z)</span>
+<span class="sd">        (Factors({y: 2}), Factors({z: -1}))</span>
+
+<span class="sd">        Factors is also naive about bases: it does not attempt any denesting</span>
+<span class="sd">        of Rational-base terms, for example the following does not become</span>
+<span class="sd">        2**(2*x)/2.</span>
+
+<span class="sd">        &gt;&gt;&gt; Factors(2**(2*x + 2)).div(S(8))</span>
+<span class="sd">        (Factors({2: 2*x + 2}), Factors({8: 1}))</span>
+
+<span class="sd">        factor_terms can clean up such Rational-bases powers:</span>
+
+<span class="sd">        &gt;&gt;&gt; from sympy.core.exprtools import factor_terms</span>
+<span class="sd">        &gt;&gt;&gt; n, d = Factors(2**(2*x + 2)).div(S(8))</span>
+<span class="sd">        &gt;&gt;&gt; n.as_expr()/d.as_expr()</span>
+<span class="sd">        2**(2*x + 2)/8</span>
+<span class="sd">        &gt;&gt;&gt; factor_terms(_)</span>
+<span class="sd">        2**(2*x)/2</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">quo</span><span class="p">,</span> <span class="n">rem</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">factors</span><span class="p">),</span> <span class="p">{}</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">Factors</span><span class="p">):</span>
+            <span class="n">other</span> <span class="o">=</span> <span class="n">Factors</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">other</span><span class="o">.</span><span class="n">is_zero</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ZeroDivisionError</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_zero</span><span class="p">:</span>
+                <span class="k">return</span> <span class="p">(</span><span class="n">Factors</span><span class="p">(</span><span class="n">S</span><span class="o">.</span><span class="n">Zero</span><span class="p">),</span> <span class="n">Factors</span><span class="p">())</span>
 
         <span class="k">for</span> <span class="n">factor</span><span class="p">,</span> <span class="n">exp</span> <span class="ow">in</span> <span class="n">other</span><span class="o">.</span><span class="n">factors</span><span class="o">.</span><span class="n">iteritems</span><span class="p">():</span>
             <span class="k">if</span> <span class="n">factor</span> <span class="ow">in</span> <span class="n">quo</span><span class="p">:</span>
-                <span class="n">exp</span> <span class="o">=</span> <span class="n">quo</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span> <span class="o">-</span> <span class="n">exp</span>
+                <span class="n">d</span> <span class="o">=</span> <span class="n">quo</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span> <span class="o">-</span> <span class="n">exp</span>
+                <span class="k">if</span> <span class="n">_isnumber</span><span class="p">(</span><span class="n">d</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="n">d</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+                        <span class="k">del</span> <span class="n">quo</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span>
 
-                <span class="k">if</span> <span class="n">exp</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
-                    <span class="k">del</span> <span class="n">quo</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span>
+                    <span class="k">if</span> <span class="n">d</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="n">d</span><span class="p">:</span>
+                            <span class="n">quo</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span> <span class="o">=</span> <span class="n">d</span>
 
-                <span class="k">if</span> <span class="n">exp</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">:</span>
-                    <span class="k">if</span> <span class="n">exp</span><span class="p">:</span>
-                        <span class="n">quo</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span> <span class="o">=</span> <span class="n">exp</span>
+                        <span class="k">continue</span>
 
+                    <span class="n">exp</span> <span class="o">=</span> <span class="o">-</span><span class="n">d</span>
+
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">r</span> <span class="o">=</span> <span class="n">quo</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span><span class="o">.</span><span class="n">extract_additively</span><span class="p">(</span><span class="n">exp</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">r</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="n">r</span><span class="p">:</span>
+                            <span class="n">quo</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span> <span class="o">=</span> <span class="n">r</span>
+                        <span class="k">else</span><span class="p">:</span>  <span class="c"># should be handled already</span>
+                            <span class="k">del</span> <span class="n">quo</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">other_exp</span> <span class="o">=</span> <span class="n">exp</span>
+                        <span class="n">sc</span><span class="p">,</span> <span class="n">sa</span> <span class="o">=</span> <span class="n">quo</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span><span class="o">.</span><span class="n">as_coeff_Add</span><span class="p">()</span>
+                        <span class="k">if</span> <span class="n">sc</span><span class="p">:</span>
+                            <span class="n">oc</span><span class="p">,</span> <span class="n">oa</span> <span class="o">=</span> <span class="n">other_exp</span><span class="o">.</span><span class="n">as_coeff_Add</span><span class="p">()</span>
+                            <span class="n">diff</span> <span class="o">=</span> <span class="n">sc</span> <span class="o">-</span> <span class="n">oc</span>
+                            <span class="k">if</span> <span class="n">diff</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                                <span class="n">quo</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span> <span class="o">-=</span> <span class="n">oc</span>
+                                <span class="n">other_exp</span> <span class="o">=</span> <span class="n">oa</span>
+                            <span class="k">elif</span> <span class="n">diff</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                                <span class="n">quo</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span> <span class="o">-=</span> <span class="n">sc</span>
+                                <span class="n">other_exp</span> <span class="o">=</span> <span class="n">oa</span> <span class="o">-</span> <span class="n">diff</span>
+                            <span class="k">else</span><span class="p">:</span>
+                                <span class="n">quo</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span> <span class="o">=</span> <span class="n">sa</span>
+                                <span class="n">other_exp</span> <span class="o">=</span> <span class="n">oa</span>
+                        <span class="k">if</span> <span class="n">other_exp</span><span class="p">:</span>
+                            <span class="n">rem</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span> <span class="o">=</span> <span class="n">other_exp</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="k">assert</span> <span class="n">factor</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">rem</span>
                     <span class="k">continue</span>
-
-                <span class="n">exp</span> <span class="o">=</span> <span class="o">-</span><span class="n">exp</span>
 
             <span class="n">rem</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span> <span class="o">=</span> <span class="n">exp</span>
 
         <span class="k">return</span> <span class="n">Factors</span><span class="p">(</span><span class="n">quo</span><span class="p">),</span> <span class="n">Factors</span><span class="p">(</span><span class="n">rem</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">quo</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>  <span class="c"># Factors</span>
+        <span class="sd">&quot;&quot;&quot;Return numerator Factor of ``self / other``.</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        ========</span>
+
+<span class="sd">        &gt;&gt;&gt; from sympy.core.exprtools import Factors</span>
+<span class="sd">        &gt;&gt;&gt; from sympy.abc import x, y, z</span>
+<span class="sd">        &gt;&gt;&gt; a = Factors((x*y**2).as_powers_dict())</span>
+<span class="sd">        &gt;&gt;&gt; b = Factors((x*y/z).as_powers_dict())</span>
+<span class="sd">        &gt;&gt;&gt; a.quo(b)  # same as a/b</span>
+<span class="sd">        Factors({y: 1})</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">div</span><span class="p">(</span><span class="n">other</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
 
     <span class="k">def</span> <span class="nf">rem</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>  <span class="c"># Factors</span>
+        <span class="sd">&quot;&quot;&quot;Return denominator Factors of ``self / other``.</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        ========</span>
+
+<span class="sd">        &gt;&gt;&gt; from sympy.core.exprtools import Factors</span>
+<span class="sd">        &gt;&gt;&gt; from sympy.abc import x, y, z</span>
+<span class="sd">        &gt;&gt;&gt; a = Factors((x*y**2).as_powers_dict())</span>
+<span class="sd">        &gt;&gt;&gt; b = Factors((x*y/z).as_powers_dict())</span>
+<span class="sd">        &gt;&gt;&gt; a.rem(b)</span>
+<span class="sd">        Factors({z: -1})</span>
+<span class="sd">        &gt;&gt;&gt; a.rem(a)</span>
+<span class="sd">        Factors({})</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">div</span><span class="p">(</span><span class="n">other</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span>
 
     <span class="k">def</span> <span class="nf">pow</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>  <span class="c"># Factors</span>
+        <span class="sd">&quot;&quot;&quot;Return self raised to a non-negative integer power.</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        ========</span>
+
+<span class="sd">        &gt;&gt;&gt; from sympy.core.exprtools import Factors</span>
+<span class="sd">        &gt;&gt;&gt; from sympy.abc import x, y</span>
+<span class="sd">        &gt;&gt;&gt; a = Factors((x*y**2).as_powers_dict())</span>
+<span class="sd">        &gt;&gt;&gt; a**2</span>
+<span class="sd">        Factors({x: 2, y: 4})</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">Factors</span><span class="p">):</span>
+            <span class="n">other</span> <span class="o">=</span> <span class="n">other</span><span class="o">.</span><span class="n">as_expr</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">other</span><span class="o">.</span><span class="n">is_Integer</span><span class="p">:</span>
+                <span class="n">other</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">SYMPY_INTS</span><span class="p">)</span> <span class="ow">and</span> <span class="n">other</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">:</span>
             <span class="n">factors</span> <span class="o">=</span> <span class="p">{}</span>
 
@@ -242,6 +574,25 @@
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;expected non-negative integer, got </span><span class="si">%s</span><span class="s">&quot;</span> <span class="o">%</span> <span class="n">other</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">gcd</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>  <span class="c"># Factors</span>
+        <span class="sd">&quot;&quot;&quot;Return Factors of ``gcd(self, other)``. The keys are</span>
+<span class="sd">        the intersection of factors with the minimum exponent for</span>
+<span class="sd">        each factor.</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        ========</span>
+
+<span class="sd">        &gt;&gt;&gt; from sympy.core.exprtools import Factors</span>
+<span class="sd">        &gt;&gt;&gt; from sympy.abc import x, y, z</span>
+<span class="sd">        &gt;&gt;&gt; a = Factors((x*y**2).as_powers_dict())</span>
+<span class="sd">        &gt;&gt;&gt; b = Factors((x*y/z).as_powers_dict())</span>
+<span class="sd">        &gt;&gt;&gt; a.gcd(b)</span>
+<span class="sd">        Factors({x: 1, y: 1})</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">Factors</span><span class="p">):</span>
+            <span class="n">other</span> <span class="o">=</span> <span class="n">Factors</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">other</span><span class="o">.</span><span class="n">is_zero</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">Factors</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">factors</span><span class="p">)</span>
+
         <span class="n">factors</span> <span class="o">=</span> <span class="p">{}</span>
 
         <span class="k">for</span> <span class="n">factor</span><span class="p">,</span> <span class="n">exp</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">factors</span><span class="o">.</span><span class="n">iteritems</span><span class="p">():</span>
@@ -252,6 +603,25 @@
         <span class="k">return</span> <span class="n">Factors</span><span class="p">(</span><span class="n">factors</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">lcm</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>  <span class="c"># Factors</span>
+        <span class="sd">&quot;&quot;&quot;Return Factors of ``lcm(self, other)`` which are</span>
+<span class="sd">        the union of factors with the maximum exponent for</span>
+<span class="sd">        each factor.</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        ========</span>
+
+<span class="sd">        &gt;&gt;&gt; from sympy.core.exprtools import Factors</span>
+<span class="sd">        &gt;&gt;&gt; from sympy.abc import x, y, z</span>
+<span class="sd">        &gt;&gt;&gt; a = Factors((x*y**2).as_powers_dict())</span>
+<span class="sd">        &gt;&gt;&gt; b = Factors((x*y/z).as_powers_dict())</span>
+<span class="sd">        &gt;&gt;&gt; a.lcm(b)</span>
+<span class="sd">        Factors({x: 1, y: 2, z: -1})</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">Factors</span><span class="p">):</span>
+            <span class="n">other</span> <span class="o">=</span> <span class="n">Factors</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">is_zero</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">)):</span>
+                <span class="k">return</span> <span class="n">Factors</span><span class="p">(</span><span class="n">S</span><span class="o">.</span><span class="n">Zero</span><span class="p">)</span>
+
         <span class="n">factors</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">factors</span><span class="p">)</span>
 
         <span class="k">for</span> <span class="n">factor</span><span class="p">,</span> <span class="n">exp</span> <span class="ow">in</span> <span class="n">other</span><span class="o">.</span><span class="n">factors</span><span class="o">.</span><span class="n">iteritems</span><span class="p">():</span>
@@ -263,38 +633,25 @@
         <span class="k">return</span> <span class="n">Factors</span><span class="p">(</span><span class="n">factors</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">__mul__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>  <span class="c"># Factors</span>
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">Factors</span><span class="p">):</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">mul</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">NotImplemented</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">mul</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">__divmod__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>  <span class="c"># Factors</span>
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">Factors</span><span class="p">):</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">div</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">NotImplemented</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">div</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">__div__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>  <span class="c"># Factors</span>
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">Factors</span><span class="p">):</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">quo</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">NotImplemented</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">quo</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
 
     <span class="n">__truediv__</span> <span class="o">=</span> <span class="n">__div__</span>
 
     <span class="k">def</span> <span class="nf">__mod__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>  <span class="c"># Factors</span>
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">Factors</span><span class="p">):</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">rem</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">NotImplemented</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">rem</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">__pow__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>  <span class="c"># Factors</span>
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">SYMPY_INTS</span><span class="p">):</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">pow</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">NotImplemented</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">pow</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">__eq__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>  <span class="c"># Factors</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">Factors</span><span class="p">):</span>
+            <span class="n">other</span> <span class="o">=</span> <span class="n">Factors</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">factors</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">factors</span>
 
     <span class="k">def</span> <span class="nf">__ne__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>  <span class="c"># Factors</span>
@@ -516,6 +873,9 @@
 <span class="sd">    &gt;&gt;&gt; gcd_terms(x/2/y + 1/x/y, fraction=False, clear=False)</span>
 <span class="sd">    (x + 2/x)/(2*y)</span>
 
+<span class="sd">    The ``clear`` flag was ignored in this case because the returned</span>
+<span class="sd">    expression was a rational expression, not a simple sum.</span>
+
 <span class="sd">    See Also</span>
 <span class="sd">    ========</span>
 <span class="sd">    factor_terms, sympy.polys.polytools.terms_gcd</span>
@@ -577,7 +937,7 @@
     <span class="k">return</span> <span class="n">terms</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">handle</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">terms</span><span class="o">.</span><span class="n">args</span><span class="p">])</span>
 
 </div>
-<div class="viewcode-block" id="factor_terms"><a class="viewcode-back" href="../../../modules/core.html#sympy.core.exprtools.factor_terms">[docs]</a><span class="k">def</span> <span class="nf">factor_terms</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">radical</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">clear</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">fraction</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+<div class="viewcode-block" id="factor_terms"><a class="viewcode-back" href="../../../modules/core.html#sympy.core.exprtools.factor_terms">[docs]</a><span class="k">def</span> <span class="nf">factor_terms</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">radical</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">clear</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">fraction</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">sign</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Remove common factors from terms in all arguments without</span>
 <span class="sd">    changing the underlying structure of the expr. No expansion or</span>
 <span class="sd">    simplification (and no processing of non-commutatives) is performed.</span>
@@ -592,10 +952,13 @@
 <span class="sd">    If fraction=True (default is False) then a common denominator will be</span>
 <span class="sd">    constructed for the expression.</span>
 
+<span class="sd">    If sign=True (default) then even if the only factor in common is a -1,</span>
+<span class="sd">    it will be factored out of the expression.</span>
+
 <span class="sd">    Examples</span>
 <span class="sd">    ========</span>
 
-<span class="sd">    &gt;&gt;&gt; from sympy import factor_terms, Symbol, Mul, primitive</span>
+<span class="sd">    &gt;&gt;&gt; from sympy import factor_terms, Symbol</span>
 <span class="sd">    &gt;&gt;&gt; from sympy.abc import x, y</span>
 <span class="sd">    &gt;&gt;&gt; factor_terms(x + x*(2 + 4*y)**3)</span>
 <span class="sd">    x*(8*(2*y + 1)**3 + 1)</span>
@@ -620,57 +983,79 @@
 <span class="sd">    &gt;&gt;&gt; factor_terms(x*y/2 + y, clear=False) == _</span>
 <span class="sd">    True</span>
 
+<span class="sd">    If a -1 is all that can be factored out, to *not* factor it out, the</span>
+<span class="sd">    flag ``sign`` must be False:</span>
+
+<span class="sd">    &gt;&gt;&gt; factor_terms(-x - y)</span>
+<span class="sd">    -(x + y)</span>
+<span class="sd">    &gt;&gt;&gt; factor_terms(-x - y, sign=False)</span>
+<span class="sd">    -x - y</span>
+<span class="sd">    &gt;&gt;&gt; factor_terms(-2*x - 2*y, sign=False)</span>
+<span class="sd">    -2*(x + y)</span>
+
 <span class="sd">    See Also</span>
 <span class="sd">    ========</span>
 <span class="sd">    gcd_terms, sympy.polys.polytools.terms_gcd</span>
 
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">sympy.simplify.simplify</span> <span class="kn">import</span> <span class="n">bottom_up</span>
 
-    <span class="n">expr</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
-    <span class="n">is_iterable</span> <span class="o">=</span> <span class="n">iterable</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">do</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+        <span class="n">is_iterable</span> <span class="o">=</span> <span class="n">iterable</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
 
-    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">Basic</span><span class="p">)</span> <span class="ow">or</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Atom</span><span class="p">:</span>
-        <span class="k">if</span> <span class="n">is_iterable</span><span class="p">:</span>
-            <span class="k">return</span> <span class="nb">type</span><span class="p">(</span><span class="n">expr</span><span class="p">)([</span><span class="n">factor_terms</span><span class="p">(</span><span class="n">i</span><span class="p">,</span>
-                <span class="n">radical</span><span class="o">=</span><span class="n">radical</span><span class="p">,</span>
-                <span class="n">clear</span><span class="o">=</span><span class="n">clear</span><span class="p">,</span>
-                <span class="n">fraction</span><span class="o">=</span><span class="n">fraction</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expr</span><span class="p">])</span>
-        <span class="k">return</span> <span class="n">expr</span>
-
-    <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Pow</span> <span class="ow">or</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Function</span> <span class="ow">or</span> <span class="n">is_iterable</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="s">&#39;args_cnc&#39;</span><span class="p">):</span>
-        <span class="n">args</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span>
-        <span class="n">newargs</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">([</span><span class="n">factor_terms</span><span class="p">(</span><span class="n">i</span><span class="p">,</span>
-            <span class="n">radical</span><span class="o">=</span><span class="n">radical</span><span class="p">,</span>
-            <span class="n">clear</span><span class="o">=</span><span class="n">clear</span><span class="p">,</span>
-            <span class="n">fraction</span><span class="o">=</span><span class="n">fraction</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">args</span><span class="p">])</span>
-        <span class="k">if</span> <span class="n">newargs</span> <span class="o">==</span> <span class="n">args</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">Basic</span><span class="p">)</span> <span class="ow">or</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Atom</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">is_iterable</span><span class="p">:</span>
+                <span class="k">return</span> <span class="nb">type</span><span class="p">(</span><span class="n">expr</span><span class="p">)([</span><span class="n">do</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expr</span><span class="p">])</span>
             <span class="k">return</span> <span class="n">expr</span>
-        <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">newargs</span><span class="p">)</span>
 
-    <span class="n">cont</span><span class="p">,</span> <span class="n">p</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">as_content_primitive</span><span class="p">(</span><span class="n">radical</span><span class="o">=</span><span class="n">radical</span><span class="p">)</span>
-    <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">is_Add</span><span class="p">:</span>
-        <span class="n">list_args</span> <span class="o">=</span> <span class="p">[</span><span class="n">gcd_terms</span><span class="p">(</span><span class="n">a</span><span class="p">,</span>
-        <span class="n">isprimitive</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
-        <span class="n">clear</span><span class="o">=</span><span class="n">clear</span><span class="p">,</span>
-        <span class="n">fraction</span><span class="o">=</span><span class="n">fraction</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">Add</span><span class="o">.</span><span class="n">make_args</span><span class="p">(</span><span class="n">p</span><span class="p">)]</span>
-        <span class="n">p</span> <span class="o">=</span> <span class="n">Add</span><span class="o">.</span><span class="n">_from_args</span><span class="p">(</span><span class="n">list_args</span><span class="p">)</span>  <span class="c"># gcd_terms will fix up ordering</span>
-    <span class="k">elif</span> <span class="n">p</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
-        <span class="n">p</span> <span class="o">=</span> <span class="n">p</span><span class="o">.</span><span class="n">func</span><span class="p">(</span>
-            <span class="o">*</span><span class="p">[</span><span class="n">factor_terms</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">radical</span><span class="p">,</span> <span class="n">clear</span><span class="p">,</span> <span class="n">fraction</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">p</span><span class="o">.</span><span class="n">args</span><span class="p">])</span>
-    <span class="n">p</span> <span class="o">=</span> <span class="n">gcd_terms</span><span class="p">(</span><span class="n">p</span><span class="p">,</span>
-        <span class="n">isprimitive</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
-        <span class="n">clear</span><span class="o">=</span><span class="n">clear</span><span class="p">,</span>
-        <span class="n">fraction</span><span class="o">=</span><span class="n">fraction</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">_keep_coeff</span><span class="p">(</span><span class="n">cont</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">clear</span><span class="o">=</span><span class="n">clear</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Pow</span> <span class="ow">or</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Function</span> <span class="ow">or</span> \
+                <span class="n">is_iterable</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="s">&#39;args_cnc&#39;</span><span class="p">):</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span>
+            <span class="n">newargs</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">([</span><span class="n">do</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">args</span><span class="p">])</span>
+            <span class="k">if</span> <span class="n">newargs</span> <span class="o">==</span> <span class="n">args</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">expr</span>
+            <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">newargs</span><span class="p">)</span>
+
+        <span class="n">cont</span><span class="p">,</span> <span class="n">p</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">as_content_primitive</span><span class="p">(</span><span class="n">radical</span><span class="o">=</span><span class="n">radical</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">is_Add</span><span class="p">:</span>
+            <span class="n">list_args</span> <span class="o">=</span> <span class="p">[</span><span class="n">do</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">Add</span><span class="o">.</span><span class="n">make_args</span><span class="p">(</span><span class="n">p</span><span class="p">)]</span>
+            <span class="c"># get a common negative (if there) which gcd_terms does not remove</span>
+            <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">as_coeff_Mul</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">list_args</span><span class="p">):</span>
+                <span class="n">cont</span> <span class="o">=</span> <span class="o">-</span><span class="n">cont</span>
+                <span class="n">list_args</span> <span class="o">=</span> <span class="p">[</span><span class="o">-</span><span class="n">a</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">list_args</span><span class="p">]</span>
+            <span class="c"># watch out for exp(-(x+2)) which gcd_terms will change to exp(-x-2)</span>
+            <span class="n">special</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">a</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">list_args</span><span class="p">):</span>
+                <span class="n">b</span><span class="p">,</span> <span class="n">e</span> <span class="o">=</span> <span class="n">a</span><span class="o">.</span><span class="n">as_base_exp</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">is_Mul</span> <span class="ow">and</span> <span class="n">e</span> <span class="o">!=</span> <span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">e</span><span class="o">.</span><span class="n">args</span><span class="p">):</span>
+                    <span class="n">list_args</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">Dummy</span><span class="p">()</span>
+                    <span class="n">special</span><span class="p">[</span><span class="n">list_args</span><span class="p">[</span><span class="n">i</span><span class="p">]]</span> <span class="o">=</span> <span class="n">a</span>
+            <span class="c"># rebuild p not worrying about the order which gcd_terms will fix</span>
+            <span class="n">p</span> <span class="o">=</span> <span class="n">Add</span><span class="o">.</span><span class="n">_from_args</span><span class="p">(</span><span class="n">list_args</span><span class="p">)</span>
+            <span class="n">p</span> <span class="o">=</span> <span class="n">gcd_terms</span><span class="p">(</span><span class="n">p</span><span class="p">,</span>
+                <span class="n">isprimitive</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                <span class="n">clear</span><span class="o">=</span><span class="n">clear</span><span class="p">,</span>
+                <span class="n">fraction</span><span class="o">=</span><span class="n">fraction</span><span class="p">)</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">special</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">p</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
+            <span class="n">p</span> <span class="o">=</span> <span class="n">p</span><span class="o">.</span><span class="n">func</span><span class="p">(</span>
+                <span class="o">*</span><span class="p">[</span><span class="n">do</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">p</span><span class="o">.</span><span class="n">args</span><span class="p">])</span>
+        <span class="n">rv</span> <span class="o">=</span> <span class="n">_keep_coeff</span><span class="p">(</span><span class="n">cont</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">clear</span><span class="o">=</span><span class="n">clear</span><span class="p">,</span> <span class="n">sign</span><span class="o">=</span><span class="n">sign</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">rv</span>
+    <span class="n">expr</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">do</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
 
 </div>
-<span class="k">def</span> <span class="nf">_mask_nc</span><span class="p">(</span><span class="n">eq</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Return ``eq`` with non-commutative objects replaced with dummy</span>
+<span class="k">def</span> <span class="nf">_mask_nc</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return ``eq`` with non-commutative objects replaced with Dummy</span>
 <span class="sd">    symbols. A dictionary that can be used to restore the original</span>
-<span class="sd">    values is returned: if it is None, the expression is</span>
-<span class="sd">    noncommutative and cannot be made commutative. The third value</span>
-<span class="sd">    returned is a list of any non-commutative symbols that appear</span>
-<span class="sd">    in the returned equation.</span>
+<span class="sd">    values is returned: if it is None, the expression is noncommutative</span>
+<span class="sd">    and cannot be made commutative. The third value returned is a list</span>
+<span class="sd">    of any non-commutative symbols that appear in the returned equation.</span>
+
+<span class="sd">    ``name``, if given, is the name that will be used with numered Dummy</span>
+<span class="sd">    variables that will replace the non-commutative objects and is mainly</span>
+<span class="sd">    used for doctesting purposes.</span>
 
 <span class="sd">    Notes</span>
 <span class="sd">    =====</span>
@@ -687,40 +1072,39 @@
 <span class="sd">    Examples</span>
 <span class="sd">    ========</span>
 <span class="sd">    &gt;&gt;&gt; from sympy.physics.secondquant import Commutator, NO, F, Fd</span>
-<span class="sd">    &gt;&gt;&gt; from sympy import Dummy, symbols, Sum, Mul, Basic</span>
-<span class="sd">    &gt;&gt;&gt; from sympy.abc import x, y</span>
+<span class="sd">    &gt;&gt;&gt; from sympy import symbols, Mul</span>
 <span class="sd">    &gt;&gt;&gt; from sympy.core.exprtools import _mask_nc</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.abc import x, y</span>
 <span class="sd">    &gt;&gt;&gt; A, B, C = symbols(&#39;A,B,C&#39;, commutative=False)</span>
-<span class="sd">    &gt;&gt;&gt; Dummy._count = 0 # reset for doctest purposes</span>
 
 <span class="sd">    One nc-symbol:</span>
 
-<span class="sd">    &gt;&gt;&gt; _mask_nc(A**2 - x**2)</span>
-<span class="sd">    (_0**2 - x**2, {_0: A}, [])</span>
+<span class="sd">    &gt;&gt;&gt; _mask_nc(A**2 - x**2, &#39;d&#39;)</span>
+<span class="sd">    (_d0**2 - x**2, {_d0: A}, [])</span>
 
 <span class="sd">    Multiple nc-symbols:</span>
 
-<span class="sd">    &gt;&gt;&gt; _mask_nc(A**2 - B**2)</span>
+<span class="sd">    &gt;&gt;&gt; _mask_nc(A**2 - B**2, &#39;d&#39;)</span>
 <span class="sd">    (A**2 - B**2, None, [A, B])</span>
 
 <span class="sd">    An nc-object with nc-symbols but no others outside of it:</span>
 
-<span class="sd">    &gt;&gt;&gt; _mask_nc(1 + x*Commutator(A, B))</span>
-<span class="sd">    (_1*x + 1, {_1: Commutator(A, B)}, [])</span>
-<span class="sd">    &gt;&gt;&gt; _mask_nc(NO(Fd(x)*F(y)))</span>
-<span class="sd">    (_2, {_2: NO(CreateFermion(x)*AnnihilateFermion(y))}, [])</span>
+<span class="sd">    &gt;&gt;&gt; _mask_nc(1 + x*Commutator(A, B), &#39;d&#39;)</span>
+<span class="sd">    (_d0*x + 1, {_d0: Commutator(A, B)}, [])</span>
+<span class="sd">    &gt;&gt;&gt; _mask_nc(NO(Fd(x)*F(y)), &#39;d&#39;)</span>
+<span class="sd">    (_d0, {_d0: NO(CreateFermion(x)*AnnihilateFermion(y))}, [])</span>
 
 <span class="sd">    Multiple nc-objects:</span>
 
 <span class="sd">    &gt;&gt;&gt; eq = x*Commutator(A, B) + x*Commutator(A, C)*Commutator(A, B)</span>
-<span class="sd">    &gt;&gt;&gt; _mask_nc(eq)</span>
-<span class="sd">    (x*_3 + x*_4*_3, {_3: Commutator(A, B), _4: Commutator(A, C)}, [_3, _4])</span>
+<span class="sd">    &gt;&gt;&gt; _mask_nc(eq, &#39;d&#39;)</span>
+<span class="sd">    (x*_d0 + x*_d1*_d0, {_d0: Commutator(A, B), _d1: Commutator(A, C)}, [_d0, _d1])</span>
 
 <span class="sd">    Multiple nc-objects and nc-symbols:</span>
 
 <span class="sd">    &gt;&gt;&gt; eq = A*Commutator(A, B) + B*Commutator(A, C)</span>
-<span class="sd">    &gt;&gt;&gt; _mask_nc(eq)</span>
-<span class="sd">    (A*_5 + B*_6, {_5: Commutator(A, B), _6: Commutator(A, C)}, [_5, _6, A, B])</span>
+<span class="sd">    &gt;&gt;&gt; _mask_nc(eq, &#39;d&#39;)</span>
+<span class="sd">    (A*_d0 + B*_d1, {_d0: Commutator(A, B), _d1: Commutator(A, C)}, [_d0, _d1, A, B])</span>
 
 <span class="sd">    If there is an object that:</span>
 
@@ -731,14 +1115,26 @@
 <span class="sd">    then it will give False (or None?) for the is_commutative test. Such</span>
 <span class="sd">    objects are also removed by this routine:</span>
 
-<span class="sd">    &gt;&gt;&gt; from sympy import Basic, Mul</span>
+<span class="sd">    &gt;&gt;&gt; from sympy import Basic</span>
 <span class="sd">    &gt;&gt;&gt; eq = (1 + Mul(Basic(), Basic(), evaluate=False))</span>
 <span class="sd">    &gt;&gt;&gt; eq.is_commutative</span>
 <span class="sd">    False</span>
-<span class="sd">    &gt;&gt;&gt; _mask_nc(eq)</span>
-<span class="sd">    (_7**2 + 1, {_7: Basic()}, [])</span>
+<span class="sd">    &gt;&gt;&gt; _mask_nc(eq, &#39;d&#39;)</span>
+<span class="sd">    (_d0**2 + 1, {_d0: Basic()}, [])</span>
 
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">name</span> <span class="o">=</span> <span class="n">name</span> <span class="ow">or</span> <span class="s">&#39;mask&#39;</span>
+    <span class="c"># Make Dummy() append sequential numbers to the name</span>
+    <span class="k">def</span> <span class="nf">numbered_names</span><span class="p">():</span>
+        <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">while</span> <span class="bp">True</span><span class="p">:</span>
+            <span class="k">yield</span> <span class="n">name</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+            <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="n">names</span> <span class="o">=</span> <span class="n">numbered_names</span><span class="p">()</span>
+    <span class="k">def</span> <span class="nf">Dummy</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">Dummy</span>
+        <span class="k">return</span> <span class="n">Dummy</span><span class="p">(</span><span class="n">names</span><span class="o">.</span><span class="n">next</span><span class="p">(),</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
     <span class="n">expr</span> <span class="o">=</span> <span class="n">eq</span>
     <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_commutative</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">eq</span><span class="p">,</span> <span class="p">{},</span> <span class="p">[]</span>
@@ -833,10 +1229,9 @@
                 <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">cc</span><span class="p">,</span> <span class="n">_</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">args</span><span class="p">):</span>
                     <span class="n">cc</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">Mul</span><span class="o">.</span><span class="n">make_args</span><span class="p">(</span><span class="n">Mul</span><span class="o">.</span><span class="n">_from_args</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">cc</span><span class="p">))</span><span class="o">/</span><span class="n">g</span><span class="p">))</span>
                     <span class="n">args</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">cc</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">cc</span><span class="p">,</span> <span class="n">_</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">args</span><span class="p">):</span>
-                    <span class="n">cc</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">cc</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">/</span><span class="n">c</span>
-                    <span class="n">args</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">cc</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">cc</span><span class="p">,</span> <span class="n">_</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">args</span><span class="p">):</span>
+                <span class="n">cc</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">cc</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">/</span><span class="n">c</span>
+                <span class="n">args</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">cc</span>
         <span class="c"># find any noncommutative common prefix</span>
         <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">a</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">args</span><span class="p">):</span>
             <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
@@ -1000,8 +1395,8 @@
     </div>
     <div class="footer">
         &copy; Copyright 2013 SymPy Development Team.
-      Last updated on Mar 08, 2013.
-      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2pre.
+      Last updated on Jun 08, 2013.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
     </div>
   </body>
 </html>

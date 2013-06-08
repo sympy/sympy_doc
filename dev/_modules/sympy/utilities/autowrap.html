@@ -1,3 +1,5 @@
+
+
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 
@@ -76,8 +78,8 @@
 
 <span class="sd">    &gt;&gt;&gt; from sympy.abc import x,y</span>
 <span class="sd">    &gt;&gt;&gt; expr = ((x - y)**(25)).expand()</span>
-<span class="sd">    &gt;&gt;&gt; binary_callable = autowrap(expr)           # doctest: +SKIP</span>
-<span class="sd">    &gt;&gt;&gt; binary_callable(1, 2)                      # doctest: +SKIP</span>
+<span class="sd">    &gt;&gt;&gt; binary_callable = autowrap(expr)</span>
+<span class="sd">    &gt;&gt;&gt; binary_callable(1, 2)</span>
 <span class="sd">    -1.0</span>
 
 <span class="sd">The callable returned from autowrap() is a binary python function, not a</span>
@@ -88,11 +90,11 @@
 <span class="sd">lambdify().</span>
 
 <span class="sd">    &gt;&gt;&gt; from sympy.utilities.autowrap import binary_function</span>
-<span class="sd">    &gt;&gt;&gt; f = binary_function(&#39;f&#39;, expr)             # doctest: +SKIP</span>
-<span class="sd">    &gt;&gt;&gt; 2*f(x, y) + y                              # doctest: +SKIP</span>
+<span class="sd">    &gt;&gt;&gt; f = binary_function(&#39;f&#39;, expr)</span>
+<span class="sd">    &gt;&gt;&gt; 2*f(x, y) + y</span>
 <span class="sd">    y + 2*f(x, y)</span>
-<span class="sd">    &gt;&gt;&gt; (2*f(x, y) + y).evalf(2, subs={x: 1, y:2}) # doctest: +SKIP</span>
-<span class="sd">    0.0</span>
+<span class="sd">    &gt;&gt;&gt; (2*f(x, y) + y).evalf(2, subs={x: 1, y:2})</span>
+<span class="sd">    0.e-110</span>
 
 <span class="sd">The idea is that a SymPy user will primarily be interested in working with</span>
 <span class="sd">mathematical expressions, and should not have to learn details about wrapping</span>
@@ -130,17 +132,21 @@
 <span class="sd">&quot;&quot;&quot;</span>
 <span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">with_statement</span>
 
+<span class="n">_doctest_depends_on</span> <span class="o">=</span> <span class="p">{</span> <span class="s">&#39;exe&#39;</span><span class="p">:</span> <span class="p">(</span><span class="s">&#39;f2py&#39;</span><span class="p">,</span> <span class="s">&#39;gfortran&#39;</span><span class="p">),</span> <span class="s">&#39;modules&#39;</span><span class="p">:</span> <span class="p">(</span><span class="s">&#39;numpy&#39;</span><span class="p">,)}</span>
+
 <span class="kn">import</span> <span class="nn">sys</span>
 <span class="kn">import</span> <span class="nn">os</span>
 <span class="kn">import</span> <span class="nn">shutil</span>
 <span class="kn">import</span> <span class="nn">tempfile</span>
-<span class="kn">import</span> <span class="nn">subprocess</span>
+<span class="kn">from</span> <span class="nn">subprocess</span> <span class="kn">import</span> <span class="n">STDOUT</span><span class="p">,</span> <span class="n">CalledProcessError</span>
 
+<span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="kn">import</span> <span class="n">check_output</span>
 <span class="kn">from</span> <span class="nn">sympy.utilities.codegen</span> <span class="kn">import</span> <span class="p">(</span>
     <span class="n">get_code_generator</span><span class="p">,</span> <span class="n">Routine</span><span class="p">,</span> <span class="n">OutputArgument</span><span class="p">,</span> <span class="n">InOutArgument</span><span class="p">,</span>
     <span class="n">CodeGenArgumentListError</span><span class="p">,</span> <span class="n">Result</span>
 <span class="p">)</span>
 <span class="kn">from</span> <span class="nn">sympy.utilities.lambdify</span> <span class="kn">import</span> <span class="n">implemented_function</span>
+<span class="kn">from</span> <span class="nn">sympy.utilities.decorator</span> <span class="kn">import</span> <span class="n">doctest_depends_on</span>
 <span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">C</span>
 
 
@@ -210,18 +216,14 @@
     <span class="k">def</span> <span class="nf">_process_files</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">routine</span><span class="p">):</span>
         <span class="n">command</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">command</span>
         <span class="n">command</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">flags</span><span class="p">)</span>
-        <span class="n">null</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">devnull</span><span class="p">,</span> <span class="s">&#39;w&#39;</span><span class="p">)</span>
         <span class="k">try</span><span class="p">:</span>
-            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">quiet</span><span class="p">:</span>
-                <span class="n">retcode</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">call</span><span class="p">(</span>
-                    <span class="n">command</span><span class="p">,</span> <span class="n">stdout</span><span class="o">=</span><span class="n">null</span><span class="p">,</span> <span class="n">stderr</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">STDOUT</span><span class="p">)</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="n">retcode</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">call</span><span class="p">(</span><span class="n">command</span><span class="p">)</span>
-        <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
-            <span class="n">retcode</span> <span class="o">=</span> <span class="mi">1</span>
-        <span class="k">if</span> <span class="n">retcode</span><span class="p">:</span>
+            <span class="n">retoutput</span> <span class="o">=</span> <span class="n">check_output</span><span class="p">(</span><span class="n">command</span><span class="p">,</span> <span class="n">stderr</span><span class="o">=</span><span class="n">STDOUT</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">CalledProcessError</span><span class="p">,</span> <span class="n">e</span><span class="p">:</span>
             <span class="k">raise</span> <span class="n">CodeWrapError</span><span class="p">(</span>
-                <span class="s">&quot;Error while executing command: </span><span class="si">%s</span><span class="s">&quot;</span> <span class="o">%</span> <span class="s">&quot; &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">command</span><span class="p">))</span>
+                <span class="s">&quot;Error while executing command: </span><span class="si">%s</span><span class="s">. Command output is:</span><span class="se">\n</span><span class="si">%s</span><span class="s">&quot;</span> <span class="o">%</span> <span class="p">(</span>
+                    <span class="s">&quot; &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">command</span><span class="p">),</span> <span class="n">e</span><span class="o">.</span><span class="n">output</span><span class="p">))</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">quiet</span><span class="p">:</span>
+            <span class="k">print</span> <span class="n">retoutput</span>
 
 </div>
 <div class="viewcode-block" id="DummyWrapper"><a class="viewcode-back" href="../../../modules/utilities/autowrap.html#sympy.utilities.autowrap.DummyWrapper">[docs]</a><span class="k">class</span> <span class="nc">DummyWrapper</span><span class="p">(</span><span class="n">CodeWrapper</span><span class="p">):</span>
@@ -325,10 +327,6 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">for</span> <span class="n">routine</span> <span class="ow">in</span> <span class="n">routines</span><span class="p">:</span>
             <span class="n">prototype</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">generator</span><span class="o">.</span><span class="n">get_prototype</span><span class="p">(</span><span class="n">routine</span><span class="p">)</span>
-            <span class="n">origname</span> <span class="o">=</span> <span class="n">routine</span><span class="o">.</span><span class="n">name</span>
-            <span class="n">routine</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="s">&quot;</span><span class="si">%s</span><span class="s">_c&quot;</span> <span class="o">%</span> <span class="n">origname</span>
-            <span class="n">prototype_c</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">generator</span><span class="o">.</span><span class="n">get_prototype</span><span class="p">(</span><span class="n">routine</span><span class="p">)</span>
-            <span class="n">routine</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">origname</span>
 
             <span class="c"># declare</span>
             <span class="k">print</span> <span class="o">&gt;&gt;</span> <span class="n">f</span><span class="p">,</span> <span class="s">&#39;cdef extern from &quot;</span><span class="si">%s</span><span class="s">.h&quot;:&#39;</span> <span class="o">%</span> <span class="n">prefix</span>
@@ -404,6 +402,7 @@
     <span class="k">return</span> <span class="n">wrappers</span><span class="p">[</span><span class="n">backend</span><span class="o">.</span><span class="n">upper</span><span class="p">()]</span>
 
 
+<span class="nd">@doctest_depends_on</span><span class="p">(</span><span class="n">exe</span><span class="o">=</span><span class="p">(</span><span class="s">&#39;f2py&#39;</span><span class="p">,</span> <span class="s">&#39;gfortran&#39;</span><span class="p">),</span> <span class="n">modules</span><span class="o">=</span><span class="p">(</span><span class="s">&#39;numpy&#39;</span><span class="p">,))</span>
 <div class="viewcode-block" id="autowrap"><a class="viewcode-back" href="../../../modules/utilities/autowrap.html#sympy.utilities.autowrap.autowrap">[docs]</a><span class="k">def</span> <span class="nf">autowrap</span><span class="p">(</span>
     <span class="n">expr</span><span class="p">,</span> <span class="n">language</span><span class="o">=</span><span class="s">&#39;F95&#39;</span><span class="p">,</span> <span class="n">backend</span><span class="o">=</span><span class="s">&#39;f2py&#39;</span><span class="p">,</span> <span class="n">tempdir</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">flags</span><span class="o">=</span><span class="p">[],</span>
         <span class="n">verbose</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">helpers</span><span class="o">=</span><span class="p">[]):</span>
@@ -441,8 +440,8 @@
 <span class="sd">    &gt;&gt;&gt; from sympy.abc import x, y, z</span>
 <span class="sd">    &gt;&gt;&gt; from sympy.utilities.autowrap import autowrap</span>
 <span class="sd">    &gt;&gt;&gt; expr = ((x - y + z)**(13)).expand()</span>
-<span class="sd">    &gt;&gt;&gt; binary_func = autowrap(expr)               # doctest: +SKIP</span>
-<span class="sd">    &gt;&gt;&gt; binary_func(1, 4, 2)                       # doctest: +SKIP</span>
+<span class="sd">    &gt;&gt;&gt; binary_func = autowrap(expr)</span>
+<span class="sd">    &gt;&gt;&gt; binary_func(1, 4, 2)</span>
 <span class="sd">    -1.0</span>
 
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -470,6 +469,7 @@
     <span class="k">return</span> <span class="n">code_wrapper</span><span class="o">.</span><span class="n">wrap_code</span><span class="p">(</span><span class="n">routine</span><span class="p">,</span> <span class="n">helpers</span><span class="o">=</span><span class="n">helps</span><span class="p">)</span>
 
 </div>
+<span class="nd">@doctest_depends_on</span> <span class="p">(</span><span class="n">exe</span><span class="o">=</span><span class="p">(</span><span class="s">&#39;f2py&#39;</span><span class="p">,</span> <span class="s">&#39;gfortran&#39;</span><span class="p">),</span> <span class="n">modules</span><span class="o">=</span><span class="p">(</span><span class="s">&#39;numpy&#39;</span><span class="p">,))</span>
 <div class="viewcode-block" id="binary_function"><a class="viewcode-back" href="../../../modules/utilities/autowrap.html#sympy.utilities.autowrap.binary_function">[docs]</a><span class="k">def</span> <span class="nf">binary_function</span><span class="p">(</span><span class="n">symfunc</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Returns a sympy function with expr as binary implementation</span>
 
@@ -477,21 +477,21 @@
 <span class="sd">    autowrap the SymPy expression and attaching it to a Function object</span>
 <span class="sd">    with implemented_function().</span>
 
-<span class="sd">    &gt;&gt;&gt; from sympy.abc import x, y, z</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.abc import x, y</span>
 <span class="sd">    &gt;&gt;&gt; from sympy.utilities.autowrap import binary_function</span>
 <span class="sd">    &gt;&gt;&gt; expr = ((x - y)**(25)).expand()</span>
-<span class="sd">    &gt;&gt;&gt; f = binary_function(&#39;f&#39;, expr)             # doctest: +SKIP</span>
-<span class="sd">    &gt;&gt;&gt; type(f)                                    # doctest: +SKIP</span>
-<span class="sd">    &lt;class &#39;sympy.core.function.FunctionClass&#39;&gt;</span>
-<span class="sd">    &gt;&gt;&gt; 2*f(x, y)                                  # doctest: +SKIP</span>
+<span class="sd">    &gt;&gt;&gt; f = binary_function(&#39;f&#39;, expr)</span>
+<span class="sd">    &gt;&gt;&gt; type(f)</span>
+<span class="sd">    &lt;class &#39;sympy.core.function.UndefinedFunction&#39;&gt;</span>
+<span class="sd">    &gt;&gt;&gt; 2*f(x, y)</span>
 <span class="sd">    2*f(x, y)</span>
-<span class="sd">    &gt;&gt;&gt; f(x, y).evalf(2, subs={x: 1, y: 2})        # doctest: +SKIP</span>
+<span class="sd">    &gt;&gt;&gt; f(x, y).evalf(2, subs={x: 1, y: 2})</span>
 <span class="sd">    -1.0</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">binary</span> <span class="o">=</span> <span class="n">autowrap</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">implemented_function</span><span class="p">(</span><span class="n">symfunc</span><span class="p">,</span> <span class="n">binary</span><span class="p">)</span>
-
 </div>
+<span class="nd">@doctest_depends_on</span> <span class="p">(</span><span class="n">exe</span><span class="o">=</span><span class="p">(</span><span class="s">&#39;f2py&#39;</span><span class="p">,</span> <span class="s">&#39;gfortran&#39;</span><span class="p">),</span> <span class="n">modules</span><span class="o">=</span><span class="p">(</span><span class="s">&#39;numpy&#39;</span><span class="p">,))</span>
 <div class="viewcode-block" id="ufuncify"><a class="viewcode-back" href="../../../modules/utilities/autowrap.html#sympy.utilities.autowrap.ufuncify">[docs]</a><span class="k">def</span> <span class="nf">ufuncify</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Generates a binary ufunc-like lambda function for numpy arrays</span>
@@ -521,10 +521,16 @@
 <span class="sd">    ========</span>
 
 <span class="sd">    &gt;&gt;&gt; from sympy.utilities.autowrap import ufuncify</span>
-<span class="sd">    &gt;&gt;&gt; from sympy.abc import x, y, z</span>
-<span class="sd">    &gt;&gt;&gt; f = ufuncify([x, y], y + x**2)             # doctest: +SKIP</span>
-<span class="sd">    &gt;&gt;&gt; f([1, 2, 3], 2)                            # doctest: +SKIP</span>
-<span class="sd">    [2.  5.  10.]</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.abc import x, y</span>
+<span class="sd">    &gt;&gt;&gt; import numpy as np</span>
+<span class="sd">    &gt;&gt;&gt; f = ufuncify([x, y], y + x**2)</span>
+<span class="sd">    &gt;&gt;&gt; f([1, 2, 3], 2)</span>
+<span class="sd">    [ 3.  6.  11.]</span>
+<span class="sd">    &gt;&gt;&gt; a = f(np.arange(5), 3)</span>
+<span class="sd">    &gt;&gt;&gt; isinstance(a, np.ndarray)</span>
+<span class="sd">    True</span>
+<span class="sd">    &gt;&gt;&gt; print a</span>
+<span class="sd">    [ 3. 4. 7. 12. 19.]</span>
 
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">y</span> <span class="o">=</span> <span class="n">C</span><span class="o">.</span><span class="n">IndexedBase</span><span class="p">(</span><span class="n">C</span><span class="o">.</span><span class="n">Dummy</span><span class="p">(</span><span class="s">&#39;y&#39;</span><span class="p">))</span>
@@ -589,8 +595,8 @@
     </div>
     <div class="footer">
         &copy; Copyright 2013 SymPy Development Team.
-      Last updated on Mar 08, 2013.
-      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2pre.
+      Last updated on Jun 08, 2013.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
     </div>
   </body>
 </html>

@@ -1,3 +1,5 @@
+
+
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 
@@ -76,9 +78,7 @@
 <span class="sd">   creation:</span>
 <span class="sd">       f = Lambda(x, exp(x)*x)</span>
 <span class="sd">       f = Lambda(exp(x)*x) # free symbols of expr define the number of args</span>
-<span class="sd">       f = Lambda(exp(x)*x)  # free symbols in the expression define the number</span>
-<span class="sd">                             # of arguments</span>
-<span class="sd">       f = exp * Lambda(x,x)</span>
+<span class="sd">       f = exp * Lambda(x, x)</span>
 <span class="sd">4) isn&#39;t implemented yet: composition of functions, like (sin+cos)(x), this</span>
 <span class="sd">   works in sympy core, but needs to be ported back to SymPy.</span>
 
@@ -431,6 +431,26 @@
         <span class="c">#     we be more intelligent about it?</span>
         <span class="k">try</span><span class="p">:</span>
             <span class="n">args</span> <span class="o">=</span> <span class="p">[</span><span class="n">arg</span><span class="o">.</span><span class="n">_to_mpmath</span><span class="p">(</span><span class="n">prec</span> <span class="o">+</span> <span class="mi">5</span><span class="p">)</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">]</span>
+            <span class="k">def</span> <span class="nf">bad</span><span class="p">(</span><span class="n">m</span><span class="p">):</span>
+                <span class="kn">from</span> <span class="nn">sympy.mpmath</span> <span class="kn">import</span> <span class="n">mpf</span><span class="p">,</span> <span class="n">mpc</span>
+                <span class="c"># the precision of an mpf value is the last element</span>
+                <span class="c"># if that is 1 (and m[1] is not 1 which would indicate a</span>
+                <span class="c"># power of 2), then the eval failed; so check that none of</span>
+                <span class="c"># the arguments failed to compute to a finite precision.</span>
+                <span class="c"># Note: An mpc value has two parts, the re and imag tuple;</span>
+                <span class="c"># check each of those parts, too. Anything else is allowed to</span>
+                <span class="c"># pass</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="n">mpf</span><span class="p">):</span>
+                    <span class="n">m</span> <span class="o">=</span> <span class="n">m</span><span class="o">.</span><span class="n">_mpf_</span>
+                    <span class="k">return</span> <span class="n">m</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span><span class="mi">1</span> <span class="ow">and</span> <span class="n">m</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span>
+                <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="n">mpc</span><span class="p">):</span>
+                    <span class="n">m</span><span class="p">,</span> <span class="n">n</span> <span class="o">=</span> <span class="n">m</span><span class="o">.</span><span class="n">_mpc_</span>
+                    <span class="k">return</span> <span class="n">m</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span><span class="mi">1</span> <span class="ow">and</span> <span class="n">m</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> \
+                        <span class="n">n</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span><span class="mi">1</span> <span class="ow">and</span> <span class="n">n</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="bp">False</span>
+            <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">bad</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">args</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span>  <span class="c"># one or more args failed to compute with significance</span>
         <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
             <span class="k">return</span>
 
@@ -489,7 +509,7 @@
 <span class="sd">        Examples</span>
 <span class="sd">        ========</span>
 
-<span class="sd">        &gt;&gt;&gt; from sympy import atan2, O</span>
+<span class="sd">        &gt;&gt;&gt; from sympy import atan2</span>
 <span class="sd">        &gt;&gt;&gt; from sympy.abc import x, y</span>
 <span class="sd">        &gt;&gt;&gt; atan2(x, y).series(x, n=2)</span>
 <span class="sd">        atan2(0, y) + x/y + O(x**2)</span>
@@ -547,7 +567,8 @@
             <span class="n">s</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">removeO</span><span class="p">()</span>
             <span class="n">s</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">zi</span><span class="p">)</span><span class="o">.</span><span class="n">expand</span><span class="p">()</span> <span class="o">+</span> <span class="n">C</span><span class="o">.</span><span class="n">Order</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">zi</span><span class="p">),</span> <span class="n">x</span><span class="p">)</span>
             <span class="k">return</span> <span class="n">s</span>
-        <span class="k">if</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="n">nargs</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">args0</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="n">nargs</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">if</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="n">nargs</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">args0</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="ow">or</span> \
+           <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="n">nargs</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="n">nargs</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
             <span class="n">e</span> <span class="o">=</span> <span class="bp">self</span>
             <span class="n">e1</span> <span class="o">=</span> <span class="n">e</span><span class="o">.</span><span class="n">expand</span><span class="p">()</span>
             <span class="k">if</span> <span class="n">e</span> <span class="o">==</span> <span class="n">e1</span><span class="p">:</span>
@@ -676,7 +697,9 @@
 <span class="sd">    The (meta)class of undefined functions.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="n">mcl</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">BasicMeta</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">mcl</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="p">(</span><span class="n">AppliedUndef</span><span class="p">,),</span> <span class="p">{})</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="n">BasicMeta</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">mcl</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="p">(</span><span class="n">AppliedUndef</span><span class="p">,),</span> <span class="p">{})</span>
+        <span class="n">ret</span><span class="o">.</span><span class="n">__module__</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="k">return</span> <span class="n">ret</span>
 
 
 <div class="viewcode-block" id="WildFunction"><a class="viewcode-back" href="../../../modules/core.html#sympy.core.function.WildFunction">[docs]</a><span class="k">class</span> <span class="nc">WildFunction</span><span class="p">(</span><span class="n">Function</span><span class="p">,</span> <span class="n">AtomicExpr</span><span class="p">):</span>
@@ -686,8 +709,8 @@
 <span class="sd">    Examples</span>
 <span class="sd">    ========</span>
 
-<span class="sd">    &gt;&gt;&gt; from sympy import Wild, WildFunction, Function, cos</span>
-<span class="sd">    &gt;&gt;&gt; from sympy.abc import x, y, z</span>
+<span class="sd">    &gt;&gt;&gt; from sympy import WildFunction, Function, cos</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.abc import x, y</span>
 <span class="sd">    &gt;&gt;&gt; F = WildFunction(&#39;F&#39;)</span>
 <span class="sd">    &gt;&gt;&gt; f = Function(&#39;f&#39;)</span>
 <span class="sd">    &gt;&gt;&gt; x.match(F)</span>
@@ -739,6 +762,21 @@
 <span class="sd">    non-trivial case where expr contains symbol and it should call the diff()</span>
 <span class="sd">    method internally (not _eval_derivative); Derivative should be the only</span>
 <span class="sd">    one to call _eval_derivative.</span>
+
+<span class="sd">    Simplification of high-order derivatives:</span>
+
+<span class="sd">    Because there can be a significant amount of simplification that can be</span>
+<span class="sd">    done when multiple differentiations are performed, results will be</span>
+<span class="sd">    automatically simplified in a fairly conservative fashion unless the</span>
+<span class="sd">    keyword ``simplify`` is set to False.</span>
+
+<span class="sd">        &gt;&gt;&gt; from sympy import sqrt, diff</span>
+<span class="sd">        &gt;&gt;&gt; from sympy.abc import x</span>
+<span class="sd">        &gt;&gt;&gt; e = sqrt((x + 1)**2 + x)</span>
+<span class="sd">        &gt;&gt;&gt; diff(e, x, 5, simplify=False).count_ops()</span>
+<span class="sd">        136</span>
+<span class="sd">        &gt;&gt;&gt; diff(e, x, 5).count_ops()</span>
+<span class="sd">        30</span>
 
 <span class="sd">    Ordering of variables:</span>
 
@@ -813,7 +851,7 @@
 <span class="sd">    u = f(t) and v = f&#39;(t), and F(t, f(t), f&#39;(t)).diff(f(t)) simply means</span>
 <span class="sd">    F(t, u, v).diff(u) at u = f(t).</span>
 
-<span class="sd">    We do not allow to take derivative with respect to expressions where this</span>
+<span class="sd">    We do not allow derivatives to be taken with respect to expressions where this</span>
 <span class="sd">    is not so well defined.  For example, we do not allow expr.diff(x*y)</span>
 <span class="sd">    because there are multiple ways of structurally defining where x*y appears</span>
 <span class="sd">    in an expression, some of which may surprise the reader (for example, a</span>
@@ -909,6 +947,7 @@
             <span class="k">return</span> <span class="bp">False</span>
 
     <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="o">*</span><span class="n">variables</span><span class="p">,</span> <span class="o">**</span><span class="n">assumptions</span><span class="p">):</span>
+
         <span class="n">expr</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
 
         <span class="c"># There are no variables, we differentiate wrt all of the free symbols</span>
@@ -965,7 +1004,7 @@
             <span class="k">return</span> <span class="n">expr</span>
 
         <span class="c"># Pop evaluate because it is not really an assumption and we will need</span>
-        <span class="c"># to track use it carefully below.</span>
+        <span class="c"># to track it carefully below.</span>
         <span class="n">evaluate</span> <span class="o">=</span> <span class="n">assumptions</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s">&#39;evaluate&#39;</span><span class="p">,</span> <span class="bp">False</span><span class="p">)</span>
 
         <span class="c"># Look for a quick exit if there are symbols that don&#39;t appear in</span>
@@ -989,7 +1028,7 @@
            <span class="p">(</span><span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">Derivative</span><span class="p">))):</span>
             <span class="n">variables</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">variablegen</span><span class="p">)</span>
             <span class="c"># If we wanted to evaluate, we sort the variables into standard</span>
-            <span class="c"># order for later comparisons. This is too agressive if evaluate</span>
+            <span class="c"># order for later comparisons. This is too aggressive if evaluate</span>
             <span class="c"># is False, so we don&#39;t do it in that case.</span>
             <span class="k">if</span> <span class="n">evaluate</span><span class="p">:</span>
                 <span class="c">#TODO: check if assumption of discontinuous derivatives exist</span>
@@ -1011,6 +1050,7 @@
         <span class="c"># don&#39;t commute with derivatives wrt symbols and we can&#39;t safely</span>
         <span class="c"># continue.</span>
         <span class="n">unhandled_non_symbol</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="n">nderivs</span> <span class="o">=</span> <span class="mi">0</span>  <span class="c"># how many derivatives were performed</span>
         <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">variablegen</span><span class="p">:</span>
             <span class="n">is_symbol</span> <span class="o">=</span> <span class="n">v</span><span class="o">.</span><span class="n">is_Symbol</span>
 
@@ -1023,6 +1063,7 @@
                     <span class="n">old_v</span> <span class="o">=</span> <span class="n">v</span>
                     <span class="n">v</span> <span class="o">=</span> <span class="n">new_v</span>
                 <span class="n">obj</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">_eval_derivative</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+                <span class="n">nderivs</span> <span class="o">+=</span> <span class="mi">1</span>
                 <span class="k">if</span> <span class="ow">not</span> <span class="n">is_symbol</span><span class="p">:</span>
                     <span class="k">if</span> <span class="n">obj</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
                         <span class="n">obj</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">old_v</span><span class="p">)</span>
@@ -1048,6 +1089,10 @@
                     <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="o">*</span><span class="n">cls</span><span class="o">.</span><span class="n">_sort_variables</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
                 <span class="p">)</span>
 
+        <span class="k">if</span> <span class="n">nderivs</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">assumptions</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;simplify&#39;</span><span class="p">,</span> <span class="bp">True</span><span class="p">):</span>
+            <span class="kn">from</span> <span class="nn">sympy.core.exprtools</span> <span class="kn">import</span> <span class="n">factor_terms</span>
+            <span class="kn">from</span> <span class="nn">sympy.simplify.simplify</span> <span class="kn">import</span> <span class="n">signsimp</span>
+            <span class="n">expr</span> <span class="o">=</span> <span class="n">factor_terms</span><span class="p">(</span><span class="n">signsimp</span><span class="p">(</span><span class="n">expr</span><span class="p">))</span>
         <span class="k">return</span> <span class="n">expr</span>
 
     <span class="nd">@classmethod</span>
@@ -1237,17 +1282,18 @@
 
     <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">variables</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
         <span class="k">try</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">variables</span> <span class="k">if</span> <span class="n">iterable</span><span class="p">(</span><span class="n">variables</span><span class="p">)</span> <span class="k">else</span> <span class="p">[</span><span class="n">variables</span><span class="p">]:</span>
+                <span class="k">assert</span> <span class="n">v</span><span class="o">.</span><span class="n">is_Symbol</span>
+        <span class="k">except</span> <span class="p">(</span><span class="ne">AssertionError</span><span class="p">,</span> <span class="ne">AttributeError</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;variable is not a Symbol: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="n">v</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
             <span class="n">variables</span> <span class="o">=</span> <span class="n">Tuple</span><span class="p">(</span><span class="o">*</span><span class="n">variables</span><span class="p">)</span>
         <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
             <span class="n">variables</span> <span class="o">=</span> <span class="n">Tuple</span><span class="p">(</span><span class="n">variables</span><span class="p">)</span>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">variables</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">variables</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">expr</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">IdentityFunction</span>
 
-        <span class="c">#use dummy variables internally, just to be sure</span>
-        <span class="n">new_variables</span> <span class="o">=</span> <span class="p">[</span><span class="n">C</span><span class="o">.</span><span class="n">Dummy</span><span class="p">(</span><span class="n">arg</span><span class="o">.</span><span class="n">name</span><span class="p">)</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">variables</span><span class="p">]</span>
-        <span class="n">expr</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">variables</span><span class="p">,</span> <span class="n">new_variables</span><span class="p">)))</span>
-
-        <span class="n">obj</span> <span class="o">=</span> <span class="n">Expr</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">(</span><span class="o">*</span><span class="n">new_variables</span><span class="p">),</span> <span class="n">expr</span><span class="p">)</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="n">Expr</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">(</span><span class="o">*</span><span class="n">variables</span><span class="p">),</span> <span class="n">S</span><span class="p">(</span><span class="n">expr</span><span class="p">))</span>
         <span class="k">return</span> <span class="n">obj</span>
 
     <span class="nd">@property</span>
@@ -1293,7 +1339,7 @@
         <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">Lambda</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__hash__</span><span class="p">()</span>
 
     <span class="k">def</span> <span class="nf">_hashable_content</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nargs</span><span class="p">,</span> <span class="p">)</span> <span class="o">+</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">))</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">canonical_variables</span><span class="p">),)</span>
 
     <span class="nd">@property</span>
 <div class="viewcode-block" id="Lambda.is_identity"><a class="viewcode-back" href="../../../modules/core.html#sympy.core.function.Lambda.is_identity">[docs]</a>    <span class="k">def</span> <span class="nf">is_identity</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -1439,7 +1485,7 @@
         <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">Subs</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__hash__</span><span class="p">()</span>
 
     <span class="k">def</span> <span class="nf">_hashable_content</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_expr</span><span class="p">,</span> <span class="p">)</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_expr</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">canonical_variables</span><span class="p">),)</span>
 
     <span class="k">def</span> <span class="nf">_eval_subs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">):</span>
         <span class="k">if</span> <span class="n">old</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">variables</span><span class="p">:</span>
@@ -1613,7 +1659,7 @@
 <span class="sd">    proper assumptions--the arguments must be positive and the exponents must</span>
 <span class="sd">    be real--or else the ``force`` hint must be True:</span>
 
-<span class="sd">    &gt;&gt;&gt; from sympy import log, symbols, oo</span>
+<span class="sd">    &gt;&gt;&gt; from sympy import log, symbols</span>
 <span class="sd">    &gt;&gt;&gt; log(x**2*y).expand(log=True)</span>
 <span class="sd">    log(x**2*y)</span>
 <span class="sd">    &gt;&gt;&gt; log(x**2*y).expand(log=True, force=True)</span>
@@ -1701,7 +1747,7 @@
 <span class="sd">      functions or to use ``hint=False`` to this function to finely control</span>
 <span class="sd">      which hints are applied. Here are some examples::</span>
 
-<span class="sd">        &gt;&gt;&gt; from sympy import expand_log, expand, expand_mul, expand_power_base</span>
+<span class="sd">        &gt;&gt;&gt; from sympy import expand, expand_mul, expand_power_base</span>
 <span class="sd">        &gt;&gt;&gt; x, y, z = symbols(&#39;x,y,z&#39;, positive=True)</span>
 
 <span class="sd">        &gt;&gt;&gt; expand(log(x*(y + z)))</span>
@@ -1933,7 +1979,7 @@
 <span class="sd">    Examples</span>
 <span class="sd">    ========</span>
 
-<span class="sd">    &gt;&gt;&gt; from sympy import expand_trig, sin, cos</span>
+<span class="sd">    &gt;&gt;&gt; from sympy import expand_trig, sin</span>
 <span class="sd">    &gt;&gt;&gt; from sympy.abc import x, y</span>
 <span class="sd">    &gt;&gt;&gt; expand_trig(sin(x+y)*(x+y))</span>
 <span class="sd">    (x + y)*(sin(x)*cos(y) + sin(y)*cos(x))</span>
@@ -2231,7 +2277,7 @@
 
 <span class="sd">    &gt;&gt;&gt; from sympy.core.function import nfloat</span>
 <span class="sd">    &gt;&gt;&gt; from sympy.abc import x, y</span>
-<span class="sd">    &gt;&gt;&gt; from sympy import cos, pi, S, sqrt</span>
+<span class="sd">    &gt;&gt;&gt; from sympy import cos, pi, sqrt</span>
 <span class="sd">    &gt;&gt;&gt; nfloat(x**4 + x/2 + cos(pi/3) + 1 + sqrt(y))</span>
 <span class="sd">    x**4 + 0.5*x + sqrt(y) + 1.5</span>
 <span class="sd">    &gt;&gt;&gt; nfloat(x**4 + sqrt(y), exponent=True)</span>
@@ -2239,7 +2285,6 @@
 
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="kn">from</span> <span class="nn">sympy.core</span> <span class="kn">import</span> <span class="n">Pow</span>
-    <span class="kn">from</span> <span class="nn">sympy.core.basic</span> <span class="kn">import</span> <span class="n">_aresame</span>
 
     <span class="k">if</span> <span class="n">iterable</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="nb">basestring</span><span class="p">):</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="p">(</span><span class="nb">dict</span><span class="p">,</span> <span class="n">Dict</span><span class="p">)):</span>
@@ -2324,8 +2369,8 @@
     </div>
     <div class="footer">
         &copy; Copyright 2013 SymPy Development Team.
-      Last updated on Mar 08, 2013.
-      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2pre.
+      Last updated on Jun 08, 2013.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
     </div>
   </body>
 </html>
