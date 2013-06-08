@@ -78,7 +78,7 @@
 <span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="kn">import</span> <span class="p">(</span>
     <span class="n">iterable</span><span class="p">,</span> <span class="nb">reduce</span><span class="p">,</span> <span class="n">default_sort_key</span><span class="p">,</span> <span class="n">set_union</span><span class="p">,</span> <span class="n">ordered</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">sympy.core.exprtools</span> <span class="kn">import</span> <span class="n">Factors</span><span class="p">,</span> <span class="n">gcd_terms</span>
-<span class="kn">from</span> <span class="nn">sympy.core.numbers</span> <span class="kn">import</span> <span class="n">Float</span><span class="p">,</span> <span class="n">Number</span>
+<span class="kn">from</span> <span class="nn">sympy.core.numbers</span> <span class="kn">import</span> <span class="n">Float</span><span class="p">,</span> <span class="n">Number</span><span class="p">,</span> <span class="n">I</span>
 <span class="kn">from</span> <span class="nn">sympy.core.function</span> <span class="kn">import</span> <span class="n">expand_log</span><span class="p">,</span> <span class="n">count_ops</span>
 <span class="kn">from</span> <span class="nn">sympy.core.mul</span> <span class="kn">import</span> <span class="n">_keep_coeff</span><span class="p">,</span> <span class="n">prod</span>
 <span class="kn">from</span> <span class="nn">sympy.core.rules</span> <span class="kn">import</span> <span class="n">Transform</span>
@@ -3769,6 +3769,8 @@
 
     <span class="n">short</span> <span class="o">=</span> <span class="n">shorter</span><span class="p">(</span><span class="n">powsimp</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">combine</span><span class="o">=</span><span class="s">&#39;exp&#39;</span><span class="p">,</span> <span class="n">deep</span><span class="o">=</span><span class="bp">True</span><span class="p">),</span> <span class="n">powsimp</span><span class="p">(</span><span class="n">expr</span><span class="p">),</span> <span class="n">expr</span><span class="p">)</span>
     <span class="n">short</span> <span class="o">=</span> <span class="n">shorter</span><span class="p">(</span><span class="n">short</span><span class="p">,</span> <span class="n">factor_terms</span><span class="p">(</span><span class="n">short</span><span class="p">),</span> <span class="n">expand_power_exp</span><span class="p">(</span><span class="n">expand_mul</span><span class="p">(</span><span class="n">short</span><span class="p">)))</span>
+    <span class="k">if</span> <span class="n">short</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">C</span><span class="o">.</span><span class="n">TrigonometricFunction</span><span class="p">,</span> <span class="n">C</span><span class="o">.</span><span class="n">HyperbolicFunction</span><span class="p">,</span> <span class="n">C</span><span class="o">.</span><span class="n">ExpBase</span><span class="p">):</span>
+        <span class="n">short</span> <span class="o">=</span> <span class="n">exptrigsimp</span><span class="p">(</span><span class="n">short</span><span class="p">,</span> <span class="n">simplify</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
 
     <span class="c"># get rid of hollow 2-arg Mul factorization</span>
     <span class="kn">from</span> <span class="nn">sympy.core.rules</span> <span class="kn">import</span> <span class="n">Transform</span>
@@ -4136,11 +4138,8 @@
 <span class="sd">    &gt;&gt;&gt; besselsimp(z*besseli(0, z) + z*(besseli(2, z))/2 + besseli(1, z))</span>
 <span class="sd">    3*z*besseli(0, z)/2</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">besselj</span><span class="p">,</span> <span class="n">besseli</span><span class="p">,</span> <span class="n">jn</span><span class="p">,</span> <span class="n">I</span><span class="p">,</span> <span class="n">pi</span><span class="p">,</span> <span class="n">Dummy</span>
+    <span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">besselj</span><span class="p">,</span> <span class="n">bessely</span><span class="p">,</span> <span class="n">besseli</span><span class="p">,</span> <span class="n">besselk</span><span class="p">,</span> <span class="n">jn</span><span class="p">,</span> <span class="n">I</span><span class="p">,</span> <span class="n">pi</span><span class="p">,</span> <span class="n">Dummy</span>
     <span class="c"># TODO</span>
-    <span class="c"># - extension to more types of functions</span>
-    <span class="c">#   (at least rewriting functions of half integer order should be straight</span>
-    <span class="c">#    forward also for Y and K)</span>
     <span class="c"># - better algorithm?</span>
     <span class="c"># - simplify (cos(pi*b)*besselj(b,z) - besselj(-b,z))/sin(pi*b) ...</span>
     <span class="c"># - use contiguity relations?</span>
@@ -4185,22 +4184,97 @@
     <span class="k">def</span> <span class="nf">expander</span><span class="p">(</span><span class="n">fro</span><span class="p">):</span>
         <span class="k">def</span> <span class="nf">repl</span><span class="p">(</span><span class="n">nu</span><span class="p">,</span> <span class="n">z</span><span class="p">):</span>
             <span class="k">if</span> <span class="p">(</span><span class="n">nu</span> <span class="o">%</span> <span class="mi">1</span><span class="p">)</span> <span class="o">==</span> <span class="n">S</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">/</span><span class="mi">2</span><span class="p">:</span>
-                <span class="k">return</span> <span class="n">unpolarify</span><span class="p">(</span><span class="n">fro</span><span class="p">(</span><span class="n">nu</span><span class="p">,</span> <span class="n">z0</span><span class="p">)</span><span class="o">.</span><span class="n">rewrite</span><span class="p">(</span><span class="n">besselj</span><span class="p">)</span><span class="o">.</span><span class="n">rewrite</span><span class="p">(</span><span class="n">jn</span><span class="p">)</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span>
-                    <span class="n">func</span><span class="o">=</span><span class="bp">True</span><span class="p">))</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">z0</span><span class="p">,</span> <span class="n">z</span><span class="p">)</span>
+                <span class="k">return</span> <span class="n">exptrigsimp</span><span class="p">(</span><span class="n">trigsimp</span><span class="p">(</span><span class="n">unpolarify</span><span class="p">(</span>
+                        <span class="n">fro</span><span class="p">(</span><span class="n">nu</span><span class="p">,</span> <span class="n">z0</span><span class="p">)</span><span class="o">.</span><span class="n">rewrite</span><span class="p">(</span><span class="n">besselj</span><span class="p">)</span><span class="o">.</span><span class="n">rewrite</span><span class="p">(</span><span class="n">jn</span><span class="p">)</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span>
+                            <span class="n">func</span><span class="o">=</span><span class="bp">True</span><span class="p">))</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">z0</span><span class="p">,</span> <span class="n">z</span><span class="p">)))</span>
             <span class="k">elif</span> <span class="n">nu</span><span class="o">.</span><span class="n">is_Integer</span> <span class="ow">and</span> <span class="n">nu</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
                 <span class="k">return</span> <span class="n">fro</span><span class="p">(</span><span class="n">nu</span><span class="p">,</span> <span class="n">z</span><span class="p">)</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
             <span class="k">return</span> <span class="n">fro</span><span class="p">(</span><span class="n">nu</span><span class="p">,</span> <span class="n">z</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">repl</span>
 
     <span class="n">expr</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">besselj</span><span class="p">,</span> <span class="n">expander</span><span class="p">(</span><span class="n">besselj</span><span class="p">))</span>
+    <span class="n">expr</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">bessely</span><span class="p">,</span> <span class="n">expander</span><span class="p">(</span><span class="n">bessely</span><span class="p">))</span>
     <span class="n">expr</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">besseli</span><span class="p">,</span> <span class="n">expander</span><span class="p">(</span><span class="n">besseli</span><span class="p">))</span>
+    <span class="n">expr</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">besselk</span><span class="p">,</span> <span class="n">expander</span><span class="p">(</span><span class="n">besselk</span><span class="p">))</span>
 
     <span class="k">if</span> <span class="n">expr</span> <span class="o">!=</span> <span class="n">orig_expr</span><span class="p">:</span>
         <span class="n">expr</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">factor</span><span class="p">()</span>
 
     <span class="k">return</span> <span class="n">expr</span>
-
 </div>
+<span class="k">def</span> <span class="nf">exptrigsimp</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">simplify</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Simplifies exponential / trigonometric / hyperbolic functions.</span>
+<span class="sd">    When ``simplify`` is True (default) the expression obtained after the</span>
+<span class="sd">    simplification step will be then be passed through simplify to</span>
+<span class="sd">    precondition it so the final transformations will be applied.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy import exptrigsimp, exp, cosh, sinh</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.abc import z</span>
+
+<span class="sd">    &gt;&gt;&gt; exptrigsimp(exp(z) + exp(-z))</span>
+<span class="sd">    2*cosh(z)</span>
+<span class="sd">    &gt;&gt;&gt; exptrigsimp(cosh(z) - sinh(z))</span>
+<span class="sd">    exp(-z)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">sympy.simplify.fu</span> <span class="kn">import</span> <span class="n">hyper_as_trig</span><span class="p">,</span> <span class="n">TR2i</span>
+
+    <span class="k">def</span> <span class="nf">exp_trig</span><span class="p">(</span><span class="n">e</span><span class="p">):</span>
+        <span class="c"># select the better of e, and e rewritten in terms of exp or trig</span>
+        <span class="c"># functions</span>
+        <span class="n">choices</span> <span class="o">=</span> <span class="p">[</span><span class="n">e</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="o">*</span><span class="n">_trigs</span><span class="p">):</span>
+            <span class="n">choices</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">rewrite</span><span class="p">(</span><span class="n">exp</span><span class="p">))</span>
+        <span class="n">choices</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">rewrite</span><span class="p">(</span><span class="n">cos</span><span class="p">))</span>
+        <span class="k">return</span> <span class="nb">min</span><span class="p">(</span><span class="o">*</span><span class="n">choices</span><span class="p">,</span> <span class="o">**</span><span class="nb">dict</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="n">count_ops</span><span class="p">))</span>
+    <span class="n">newexpr</span> <span class="o">=</span> <span class="n">bottom_up</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">exp_trig</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">simplify</span><span class="p">:</span>
+        <span class="n">newexpr</span> <span class="o">=</span> <span class="n">newexpr</span><span class="o">.</span><span class="n">simplify</span><span class="p">()</span>
+
+    <span class="c"># conversion from exp to hyperbolic</span>
+    <span class="n">ex</span> <span class="o">=</span> <span class="n">newexpr</span><span class="o">.</span><span class="n">atoms</span><span class="p">(</span><span class="n">exp</span><span class="p">,</span> <span class="n">S</span><span class="o">.</span><span class="n">Exp1</span><span class="p">)</span>
+    <span class="n">ex</span> <span class="o">=</span> <span class="p">[</span><span class="n">ei</span> <span class="k">for</span> <span class="n">ei</span> <span class="ow">in</span> <span class="n">ex</span> <span class="k">if</span> <span class="mi">1</span><span class="o">/</span><span class="n">ei</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">ex</span><span class="p">]</span>
+    <span class="c">## sinh and cosh</span>
+    <span class="k">for</span> <span class="n">ei</span> <span class="ow">in</span> <span class="n">ex</span><span class="p">:</span>
+        <span class="n">e2</span> <span class="o">=</span> <span class="n">ei</span><span class="o">**-</span><span class="mi">2</span>
+        <span class="k">if</span> <span class="n">e2</span> <span class="ow">in</span> <span class="n">ex</span><span class="p">:</span>
+            <span class="n">a</span> <span class="o">=</span> <span class="n">e2</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">/</span><span class="mi">2</span>
+            <span class="n">newexpr</span> <span class="o">=</span> <span class="n">newexpr</span><span class="o">.</span><span class="n">subs</span><span class="p">((</span><span class="n">e2</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="n">ei</span><span class="p">,</span> <span class="mi">2</span><span class="o">*</span><span class="n">cosh</span><span class="p">(</span><span class="n">a</span><span class="p">))</span>
+            <span class="n">newexpr</span> <span class="o">=</span> <span class="n">newexpr</span><span class="o">.</span><span class="n">subs</span><span class="p">((</span><span class="n">e2</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="n">ei</span><span class="p">,</span> <span class="mi">2</span><span class="o">*</span><span class="n">sinh</span><span class="p">(</span><span class="n">a</span><span class="p">))</span>
+    <span class="c">## exp ratios to tan and tanh</span>
+    <span class="k">for</span> <span class="n">ei</span> <span class="ow">in</span> <span class="n">ex</span><span class="p">:</span>
+        <span class="n">n</span><span class="p">,</span> <span class="n">d</span> <span class="o">=</span> <span class="n">ei</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">ei</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="n">et</span> <span class="o">=</span> <span class="n">n</span><span class="o">/</span><span class="n">d</span>
+        <span class="n">etinv</span> <span class="o">=</span> <span class="n">d</span><span class="o">/</span><span class="n">n</span>  <span class="c"># not 1/et or else recursion errors arise</span>
+        <span class="n">a</span> <span class="o">=</span> <span class="n">ei</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="n">ei</span><span class="o">.</span><span class="n">func</span> <span class="ow">is</span> <span class="n">exp</span> <span class="k">else</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span>
+        <span class="k">if</span> <span class="n">a</span><span class="o">.</span><span class="n">is_Mul</span> <span class="ow">or</span> <span class="n">a</span> <span class="ow">is</span> <span class="n">S</span><span class="o">.</span><span class="n">ImaginaryUnit</span><span class="p">:</span>
+            <span class="n">c</span> <span class="o">=</span> <span class="n">a</span><span class="o">.</span><span class="n">as_coefficient</span><span class="p">(</span><span class="n">I</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">c</span><span class="p">:</span>
+                <span class="n">t</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">ImaginaryUnit</span><span class="o">*</span><span class="n">tan</span><span class="p">(</span><span class="n">c</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span>
+                <span class="n">newexpr</span> <span class="o">=</span> <span class="n">newexpr</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">etinv</span><span class="p">,</span> <span class="mi">1</span><span class="o">/</span><span class="n">t</span><span class="p">)</span>
+                <span class="n">newexpr</span> <span class="o">=</span> <span class="n">newexpr</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">et</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span>
+                <span class="k">continue</span>
+        <span class="n">t</span> <span class="o">=</span> <span class="n">tanh</span><span class="p">(</span><span class="n">a</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span>
+        <span class="n">newexpr</span> <span class="o">=</span> <span class="n">newexpr</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">etinv</span><span class="p">,</span> <span class="mi">1</span><span class="o">/</span><span class="n">t</span><span class="p">)</span>
+        <span class="n">newexpr</span> <span class="o">=</span> <span class="n">newexpr</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">et</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span>
+
+    <span class="c"># sin/cos and sinh/cosh ratios to tan and tanh, respectively</span>
+    <span class="k">if</span> <span class="n">newexpr</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">C</span><span class="o">.</span><span class="n">HyperbolicFunction</span><span class="p">):</span>
+        <span class="n">e</span><span class="p">,</span> <span class="n">f</span> <span class="o">=</span> <span class="n">hyper_as_trig</span><span class="p">(</span><span class="n">newexpr</span><span class="p">)</span>
+        <span class="n">newexpr</span> <span class="o">=</span> <span class="n">f</span><span class="p">(</span><span class="n">TR2i</span><span class="p">(</span><span class="n">e</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">newexpr</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">C</span><span class="o">.</span><span class="n">TrigonometricFunction</span><span class="p">):</span>
+        <span class="n">newexpr</span> <span class="o">=</span> <span class="n">TR2i</span><span class="p">(</span><span class="n">newexpr</span><span class="p">)</span>
+
+    <span class="c"># can we ever generate an I where there was none previously?</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">newexpr</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">I</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">expr</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">I</span><span class="p">)):</span>
+        <span class="n">expr</span> <span class="o">=</span> <span class="n">newexpr</span>
+    <span class="k">return</span> <span class="n">expr</span>
+
+
 <span class="k">def</span> <span class="nf">_is_Expr</span><span class="p">(</span><span class="n">e</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;_eapply helper to tell whether ``e`` and all its args</span>
 <span class="sd">    are Exprs.&quot;&quot;&quot;</span>
@@ -4292,6 +4366,7 @@
         <span class="n">TR12</span><span class="p">,</span>  <span class="c"># expand tan of sum</span>
         <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">_eapply</span><span class="p">(</span><span class="n">factor</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">trigs</span><span class="p">),</span>
         <span class="n">TR2</span><span class="p">,</span>  <span class="c"># tan-cot -&gt; sin-cos</span>
+        <span class="p">[</span><span class="n">identity</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">_eapply</span><span class="p">(</span><span class="n">_mexpand</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">trigs</span><span class="p">)],</span>
         <span class="n">TR2i</span><span class="p">,</span>  <span class="c"># sin-cos ratio -&gt; tan</span>
         <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">_eapply</span><span class="p">(</span><span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">factor</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">normal</span><span class="p">()),</span> <span class="n">x</span><span class="p">,</span> <span class="n">trigs</span><span class="p">),</span>
         <span class="n">TR14</span><span class="p">,</span>  <span class="c"># factored identities</span>
@@ -4836,7 +4911,7 @@
     </div>
     <div class="footer">
         &copy; Copyright 2013 SymPy Development Team.
-      Last updated on Jun 03, 2013.
+      Last updated on Jun 08, 2013.
       Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
     </div>
   </body>
