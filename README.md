@@ -93,6 +93,15 @@ version of Sphinx to get the correct results (otherwise, it may include the
 wrong version of the source code for the "show source" extension).  Copy the
 docs here under the same name, only with `-py3k` appended.
 
+## Pull requests
+
+If you are making a significant change to the documentation in a pull request,
+feel free to use this site to upload a live version of it.  Just create a
+directory with a reasonable name and put your docs there. If you share the
+link with a lot of people before the pull request is merged, you might want to
+sue the `generate_redirects.py` script to convert the special directory into a
+redirect to `dev` once the pull request is merged.
+
 ## Pushing
 
 Just push the branch up to GitHub.  The pages will be updated automatically.
