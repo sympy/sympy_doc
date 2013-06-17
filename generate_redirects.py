@@ -47,7 +47,7 @@ def main():
 
         for file in filenames:
             # It must always be /, even on Windows
-            redirect = '/'.join([source] + dirpath.split(os.path.sep)[1:] + [file])
+            redirect = '/'.join(['', source] + dirpath.split(os.path.sep)[1:] + [file])
             with open(os.path.join(newpath, file), 'w') as f:
                 f.write(REDIRECT_TEMPLATE.format(redirect))
 
