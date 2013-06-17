@@ -78,6 +78,9 @@ add in
 You also need to add the whole thing to the docs you just added.  Open the
 index pages to make sure you did it right.
 
+Finally, you need to update the `latest` page. This is easy. Just run
+`./generate_redirects.py 0.7.3 latest`, and commit the changes.
+
 ## Python 3
 
 The Python 3 docs are done the same way as the regular docs. They are just
