@@ -40,6 +40,9 @@ Edit `releases.txt` with the new release. Then run
 
     ./generate_indices.py
 
+Also, you need to update the redirect in `index.py`. Just edit the file and
+change the version number.
+
 Finally, you need to update the `latest` page. This is easy. Just run
 `./generate_redirects.py 0.7.3 latest`, and commit the changes.
 
