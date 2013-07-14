@@ -25,39 +25,9 @@ Then
     git add -A dev/
 
 Finally, you need to make sure the index of the different docs on the the left
-of index.html remains intact. Do
+of index.html remains intact. Run
 
-    git reset -- dev/index.html
-
-Then manually add in all the changes except the deletion of the index
-
-    git add -p dev/index.html
-
-(choose `patch`, `1`, choose `y` for all the changes except the deletion of
-the different docs on the side.  The change will look something like
-
-
-```diff
-diff --git a/dev/index.html b/dev/index.html
-index f4630b9..66bdfbf 100644
---- a/dev/index.html
-+++ b/dev/index.html
-@@ -187,14 +187,6 @@ report it</a>).</p>
-             <p class="logo"><a href="#">
-               <img class="logo" src="_static/sympylogo.png" alt="Logo"/>
-             </a></p>
--            <h4>Docs for other versions</h4>
--            <p class="topless"><a href="../0.6.7/index.html">SymPy 0.6.7</a></p>
--            <p class="topless"><a href="../0.7.0/index.html">SymPy 0.7.0</a></p>
--            <p class="topless"><a href="../0.7.1/index.html">SymPy 0.7.1</a></p>
--            <p class="topless"><a href="../0.7.2/index.html">SymPy 0.7.2</a></p>
--            <p class="topless"><a href="../0.7.2-py3k/index.html">SymPy 0.7.2 (Python 3)</a></p>
--            <p class="topless"><a href="../dev/index.html">SymPy git</a></p>
--            <p class="topless"><a href="../dev-py3k/index.html">SymPy git (Python 3)</a></p>
-   <h4>Next topic</h4>
-   <p class="topless"><a href="install.html"
-                         title="next chapter">Installation</a></p>
-```
+    ./generate_indices.py
 
 ## Release docs
 
@@ -66,17 +36,9 @@ release tag and build the docs as above.  Then do
 
     cp -R ../path/to/sympy/doc/_build/html 0.7.3 # Replace 0.7.3 with the release number
 
-Then, you have to edit all the `index.html` of all the docs that are there, to
-add in
+Edit `releases.txt` with the new release. Then run
 
-```html
-<p class="topless"><a href="../0.7.3/index.html">SymPy 0.7.3</a></p>
-```
-
-(search the page for `Docs for other versions`).
-
-You also need to add the whole thing to the docs you just added.  Open the
-index pages to make sure you did it right.
+    ./generate_indices.py
 
 Finally, you need to update the `latest` page. This is easy. Just run
 `./generate_redirects.py 0.7.3 latest`, and commit the changes.
