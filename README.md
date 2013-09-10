@@ -31,10 +31,17 @@ of index.html remains intact. Run
 
 ## Release docs
 
-This is harder, because you have to update the index.  Checkout the SymPy
-release tag and build the docs as above.  Then do
+This is harder, because you have to update the index.
 
-    cp -R ../path/to/sympy/doc/_build/html 0.7.3 # Replace 0.7.3 with the release number
+First, move the current latest docs to the version number (which should
+currently be a redirect to the `latest` docs).
+
+    git rm -r 0.7.2/
+    git mv latest 0.7.3
+
+Checkout the SymPy release tag and build the docs as above.  Then do
+
+    cp -R ../path/to/sympy/doc/_build/html latest
 
 Edit `releases.txt` with the new release. Then run
 
@@ -43,9 +50,9 @@ Edit `releases.txt` with the new release. Then run
 Also, you need to update the redirect in `index.py`. Just edit the file and
 change the version number.
 
-Finally, you need to update the `latest` page. This is easy. Just run
-`./generate_redirects.py 0.7.3 latest`, and commit the changes.
-
+Finally, you need to make sure the url with the latest version redirects to
+`latest`. This is easy. Just run `./generate_redirects.py 0.7.3 latest`, and
+commit the changes.
 
 ## Pull requests
 
