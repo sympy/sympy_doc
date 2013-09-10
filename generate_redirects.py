@@ -35,8 +35,8 @@ def main():
         )
     args = p.parse_args()
 
-    source = args.source[0]
-    dest = args.dest[0]
+    source = args.source[0].rstrip('/')
+    dest = args.dest[0].rstrip('/')
 
     if os.path.exists(dest):
         shutil.rmtree(dest)
