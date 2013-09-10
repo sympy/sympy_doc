@@ -46,17 +46,6 @@ change the version number.
 Finally, you need to update the `latest` page. This is easy. Just run
 `./generate_redirects.py 0.7.3 latest`, and commit the changes.
 
-## Python 3
-
-The Python 3 docs are done the same way as the regular docs. They are just
-built from the Python 3 source.  Just do
-
-    ./bin/use2to3
-
-in the SymPy source first.  Note, you will need to install the Python 3
-version of Sphinx to get the correct results (otherwise, it may include the
-wrong version of the source code for the "show source" extension).  Copy the
-docs here under the same name, only with `-py3k` appended.
 
 ## Pull requests
 
