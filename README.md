@@ -41,7 +41,7 @@ currently be a redirect to the `latest` docs).
 
 Checkout the SymPy release tag and build the docs as above.  Then do
 
-    cp -R ../path/to/sympy/doc/_build/html latest
+    cp -R ../path/to/sympy/doc/_build/html 0.7.3
 
 Edit `releases.txt` with the new release. Then run
 
