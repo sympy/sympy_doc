@@ -1,0 +1,26 @@
+.. _physics-docs:
+
+==============
+Physics Module
+==============
+
+.. automodule:: sympy.physics
+
+Contents
+========
+
+.. toctree::
+    :maxdepth: 3
+
+    gaussopt.rst
+    hydrogen.rst
+    matrices.rst
+    paulialgebra.rst
+    qho_1d.rst
+    sho.rst
+    secondquant.rst
+    wigner.rst
+    units.rst
+    hep/index.rst
+    mechanics/index.rst
+    quantum/index.rst
