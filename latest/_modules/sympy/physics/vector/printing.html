@@ -1,0 +1,535 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>sympy.physics.vector.printing &mdash; SymPy 0.7.5 documentation</title>
+    
+    <link rel="stylesheet" href="../../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="http://live.sympy.org/static/live-core.css" type="text/css" />
+    <link rel="stylesheet" href="http://live.sympy.org/static/live-autocomplete.css" type="text/css" />
+    <link rel="stylesheet" href="http://live.sympy.org/static/live-sphinx.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../../',
+        VERSION:     '0.7.5',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="https://c328740.ssl.cf1.rackcdn.com/mathjax/latest/MathJax.js?config=TeX-AMS_HTML-full"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/utilities.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/external/classy.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/live-core.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/live-autocomplete.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/live-sphinx.js"></script>
+    <script type="text/javascript" src="../../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../../_static/sympy-notailtext-favicon.ico"/>
+    <link rel="top" title="SymPy 0.7.5 documentation" href="../../../../index.html" />
+    <link rel="up" title="sympy.physics.vector" href="../vector.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="../../../../np-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../../index.html">SymPy 0.7.5 documentation</a> &raquo;</li>
+          <li><a href="../../../index.html" >Module code</a> &raquo;</li>
+          <li><a href="../../../sympy.html" >sympy</a> &raquo;</li>
+          <li><a href="../vector.html" accesskey="U">sympy.physics.vector</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for sympy.physics.vector.printing</h1><div class="highlight"><pre>
+<span class="c"># -*- coding: utf-8 -*-</span>
+
+<span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">Derivative</span>
+<span class="kn">from</span> <span class="nn">sympy.core</span> <span class="kn">import</span> <span class="n">C</span>
+<span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="kn">import</span> <span class="n">u</span>
+<span class="kn">from</span> <span class="nn">sympy.core.function</span> <span class="kn">import</span> <span class="n">UndefinedFunction</span>
+<span class="kn">from</span> <span class="nn">sympy.interactive.printing</span> <span class="kn">import</span> <span class="n">init_printing</span>
+<span class="kn">from</span> <span class="nn">sympy.printing.conventions</span> <span class="kn">import</span> <span class="n">split_super_sub</span>
+<span class="kn">from</span> <span class="nn">sympy.printing.latex</span> <span class="kn">import</span> <span class="n">LatexPrinter</span><span class="p">,</span> <span class="n">translate</span>
+<span class="kn">from</span> <span class="nn">sympy.printing.pretty.pretty</span> <span class="kn">import</span> <span class="n">PrettyPrinter</span>
+<span class="kn">from</span> <span class="nn">sympy.printing.str</span> <span class="kn">import</span> <span class="n">StrPrinter</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;vprint&#39;</span><span class="p">,</span> <span class="s">&#39;vsstrrepr&#39;</span><span class="p">,</span> <span class="s">&#39;vsprint&#39;</span><span class="p">,</span> <span class="s">&#39;vpprint&#39;</span><span class="p">,</span> <span class="s">&#39;vlatex&#39;</span><span class="p">,</span>
+           <span class="s">&#39;init_vprinting&#39;</span><span class="p">]</span>
+
+
+<span class="k">class</span> <span class="nc">VectorStrPrinter</span><span class="p">(</span><span class="n">StrPrinter</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;String Printer for vector expressions. &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">_print_Derivative</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">e</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">sympy.physics.vector.functions</span> <span class="kn">import</span> <span class="n">dynamicsymbols</span>
+        <span class="n">t</span> <span class="o">=</span> <span class="n">dynamicsymbols</span><span class="o">.</span><span class="n">_t</span>
+        <span class="k">if</span> <span class="p">(</span><span class="nb">bool</span><span class="p">(</span><span class="nb">sum</span><span class="p">([</span><span class="n">i</span> <span class="o">==</span> <span class="n">t</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">e</span><span class="o">.</span><span class="n">variables</span><span class="p">]))</span> <span class="o">&amp;</span>
+                <span class="nb">isinstance</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">UndefinedFunction</span><span class="p">)):</span>
+            <span class="n">ol</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">func</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">variables</span><span class="p">):</span>
+                <span class="n">ol</span> <span class="o">+=</span> <span class="n">dynamicsymbols</span><span class="o">.</span><span class="n">_str</span>
+            <span class="k">return</span> <span class="n">ol</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">StrPrinter</span><span class="p">()</span><span class="o">.</span><span class="n">doprint</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_print_Function</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">e</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">sympy.physics.vector.functions</span> <span class="kn">import</span> <span class="n">dynamicsymbols</span>
+        <span class="n">t</span> <span class="o">=</span> <span class="n">dynamicsymbols</span><span class="o">.</span><span class="n">_t</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">),</span> <span class="n">UndefinedFunction</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">StrPrinter</span><span class="p">()</span><span class="o">.</span><span class="n">doprint</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s">&quot;(</span><span class="si">%s</span><span class="s">)&quot;</span> <span class="o">%</span> <span class="n">t</span><span class="p">,</span> <span class="s">&#39;&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">e</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="n">__name__</span> <span class="o">+</span> <span class="s">&quot;(</span><span class="si">%s</span><span class="s">)&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">stringify</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="s">&quot;, &quot;</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">VectorStrReprPrinter</span><span class="p">(</span><span class="n">VectorStrPrinter</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;String repr printer for vector expressions.&quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">_print_str</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">s</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">repr</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">VectorLatexPrinter</span><span class="p">(</span><span class="n">LatexPrinter</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Latex Printer for vector expressions. &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">_print_Function</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">exp</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">sympy.physics.vector.functions</span> <span class="kn">import</span> <span class="n">dynamicsymbols</span>
+        <span class="n">func</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="n">__name__</span>
+        <span class="n">t</span> <span class="o">=</span> <span class="n">dynamicsymbols</span><span class="o">.</span><span class="n">_t</span>
+
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s">&#39;_print_&#39;</span> <span class="o">+</span> <span class="n">func</span><span class="p">):</span>
+            <span class="k">return</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s">&#39;_print_&#39;</span> <span class="o">+</span> <span class="n">func</span><span class="p">)(</span><span class="n">expr</span><span class="p">,</span> <span class="n">exp</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">expr</span><span class="p">),</span> <span class="n">UndefinedFunction</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">args</span> <span class="o">==</span> <span class="p">(</span><span class="n">t</span><span class="p">,)):</span>
+
+            <span class="n">name</span><span class="p">,</span> <span class="n">supers</span><span class="p">,</span> <span class="n">subs</span> <span class="o">=</span> <span class="n">split_super_sub</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>
+            <span class="n">name</span> <span class="o">=</span> <span class="n">translate</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+            <span class="n">supers</span> <span class="o">=</span> <span class="p">[</span><span class="n">translate</span><span class="p">(</span><span class="n">sup</span><span class="p">)</span> <span class="k">for</span> <span class="n">sup</span> <span class="ow">in</span> <span class="n">supers</span><span class="p">]</span>
+            <span class="n">subs</span> <span class="o">=</span> <span class="p">[</span><span class="n">translate</span><span class="p">(</span><span class="n">sub</span><span class="p">)</span> <span class="k">for</span> <span class="n">sub</span> <span class="ow">in</span> <span class="n">subs</span><span class="p">]</span>
+
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">supers</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">supers</span> <span class="o">=</span> <span class="s">r&quot;^{</span><span class="si">%s</span><span class="s">}&quot;</span> <span class="o">%</span> <span class="s">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">supers</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">supers</span> <span class="o">=</span> <span class="s">r&quot;&quot;</span>
+
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">subs</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">subs</span> <span class="o">=</span> <span class="s">r&quot;_{</span><span class="si">%s</span><span class="s">}&quot;</span> <span class="o">%</span> <span class="s">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">subs</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">subs</span> <span class="o">=</span> <span class="s">r&quot;&quot;</span>
+
+            <span class="k">if</span> <span class="n">exp</span><span class="p">:</span>
+                <span class="n">supers</span> <span class="o">+=</span> <span class="s">r&quot;^{</span><span class="si">%s</span><span class="s">}&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">exp</span><span class="p">)</span>
+
+            <span class="k">return</span> <span class="s">r&quot;</span><span class="si">%s</span><span class="s">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">name</span> <span class="o">+</span> <span class="n">supers</span> <span class="o">+</span> <span class="n">subs</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">arg</span><span class="p">))</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">]</span>
+            <span class="c"># How inverse trig functions should be displayed, formats are:</span>
+            <span class="c"># abbreviated: asin, full: arcsin, power: sin^-1</span>
+            <span class="n">inv_trig_style</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_settings</span><span class="p">[</span><span class="s">&#39;inv_trig_style&#39;</span><span class="p">]</span>
+            <span class="c"># If we are dealing with a power-style inverse trig function</span>
+            <span class="n">inv_trig_power_case</span> <span class="o">=</span> <span class="bp">False</span>
+            <span class="c"># If it is applicable to fold the argument brackets</span>
+            <span class="n">can_fold_brackets</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_settings</span><span class="p">[</span><span class="s">&#39;fold_func_brackets&#39;</span><span class="p">]</span> <span class="ow">and</span> \
+                <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> \
+                <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_needs_function_brackets</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+            <span class="n">inv_trig_table</span> <span class="o">=</span> <span class="p">[</span><span class="s">&quot;asin&quot;</span><span class="p">,</span> <span class="s">&quot;acos&quot;</span><span class="p">,</span> <span class="s">&quot;atan&quot;</span><span class="p">,</span> <span class="s">&quot;acot&quot;</span><span class="p">]</span>
+
+            <span class="c"># If the function is an inverse trig function, handle the style</span>
+            <span class="k">if</span> <span class="n">func</span> <span class="ow">in</span> <span class="n">inv_trig_table</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">inv_trig_style</span> <span class="o">==</span> <span class="s">&quot;abbreviated&quot;</span><span class="p">:</span>
+                    <span class="n">func</span> <span class="o">=</span> <span class="n">func</span>
+                <span class="k">elif</span> <span class="n">inv_trig_style</span> <span class="o">==</span> <span class="s">&quot;full&quot;</span><span class="p">:</span>
+                    <span class="n">func</span> <span class="o">=</span> <span class="s">&quot;arc&quot;</span> <span class="o">+</span> <span class="n">func</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>
+                <span class="k">elif</span> <span class="n">inv_trig_style</span> <span class="o">==</span> <span class="s">&quot;power&quot;</span><span class="p">:</span>
+                    <span class="n">func</span> <span class="o">=</span> <span class="n">func</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>
+                    <span class="n">inv_trig_power_case</span> <span class="o">=</span> <span class="bp">True</span>
+
+                    <span class="c"># Can never fold brackets if we&#39;re raised to a power</span>
+                    <span class="k">if</span> <span class="n">exp</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                        <span class="n">can_fold_brackets</span> <span class="o">=</span> <span class="bp">False</span>
+
+            <span class="k">if</span> <span class="n">inv_trig_power_case</span><span class="p">:</span>
+                <span class="n">name</span> <span class="o">=</span> <span class="s">r&quot;\operatorname{</span><span class="si">%s</span><span class="s">}^{-1}&quot;</span> <span class="o">%</span> <span class="n">func</span>
+            <span class="k">elif</span> <span class="n">exp</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="n">name</span> <span class="o">=</span> <span class="s">r&quot;\operatorname{</span><span class="si">%s</span><span class="s">}^{</span><span class="si">%s</span><span class="s">}&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="n">exp</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">name</span> <span class="o">=</span> <span class="s">r&quot;\operatorname{</span><span class="si">%s</span><span class="s">}&quot;</span> <span class="o">%</span> <span class="n">func</span>
+
+            <span class="k">if</span> <span class="n">can_fold_brackets</span><span class="p">:</span>
+                <span class="n">name</span> <span class="o">+=</span> <span class="s">r&quot;</span><span class="si">%s</span><span class="s">&quot;</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">name</span> <span class="o">+=</span> <span class="s">r&quot;\left(</span><span class="si">%s</span><span class="s">\right)&quot;</span>
+
+            <span class="k">if</span> <span class="n">inv_trig_power_case</span> <span class="ow">and</span> <span class="n">exp</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="n">name</span> <span class="o">+=</span> <span class="s">r&quot;^{</span><span class="si">%s</span><span class="s">}&quot;</span> <span class="o">%</span> <span class="n">exp</span>
+
+            <span class="k">return</span> <span class="n">name</span> <span class="o">%</span> <span class="s">&quot;,&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_print_Derivative</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">der_expr</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">sympy.physics.vector.functions</span> <span class="kn">import</span> <span class="n">dynamicsymbols</span>
+        <span class="c"># make sure it is an the right form</span>
+        <span class="n">der_expr</span> <span class="o">=</span> <span class="n">der_expr</span><span class="o">.</span><span class="n">doit</span><span class="p">()</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">der_expr</span><span class="p">,</span> <span class="n">Derivative</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">doprint</span><span class="p">(</span><span class="n">der_expr</span><span class="p">)</span>
+
+        <span class="c"># check if expr is a dynamicsymbol</span>
+        <span class="kn">from</span> <span class="nn">sympy.core.function</span> <span class="kn">import</span> <span class="n">AppliedUndef</span>
+        <span class="n">t</span> <span class="o">=</span> <span class="n">dynamicsymbols</span><span class="o">.</span><span class="n">_t</span>
+        <span class="n">expr</span> <span class="o">=</span> <span class="n">der_expr</span><span class="o">.</span><span class="n">expr</span>
+        <span class="n">red</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">atoms</span><span class="p">(</span><span class="n">AppliedUndef</span><span class="p">)</span>
+        <span class="n">syms</span> <span class="o">=</span> <span class="n">der_expr</span><span class="o">.</span><span class="n">variables</span>
+        <span class="n">test1</span> <span class="o">=</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">([</span><span class="bp">True</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">red</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">atoms</span><span class="p">()</span> <span class="o">==</span> <span class="nb">set</span><span class="p">([</span><span class="n">t</span><span class="p">])])</span>
+        <span class="n">test2</span> <span class="o">=</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">([(</span><span class="n">t</span> <span class="o">==</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">syms</span><span class="p">])</span>
+        <span class="k">if</span> <span class="n">test1</span> <span class="ow">or</span> <span class="n">test2</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">LatexPrinter</span><span class="p">()</span><span class="o">.</span><span class="n">doprint</span><span class="p">(</span><span class="n">der_expr</span><span class="p">)</span>
+
+        <span class="c"># done checking</span>
+        <span class="n">dots</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">syms</span><span class="p">)</span>
+        <span class="n">base</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print_Function</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+        <span class="n">base_split</span> <span class="o">=</span> <span class="n">base</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39;_&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">base</span> <span class="o">=</span> <span class="n">base_split</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">dots</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">base</span> <span class="o">=</span> <span class="s">r&quot;\dot{</span><span class="si">%s</span><span class="s">}&quot;</span> <span class="o">%</span> <span class="n">base</span>
+        <span class="k">elif</span> <span class="n">dots</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="n">base</span> <span class="o">=</span> <span class="s">r&quot;\ddot{</span><span class="si">%s</span><span class="s">}&quot;</span> <span class="o">%</span> <span class="n">base</span>
+        <span class="k">elif</span> <span class="n">dots</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="n">base</span> <span class="o">=</span> <span class="s">r&quot;\dddot{</span><span class="si">%s</span><span class="s">}&quot;</span> <span class="o">%</span> <span class="n">base</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">base_split</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">base</span> <span class="o">+=</span> <span class="s">&#39;_&#39;</span> <span class="o">+</span> <span class="n">base_split</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">base</span>
+
+
+<span class="k">class</span> <span class="nc">VectorPrettyPrinter</span><span class="p">(</span><span class="n">PrettyPrinter</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Pretty Printer for vectorialexpressions. &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">_print_Derivative</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">deriv</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">sympy.physics.vector.functions</span> <span class="kn">import</span> <span class="n">dynamicsymbols</span>
+        <span class="c"># XXX use U(&#39;PARTIAL DIFFERENTIAL&#39;) here ?</span>
+        <span class="n">t</span> <span class="o">=</span> <span class="n">dynamicsymbols</span><span class="o">.</span><span class="n">_t</span>
+        <span class="n">dot_i</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">can_break</span> <span class="o">=</span> <span class="bp">True</span>
+        <span class="n">syms</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">reversed</span><span class="p">(</span><span class="n">deriv</span><span class="o">.</span><span class="n">variables</span><span class="p">))</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="bp">None</span>
+
+        <span class="k">while</span> <span class="nb">len</span><span class="p">(</span><span class="n">syms</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">syms</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">t</span><span class="p">:</span>
+                <span class="n">syms</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+                <span class="n">dot_i</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">VectorPrettyPrinter</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_print_Derivative</span><span class="p">(</span><span class="n">deriv</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">deriv</span><span class="o">.</span><span class="n">expr</span><span class="p">),</span> <span class="n">UndefinedFunction</span><span class="p">)</span>
+                <span class="ow">and</span> <span class="p">(</span><span class="n">deriv</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">args</span> <span class="o">==</span> <span class="p">(</span><span class="n">t</span><span class="p">,))):</span>
+                <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">VectorPrettyPrinter</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_print_Derivative</span><span class="p">(</span><span class="n">deriv</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">pform</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print_Function</span><span class="p">(</span><span class="n">deriv</span><span class="o">.</span><span class="n">expr</span><span class="p">)</span>
+        <span class="c"># the following condition would happen with some sort of non-standard</span>
+        <span class="c"># dynamic symbol I guess, so we&#39;ll just print the SymPy way</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">pform</span><span class="o">.</span><span class="n">picture</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">VectorPrettyPrinter</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_print_Derivative</span><span class="p">(</span><span class="n">deriv</span><span class="p">)</span>
+
+        <span class="n">dots</span> <span class="o">=</span> <span class="p">{</span><span class="mi">0</span> <span class="p">:</span> <span class="n">u</span><span class="p">(</span><span class="s">&quot;&quot;</span><span class="p">),</span>
+                <span class="mi">1</span> <span class="p">:</span> <span class="n">u</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\u0307</span><span class="s">&quot;</span><span class="p">),</span>
+                <span class="mi">2</span> <span class="p">:</span> <span class="n">u</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\u0308</span><span class="s">&quot;</span><span class="p">),</span>
+                <span class="mi">3</span> <span class="p">:</span> <span class="n">u</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\u20db</span><span class="s">&quot;</span><span class="p">),</span>
+                <span class="mi">4</span> <span class="p">:</span> <span class="n">u</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\u20dc</span><span class="s">&quot;</span><span class="p">)}</span>
+
+        <span class="n">d</span> <span class="o">=</span> <span class="n">pform</span><span class="o">.</span><span class="n">__dict__</span>
+        <span class="n">pic</span> <span class="o">=</span> <span class="n">d</span><span class="p">[</span><span class="s">&#39;picture&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">uni</span> <span class="o">=</span> <span class="n">d</span><span class="p">[</span><span class="s">&#39;unicode&#39;</span><span class="p">]</span>
+        <span class="n">lp</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">pic</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="n">lu</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">uni</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="n">pic_split</span> <span class="o">=</span> <span class="p">[</span><span class="n">pic</span><span class="p">[:</span><span class="n">lp</span><span class="p">],</span> <span class="n">pic</span><span class="p">[</span><span class="n">lp</span><span class="p">:]]</span>
+        <span class="n">uni_split</span> <span class="o">=</span> <span class="p">[</span><span class="n">uni</span><span class="p">[:</span><span class="n">lu</span><span class="p">],</span> <span class="n">uni</span><span class="p">[</span><span class="n">lu</span><span class="p">:]]</span>
+
+        <span class="n">d</span><span class="p">[</span><span class="s">&#39;picture&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">pic_split</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">dots</span><span class="p">[</span><span class="n">dot_i</span><span class="p">]</span> <span class="o">+</span> <span class="n">pic_split</span><span class="p">[</span><span class="mi">1</span><span class="p">]]</span>
+        <span class="n">d</span><span class="p">[</span><span class="s">&#39;unicode&#39;</span><span class="p">]</span> <span class="o">=</span>  <span class="n">uni_split</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">dots</span><span class="p">[</span><span class="n">dot_i</span><span class="p">]</span> <span class="o">+</span> <span class="n">uni_split</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">pform</span>
+
+    <span class="k">def</span> <span class="nf">_print_Function</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">e</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">sympy.physics.vector.functions</span> <span class="kn">import</span> <span class="n">dynamicsymbols</span>
+        <span class="n">t</span> <span class="o">=</span> <span class="n">dynamicsymbols</span><span class="o">.</span><span class="n">_t</span>
+        <span class="c"># XXX works only for applied functions</span>
+        <span class="n">func</span> <span class="o">=</span> <span class="n">e</span><span class="o">.</span><span class="n">func</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="n">e</span><span class="o">.</span><span class="n">args</span>
+        <span class="n">func_name</span> <span class="o">=</span> <span class="n">func</span><span class="o">.</span><span class="n">__name__</span>
+        <span class="n">pform</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print_Symbol</span><span class="p">(</span><span class="n">C</span><span class="o">.</span><span class="n">Symbol</span><span class="p">(</span><span class="n">func_name</span><span class="p">))</span>
+        <span class="c"># If this function is an Undefined function of t, it is probably a</span>
+        <span class="c"># dynamic symbol, so we&#39;ll skip the (t). The rest of the code is</span>
+        <span class="c"># identical to the normal PrettyPrinter code</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="n">UndefinedFunction</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="n">args</span> <span class="o">==</span> <span class="p">(</span><span class="n">t</span><span class="p">,))):</span>
+            <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">VectorPrettyPrinter</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_print_Function</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">pform</span>
+
+
+<div class="viewcode-block" id="vprint"><a class="viewcode-back" href="../../../../modules/physics/vector/api/printing.html#sympy.physics.vector.printing.vprint">[docs]</a><span class="k">def</span> <span class="nf">vprint</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="o">**</span><span class="n">settings</span><span class="p">):</span>
+    <span class="sd">r&quot;&quot;&quot;Function for printing of expressions generated in the</span>
+<span class="sd">    sympy.physics vector package.</span>
+
+<span class="sd">    Extends SymPy&#39;s StrPrinter, takes the same setting accepted by SymPy&#39;s</span>
+<span class="sd">    `sstr()`, and is equivalent to `print(sstr(foo))`.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    expr : valid SymPy object</span>
+<span class="sd">        SymPy expression to print.</span>
+<span class="sd">    settings : args</span>
+<span class="sd">        Same as the settings accepted by SymPy&#39;s sstr().</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.physics.vector import vprint, dynamicsymbols</span>
+<span class="sd">    &gt;&gt;&gt; u1 = dynamicsymbols(&#39;u1&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; print(u1)</span>
+<span class="sd">    u1(t)</span>
+<span class="sd">    &gt;&gt;&gt; vprint(u1)</span>
+<span class="sd">    u1</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">outstr</span> <span class="o">=</span> <span class="n">vsprint</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="o">**</span><span class="n">settings</span><span class="p">)</span>
+
+    <span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="kn">import</span> <span class="n">builtins</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">outstr</span> <span class="o">!=</span> <span class="s">&#39;None&#39;</span><span class="p">):</span>
+        <span class="n">builtins</span><span class="o">.</span><span class="n">_</span> <span class="o">=</span> <span class="n">outstr</span>
+        <span class="k">print</span><span class="p">(</span><span class="n">outstr</span><span class="p">)</span>
+
+</div>
+<span class="k">def</span> <span class="nf">vsstrrepr</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="o">**</span><span class="n">settings</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Function for displaying expression representation&#39;s with vector</span>
+<span class="sd">    printing enabled.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    expr : valid SymPy object</span>
+<span class="sd">        SymPy expression to print.</span>
+<span class="sd">    settings : args</span>
+<span class="sd">        Same as the settings accepted by SymPy&#39;s sstrrepr().</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">VectorStrReprPrinter</span><span class="p">(</span><span class="n">settings</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">p</span><span class="o">.</span><span class="n">doprint</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">vsprint</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="o">**</span><span class="n">settings</span><span class="p">):</span>
+    <span class="sd">r&quot;&quot;&quot;Function for displaying expressions generated in the</span>
+<span class="sd">    sympy.physics vector package.</span>
+
+<span class="sd">    Returns the output of vprint() as a string.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    expr : valid SymPy object</span>
+<span class="sd">        SymPy expression to print</span>
+<span class="sd">    settings : args</span>
+<span class="sd">        Same as the settings accepted by SymPy&#39;s sstr().</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.physics.vector import vsprint, dynamicsymbols</span>
+<span class="sd">    &gt;&gt;&gt; u1, u2 = dynamicsymbols(&#39;u1 u2&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; u2d = dynamicsymbols(&#39;u2&#39;, level=1)</span>
+<span class="sd">    &gt;&gt;&gt; print(&quot;%s = %s&quot; % (u1, u2 + u2d))</span>
+<span class="sd">    u1(t) = u2(t) + Derivative(u2(t), t)</span>
+<span class="sd">    &gt;&gt;&gt; print(&quot;%s = %s&quot; % (vsprint(u1), vsprint(u2 + u2d)))</span>
+<span class="sd">    u1 = u2 + u2&#39;</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">string_printer</span> <span class="o">=</span> <span class="n">VectorStrPrinter</span><span class="p">(</span><span class="n">settings</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">string_printer</span><span class="o">.</span><span class="n">doprint</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="vpprint"><a class="viewcode-back" href="../../../../modules/physics/vector/api/printing.html#sympy.physics.vector.printing.vpprint">[docs]</a><span class="k">def</span> <span class="nf">vpprint</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="o">**</span><span class="n">settings</span><span class="p">):</span>
+    <span class="sd">r&quot;&quot;&quot;Function for pretty printing of expressions generated in the</span>
+<span class="sd">    sympy.physics vector package.</span>
+
+<span class="sd">    Mainly used for expressions not inside a vector; the output of running</span>
+<span class="sd">    scripts and generating equations of motion. Takes the same options as</span>
+<span class="sd">    SymPy&#39;s pretty_print(); see that function for more information.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    expr : valid SymPy object</span>
+<span class="sd">        SymPy expression to pretty print</span>
+<span class="sd">    settings : args</span>
+<span class="sd">        Same as those accepted by SymPy&#39;s pretty_print.</span>
+
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">pp</span> <span class="o">=</span> <span class="n">VectorPrettyPrinter</span><span class="p">(</span><span class="n">settings</span><span class="p">)</span>
+
+    <span class="c"># Note that this is copied from sympy.printing.pretty.pretty_print:</span>
+
+    <span class="c"># XXX: this is an ugly hack, but at least it works</span>
+    <span class="n">use_unicode</span> <span class="o">=</span> <span class="n">pp</span><span class="o">.</span><span class="n">_settings</span><span class="p">[</span><span class="s">&#39;use_unicode&#39;</span><span class="p">]</span>
+    <span class="kn">from</span> <span class="nn">sympy.printing.pretty.pretty_symbology</span> <span class="kn">import</span> <span class="n">pretty_use_unicode</span>
+    <span class="n">uflag</span> <span class="o">=</span> <span class="n">pretty_use_unicode</span><span class="p">(</span><span class="n">use_unicode</span><span class="p">)</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">pp</span><span class="o">.</span><span class="n">doprint</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="n">pretty_use_unicode</span><span class="p">(</span><span class="n">uflag</span><span class="p">)</span>
+
+</div>
+<div class="viewcode-block" id="vlatex"><a class="viewcode-back" href="../../../../modules/physics/vector/api/printing.html#sympy.physics.vector.printing.vlatex">[docs]</a><span class="k">def</span> <span class="nf">vlatex</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="o">**</span><span class="n">settings</span><span class="p">):</span>
+    <span class="sd">r&quot;&quot;&quot;Function for printing latex representation of sympy.physics.vector</span>
+<span class="sd">    objects.</span>
+
+<span class="sd">    For latex representation of Vectors, Dyadics, and dynamicsymbols. Takes the</span>
+<span class="sd">    same options as SymPy&#39;s latex(); see that function for more information;</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    expr : valid SymPy object</span>
+<span class="sd">        SymPy expression to represent in LaTeX form</span>
+<span class="sd">    settings : args</span>
+<span class="sd">        Same as latex()</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.physics.vector import vlatex, ReferenceFrame, dynamicsymbols</span>
+<span class="sd">    &gt;&gt;&gt; N = ReferenceFrame(&#39;N&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; q1, q2 = dynamicsymbols(&#39;q1 q2&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; q1d, q2d = dynamicsymbols(&#39;q1 q2&#39;, 1)</span>
+<span class="sd">    &gt;&gt;&gt; q1dd, q2dd = dynamicsymbols(&#39;q1 q2&#39;, 2)</span>
+<span class="sd">    &gt;&gt;&gt; vlatex(N.x + N.y)</span>
+<span class="sd">    &#39;\\mathbf{\\hat{n}_x} + \\mathbf{\\hat{n}_y}&#39;</span>
+<span class="sd">    &gt;&gt;&gt; vlatex(q1 + q2)</span>
+<span class="sd">    &#39;q_{1} + q_{2}&#39;</span>
+<span class="sd">    &gt;&gt;&gt; vlatex(q1d)</span>
+<span class="sd">    &#39;\\dot{q}_{1}&#39;</span>
+<span class="sd">    &gt;&gt;&gt; vlatex(q1 * q2d)</span>
+<span class="sd">    &#39;q_{1} \\dot{q}_{2}&#39;</span>
+<span class="sd">    &gt;&gt;&gt; vlatex(q1dd * q1 / q1d)</span>
+<span class="sd">    &#39;\\frac{q_{1} \\ddot{q}_{1}}{\\dot{q}_{1}}&#39;</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">latex_printer</span> <span class="o">=</span> <span class="n">VectorLatexPrinter</span><span class="p">(</span><span class="n">settings</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">latex_printer</span><span class="o">.</span><span class="n">doprint</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+
+</div>
+<span class="k">def</span> <span class="nf">init_vprinting</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Initializes time derivative printing for all SymPy objects, i.e. any</span>
+<span class="sd">    functions of time will be displayed in a more compact notation. The main</span>
+<span class="sd">    benefit of this is for printing of time derivatives; instead of</span>
+<span class="sd">    displaying as ``Derivative(f(t),t)``, it will display ``f&#39;``. This is</span>
+<span class="sd">    only actually needed for when derivatives are present and are not in a</span>
+<span class="sd">    physics.vector.Vector or physics.vector.Dyadic object. This function is a</span>
+<span class="sd">    light wrapper to `sympy.interactive.init_printing`. Any keyword</span>
+<span class="sd">    arguments for it are valid here.</span>
+
+<span class="sd">    {0}</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy import Function, symbols</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.physics.vector import init_vprinting</span>
+<span class="sd">    &gt;&gt;&gt; t, x = symbols(&#39;t, x&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; omega = Function(&#39;omega&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; omega(x).diff()</span>
+<span class="sd">    Derivative(omega(x), x)</span>
+<span class="sd">    &gt;&gt;&gt; omega(t).diff()</span>
+<span class="sd">    Derivative(omega(t), t)</span>
+
+<span class="sd">    Now use the string printer:</span>
+
+<span class="sd">    &gt;&gt;&gt; init_vprinting(pretty_print=False)</span>
+<span class="sd">    &gt;&gt;&gt; omega(x).diff()</span>
+<span class="sd">    Derivative(omega(x), x)</span>
+<span class="sd">    &gt;&gt;&gt; omega(t).diff()</span>
+<span class="sd">    omega&#39;</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;str_printer&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">vsstrrepr</span>
+    <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;pretty_printer&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">vpprint</span>
+    <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;latex_printer&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">vlatex</span>
+    <span class="n">init_printing</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+<span class="n">params</span> <span class="o">=</span> <span class="n">init_printing</span><span class="o">.</span><span class="n">__doc__</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39;Examples</span><span class="se">\n</span><span class="s">    ========&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+<span class="n">init_vprinting</span><span class="o">.</span><span class="n">__doc__</span> <span class="o">=</span> <span class="n">init_vprinting</span><span class="o">.</span><span class="n">__doc__</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">params</span><span class="p">)</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../../../index.html">
+              <img class="logo" src="../../../../_static/sympylogo.png" alt="Logo"/>
+            </a></p>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="../../../../np-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../../index.html">SymPy 0.7.5 documentation</a> &raquo;</li>
+          <li><a href="../../../index.html" >Module code</a> &raquo;</li>
+          <li><a href="../../../sympy.html" >sympy</a> &raquo;</li>
+          <li><a href="../vector.html" >sympy.physics.vector</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2014 SymPy Development Team.
+      Last updated on Feb 22, 2014.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+  </body>
+</html>
