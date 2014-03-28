@@ -1,0 +1,1704 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>sympy.crypto.crypto &mdash; SymPy 0.7.5 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="http://live.sympy.org/static/live-core.css" type="text/css" />
+    <link rel="stylesheet" href="http://live.sympy.org/static/live-autocomplete.css" type="text/css" />
+    <link rel="stylesheet" href="http://live.sympy.org/static/live-sphinx.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '0.7.5',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="https://c328740.ssl.cf1.rackcdn.com/mathjax/latest/MathJax.js?config=TeX-AMS_HTML-full"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/utilities.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/external/classy.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/live-core.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/live-autocomplete.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/live-sphinx.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/sympy-notailtext-favicon.ico"/>
+    <link rel="top" title="SymPy 0.7.5 documentation" href="../../../index.html" />
+    <link rel="up" title="sympy" href="../../sympy.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="../../../np-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">SymPy 0.7.5 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li>
+          <li><a href="../../sympy.html" accesskey="U">sympy</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for sympy.crypto.crypto</h1><div class="highlight"><pre>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Classical ciphers and LFSRs</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">print_function</span>
+
+<span class="kn">from</span> <span class="nn">random</span> <span class="kn">import</span> <span class="n">randrange</span>
+
+<span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">nextprime</span>
+<span class="kn">from</span> <span class="nn">sympy.core</span> <span class="kn">import</span> <span class="n">Rational</span><span class="p">,</span> <span class="n">S</span><span class="p">,</span> <span class="n">Symbol</span>
+<span class="kn">from</span> <span class="nn">sympy.core.numbers</span> <span class="kn">import</span> <span class="n">igcdex</span>
+<span class="kn">from</span> <span class="nn">sympy.matrices</span> <span class="kn">import</span> <span class="n">Matrix</span>
+<span class="kn">from</span> <span class="nn">sympy.ntheory</span> <span class="kn">import</span> <span class="n">isprime</span><span class="p">,</span> <span class="n">totient</span><span class="p">,</span> <span class="n">primitive_root</span>
+<span class="kn">from</span> <span class="nn">sympy.polys.domains</span> <span class="kn">import</span> <span class="n">FF</span>
+<span class="kn">from</span> <span class="nn">sympy.polys.polytools</span> <span class="kn">import</span> <span class="n">gcd</span><span class="p">,</span> <span class="n">Poly</span>
+<span class="kn">from</span> <span class="nn">sympy.utilities.iterables</span> <span class="kn">import</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">uniq</span>
+
+
+<div class="viewcode-block" id="alphabet_of_cipher"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.alphabet_of_cipher">[docs]</a><span class="k">def</span> <span class="nf">alphabet_of_cipher</span><span class="p">(</span><span class="n">symbols</span><span class="o">=</span><span class="s">&quot;ABCDEFGHIJKLMNOPQRSTUVWXYZ&quot;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns the list of characters in the string input defining the alphabet.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    =====</span>
+
+<span class="sd">    First, some basic definitions.</span>
+
+<span class="sd">    A *substitution cipher* is a method of encryption by which</span>
+<span class="sd">    &quot;units&quot; (not necessarily characters) of plaintext are replaced with</span>
+<span class="sd">    ciphertext according to a regular system. The &quot;units&quot; may be</span>
+<span class="sd">    characters (ie, words of length `1`), words of length `2`, and so forth.</span>
+
+<span class="sd">    A *transposition cipher* is a method of encryption by which</span>
+<span class="sd">    the positions held by &quot;units&quot; of plaintext are replaced by a</span>
+<span class="sd">    permutation of the plaintext. That is, the order of the units is</span>
+<span class="sd">    changed using a bijective function on the characters&#39; positions</span>
+<span class="sd">    to perform the encryption.</span>
+
+<span class="sd">    A *monoalphabetic cipher* uses fixed substitution over the entire</span>
+<span class="sd">    message, whereas a *polyalphabetic cipher* uses a number of substitutions</span>
+<span class="sd">    at different times in the message.</span>
+
+<span class="sd">    Each of these ciphers require an alphabet for the messages to be</span>
+<span class="sd">    constructed from.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.crypto.crypto import alphabet_of_cipher</span>
+<span class="sd">    &gt;&gt;&gt; alphabet_of_cipher()</span>
+<span class="sd">    [&#39;A&#39;, &#39;B&#39;, &#39;C&#39;, &#39;D&#39;, &#39;E&#39;, &#39;F&#39;, &#39;G&#39;, &#39;H&#39;, &#39;I&#39;, &#39;J&#39;, &#39;K&#39;, &#39;L&#39;, &#39;M&#39;,</span>
+<span class="sd">     &#39;N&#39;, &#39;O&#39;, &#39;P&#39;, &#39;Q&#39;, &#39;R&#39;, &#39;S&#39;, &#39;T&#39;, &#39;U&#39;, &#39;V&#39;, &#39;W&#39;, &#39;X&#39;, &#39;Y&#39;, &#39;Z&#39;]</span>
+<span class="sd">    &gt;&gt;&gt; L = [str(i) for i in range(10)] + [&#39;a&#39;, &#39;b&#39;, &#39;c&#39;]; L</span>
+<span class="sd">    [&#39;0&#39;, &#39;1&#39;, &#39;2&#39;, &#39;3&#39;, &#39;4&#39;, &#39;5&#39;, &#39;6&#39;, &#39;7&#39;, &#39;8&#39;, &#39;9&#39;, &#39;a&#39;, &#39;b&#39;, &#39;c&#39;]</span>
+<span class="sd">    &gt;&gt;&gt; A = &quot;&quot;.join(L); A</span>
+<span class="sd">    &#39;0123456789abc&#39;</span>
+<span class="sd">    &gt;&gt;&gt; alphabet_of_cipher(A)</span>
+<span class="sd">    [&#39;0&#39;, &#39;1&#39;, &#39;2&#39;, &#39;3&#39;, &#39;4&#39;, &#39;5&#39;, &#39;6&#39;, &#39;7&#39;, &#39;8&#39;, &#39;9&#39;, &#39;a&#39;, &#39;b&#39;, &#39;c&#39;]</span>
+<span class="sd">    &gt;&gt;&gt; alphabet_of_cipher()</span>
+<span class="sd">    [&#39;A&#39;, &#39;B&#39;, &#39;C&#39;, &#39;D&#39;, &#39;E&#39;, &#39;F&#39;, &#39;G&#39;, &#39;H&#39;, &#39;I&#39;, &#39;J&#39;, &#39;K&#39;, &#39;L&#39;, &#39;M&#39;,</span>
+<span class="sd">     &#39;N&#39;, &#39;O&#39;, &#39;P&#39;, &#39;Q&#39;, &#39;R&#39;, &#39;S&#39;, &#39;T&#39;, &#39;U&#39;, &#39;V&#39;, &#39;W&#39;, &#39;X&#39;, &#39;Y&#39;, &#39;Z&#39;]</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">symbols</span> <span class="o">=</span> <span class="s">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">symbols</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="n">symbols</span><span class="p">)</span>
+
+
+<span class="c">######## shift cipher examples ############</span>
+
+</div>
+<div class="viewcode-block" id="cycle_list"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.cycle_list">[docs]</a><span class="k">def</span> <span class="nf">cycle_list</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns the cyclic shift of the list range(n) by k.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.crypto.crypto import cycle_list, alphabet_of_cipher</span>
+<span class="sd">    &gt;&gt;&gt; L = cycle_list(3,26); L</span>
+<span class="sd">    [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,</span>
+<span class="sd">    17, 18, 19, 20, 21, 22, 23, 24, 25, 0, 1, 2]</span>
+<span class="sd">    &gt;&gt;&gt; A = alphabet_of_cipher(); A</span>
+<span class="sd">    [&#39;A&#39;, &#39;B&#39;, &#39;C&#39;, &#39;D&#39;, &#39;E&#39;, &#39;F&#39;, &#39;G&#39;, &#39;H&#39;, &#39;I&#39;, &#39;J&#39;, &#39;K&#39;, &#39;L&#39;, &#39;M&#39;,</span>
+<span class="sd">     &#39;N&#39;, &#39;O&#39;, &#39;P&#39;, &#39;Q&#39;, &#39;R&#39;, &#39;S&#39;, &#39;T&#39;, &#39;U&#39;, &#39;V&#39;, &#39;W&#39;, &#39;X&#39;, &#39;Y&#39;, &#39;Z&#39;]</span>
+<span class="sd">    &gt;&gt;&gt; [A[i] for i in L]</span>
+<span class="sd">    [&#39;D&#39;, &#39;E&#39;, &#39;F&#39;, &#39;G&#39;, &#39;H&#39;, &#39;I&#39;, &#39;J&#39;, &#39;K&#39;, &#39;L&#39;, &#39;M&#39;, &#39;N&#39;, &#39;O&#39;, &#39;P&#39;,</span>
+<span class="sd">     &#39;Q&#39;, &#39;R&#39;, &#39;S&#39;, &#39;T&#39;, &#39;U&#39;, &#39;V&#39;, &#39;W&#39;, &#39;X&#39;, &#39;Y&#39;, &#39;Z&#39;, &#39;A&#39;, &#39;B&#39;, &#39;C&#39;]</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">L</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">L</span><span class="p">[</span><span class="n">k</span><span class="p">:]</span> <span class="o">+</span> <span class="n">L</span><span class="p">[:</span><span class="n">k</span><span class="p">]</span>
+
+</div>
+<div class="viewcode-block" id="encipher_shift"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.encipher_shift">[docs]</a><span class="k">def</span> <span class="nf">encipher_shift</span><span class="p">(</span><span class="n">pt</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">symbols</span><span class="o">=</span><span class="s">&quot;ABCDEFGHIJKLMNOPQRSTUVWXYZ&quot;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Performs shift cipher encryption on plaintext pt, and returns the ciphertext.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    =====</span>
+
+<span class="sd">    The shift cipher is also called the Caesar cipher, after</span>
+<span class="sd">    Julius Caesar, who, according to Suetonius, used it with a</span>
+<span class="sd">    shift of three to protect messages of military significance.</span>
+<span class="sd">    Caesar&#39;s nephew Augustus reportedtly used a similar cipher, but</span>
+<span class="sd">    with a right shift of 1.</span>
+
+
+<span class="sd">    ALGORITHM:</span>
+
+<span class="sd">        INPUT:</span>
+
+<span class="sd">            ``k``: an integer from 0 to 25 (the secret key)</span>
+
+<span class="sd">            ``m``: string of upper-case letters (the plaintext message)</span>
+
+<span class="sd">        OUTPUT:</span>
+
+<span class="sd">            ``c``: string of upper-case letters (the ciphertext message)</span>
+
+<span class="sd">        STEPS:</span>
+<span class="sd">            0. Identify the alphabet A, ..., Z with the integers 0, ..., 25.</span>
+<span class="sd">            1. Compute from the string ``m`` a list ``L1`` of corresponding</span>
+<span class="sd">               integers.</span>
+<span class="sd">            2. Compute from the list ``L1`` a new list ``L2``, given by</span>
+<span class="sd">               adding ``(k mod 26)`` to each element in ``L1``.</span>
+<span class="sd">            3. Compute from the list ``L2`` a string ``c`` of corresponding</span>
+<span class="sd">               letters.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.crypto.crypto import encipher_shift</span>
+<span class="sd">    &gt;&gt;&gt; pt = &quot;GONAVYBEATARMY&quot;</span>
+<span class="sd">    &gt;&gt;&gt; encipher_shift(pt, 1)</span>
+<span class="sd">    &#39;HPOBWZCFBUBSNZ&#39;</span>
+<span class="sd">    &gt;&gt;&gt; encipher_shift(pt, 0)</span>
+<span class="sd">    &#39;GONAVYBEATARMY&#39;</span>
+<span class="sd">    &gt;&gt;&gt; encipher_shift(pt, -1)</span>
+<span class="sd">    &#39;FNMZUXADZSZQLX&#39;</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">symbols</span> <span class="o">=</span> <span class="s">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">symbols</span><span class="p">)</span>
+    <span class="n">A</span> <span class="o">=</span> <span class="n">alphabet_of_cipher</span><span class="p">(</span><span class="n">symbols</span><span class="p">)</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">A</span><span class="p">)</span>
+    <span class="n">L</span> <span class="o">=</span> <span class="n">cycle_list</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">n</span><span class="p">)</span>
+    <span class="n">C</span> <span class="o">=</span> <span class="p">[</span><span class="n">A</span><span class="p">[(</span><span class="n">A</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">pt</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="o">+</span> <span class="n">key</span><span class="p">)</span> <span class="o">%</span> <span class="n">n</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">pt</span><span class="p">))]</span>
+    <span class="k">return</span> <span class="s">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">C</span><span class="p">)</span>
+
+
+<span class="c">######## affine cipher examples ############</span>
+
+</div>
+<div class="viewcode-block" id="encipher_affine"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.encipher_affine">[docs]</a><span class="k">def</span> <span class="nf">encipher_affine</span><span class="p">(</span><span class="n">pt</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">symbols</span><span class="o">=</span><span class="s">&quot;ABCDEFGHIJKLMNOPQRSTUVWXYZ&quot;</span><span class="p">):</span>
+    <span class="sd">r&quot;&quot;&quot;</span>
+<span class="sd">    Performs the affine cipher encryption on plaintext ``pt``, and returns the ciphertext.</span>
+
+<span class="sd">    Encryption is based on the map `x \rightarrow ax+b` (mod `26`). Decryption is based on</span>
+<span class="sd">    the map `x \rightarrow cx+d` (mod `26`), where `c = a^{-1}` (mod `26`) and</span>
+<span class="sd">    `d = -a^{-1}c` (mod `26`). (In particular, for the map to be invertible,</span>
+<span class="sd">    we need `\mathrm{gcd}(a, 26) = 1.`)</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    =====</span>
+
+<span class="sd">    This is a straightforward generalization of the shift cipher.</span>
+
+<span class="sd">    ALGORITHM:</span>
+
+<span class="sd">        INPUT:</span>
+
+<span class="sd">            ``a, b``: a pair integers, where ``gcd(a, 26) = 1`` (the secret key)</span>
+
+<span class="sd">            ``m``: string of upper-case letters (the plaintext message)</span>
+
+<span class="sd">        OUTPUT:</span>
+
+<span class="sd">            ``c``: string of upper-case letters (the ciphertext message)</span>
+
+<span class="sd">        STEPS:</span>
+<span class="sd">            0. Identify the alphabet &quot;A&quot;, ..., &quot;Z&quot; with the integers 0, ..., 25.</span>
+<span class="sd">            1. Compute from the string ``m`` a list ``L1`` of corresponding</span>
+<span class="sd">               integers.</span>
+<span class="sd">            2. Compute from the list ``L1`` a new list ``L2``, given by replacing</span>
+<span class="sd">               ``x`` by ``a*x + b (mod 26)``, for each element ``x`` in ``L1``.</span>
+<span class="sd">            3. Compute from the list ``L2`` a string ``c`` of corresponding</span>
+<span class="sd">               letters.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.crypto.crypto import encipher_affine</span>
+<span class="sd">    &gt;&gt;&gt; pt = &quot;GONAVYBEATARMY&quot;</span>
+<span class="sd">    &gt;&gt;&gt; encipher_affine(pt, (1, 1))</span>
+<span class="sd">    &#39;HPOBWZCFBUBSNZ&#39;</span>
+<span class="sd">    &gt;&gt;&gt; encipher_affine(pt, (1, 0))</span>
+<span class="sd">    &#39;GONAVYBEATARMY&#39;</span>
+<span class="sd">    &gt;&gt;&gt; pt = &quot;GONAVYBEATARMY&quot;</span>
+<span class="sd">    &gt;&gt;&gt; encipher_affine(pt, (3, 1))</span>
+<span class="sd">    &#39;TROBMVENBGBALV&#39;</span>
+<span class="sd">    &gt;&gt;&gt; ct = &quot;TROBMVENBGBALV&quot;</span>
+<span class="sd">    &gt;&gt;&gt; encipher_affine(ct, (9, 17))</span>
+<span class="sd">    &#39;GONAVYBEATARMY&#39;</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">symbols</span> <span class="o">=</span> <span class="s">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">symbols</span><span class="p">)</span>
+    <span class="n">A</span> <span class="o">=</span> <span class="n">alphabet_of_cipher</span><span class="p">(</span><span class="n">symbols</span><span class="p">)</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">A</span><span class="p">)</span>
+    <span class="n">k1</span> <span class="o">=</span> <span class="n">key</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="c"># multiplicative coeff &quot;a&quot;</span>
+    <span class="n">k2</span> <span class="o">=</span> <span class="n">key</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="c"># additive coeff &quot;b&quot;</span>
+    <span class="n">L</span> <span class="o">=</span> <span class="n">cycle_list</span><span class="p">(</span><span class="n">k2</span><span class="p">,</span> <span class="n">n</span><span class="p">)</span>
+    <span class="n">C</span> <span class="o">=</span> <span class="p">[</span><span class="n">A</span><span class="p">[(</span><span class="n">k1</span><span class="o">*</span><span class="n">A</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">pt</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="o">+</span> <span class="n">k2</span><span class="p">)</span> <span class="o">%</span> <span class="n">n</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">pt</span><span class="p">))]</span>
+    <span class="k">return</span> <span class="s">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">C</span><span class="p">)</span>
+
+
+<span class="c">#################### substitution cipher ###########################</span>
+
+</div>
+<div class="viewcode-block" id="encipher_substitution"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.encipher_substitution">[docs]</a><span class="k">def</span> <span class="nf">encipher_substitution</span><span class="p">(</span><span class="n">pt</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">symbols</span><span class="o">=</span><span class="s">&quot;ABCDEFGHIJKLMNOPQRSTUVWXYZ&quot;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Performs the substitution cipher encryption on plaintext ``pt``, and returns the ciphertext.</span>
+
+<span class="sd">    Assumes the ``pt`` has only letters taken from ``symbols``.</span>
+<span class="sd">    Assumes ``key`` is a permutation of the symbols. This funciton permutes the</span>
+<span class="sd">    letters of the plaintext using the permutation given in ``key``.</span>
+<span class="sd">    The decription uses the inverse permutation.</span>
+<span class="sd">    Note that if the permutation in key is order 2 (eg, a transposition) then</span>
+<span class="sd">    the encryption permutation and the decryption permutation are the same.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.crypto.crypto import alphabet_of_cipher, encipher_substitution</span>
+<span class="sd">    &gt;&gt;&gt; symbols = &quot;ABCDEFGHIJKLMNOPQRSTUVWXYZ&quot;</span>
+<span class="sd">    &gt;&gt;&gt; A = alphabet_of_cipher(symbols)</span>
+<span class="sd">    &gt;&gt;&gt; key = &quot;BACDEFGHIJKLMNOPQRSTUVWXYZ&quot;</span>
+<span class="sd">    &gt;&gt;&gt; pt = &quot;go navy! beat army!&quot;</span>
+<span class="sd">    &gt;&gt;&gt; encipher_substitution(pt, key)</span>
+<span class="sd">    &#39;GONBVYAEBTBRMY&#39;</span>
+<span class="sd">    &gt;&gt;&gt; ct = &#39;GONBVYAEBTBRMY&#39;</span>
+<span class="sd">    &gt;&gt;&gt; encipher_substitution(ct, key)</span>
+<span class="sd">    &#39;GONAVYBEATARMY&#39;</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">symbols</span> <span class="o">=</span> <span class="s">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">symbols</span><span class="p">)</span>
+    <span class="n">A</span> <span class="o">=</span> <span class="n">alphabet_of_cipher</span><span class="p">(</span><span class="n">symbols</span><span class="p">)</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">A</span><span class="p">)</span>
+    <span class="n">pt0</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">capitalize</span><span class="p">()</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">pt</span> <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">isalnum</span><span class="p">()]</span>
+    <span class="n">ct</span> <span class="o">=</span> <span class="p">[</span><span class="n">key</span><span class="p">[</span><span class="n">A</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">x</span><span class="p">)]</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">pt0</span><span class="p">]</span>
+    <span class="k">return</span> <span class="s">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">ct</span><span class="p">)</span>
+
+
+<span class="c">######################################################################</span>
+<span class="c">#################### Vigenere cipher examples ########################</span>
+<span class="c">######################################################################</span>
+
+</div>
+<div class="viewcode-block" id="encipher_vigenere"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.encipher_vigenere">[docs]</a><span class="k">def</span> <span class="nf">encipher_vigenere</span><span class="p">(</span><span class="n">pt</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">symbols</span><span class="o">=</span><span class="s">&quot;ABCDEFGHIJKLMNOPQRSTUVWXYZ&quot;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Performs the Vigenere cipher encryption on plaintext ``pt``, and returns the ciphertext.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    =====</span>
+
+<span class="sd">    The Vigenere cipher is named after Blaise de Vigenere, a sixteenth</span>
+<span class="sd">    century diplomat and cryptographer, by a historical accident.</span>
+<span class="sd">    Vigene`re actually invented a different and more complicated cipher.</span>
+<span class="sd">    The so-called *Vigenere cipher* cipher was actually invented</span>
+<span class="sd">    by Giovan Batista Belaso in 1553.</span>
+
+<span class="sd">    This cipher was used in the 1700&#39;s, for example, during the American Civil War.</span>
+<span class="sd">    The Confederacy used a brass cipher disk to implement the Vigenere cipher</span>
+<span class="sd">    (now on display in the NSA Museum in Fort Meade) [1]_.</span>
+
+<span class="sd">    The Vigenere cipher is a generalization of the shift cipher.</span>
+<span class="sd">    Whereas the shift cipher shifts each letter by the same amount (that amount</span>
+<span class="sd">    being the key of the shift cipher) the Vigenere cipher shifts</span>
+<span class="sd">    a letter by an amount determined by the key, which is a word or</span>
+<span class="sd">    phrase known only to the sender and receiver).</span>
+
+<span class="sd">    For example, if the key was a single letter, such as &quot;C&quot;, then the</span>
+<span class="sd">    so-called Vigenere cipher is actually a shift cipher with a</span>
+<span class="sd">    shift of `2` (since &quot;C&quot; is the 2nd letter of the alphabet, if</span>
+<span class="sd">    you start counting at `0`). If the key was a word with two</span>
+<span class="sd">    letters, such as &quot;CA&quot;, then the so-called Vigenere cipher will</span>
+<span class="sd">    shift letters in even positions by `2` and letters in odd positions</span>
+<span class="sd">    are left alone (shifted by `0`, since &quot;A&quot; is the 0th letter, if</span>
+<span class="sd">    you start counting at `0`).</span>
+
+
+<span class="sd">    ALGORITHM:</span>
+
+<span class="sd">        INPUT:</span>
+
+<span class="sd">            ``key``: a string of upper-case letters (the secret key)</span>
+
+<span class="sd">            ``m``: string of upper-case letters (the plaintext message)</span>
+
+<span class="sd">        OUTPUT:</span>
+
+<span class="sd">            ``c``: string of upper-case letters (the ciphertext message)</span>
+
+<span class="sd">        STEPS:</span>
+<span class="sd">            0. Identify the alphabet A, ..., Z with the integers 0, ..., 25.</span>
+<span class="sd">            1. Compute from the string ``key`` a list ``L1`` of corresponding</span>
+<span class="sd">               integers. Let ``n1 = len(L1)``.</span>
+<span class="sd">            2. Compute from the string ``m`` a list ``L2`` of corresponding</span>
+<span class="sd">               integers. Let ``n2 = len(L2)``.</span>
+<span class="sd">            3. Break ``L2`` up sequencially into sublists of size ``n1``, and one sublist</span>
+<span class="sd">               at the end of size smaller or equal to ``n1``.</span>
+<span class="sd">            4. For each of these sublists ``L`` of ``L2``, compute a new list ``C`` given by</span>
+<span class="sd">               ``C[i] = L[i] + L1[i] (mod 26)`` to the ``i``-th element in the sublist,</span>
+<span class="sd">               for each ``i``.</span>
+<span class="sd">            5. Assemble these lists ``C`` by concatenation into a new list of length ``n2``.</span>
+<span class="sd">            6. Compute from the new list a string ``c`` of corresponding letters.</span>
+
+<span class="sd">    Once it is known that the key is, say, `n` characters long, frequency analysis</span>
+<span class="sd">    can be applied to every `n`-th letter of the ciphertext to determine the plaintext.</span>
+<span class="sd">    This method is called *Kasiski examination* (although it was first discovered</span>
+<span class="sd">    by Babbage).</span>
+
+<span class="sd">    The cipher Vigenere actually discovered is an &quot;auto-key&quot; cipher</span>
+<span class="sd">    described as follows.</span>
+
+<span class="sd">    ALGORITHM:</span>
+
+<span class="sd">        INPUT:</span>
+
+<span class="sd">          ``key``: a string of upper-case letters (the secret key)</span>
+
+<span class="sd">          ``m``: string of upper-case letters (the plaintext message)</span>
+
+<span class="sd">        OUTPUT:</span>
+
+<span class="sd">          ``c``: string of upper-case letters (the ciphertext message)</span>
+
+<span class="sd">        STEPS:</span>
+<span class="sd">            0. Identify the alphabet A, ..., Z with the integers 0, ..., 25.</span>
+<span class="sd">            1. Compute from the string ``m`` a list ``L2`` of corresponding</span>
+<span class="sd">               integers. Let ``n2 = len(L2)``.</span>
+<span class="sd">            2. Let ``n1`` be the length of the key. Concatenate the string</span>
+<span class="sd">               ``key`` with the first ``n2 - n1`` characters of the plaintext message.</span>
+<span class="sd">               Compute from this string of length ``n2`` a list ``L1`` of corresponding</span>
+<span class="sd">               integers. Note ``n2 = len(L1)``.</span>
+<span class="sd">            3. Compute a new list ``C`` given by ``C[i] = L1[i] + L2[i] (mod 26)``,</span>
+<span class="sd">               for each ``i``. Note ``n2 = len(C)``.</span>
+<span class="sd">            4. Compute from the new list a string ``c`` of corresponding letters.</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    .. [1] http://en.wikipedia.org/wiki/Vigenere_cipher</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.crypto.crypto import encipher_vigenere</span>
+<span class="sd">    &gt;&gt;&gt; key = &quot;encrypt&quot;</span>
+<span class="sd">    &gt;&gt;&gt; pt = &quot;meet me on monday&quot;</span>
+<span class="sd">    &gt;&gt;&gt; encipher_vigenere(pt, key)</span>
+<span class="sd">    &#39;QRGKKTHRZQEBPR&#39;</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">symbols</span> <span class="o">=</span> <span class="s">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">symbols</span><span class="p">)</span>
+    <span class="n">A</span> <span class="o">=</span> <span class="n">alphabet_of_cipher</span><span class="p">(</span><span class="n">symbols</span><span class="p">)</span>
+    <span class="n">N</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">A</span><span class="p">)</span>   <span class="c"># normally, 26</span>
+    <span class="n">key0</span> <span class="o">=</span> <span class="n">uniq</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+    <span class="n">key0</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">capitalize</span><span class="p">()</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">key0</span> <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">isalnum</span><span class="p">()]</span>
+    <span class="n">K</span> <span class="o">=</span> <span class="p">[</span><span class="n">A</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">key0</span><span class="p">]</span>
+    <span class="n">k</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">K</span><span class="p">)</span>
+    <span class="n">pt0</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">capitalize</span><span class="p">()</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">pt</span> <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">isalnum</span><span class="p">()]</span>
+    <span class="n">P</span> <span class="o">=</span> <span class="p">[</span><span class="n">A</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">pt0</span><span class="p">]</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">P</span><span class="p">)</span>
+    <span class="c">#m = n//k</span>
+    <span class="n">C</span> <span class="o">=</span> <span class="p">[(</span><span class="n">K</span><span class="p">[</span><span class="n">i</span> <span class="o">%</span> <span class="n">k</span><span class="p">]</span> <span class="o">+</span> <span class="n">P</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="o">%</span> <span class="n">N</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">)]</span>
+    <span class="k">return</span> <span class="s">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="nb">str</span><span class="p">(</span><span class="n">A</span><span class="p">[</span><span class="n">x</span><span class="p">])</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">C</span><span class="p">])</span>
+
+</div>
+<div class="viewcode-block" id="decipher_vigenere"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.decipher_vigenere">[docs]</a><span class="k">def</span> <span class="nf">decipher_vigenere</span><span class="p">(</span><span class="n">ct</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">symbols</span><span class="o">=</span><span class="s">&quot;ABCDEFGHIJKLMNOPQRSTUVWXYZ&quot;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Decode using the Vigenere cipher.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.crypto.crypto import decipher_vigenere</span>
+<span class="sd">    &gt;&gt;&gt; key = &quot;encrypt&quot;</span>
+<span class="sd">    &gt;&gt;&gt; ct = &quot;QRGK kt HRZQE BPR&quot;</span>
+<span class="sd">    &gt;&gt;&gt; decipher_vigenere(ct, key)</span>
+<span class="sd">    &#39;MEETMEONMONDAY&#39;</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">symbols</span> <span class="o">=</span> <span class="s">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">symbols</span><span class="p">)</span>
+    <span class="n">A</span> <span class="o">=</span> <span class="n">alphabet_of_cipher</span><span class="p">(</span><span class="n">symbols</span><span class="p">)</span>
+    <span class="n">N</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">A</span><span class="p">)</span>   <span class="c"># normally, 26</span>
+    <span class="n">key0</span> <span class="o">=</span> <span class="n">uniq</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+    <span class="n">key0</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">capitalize</span><span class="p">()</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">key0</span> <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">isalnum</span><span class="p">()]</span>
+    <span class="n">K</span> <span class="o">=</span> <span class="p">[</span><span class="n">A</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">key0</span><span class="p">]</span>
+    <span class="n">k</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">K</span><span class="p">)</span>
+    <span class="n">ct0</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">capitalize</span><span class="p">()</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">ct</span> <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">isalnum</span><span class="p">()]</span>
+    <span class="n">C</span> <span class="o">=</span> <span class="p">[</span><span class="n">A</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">ct0</span><span class="p">]</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">C</span><span class="p">)</span>
+    <span class="c">#m = n//k</span>
+    <span class="n">P</span> <span class="o">=</span> <span class="p">[(</span><span class="o">-</span><span class="n">K</span><span class="p">[</span><span class="n">i</span> <span class="o">%</span> <span class="n">k</span><span class="p">]</span> <span class="o">+</span> <span class="n">C</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="o">%</span> <span class="n">N</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">)]</span>
+    <span class="k">return</span> <span class="s">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="nb">str</span><span class="p">(</span><span class="n">A</span><span class="p">[</span><span class="n">x</span><span class="p">])</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">P</span><span class="p">])</span>
+
+
+<span class="c">#################### Hill cipher  ########################</span>
+
+</div>
+<div class="viewcode-block" id="encipher_hill"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.encipher_hill">[docs]</a><span class="k">def</span> <span class="nf">encipher_hill</span><span class="p">(</span><span class="n">pt</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">symbols</span><span class="o">=</span><span class="s">&quot;ABCDEFGHIJKLMNOPQRSTUVWXYZ&quot;</span><span class="p">):</span>
+    <span class="sd">r&quot;&quot;&quot;</span>
+<span class="sd">    Performs the Hill cipher encryption on plaintext ``pt``, and returns the ciphertext.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    =====</span>
+
+<span class="sd">    The Hill cipher [1]_, invented by Lester S. Hill in 1920&#39;s [2]_,</span>
+<span class="sd">    was the first polygraphic cipher in which it was practical (though barely)</span>
+<span class="sd">    to operate on more than three symbols at once. The following discussion assumes</span>
+<span class="sd">    an elementary knowledge of matrices.</span>
+
+<span class="sd">    First, each letter is first encoded as a number. We assume here that</span>
+<span class="sd">    &quot;A&quot; `\leftrightarrow` 0, &quot;B&quot; `\leftrightarrow` 1, ..., &quot;Z&quot; `\leftrightarrow` 25.</span>
+<span class="sd">    We denote the integers `\{0, 1, ..., 25\}`</span>
+<span class="sd">    by `Z_{26}`. Suppose your message m consists of `n` capital letters, with no spaces.</span>
+<span class="sd">    This may be regarded an `n`-tuple M of elements of `Z_{26}`. A key in the Hill cipher</span>
+<span class="sd">    is a `k x k` matrix `K`, all of whose entries are in `Z_{26}`, such that the matrix</span>
+<span class="sd">    `K` is invertible (ie, that the linear transformation `K: Z_{26}^k \rightarrow Z_{26}^k`</span>
+<span class="sd">    is one-to-one).</span>
+
+<span class="sd">    ALGORITHM:</span>
+
+<span class="sd">        INPUT:</span>
+
+<span class="sd">            ``key``: a `k x k` invertible matrix `K`, all of whose entries are in `Z_{26}`</span>
+
+<span class="sd">            ``m``: string of `n` upper-case letters (the plaintext message)</span>
+<span class="sd">            (Note: Sage assumes that `n` is a multiple of `k`.)</span>
+
+<span class="sd">        OUTPUT:</span>
+
+<span class="sd">            ``c``: string of upper-case letters (the ciphertext message)</span>
+
+<span class="sd">        STEPS:</span>
+<span class="sd">            0. Identify the alphabet A, ..., Z with the integers 0, ..., 25.</span>
+<span class="sd">            1. Compute from the string ``m`` a list ``L`` of corresponding</span>
+<span class="sd">               integers. Let ``n = len(L)``.</span>
+<span class="sd">            2. Break the list ``L`` up into ``t = ceiling(n/k)`` sublists</span>
+<span class="sd">               ``L_1``, ..., ``L_t`` of size ``k`` (where the last list might be</span>
+<span class="sd">               &quot;padded&quot; by 0&#39;s to ensure it is size ``k``).</span>
+<span class="sd">            3. Compute new list ``C_1``, ..., ``C_t`` given by ``C[i] = K*L_i``</span>
+<span class="sd">               (arithmetic is done mod 26), for each ``i``.</span>
+<span class="sd">            4. Concatenate these into a list ``C = C_1 + ... + C_t``.</span>
+<span class="sd">            5. Compute from ``C`` a string ``c`` of corresponding letters.</span>
+<span class="sd">               This has length ``k*t``.</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    .. [1] en.wikipedia.org/wiki/Hill_cipher</span>
+<span class="sd">    .. [2] Lester S. Hill, Cryptography in an Algebraic Alphabet, The American</span>
+<span class="sd">       Mathematical Monthly Vol.36, June-July 1929, pp.306-312.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.crypto.crypto import encipher_hill</span>
+<span class="sd">    &gt;&gt;&gt; from sympy import Matrix</span>
+<span class="sd">    &gt;&gt;&gt; pt = &quot;meet me on monday&quot;</span>
+<span class="sd">    &gt;&gt;&gt; key = Matrix([[1, 2], [3, 5]])</span>
+<span class="sd">    &gt;&gt;&gt; encipher_hill(pt, key)</span>
+<span class="sd">    &#39;UEQDUEODOCTCWQ&#39;</span>
+<span class="sd">    &gt;&gt;&gt; pt = &quot;meet me on tuesday&quot;</span>
+<span class="sd">    &gt;&gt;&gt; encipher_hill(pt, key)</span>
+<span class="sd">    &#39;UEQDUEODHBOYDJYU&#39;</span>
+<span class="sd">    &gt;&gt;&gt; pt = &quot;GONAVYBEATARMY&quot;</span>
+<span class="sd">    &gt;&gt;&gt; key = Matrix([[1, 0, 1], [0, 1, 1], [2, 2, 3]])</span>
+<span class="sd">    &gt;&gt;&gt; encipher_hill(pt, key)</span>
+<span class="sd">    &#39;TBBYTKBEKKRLMYU&#39;</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">symbols</span> <span class="o">=</span> <span class="s">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">symbols</span><span class="p">)</span>
+    <span class="n">A</span> <span class="o">=</span> <span class="n">alphabet_of_cipher</span><span class="p">(</span><span class="n">symbols</span><span class="p">)</span>
+    <span class="n">N</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">A</span><span class="p">)</span>   <span class="c"># normally, 26</span>
+    <span class="n">k</span> <span class="o">=</span> <span class="n">key</span><span class="o">.</span><span class="n">cols</span>
+    <span class="n">pt0</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">capitalize</span><span class="p">()</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">pt</span> <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">isalnum</span><span class="p">()]</span>
+    <span class="n">P</span> <span class="o">=</span> <span class="p">[</span><span class="n">A</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">pt0</span><span class="p">]</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">P</span><span class="p">)</span>
+    <span class="n">m</span> <span class="o">=</span> <span class="n">n</span><span class="o">//</span><span class="n">k</span>
+    <span class="k">if</span> <span class="n">n</span> <span class="o">&gt;</span> <span class="n">m</span><span class="o">*</span><span class="n">k</span><span class="p">:</span>
+        <span class="n">P</span> <span class="o">=</span> <span class="n">P</span> <span class="o">+</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="p">(</span><span class="n">n</span> <span class="o">-</span> <span class="n">m</span><span class="o">*</span><span class="n">k</span><span class="p">)</span>
+        <span class="n">m</span> <span class="o">=</span> <span class="n">m</span> <span class="o">+</span> <span class="mi">1</span>
+    <span class="n">C</span> <span class="o">=</span> <span class="p">[</span><span class="nb">list</span><span class="p">(</span><span class="n">key</span><span class="o">*</span><span class="n">Matrix</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="p">[</span><span class="n">P</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">k</span><span class="o">*</span><span class="n">j</span><span class="p">,</span> <span class="n">k</span><span class="o">*</span><span class="p">(</span><span class="n">j</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))]))</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">m</span><span class="p">)]</span>
+    <span class="n">C</span> <span class="o">=</span> <span class="n">flatten</span><span class="p">(</span><span class="n">C</span><span class="p">)</span>
+    <span class="k">return</span> <span class="s">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">A</span><span class="p">[</span><span class="n">i</span> <span class="o">%</span> <span class="n">N</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">C</span><span class="p">])</span>
+
+</div>
+<div class="viewcode-block" id="decipher_hill"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.decipher_hill">[docs]</a><span class="k">def</span> <span class="nf">decipher_hill</span><span class="p">(</span><span class="n">ct</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">symbols</span><span class="o">=</span><span class="s">&quot;ABCDEFGHIJKLMNOPQRSTUVWXYZ&quot;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Deciphering is the same as ciphering but using the inverse of the key matrix.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.crypto.crypto import decipher_hill</span>
+<span class="sd">    &gt;&gt;&gt; from sympy import Matrix</span>
+<span class="sd">    &gt;&gt;&gt; ct = &quot;UEQDUEODOCTCWQ&quot;</span>
+<span class="sd">    &gt;&gt;&gt; key = Matrix([[1, 2], [3, 5]])</span>
+<span class="sd">    &gt;&gt;&gt; decipher_hill(ct, key)</span>
+<span class="sd">    &#39;MEETMEONMONDAY&#39;</span>
+<span class="sd">    &gt;&gt;&gt; ct = &quot;UEQDUEODHBOYDJYU&quot;</span>
+<span class="sd">    &gt;&gt;&gt; decipher_hill(ct, key)</span>
+<span class="sd">    &#39;MEETMEONTUESDAYA&#39;</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">symbols</span> <span class="o">=</span> <span class="s">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">symbols</span><span class="p">)</span>
+    <span class="n">A</span> <span class="o">=</span> <span class="n">alphabet_of_cipher</span><span class="p">(</span><span class="n">symbols</span><span class="p">)</span>
+    <span class="n">N</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">A</span><span class="p">)</span>   <span class="c"># normally, 26</span>
+    <span class="n">k</span> <span class="o">=</span> <span class="n">key</span><span class="o">.</span><span class="n">cols</span>
+    <span class="n">ct0</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">capitalize</span><span class="p">()</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">ct</span> <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">isalnum</span><span class="p">()]</span>
+    <span class="n">C</span> <span class="o">=</span> <span class="p">[</span><span class="n">A</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">ct0</span><span class="p">]</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">C</span><span class="p">)</span>
+    <span class="n">m</span> <span class="o">=</span> <span class="n">n</span><span class="o">//</span><span class="n">k</span>
+    <span class="k">if</span> <span class="n">n</span> <span class="o">&gt;</span> <span class="n">m</span><span class="o">*</span><span class="n">k</span><span class="p">:</span>
+        <span class="n">C</span> <span class="o">=</span> <span class="n">C</span> <span class="o">+</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="p">(</span><span class="n">n</span> <span class="o">-</span> <span class="n">m</span><span class="o">*</span><span class="n">k</span><span class="p">)</span>
+        <span class="n">m</span> <span class="o">=</span> <span class="n">m</span> <span class="o">+</span> <span class="mi">1</span>
+    <span class="n">key_inv</span> <span class="o">=</span> <span class="n">key</span><span class="o">.</span><span class="n">inv_mod</span><span class="p">(</span><span class="n">N</span><span class="p">)</span>
+    <span class="n">P</span> <span class="o">=</span> <span class="p">[</span><span class="nb">list</span><span class="p">(</span><span class="n">key_inv</span><span class="o">*</span><span class="n">Matrix</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="p">[</span><span class="n">C</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">k</span><span class="o">*</span><span class="n">j</span><span class="p">,</span> <span class="n">k</span><span class="o">*</span><span class="p">(</span><span class="n">j</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))]))</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">m</span><span class="p">)]</span>
+    <span class="n">P</span> <span class="o">=</span> <span class="n">flatten</span><span class="p">(</span><span class="n">P</span><span class="p">)</span>
+    <span class="k">return</span> <span class="s">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">A</span><span class="p">[</span><span class="n">i</span> <span class="o">%</span> <span class="n">N</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">P</span><span class="p">])</span>
+
+
+<span class="c">#################### Bifid cipher  ########################</span>
+
+</div>
+<div class="viewcode-block" id="encipher_bifid5"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.encipher_bifid5">[docs]</a><span class="k">def</span> <span class="nf">encipher_bifid5</span><span class="p">(</span><span class="n">pt</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+    <span class="sd">r&quot;&quot;&quot;</span>
+<span class="sd">    Performs the Bifid cipher encryption on plaintext ``pt``, and returns the ciphertext.</span>
+
+<span class="sd">    This is the version of the Bifid cipher that uses the `5 \times 5` Polybius square.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    =====</span>
+
+<span class="sd">    The Bifid cipher was invented around 1901 by Felix Delastelle.</span>
+<span class="sd">    It is a *fractional substitution* cipher, where letters are</span>
+<span class="sd">    replaced by pairs of symbols from a smaller alphabet. The</span>
+<span class="sd">    cipher uses a `5 \times 5` square filled with some ordering of the alphabet,</span>
+<span class="sd">    except that &quot;i&quot;s and &quot;j&quot;s are identified (this is a so-called</span>
+<span class="sd">    Polybius square; there is a `6 \times 6` analog if you add back in &quot;j&quot; and also</span>
+<span class="sd">    append onto the usual 26 letter alphabet, the digits 0, 1, ..., 9).</span>
+<span class="sd">    According to Helen Gaines&#39; book *Cryptanalysis*, this type of cipher</span>
+<span class="sd">    was used in the field by the German Army during World War I.</span>
+
+<span class="sd">    ALGORITHM: (5x5 case)</span>
+
+<span class="sd">        INPUT:</span>
+
+<span class="sd">            ``pt``: plaintext string (no &quot;j&quot;s)</span>
+
+<span class="sd">            ``key``: short string for key (no repetitions, no &quot;j&quot;s)</span>
+
+<span class="sd">        OUTPUT:</span>
+
+<span class="sd">            ciphertext (using Bifid5 cipher in all caps, no spaces, no &quot;J&quot;s)</span>
+
+<span class="sd">        STEPS:</span>
+<span class="sd">            1. Create the `5 \times 5` Polybius square ``S`` associated to the ``k`` as</span>
+<span class="sd">               follows:</span>
+
+<span class="sd">                a) starting top left, moving left-to-right, top-to-bottom,</span>
+<span class="sd">                   place the letters of the key into a 5x5 matrix,</span>
+<span class="sd">                b) when finished, add the letters of the alphabet</span>
+<span class="sd">                   not in the key until the 5x5 square is filled</span>
+
+<span class="sd">            2. Create a list ``P`` of pairs of numbers which are the coordinates</span>
+<span class="sd">               in the Polybius square of the letters in ``pt``.</span>
+<span class="sd">            3. Let ``L1`` be the list of all first coordinates of ``P`` (length</span>
+<span class="sd">               of ``L1 = n``), let ``L2`` be the list of all second coordinates</span>
+<span class="sd">               of ``P`` (so the length of ``L2`` is also ``n``).</span>
+<span class="sd">            4. Let ``L`` be the concatenation of ``L1`` and ``L2`` (length ``L = 2*n``),</span>
+<span class="sd">               except that consecutive numbers are paired ``(L[2*i], L[2*i + 1])``.</span>
+<span class="sd">               You can regard ``L`` as a list of pairs of length ``n``.</span>
+<span class="sd">            5. Let ``C`` be the list of all letters which are of the form</span>
+<span class="sd">               ``S[i, j]``, for all ``(i, j)`` in ``L``. As a string, this</span>
+<span class="sd">               is the ciphertext ``ct``.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.crypto.crypto import encipher_bifid5</span>
+<span class="sd">    &gt;&gt;&gt; pt = &quot;meet me on monday&quot;</span>
+<span class="sd">    &gt;&gt;&gt; key = &quot;encrypt&quot;</span>
+<span class="sd">    &gt;&gt;&gt; encipher_bifid5(pt, key)</span>
+<span class="sd">    &#39;LNLLQNPPNPGADK&#39;</span>
+<span class="sd">    &gt;&gt;&gt; pt = &quot;meet me on friday&quot;</span>
+<span class="sd">    &gt;&gt;&gt; encipher_bifid5(pt, key)</span>
+<span class="sd">    &#39;LNLLFGPPNPGRSK&#39;</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">A</span> <span class="o">=</span> <span class="n">alphabet_of_cipher</span><span class="p">()</span>
+    <span class="c"># first make sure the letters are capitalized</span>
+    <span class="c"># and text has no spaces</span>
+    <span class="n">key</span> <span class="o">=</span> <span class="n">uniq</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+    <span class="n">key0</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">capitalize</span><span class="p">()</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">key</span> <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">isalnum</span><span class="p">()]</span>
+    <span class="n">pt0</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">capitalize</span><span class="p">()</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">pt</span> <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">isalnum</span><span class="p">()]</span>
+    <span class="c"># create long key</span>
+    <span class="n">long_key</span> <span class="o">=</span> <span class="n">key0</span> <span class="o">+</span> <span class="p">[</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">A</span> <span class="k">if</span> <span class="p">(</span><span class="ow">not</span><span class="p">(</span><span class="n">x</span> <span class="ow">in</span> <span class="n">key0</span><span class="p">)</span> <span class="ow">and</span> <span class="n">x</span> <span class="o">!=</span> <span class="s">&quot;J&quot;</span><span class="p">)]</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">pt0</span><span class="p">)</span>
+    <span class="c"># the fractionalization</span>
+    <span class="n">pairs</span> <span class="o">=</span> <span class="p">[[</span><span class="n">long_key</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">//</span><span class="mi">5</span><span class="p">,</span> <span class="n">long_key</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">%</span> <span class="mi">5</span><span class="p">]</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">pt0</span><span class="p">]</span>
+    <span class="n">tmp_cipher</span> <span class="o">=</span> <span class="n">flatten</span><span class="p">([</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">pairs</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">pairs</span><span class="p">])</span>
+    <span class="n">ct</span> <span class="o">=</span> <span class="s">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">long_key</span><span class="p">[</span><span class="mi">5</span><span class="o">*</span><span class="n">tmp_cipher</span><span class="p">[</span><span class="mi">2</span><span class="o">*</span><span class="n">i</span><span class="p">]</span> <span class="o">+</span> <span class="n">tmp_cipher</span><span class="p">[</span><span class="mi">2</span><span class="o">*</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">)])</span>
+    <span class="k">return</span> <span class="n">ct</span>
+
+</div>
+<div class="viewcode-block" id="decipher_bifid5"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.decipher_bifid5">[docs]</a><span class="k">def</span> <span class="nf">decipher_bifid5</span><span class="p">(</span><span class="n">ct</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+    <span class="sd">r&quot;&quot;&quot;</span>
+<span class="sd">    Performs the Bifid cipher decryption on ciphertext ``ct``, and returns the plaintext.</span>
+
+<span class="sd">    This is the version of the Bifid cipher that uses the `5 \times 5` Polybius square.</span>
+
+<span class="sd">    INPUT:</span>
+
+<span class="sd">        ``ct``: ciphertext string (digits okay)</span>
+
+<span class="sd">        ``key``: short string for key (no repetitions, digits okay)</span>
+
+<span class="sd">    OUTPUT:</span>
+
+<span class="sd">        plaintext from Bifid5 cipher (all caps, no spaces, no &quot;J&quot;s)</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.crypto.crypto import encipher_bifid5, decipher_bifid5</span>
+<span class="sd">    &gt;&gt;&gt; key = &quot;encrypt&quot;</span>
+<span class="sd">    &gt;&gt;&gt; pt = &quot;meet me on monday&quot;</span>
+<span class="sd">    &gt;&gt;&gt; encipher_bifid5(pt, key)</span>
+<span class="sd">    &#39;LNLLQNPPNPGADK&#39;</span>
+<span class="sd">    &gt;&gt;&gt; ct = &#39;LNLLQNPPNPGADK&#39;</span>
+<span class="sd">    &gt;&gt;&gt; decipher_bifid5(ct, key)</span>
+<span class="sd">    &#39;MEETMEONMONDAY&#39;</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">A</span> <span class="o">=</span> <span class="n">alphabet_of_cipher</span><span class="p">()</span>
+    <span class="c"># first make sure the letters are capitalized</span>
+    <span class="c"># and text has no spaces</span>
+    <span class="n">key</span> <span class="o">=</span> <span class="n">uniq</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+    <span class="n">key0</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">capitalize</span><span class="p">()</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">key</span> <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">isalnum</span><span class="p">()]</span>
+    <span class="n">ct0</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">capitalize</span><span class="p">()</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">ct</span> <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">isalnum</span><span class="p">()]</span>
+    <span class="c"># create long key</span>
+    <span class="n">long_key</span> <span class="o">=</span> <span class="n">key0</span> <span class="o">+</span> <span class="p">[</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">A</span> <span class="k">if</span> <span class="p">(</span><span class="ow">not</span><span class="p">(</span><span class="n">x</span> <span class="ow">in</span> <span class="n">key0</span><span class="p">)</span> <span class="ow">and</span> <span class="n">x</span> <span class="o">!=</span> <span class="s">&quot;J&quot;</span><span class="p">)]</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">ct0</span><span class="p">)</span>
+    <span class="c"># the fractionalization</span>
+    <span class="n">pairs</span> <span class="o">=</span> <span class="n">flatten</span><span class="p">([[</span><span class="n">long_key</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">//</span><span class="mi">5</span><span class="p">,</span> <span class="n">long_key</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">%</span> <span class="mi">5</span><span class="p">]</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">ct0</span> <span class="k">if</span> <span class="n">x</span> <span class="o">!=</span> <span class="s">&quot;J&quot;</span><span class="p">])</span>
+    <span class="n">tmp_plain</span> <span class="o">=</span> <span class="n">flatten</span><span class="p">([[</span><span class="n">pairs</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">pairs</span><span class="p">[</span><span class="n">n</span> <span class="o">+</span> <span class="n">i</span><span class="p">]]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">)])</span>
+    <span class="n">pt</span> <span class="o">=</span> <span class="s">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">long_key</span><span class="p">[</span><span class="mi">5</span><span class="o">*</span><span class="n">tmp_plain</span><span class="p">[</span><span class="mi">2</span><span class="o">*</span><span class="n">i</span><span class="p">]</span> <span class="o">+</span> <span class="n">tmp_plain</span><span class="p">[</span><span class="mi">2</span><span class="o">*</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">)])</span>
+    <span class="k">return</span> <span class="n">pt</span>
+
+</div>
+<div class="viewcode-block" id="bifid5_square"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.bifid5_square">[docs]</a><span class="k">def</span> <span class="nf">bifid5_square</span><span class="p">(</span><span class="n">key</span><span class="p">):</span>
+    <span class="sd">r&quot;&quot;&quot;</span>
+<span class="sd">    5x5 Polybius square.</span>
+
+<span class="sd">    Produce the Polybius square for the `5 \times 5` Bifid cipher.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.crypto.crypto import bifid5_square</span>
+<span class="sd">    &gt;&gt;&gt; bifid5_square(&quot;gold bug&quot;)</span>
+<span class="sd">    Matrix([</span>
+<span class="sd">    [G, O, L, D, B],</span>
+<span class="sd">    [U, A, C, E, F],</span>
+<span class="sd">    [H, I, K, M, N],</span>
+<span class="sd">    [P, Q, R, S, T],</span>
+<span class="sd">    [V, W, X, Y, Z]])</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">A</span> <span class="o">=</span> <span class="n">alphabet_of_cipher</span><span class="p">()</span>
+    <span class="c"># first make sure the letters are capitalized</span>
+    <span class="c"># and key has no spaces or duplicates</span>
+    <span class="n">key</span> <span class="o">=</span> <span class="n">uniq</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+    <span class="n">key0</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">capitalize</span><span class="p">()</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">key</span> <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">isalnum</span><span class="p">()]</span>
+    <span class="c"># create long key</span>
+    <span class="n">long_key</span> <span class="o">=</span> <span class="n">key0</span> <span class="o">+</span> <span class="p">[</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">A</span> <span class="k">if</span> <span class="p">(</span><span class="ow">not</span><span class="p">(</span><span class="n">x</span> <span class="ow">in</span> <span class="n">key0</span><span class="p">)</span> <span class="ow">and</span> <span class="n">x</span> <span class="o">!=</span> <span class="s">&quot;J&quot;</span><span class="p">)]</span>
+    <span class="n">f</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">:</span> <span class="n">Symbol</span><span class="p">(</span><span class="n">long_key</span><span class="p">[</span><span class="mi">5</span><span class="o">*</span><span class="n">i</span> <span class="o">+</span> <span class="n">j</span><span class="p">])</span>
+    <span class="n">M</span> <span class="o">=</span> <span class="n">Matrix</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">M</span>
+
+</div>
+<div class="viewcode-block" id="encipher_bifid6"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.encipher_bifid6">[docs]</a><span class="k">def</span> <span class="nf">encipher_bifid6</span><span class="p">(</span><span class="n">pt</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+    <span class="sd">r&quot;&quot;&quot;</span>
+<span class="sd">    Performs the Bifid cipher encryption on plaintext ``pt``, and returns the ciphertext.</span>
+
+<span class="sd">    This is the version of the Bifid cipher that uses the `6 \times 6` Polybius square.</span>
+<span class="sd">    Assumes alphabet of symbols is &quot;A&quot;, ..., &quot;Z&quot;, &quot;0&quot;, ..., &quot;9&quot;.</span>
+
+<span class="sd">    INPUT:</span>
+
+<span class="sd">        ``pt``: plaintext string (digits okay)</span>
+
+<span class="sd">        ``key``: short string for key (no repetitions, digits okay)</span>
+
+<span class="sd">    OUTPUT:</span>
+
+<span class="sd">        ciphertext from Bifid cipher (all caps, no spaces)</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.crypto.crypto import encipher_bifid6</span>
+<span class="sd">    &gt;&gt;&gt; key = &quot;encrypt&quot;</span>
+<span class="sd">    &gt;&gt;&gt; pt = &quot;meet me on monday at 8am&quot;</span>
+<span class="sd">    &gt;&gt;&gt; encipher_bifid6(pt, key)</span>
+<span class="sd">    &#39;HNHOKNTA5MEPEGNQZYG&#39;</span>
+<span class="sd">    &gt;&gt;&gt; encipher_bifid6(pt, key)</span>
+<span class="sd">    &#39;HNHOKNTA5MEPEGNQZYG&#39;</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">A</span> <span class="o">=</span> <span class="n">alphabet_of_cipher</span><span class="p">()</span> <span class="o">+</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">10</span><span class="p">)]</span>
+    <span class="c"># first make sure the letters are capitalized</span>
+    <span class="c"># and text has no spaces</span>
+    <span class="n">key</span> <span class="o">=</span> <span class="n">uniq</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+    <span class="n">key0</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">capitalize</span><span class="p">()</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">key</span> <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">isalnum</span><span class="p">()]</span>
+    <span class="n">pt0</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">capitalize</span><span class="p">()</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">pt</span> <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">isalnum</span><span class="p">()]</span>
+    <span class="c"># create long key</span>
+    <span class="n">long_key</span> <span class="o">=</span> <span class="n">key0</span> <span class="o">+</span> <span class="p">[</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">A</span> <span class="k">if</span> <span class="ow">not</span><span class="p">(</span><span class="n">x</span> <span class="ow">in</span> <span class="n">key0</span><span class="p">)]</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">pt0</span><span class="p">)</span>
+    <span class="c"># the fractionalization</span>
+    <span class="n">pairs</span> <span class="o">=</span> <span class="p">[[</span><span class="n">long_key</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">//</span><span class="mi">6</span><span class="p">,</span> <span class="n">long_key</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">%</span> <span class="mi">6</span><span class="p">]</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">pt0</span><span class="p">]</span>
+    <span class="n">tmp_cipher</span> <span class="o">=</span> <span class="n">flatten</span><span class="p">([</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">pairs</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">pairs</span><span class="p">])</span>
+    <span class="n">ct</span> <span class="o">=</span> <span class="s">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">long_key</span><span class="p">[</span><span class="mi">6</span><span class="o">*</span><span class="n">tmp_cipher</span><span class="p">[</span><span class="mi">2</span><span class="o">*</span><span class="n">i</span><span class="p">]</span> <span class="o">+</span> <span class="n">tmp_cipher</span><span class="p">[</span><span class="mi">2</span><span class="o">*</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">)])</span>
+    <span class="k">return</span> <span class="n">ct</span>
+
+</div>
+<div class="viewcode-block" id="decipher_bifid6"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.decipher_bifid6">[docs]</a><span class="k">def</span> <span class="nf">decipher_bifid6</span><span class="p">(</span><span class="n">ct</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+    <span class="sd">r&quot;&quot;&quot;</span>
+<span class="sd">    Performs the Bifid cipher decryption on ciphertext ``ct``, and returns the plaintext.</span>
+
+<span class="sd">    This is the version of the Bifid cipher that uses the `6 \times 6` Polybius square.</span>
+<span class="sd">    Assumes alphabet of symbols is &quot;A&quot;, ..., &quot;Z&quot;, &quot;0&quot;, ..., &quot;9&quot;.</span>
+
+<span class="sd">    INPUT:</span>
+
+<span class="sd">        ``ct``: ciphertext string (digits okay)</span>
+
+<span class="sd">        ``key``: short string for key (no repetitions, digits okay)</span>
+
+<span class="sd">    OUTPUT:</span>
+
+<span class="sd">        plaintext from Bifid cipher (all caps, no spaces)</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.crypto.crypto import encipher_bifid6, decipher_bifid6</span>
+<span class="sd">    &gt;&gt;&gt; key = &quot;encrypt&quot;</span>
+<span class="sd">    &gt;&gt;&gt; pt = &quot;meet me on monday at 8am&quot;</span>
+<span class="sd">    &gt;&gt;&gt; encipher_bifid6(pt, key)</span>
+<span class="sd">    &#39;HNHOKNTA5MEPEGNQZYG&#39;</span>
+<span class="sd">    &gt;&gt;&gt; ct = &quot;HNHOKNTA5MEPEGNQZYG&quot;</span>
+<span class="sd">    &gt;&gt;&gt; decipher_bifid6(ct, key)</span>
+<span class="sd">    &#39;MEETMEONMONDAYAT8AM&#39;</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">A</span> <span class="o">=</span> <span class="n">alphabet_of_cipher</span><span class="p">()</span> <span class="o">+</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">10</span><span class="p">)]</span>
+    <span class="c"># first make sure the letters are capitalized</span>
+    <span class="c"># and text has no spaces</span>
+    <span class="n">key</span> <span class="o">=</span> <span class="n">uniq</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+    <span class="n">key0</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">capitalize</span><span class="p">()</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">key</span> <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">isalnum</span><span class="p">()]</span>
+    <span class="n">ct0</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">capitalize</span><span class="p">()</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">ct</span> <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">isalnum</span><span class="p">()]</span>
+    <span class="c"># create long key</span>
+    <span class="n">long_key</span> <span class="o">=</span> <span class="n">key0</span> <span class="o">+</span> <span class="p">[</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">A</span> <span class="k">if</span> <span class="ow">not</span><span class="p">(</span><span class="n">x</span> <span class="ow">in</span> <span class="n">key0</span><span class="p">)]</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">ct0</span><span class="p">)</span>
+    <span class="c"># the fractionalization</span>
+    <span class="n">pairs</span> <span class="o">=</span> <span class="n">flatten</span><span class="p">([[</span><span class="n">long_key</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">//</span><span class="mi">6</span><span class="p">,</span> <span class="n">long_key</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">%</span> <span class="mi">6</span><span class="p">]</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">ct0</span><span class="p">])</span>
+    <span class="n">tmp_plain</span> <span class="o">=</span> <span class="n">flatten</span><span class="p">([[</span><span class="n">pairs</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">pairs</span><span class="p">[</span><span class="n">n</span> <span class="o">+</span> <span class="n">i</span><span class="p">]]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">)])</span>
+    <span class="n">pt</span> <span class="o">=</span> <span class="s">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">long_key</span><span class="p">[</span><span class="mi">6</span><span class="o">*</span><span class="n">tmp_plain</span><span class="p">[</span><span class="mi">2</span><span class="o">*</span><span class="n">i</span><span class="p">]</span> <span class="o">+</span> <span class="n">tmp_plain</span><span class="p">[</span><span class="mi">2</span><span class="o">*</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">)])</span>
+    <span class="k">return</span> <span class="n">pt</span>
+
+</div>
+<div class="viewcode-block" id="bifid6_square"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.bifid6_square">[docs]</a><span class="k">def</span> <span class="nf">bifid6_square</span><span class="p">(</span><span class="n">key</span><span class="p">):</span>
+    <span class="sd">r&quot;&quot;&quot;</span>
+<span class="sd">    6x6 Polybius square.</span>
+
+<span class="sd">    Produces the Polybius square for the `6 \times 6` Bifid cipher.</span>
+<span class="sd">    Assumes alphabet of symbols is &quot;A&quot;, ..., &quot;Z&quot;, &quot;0&quot;, ..., &quot;9&quot;.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.crypto.crypto import bifid6_square</span>
+<span class="sd">    &gt;&gt;&gt; key = &quot;encrypt&quot;</span>
+<span class="sd">    &gt;&gt;&gt; bifid6_square(key)</span>
+<span class="sd">    Matrix([</span>
+<span class="sd">    [E, N, C, R, Y, P],</span>
+<span class="sd">    [T, A, B, D, F, G],</span>
+<span class="sd">    [H, I, J, K, L, M],</span>
+<span class="sd">    [O, Q, S, U, V, W],</span>
+<span class="sd">    [X, Z, 0, 1, 2, 3],</span>
+<span class="sd">    [4, 5, 6, 7, 8, 9]])</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">A</span> <span class="o">=</span> <span class="n">alphabet_of_cipher</span><span class="p">()</span> <span class="o">+</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">10</span><span class="p">)]</span>
+    <span class="c"># first make sure the letters are capitalized</span>
+    <span class="c"># and text has no spaces</span>
+    <span class="n">key</span> <span class="o">=</span> <span class="n">uniq</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+    <span class="n">key0</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">capitalize</span><span class="p">()</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">key</span> <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">isalnum</span><span class="p">()]</span>
+    <span class="c"># create long key</span>
+    <span class="n">long_key</span> <span class="o">=</span> <span class="n">key0</span> <span class="o">+</span> <span class="p">[</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">A</span> <span class="k">if</span> <span class="ow">not</span><span class="p">(</span><span class="n">x</span> <span class="ow">in</span> <span class="n">key0</span><span class="p">)]</span>
+    <span class="n">f</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">:</span> <span class="n">Symbol</span><span class="p">(</span><span class="n">long_key</span><span class="p">[</span><span class="mi">6</span><span class="o">*</span><span class="n">i</span> <span class="o">+</span> <span class="n">j</span><span class="p">])</span>
+    <span class="n">M</span> <span class="o">=</span> <span class="n">Matrix</span><span class="p">(</span><span class="mi">6</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">M</span>
+
+</div>
+<div class="viewcode-block" id="encipher_bifid7"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.encipher_bifid7">[docs]</a><span class="k">def</span> <span class="nf">encipher_bifid7</span><span class="p">(</span><span class="n">pt</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+    <span class="sd">r&quot;&quot;&quot;</span>
+<span class="sd">    Performs the Bifid cipher encryption on plaintext ``pt``, and returns the ciphertext.</span>
+
+<span class="sd">    This is the version of the Bifid cipher that uses the `7 \times 7` Polybius square.</span>
+<span class="sd">    Assumes alphabet of symbols is &quot;A&quot;, ..., &quot;Z&quot;, &quot;0&quot;, ..., &quot;22&quot;.</span>
+<span class="sd">    (Also, assumes you have some way of distinguishing &quot;22&quot;</span>
+<span class="sd">    from &quot;2&quot;, &quot;2&quot; juxtaposed together for deciphering...)</span>
+
+<span class="sd">    INPUT:</span>
+
+<span class="sd">        ``pt``: plaintext string (digits okay)</span>
+
+<span class="sd">        ``key``: short string for key (no repetitions, digits okay)</span>
+
+<span class="sd">    OUTPUT:</span>
+
+<span class="sd">        ciphertext from Bifid7 cipher (all caps, no spaces)</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.crypto.crypto import encipher_bifid7</span>
+<span class="sd">    &gt;&gt;&gt; key = &quot;encrypt&quot;</span>
+<span class="sd">    &gt;&gt;&gt; pt = &quot;meet me on monday at 8am&quot;</span>
+<span class="sd">    &gt;&gt;&gt; encipher_bifid7(pt, key)</span>
+<span class="sd">    &#39;JEJJLNAA3ME19YF3J222R&#39;</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">A</span> <span class="o">=</span> <span class="n">alphabet_of_cipher</span><span class="p">()</span> <span class="o">+</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">23</span><span class="p">)]</span>
+    <span class="c"># first make sure the letters are capitalized</span>
+    <span class="c"># and text has no spaces</span>
+    <span class="n">key</span> <span class="o">=</span> <span class="n">uniq</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+    <span class="n">key0</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">capitalize</span><span class="p">()</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">key</span> <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">isalnum</span><span class="p">()]</span>
+    <span class="n">pt0</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">capitalize</span><span class="p">()</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">pt</span> <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">isalnum</span><span class="p">()]</span>
+    <span class="c"># create long key</span>
+    <span class="n">long_key</span> <span class="o">=</span> <span class="n">key0</span> <span class="o">+</span> <span class="p">[</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">A</span> <span class="k">if</span> <span class="ow">not</span><span class="p">(</span><span class="n">x</span> <span class="ow">in</span> <span class="n">key0</span><span class="p">)]</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">pt0</span><span class="p">)</span>
+    <span class="c"># the fractionalization</span>
+    <span class="n">pairs</span> <span class="o">=</span> <span class="p">[[</span><span class="n">long_key</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">//</span><span class="mi">7</span><span class="p">,</span> <span class="n">long_key</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">%</span> <span class="mi">7</span><span class="p">]</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">pt0</span><span class="p">]</span>
+    <span class="n">tmp_cipher</span> <span class="o">=</span> <span class="n">flatten</span><span class="p">([</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">pairs</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">pairs</span><span class="p">])</span>
+    <span class="n">ct</span> <span class="o">=</span> <span class="s">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">long_key</span><span class="p">[</span><span class="mi">7</span><span class="o">*</span><span class="n">tmp_cipher</span><span class="p">[</span><span class="mi">2</span><span class="o">*</span><span class="n">i</span><span class="p">]</span> <span class="o">+</span> <span class="n">tmp_cipher</span><span class="p">[</span><span class="mi">2</span><span class="o">*</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">)])</span>
+    <span class="k">return</span> <span class="n">ct</span>
+
+</div>
+<div class="viewcode-block" id="bifid7_square"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.bifid7_square">[docs]</a><span class="k">def</span> <span class="nf">bifid7_square</span><span class="p">(</span><span class="n">key</span><span class="p">):</span>
+    <span class="sd">r&quot;&quot;&quot;</span>
+<span class="sd">    7x7 Polybius square.</span>
+
+<span class="sd">    Produce the Polybius square for the `7 \times 7` Bifid cipher.</span>
+<span class="sd">    Assumes alphabet of symbols is &quot;A&quot;, ..., &quot;Z&quot;, &quot;0&quot;, ..., &quot;22&quot;.</span>
+<span class="sd">    (Also, assumes you have some way of distinguishing &quot;22&quot;</span>
+<span class="sd">    from &quot;2&quot;, &quot;2&quot; juxtaposed together for deciphering...)</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.crypto.crypto import bifid7_square</span>
+<span class="sd">    &gt;&gt;&gt; bifid7_square(&quot;gold bug&quot;)</span>
+<span class="sd">    Matrix([</span>
+<span class="sd">    [ G,  O,  L,  D,  B,  U,  A],</span>
+<span class="sd">    [ C,  E,  F,  H,  I,  J,  K],</span>
+<span class="sd">    [ M,  N,  P,  Q,  R,  S,  T],</span>
+<span class="sd">    [ V,  W,  X,  Y,  Z,  0,  1],</span>
+<span class="sd">    [ 2,  3,  4,  5,  6,  7,  8],</span>
+<span class="sd">    [ 9, 10, 11, 12, 13, 14, 15],</span>
+<span class="sd">    [16, 17, 18, 19, 20, 21, 22]])</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">A</span> <span class="o">=</span> <span class="n">alphabet_of_cipher</span><span class="p">()</span> <span class="o">+</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">23</span><span class="p">)]</span>
+    <span class="c"># first make sure the letters are capitalized</span>
+    <span class="c"># and text has no spaces</span>
+    <span class="n">key</span> <span class="o">=</span> <span class="n">uniq</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+    <span class="n">key0</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">capitalize</span><span class="p">()</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">key</span> <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">isalnum</span><span class="p">()]</span>
+    <span class="c"># create long key</span>
+    <span class="n">long_key</span> <span class="o">=</span> <span class="n">key0</span> <span class="o">+</span> <span class="p">[</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">A</span> <span class="k">if</span> <span class="p">(</span><span class="ow">not</span><span class="p">(</span><span class="n">x</span> <span class="ow">in</span> <span class="n">key0</span><span class="p">))]</span>
+    <span class="n">f</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">:</span> <span class="n">Symbol</span><span class="p">(</span><span class="n">long_key</span><span class="p">[</span><span class="mi">7</span><span class="o">*</span><span class="n">i</span> <span class="o">+</span> <span class="n">j</span><span class="p">])</span>
+    <span class="n">M</span> <span class="o">=</span> <span class="n">Matrix</span><span class="p">(</span><span class="mi">7</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">M</span>
+
+
+<span class="c">#################### RSA  #############################</span>
+
+</div>
+<div class="viewcode-block" id="rsa_public_key"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.rsa_public_key">[docs]</a><span class="k">def</span> <span class="nf">rsa_public_key</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="n">e</span><span class="p">):</span>
+    <span class="sd">r&quot;&quot;&quot;</span>
+<span class="sd">    The RSA *public key* is the pair `(n,e)`, where `n`</span>
+<span class="sd">    is a product of two primes and `e` is relatively</span>
+<span class="sd">    prime to the Euler totient `\phi(n)`.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.crypto.crypto import rsa_public_key</span>
+<span class="sd">    &gt;&gt;&gt; p, q, e = 3, 5, 7</span>
+<span class="sd">    &gt;&gt;&gt; n, e = rsa_public_key(p, q, e)</span>
+<span class="sd">    &gt;&gt;&gt; n</span>
+<span class="sd">    15</span>
+<span class="sd">    &gt;&gt;&gt; e</span>
+<span class="sd">    7</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="n">p</span><span class="o">*</span><span class="n">q</span>
+    <span class="n">phi</span> <span class="o">=</span> <span class="n">totient</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">isprime</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="ow">and</span> <span class="n">isprime</span><span class="p">(</span><span class="n">q</span><span class="p">)</span> <span class="ow">and</span> <span class="n">gcd</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">phi</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">n</span><span class="p">,</span> <span class="n">e</span>
+    <span class="k">return</span> <span class="bp">False</span>
+
+</div>
+<div class="viewcode-block" id="rsa_private_key"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.rsa_private_key">[docs]</a><span class="k">def</span> <span class="nf">rsa_private_key</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="n">e</span><span class="p">):</span>
+    <span class="sd">r&quot;&quot;&quot;</span>
+<span class="sd">    The RSA *private key* is the pair `(n,d)`, where `n`</span>
+<span class="sd">    is a product of two primes and `d` is the inverse of</span>
+<span class="sd">    `e` (mod `\phi(n)`).</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.crypto.crypto import rsa_private_key</span>
+<span class="sd">    &gt;&gt;&gt; p, q, e = 3, 5, 7</span>
+<span class="sd">    &gt;&gt;&gt; rsa_private_key(p, q, e)</span>
+<span class="sd">    (15, 7)</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="n">p</span><span class="o">*</span><span class="n">q</span>
+    <span class="n">phi</span> <span class="o">=</span> <span class="n">totient</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">isprime</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="ow">and</span> <span class="n">isprime</span><span class="p">(</span><span class="n">q</span><span class="p">)</span> <span class="ow">and</span> <span class="n">gcd</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">phi</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">n</span><span class="p">,</span> <span class="nb">pow</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">phi</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">phi</span><span class="p">)</span>
+    <span class="k">return</span> <span class="bp">False</span>
+
+</div>
+<div class="viewcode-block" id="encipher_rsa"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.encipher_rsa">[docs]</a><span class="k">def</span> <span class="nf">encipher_rsa</span><span class="p">(</span><span class="n">pt</span><span class="p">,</span> <span class="n">puk</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    In RSA, a message `m` is encrypted by computing</span>
+<span class="sd">    `m^e` (mod `n`), where ``puk`` is the public key `(n,e)`.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.crypto.crypto import encipher_rsa, rsa_public_key</span>
+<span class="sd">    &gt;&gt;&gt; p, q, e = 3, 5, 7</span>
+<span class="sd">    &gt;&gt;&gt; puk = rsa_public_key(p, q, e)</span>
+<span class="sd">    &gt;&gt;&gt; pt = 12</span>
+<span class="sd">    &gt;&gt;&gt; encipher_rsa(pt, puk)</span>
+<span class="sd">    3</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">n</span><span class="p">,</span> <span class="n">e</span> <span class="o">=</span> <span class="n">puk</span>
+    <span class="k">return</span> <span class="nb">pow</span><span class="p">(</span><span class="n">pt</span><span class="p">,</span> <span class="n">e</span><span class="p">,</span> <span class="n">n</span><span class="p">)</span>
+
+</div>
+<div class="viewcode-block" id="decipher_rsa"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.decipher_rsa">[docs]</a><span class="k">def</span> <span class="nf">decipher_rsa</span><span class="p">(</span><span class="n">ct</span><span class="p">,</span> <span class="n">prk</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    In RSA, a ciphertext `c` is decrypted by computing</span>
+<span class="sd">    `c^d` (mod `n`), where ``prk`` is the private key `(n, d)`.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.crypto.crypto import decipher_rsa, rsa_private_key</span>
+<span class="sd">    &gt;&gt;&gt; p, q, e = 3, 5, 7</span>
+<span class="sd">    &gt;&gt;&gt; prk = rsa_private_key(p, q, e)</span>
+<span class="sd">    &gt;&gt;&gt; ct = 3</span>
+<span class="sd">    &gt;&gt;&gt; decipher_rsa(ct, prk)</span>
+<span class="sd">    12</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">n</span><span class="p">,</span> <span class="n">d</span> <span class="o">=</span> <span class="n">prk</span>
+    <span class="k">return</span> <span class="nb">pow</span><span class="p">(</span><span class="n">ct</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">n</span><span class="p">)</span>
+
+
+<span class="c">#################### kid krypto (kid RSA) #############################</span>
+
+</div>
+<div class="viewcode-block" id="kid_rsa_public_key"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.kid_rsa_public_key">[docs]</a><span class="k">def</span> <span class="nf">kid_rsa_public_key</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">A</span><span class="p">,</span> <span class="n">B</span><span class="p">):</span>
+    <span class="sd">r&quot;&quot;&quot;</span>
+<span class="sd">    Kid RSA is a version of RSA useful to teach grade school children</span>
+<span class="sd">    since it does not involve exponentiation.</span>
+
+<span class="sd">    Alice wants to talk to Bob. Bob generates keys as follows.</span>
+<span class="sd">    Key generation:</span>
+
+<span class="sd">    * Select positive integers `a, b, A, B` at random.</span>
+<span class="sd">    * Compute `M = a b - 1`, `e = A M + a`, `d = B M + b`, `n = (e d - 1)  /M`.</span>
+<span class="sd">    * The *public key* is `(n, e)`. Bob sends these to Alice.</span>
+<span class="sd">    * The *private key* is `d`, which Bob keeps secret.</span>
+
+<span class="sd">    Encryption: If `m` is the plaintext message then the</span>
+<span class="sd">    ciphertext is `c = m e \pmod n`.</span>
+
+<span class="sd">    Decryption: If `c` is the ciphertext message then the</span>
+<span class="sd">    plaintext is `m = c d \pmod n`.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.crypto.crypto import kid_rsa_public_key</span>
+<span class="sd">    &gt;&gt;&gt; a, b, A, B = 3, 4, 5, 6</span>
+<span class="sd">    &gt;&gt;&gt; kid_rsa_public_key(a, b, A, B)</span>
+<span class="sd">    (369, 58)</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">M</span> <span class="o">=</span> <span class="n">S</span><span class="p">(</span><span class="n">a</span><span class="o">*</span><span class="n">b</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">e</span> <span class="o">=</span> <span class="n">S</span><span class="p">(</span><span class="n">A</span><span class="o">*</span><span class="n">M</span> <span class="o">+</span> <span class="n">a</span><span class="p">)</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="n">S</span><span class="p">(</span><span class="n">B</span><span class="o">*</span><span class="n">M</span> <span class="o">+</span> <span class="n">b</span><span class="p">)</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="n">S</span><span class="p">((</span><span class="n">e</span><span class="o">*</span><span class="n">d</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span><span class="o">//</span><span class="n">M</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">n</span><span class="p">,</span> <span class="n">e</span>
+
+</div>
+<div class="viewcode-block" id="kid_rsa_private_key"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.kid_rsa_private_key">[docs]</a><span class="k">def</span> <span class="nf">kid_rsa_private_key</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">A</span><span class="p">,</span> <span class="n">B</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compute `M = a b - 1`, `e = A M + a`, `d = B M + b`, `n = (e d - 1) / M`.</span>
+<span class="sd">    The *private key* is `d`, which Bob keeps secret.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.crypto.crypto import kid_rsa_private_key</span>
+<span class="sd">    &gt;&gt;&gt; a, b, A, B = 3, 4, 5, 6</span>
+<span class="sd">    &gt;&gt;&gt; kid_rsa_private_key(a, b, A, B)</span>
+<span class="sd">    (369, 70)</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">M</span> <span class="o">=</span> <span class="n">S</span><span class="p">(</span><span class="n">a</span><span class="o">*</span><span class="n">b</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">e</span> <span class="o">=</span> <span class="n">S</span><span class="p">(</span><span class="n">A</span><span class="o">*</span><span class="n">M</span> <span class="o">+</span> <span class="n">a</span><span class="p">)</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="n">S</span><span class="p">(</span><span class="n">B</span><span class="o">*</span><span class="n">M</span> <span class="o">+</span> <span class="n">b</span><span class="p">)</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="n">S</span><span class="p">((</span><span class="n">e</span><span class="o">*</span><span class="n">d</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span><span class="o">//</span><span class="n">M</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">n</span><span class="p">,</span> <span class="n">d</span>
+
+</div>
+<div class="viewcode-block" id="encipher_kid_rsa"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.encipher_kid_rsa">[docs]</a><span class="k">def</span> <span class="nf">encipher_kid_rsa</span><span class="p">(</span><span class="n">pt</span><span class="p">,</span> <span class="n">puk</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Here ``pt`` is the plaintext and ``puk`` is the public key.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.crypto.crypto import encipher_kid_rsa, kid_rsa_public_key</span>
+<span class="sd">    &gt;&gt;&gt; pt = 200</span>
+<span class="sd">    &gt;&gt;&gt; a, b, A, B = 3, 4, 5, 6</span>
+<span class="sd">    &gt;&gt;&gt; pk = kid_rsa_public_key(a, b, A, B)</span>
+<span class="sd">    &gt;&gt;&gt; encipher_kid_rsa(pt, pk)</span>
+<span class="sd">    161</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">pt</span><span class="o">*</span><span class="n">puk</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="o">%</span> <span class="n">puk</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+</div>
+<div class="viewcode-block" id="decipher_kid_rsa"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.decipher_kid_rsa">[docs]</a><span class="k">def</span> <span class="nf">decipher_kid_rsa</span><span class="p">(</span><span class="n">ct</span><span class="p">,</span> <span class="n">prk</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Here ``pt`` is the plaintext and ``prk`` is the private key.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.crypto.crypto import kid_rsa_public_key, kid_rsa_private_key, decipher_kid_rsa, encipher_kid_rsa</span>
+<span class="sd">    &gt;&gt;&gt; a, b, A, B = 3, 4, 5, 6</span>
+<span class="sd">    &gt;&gt;&gt; d = kid_rsa_private_key(a, b, A, B)</span>
+<span class="sd">    &gt;&gt;&gt; pt = 200</span>
+<span class="sd">    &gt;&gt;&gt; pk = kid_rsa_public_key(a, b, A, B)</span>
+<span class="sd">    &gt;&gt;&gt; prk = kid_rsa_private_key(a, b, A, B)</span>
+<span class="sd">    &gt;&gt;&gt; ct = encipher_kid_rsa(pt, pk)</span>
+<span class="sd">    &gt;&gt;&gt; decipher_kid_rsa(ct, prk)</span>
+<span class="sd">    200</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="n">prk</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="n">prk</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">ct</span><span class="o">*</span><span class="n">d</span><span class="p">)</span> <span class="o">%</span> <span class="n">n</span>
+
+
+<span class="c">#################### Morse Code ######################################</span>
+
+</div>
+<div class="viewcode-block" id="encode_morse"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.encode_morse">[docs]</a><span class="k">def</span> <span class="nf">encode_morse</span><span class="p">(</span><span class="n">pt</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Encodes a plaintext into popular Morse Code with letters separated by &quot;|&quot;</span>
+<span class="sd">    and words by &quot;||&quot;.</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    .. [1] http://en.wikipedia.org/wiki/Morse_code</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.crypto.crypto import encode_morse</span>
+<span class="sd">    &gt;&gt;&gt; pt = &#39;ATTACK THE RIGHT FLANK&#39;</span>
+<span class="sd">    &gt;&gt;&gt; encode_morse(pt)</span>
+<span class="sd">    &#39;.-|-|-|.-|-.-.|-.-||-|....|.||.-.|..|--.|....|-||..-.|.-..|.-|-.|-.-&#39;</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">morse_encoding_map</span> <span class="o">=</span> <span class="p">{</span><span class="s">&quot;A&quot;</span><span class="p">:</span> <span class="s">&quot;.-&quot;</span><span class="p">,</span> <span class="s">&quot;B&quot;</span><span class="p">:</span> <span class="s">&quot;-...&quot;</span><span class="p">,</span>
+                     <span class="s">&quot;C&quot;</span><span class="p">:</span> <span class="s">&quot;-.-.&quot;</span><span class="p">,</span> <span class="s">&quot;D&quot;</span><span class="p">:</span> <span class="s">&quot;-..&quot;</span><span class="p">,</span>
+                     <span class="s">&quot;E&quot;</span><span class="p">:</span> <span class="s">&quot;.&quot;</span><span class="p">,</span> <span class="s">&quot;F&quot;</span><span class="p">:</span> <span class="s">&quot;..-.&quot;</span><span class="p">,</span>
+                     <span class="s">&quot;G&quot;</span><span class="p">:</span> <span class="s">&quot;--.&quot;</span><span class="p">,</span> <span class="s">&quot;H&quot;</span><span class="p">:</span> <span class="s">&quot;....&quot;</span><span class="p">,</span>
+                     <span class="s">&quot;I&quot;</span><span class="p">:</span> <span class="s">&quot;..&quot;</span><span class="p">,</span> <span class="s">&quot;J&quot;</span><span class="p">:</span> <span class="s">&quot;.---&quot;</span><span class="p">,</span>
+                     <span class="s">&quot;K&quot;</span><span class="p">:</span> <span class="s">&quot;-.-&quot;</span><span class="p">,</span> <span class="s">&quot;L&quot;</span><span class="p">:</span> <span class="s">&quot;.-..&quot;</span><span class="p">,</span>
+                     <span class="s">&quot;M&quot;</span><span class="p">:</span> <span class="s">&quot;--&quot;</span><span class="p">,</span> <span class="s">&quot;N&quot;</span><span class="p">:</span> <span class="s">&quot;-.&quot;</span><span class="p">,</span>
+                     <span class="s">&quot;O&quot;</span><span class="p">:</span> <span class="s">&quot;---&quot;</span><span class="p">,</span> <span class="s">&quot;P&quot;</span><span class="p">:</span> <span class="s">&quot;.--.&quot;</span><span class="p">,</span>
+                     <span class="s">&quot;Q&quot;</span><span class="p">:</span> <span class="s">&quot;--.-&quot;</span><span class="p">,</span> <span class="s">&quot;R&quot;</span><span class="p">:</span> <span class="s">&quot;.-.&quot;</span><span class="p">,</span>
+                     <span class="s">&quot;S&quot;</span><span class="p">:</span> <span class="s">&quot;...&quot;</span><span class="p">,</span> <span class="s">&quot;T&quot;</span><span class="p">:</span> <span class="s">&quot;-&quot;</span><span class="p">,</span>
+                     <span class="s">&quot;U&quot;</span><span class="p">:</span> <span class="s">&quot;..-&quot;</span><span class="p">,</span> <span class="s">&quot;V&quot;</span><span class="p">:</span> <span class="s">&quot;...-&quot;</span><span class="p">,</span>
+                     <span class="s">&quot;W&quot;</span><span class="p">:</span> <span class="s">&quot;.--&quot;</span><span class="p">,</span> <span class="s">&quot;X&quot;</span><span class="p">:</span> <span class="s">&quot;-..-&quot;</span><span class="p">,</span>
+                     <span class="s">&quot;Y&quot;</span><span class="p">:</span> <span class="s">&quot;-.--&quot;</span><span class="p">,</span> <span class="s">&quot;Z&quot;</span><span class="p">:</span> <span class="s">&quot;--..&quot;</span><span class="p">,</span>
+                     <span class="s">&quot;0&quot;</span><span class="p">:</span> <span class="s">&quot;-----&quot;</span><span class="p">,</span> <span class="s">&quot;1&quot;</span><span class="p">:</span> <span class="s">&quot;.----&quot;</span><span class="p">,</span>
+                     <span class="s">&quot;2&quot;</span><span class="p">:</span> <span class="s">&quot;..---&quot;</span><span class="p">,</span> <span class="s">&quot;3&quot;</span><span class="p">:</span> <span class="s">&quot;...--&quot;</span><span class="p">,</span>
+                     <span class="s">&quot;4&quot;</span><span class="p">:</span> <span class="s">&quot;....-&quot;</span><span class="p">,</span> <span class="s">&quot;5&quot;</span><span class="p">:</span> <span class="s">&quot;.....&quot;</span><span class="p">,</span>
+                     <span class="s">&quot;6&quot;</span><span class="p">:</span> <span class="s">&quot;-....&quot;</span><span class="p">,</span> <span class="s">&quot;7&quot;</span><span class="p">:</span> <span class="s">&quot;--...&quot;</span><span class="p">,</span>
+                     <span class="s">&quot;8&quot;</span><span class="p">:</span> <span class="s">&quot;---..&quot;</span><span class="p">,</span> <span class="s">&quot;9&quot;</span><span class="p">:</span> <span class="s">&quot;----.&quot;</span><span class="p">,</span>
+                     <span class="s">&quot;.&quot;</span><span class="p">:</span> <span class="s">&quot;.-.-.-&quot;</span><span class="p">,</span> <span class="s">&quot;,&quot;</span><span class="p">:</span> <span class="s">&quot;--..--&quot;</span><span class="p">,</span>
+                     <span class="s">&quot;:&quot;</span><span class="p">:</span> <span class="s">&quot;---...&quot;</span><span class="p">,</span> <span class="s">&quot;;&quot;</span><span class="p">:</span> <span class="s">&quot;-.-.-.&quot;</span><span class="p">,</span>
+                     <span class="s">&quot;?&quot;</span><span class="p">:</span> <span class="s">&quot;..--..&quot;</span><span class="p">,</span> <span class="s">&quot;-&quot;</span><span class="p">:</span> <span class="s">&quot;-...-&quot;</span><span class="p">,</span>
+                     <span class="s">&quot;_&quot;</span><span class="p">:</span> <span class="s">&quot;..--.-&quot;</span><span class="p">,</span> <span class="s">&quot;(&quot;</span><span class="p">:</span> <span class="s">&quot;-.--.&quot;</span><span class="p">,</span>
+                     <span class="s">&quot;)&quot;</span><span class="p">:</span> <span class="s">&quot;-.--.-&quot;</span><span class="p">,</span> <span class="s">&quot;&#39;&quot;</span><span class="p">:</span> <span class="s">&quot;.----.&quot;</span><span class="p">,</span>
+                     <span class="s">&quot;=&quot;</span><span class="p">:</span> <span class="s">&quot;-...-&quot;</span><span class="p">,</span> <span class="s">&quot;+&quot;</span><span class="p">:</span> <span class="s">&quot;.-.-.&quot;</span><span class="p">,</span>
+                     <span class="s">&quot;/&quot;</span><span class="p">:</span> <span class="s">&quot;-..-.&quot;</span><span class="p">,</span> <span class="s">&quot;@&quot;</span><span class="p">:</span> <span class="s">&quot;.--.-.&quot;</span><span class="p">,</span>
+                     <span class="s">&quot;$&quot;</span><span class="p">:</span> <span class="s">&quot;...-..-&quot;</span><span class="p">,</span> <span class="s">&quot;!&quot;</span><span class="p">:</span> <span class="s">&quot;-.-.--&quot;</span> <span class="p">}</span>
+
+    <span class="n">unusable_chars</span> <span class="o">=</span> <span class="s">&quot;</span><span class="se">\&quot;</span><span class="s">#%&amp;*&lt;&gt;[\]^`{|}~&quot;</span>
+    <span class="n">morsestring</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">unusable_chars</span><span class="p">:</span>
+        <span class="n">pt</span> <span class="o">=</span> <span class="n">pt</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="s">&quot;&quot;</span><span class="p">)</span>
+    <span class="n">pt</span> <span class="o">=</span> <span class="n">pt</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span>
+
+    <span class="n">words</span> <span class="o">=</span> <span class="n">pt</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&quot; &quot;</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">word</span> <span class="ow">in</span> <span class="n">words</span><span class="p">:</span>
+        <span class="n">letters</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">word</span><span class="p">)</span>
+        <span class="n">morseword</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">letter</span> <span class="ow">in</span> <span class="n">letters</span><span class="p">:</span>
+            <span class="n">morseletter</span> <span class="o">=</span> <span class="n">morse_encoding_map</span><span class="p">[</span><span class="n">letter</span><span class="p">]</span>
+            <span class="n">morseword</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">morseletter</span><span class="p">)</span>
+
+        <span class="n">word</span> <span class="o">=</span> <span class="s">&quot;|&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">morseword</span><span class="p">)</span>
+        <span class="n">morsestring</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">word</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="s">&quot;||&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">morsestring</span><span class="p">)</span>
+
+</div>
+<div class="viewcode-block" id="decode_morse"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.decode_morse">[docs]</a><span class="k">def</span> <span class="nf">decode_morse</span><span class="p">(</span><span class="n">mc</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Decodes a Morse Code with letters separated by &quot;|&quot;</span>
+<span class="sd">    and words by &quot;||&quot; into plaintext.</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    .. [1] http://en.wikipedia.org/wiki/Morse_code</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.crypto.crypto import decode_morse</span>
+<span class="sd">    &gt;&gt;&gt; mc = &#39;--|---|...-|.||.|.-|...|-&#39;</span>
+<span class="sd">    &gt;&gt;&gt; decode_morse(mc)</span>
+<span class="sd">    &#39;MOVE EAST&#39;</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">morse_decoding_map</span> <span class="o">=</span> <span class="p">{</span><span class="s">&quot;.-&quot;</span><span class="p">:</span> <span class="s">&quot;A&quot;</span><span class="p">,</span> <span class="s">&quot;-...&quot;</span><span class="p">:</span> <span class="s">&quot;B&quot;</span><span class="p">,</span>
+                          <span class="s">&quot;-.-.&quot;</span><span class="p">:</span> <span class="s">&quot;C&quot;</span><span class="p">,</span> <span class="s">&quot;-..&quot;</span><span class="p">:</span> <span class="s">&quot;D&quot;</span><span class="p">,</span>
+                          <span class="s">&quot;.&quot;</span><span class="p">:</span> <span class="s">&quot;E&quot;</span><span class="p">,</span> <span class="s">&quot;..-.&quot;</span><span class="p">:</span> <span class="s">&quot;F&quot;</span><span class="p">,</span>
+                          <span class="s">&quot;--.&quot;</span><span class="p">:</span> <span class="s">&quot;G&quot;</span><span class="p">,</span> <span class="s">&quot;....&quot;</span><span class="p">:</span> <span class="s">&quot;H&quot;</span><span class="p">,</span>
+                          <span class="s">&quot;..&quot;</span><span class="p">:</span> <span class="s">&quot;I&quot;</span><span class="p">,</span> <span class="s">&quot;.---&quot;</span><span class="p">:</span> <span class="s">&quot;J&quot;</span><span class="p">,</span>
+                          <span class="s">&quot;-.-&quot;</span><span class="p">:</span> <span class="s">&quot;K&quot;</span><span class="p">,</span> <span class="s">&quot;.-..&quot;</span><span class="p">:</span> <span class="s">&quot;L&quot;</span><span class="p">,</span>
+                          <span class="s">&quot;--&quot;</span><span class="p">:</span> <span class="s">&quot;M&quot;</span><span class="p">,</span> <span class="s">&quot;-.&quot;</span><span class="p">:</span> <span class="s">&quot;N&quot;</span><span class="p">,</span>
+                          <span class="s">&quot;---&quot;</span><span class="p">:</span> <span class="s">&quot;O&quot;</span><span class="p">,</span> <span class="s">&quot;.--.&quot;</span><span class="p">:</span> <span class="s">&quot;P&quot;</span><span class="p">,</span>
+                          <span class="s">&quot;--.-&quot;</span><span class="p">:</span> <span class="s">&quot;Q&quot;</span><span class="p">,</span> <span class="s">&quot;.-.&quot;</span><span class="p">:</span> <span class="s">&quot;R&quot;</span><span class="p">,</span>
+                          <span class="s">&quot;...&quot;</span><span class="p">:</span> <span class="s">&quot;S&quot;</span><span class="p">,</span> <span class="s">&quot;-&quot;</span><span class="p">:</span> <span class="s">&quot;T&quot;</span><span class="p">,</span>
+                          <span class="s">&quot;..-&quot;</span><span class="p">:</span> <span class="s">&quot;U&quot;</span><span class="p">,</span> <span class="s">&quot;...-&quot;</span><span class="p">:</span> <span class="s">&quot;V&quot;</span><span class="p">,</span>
+                          <span class="s">&quot;.--&quot;</span><span class="p">:</span> <span class="s">&quot;W&quot;</span><span class="p">,</span> <span class="s">&quot;-..-&quot;</span><span class="p">:</span> <span class="s">&quot;X&quot;</span><span class="p">,</span>
+                          <span class="s">&quot;-.--&quot;</span><span class="p">:</span> <span class="s">&quot;Y&quot;</span><span class="p">,</span> <span class="s">&quot;--..&quot;</span><span class="p">:</span> <span class="s">&quot;Z&quot;</span><span class="p">,</span>
+                          <span class="s">&quot;-----&quot;</span><span class="p">:</span> <span class="s">&quot;0&quot;</span><span class="p">,</span> <span class="s">&quot;----&quot;</span><span class="p">:</span> <span class="s">&quot;1&quot;</span><span class="p">,</span>
+                          <span class="s">&quot;..---&quot;</span><span class="p">:</span> <span class="s">&quot;2&quot;</span><span class="p">,</span> <span class="s">&quot;...--&quot;</span><span class="p">:</span> <span class="s">&quot;3&quot;</span><span class="p">,</span>
+                          <span class="s">&quot;....-&quot;</span><span class="p">:</span> <span class="s">&quot;4&quot;</span><span class="p">,</span> <span class="s">&quot;.....&quot;</span><span class="p">:</span> <span class="s">&quot;5&quot;</span><span class="p">,</span>
+                          <span class="s">&quot;-....&quot;</span><span class="p">:</span> <span class="s">&quot;6&quot;</span><span class="p">,</span> <span class="s">&quot;--...&quot;</span><span class="p">:</span> <span class="s">&quot;7&quot;</span><span class="p">,</span>
+                          <span class="s">&quot;---..&quot;</span><span class="p">:</span> <span class="s">&quot;8&quot;</span><span class="p">,</span> <span class="s">&quot;----.&quot;</span><span class="p">:</span> <span class="s">&quot;9&quot;</span><span class="p">,</span>
+                          <span class="s">&quot;.-.-.-&quot;</span><span class="p">:</span> <span class="s">&quot;.&quot;</span><span class="p">,</span> <span class="s">&quot;--..--&quot;</span><span class="p">:</span> <span class="s">&quot;,&quot;</span><span class="p">,</span>
+                          <span class="s">&quot;---...&quot;</span><span class="p">:</span> <span class="s">&quot;:&quot;</span><span class="p">,</span> <span class="s">&quot;-.-.-.&quot;</span><span class="p">:</span> <span class="s">&quot;;&quot;</span><span class="p">,</span>
+                          <span class="s">&quot;..--..&quot;</span><span class="p">:</span> <span class="s">&quot;?&quot;</span><span class="p">,</span> <span class="s">&quot;-...-&quot;</span><span class="p">:</span> <span class="s">&quot;-&quot;</span><span class="p">,</span>
+                          <span class="s">&quot;..--.-&quot;</span><span class="p">:</span> <span class="s">&quot;_&quot;</span><span class="p">,</span> <span class="s">&quot;-.--.&quot;</span><span class="p">:</span> <span class="s">&quot;(&quot;</span><span class="p">,</span>
+                          <span class="s">&quot;-.--.-&quot;</span><span class="p">:</span> <span class="s">&quot;)&quot;</span><span class="p">,</span> <span class="s">&quot;.----.&quot;</span><span class="p">:</span> <span class="s">&quot;&#39;&quot;</span><span class="p">,</span>
+                          <span class="s">&quot;-...-&quot;</span><span class="p">:</span> <span class="s">&quot;=&quot;</span><span class="p">,</span> <span class="s">&quot;.-.-.&quot;</span><span class="p">:</span> <span class="s">&quot;+&quot;</span><span class="p">,</span>
+                          <span class="s">&quot;-..-.&quot;</span><span class="p">:</span> <span class="s">&quot;/&quot;</span><span class="p">,</span> <span class="s">&quot;.--.-.&quot;</span><span class="p">:</span> <span class="s">&quot;@&quot;</span><span class="p">,</span>
+                          <span class="s">&quot;...-..-&quot;</span><span class="p">:</span> <span class="s">&quot;$&quot;</span><span class="p">,</span> <span class="s">&quot;-.-.--&quot;</span><span class="p">:</span> <span class="s">&quot;!&quot;</span><span class="p">}</span>
+
+    <span class="n">characterstring</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">if</span> <span class="n">mc</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="s">&quot;|&quot;</span> <span class="ow">and</span> <span class="n">mc</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">]</span> <span class="o">==</span> <span class="s">&quot;|&quot;</span><span class="p">:</span>
+        <span class="n">mc</span> <span class="o">=</span> <span class="n">mc</span><span class="p">[:</span><span class="o">-</span><span class="mi">2</span><span class="p">]</span>
+    <span class="n">words</span> <span class="o">=</span> <span class="n">mc</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&quot;||&quot;</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">word</span> <span class="ow">in</span> <span class="n">words</span><span class="p">:</span>
+        <span class="n">letters</span> <span class="o">=</span> <span class="n">word</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&quot;|&quot;</span><span class="p">)</span>
+        <span class="n">characterword</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">letter</span> <span class="ow">in</span> <span class="n">letters</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">characterletter</span> <span class="o">=</span> <span class="n">morse_decoding_map</span><span class="p">[</span><span class="n">letter</span><span class="p">]</span>
+            <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                <span class="k">return</span> <span class="s">&quot;Invalid Morse Code&quot;</span>
+            <span class="n">characterword</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">characterletter</span><span class="p">)</span>
+
+        <span class="n">word</span> <span class="o">=</span> <span class="s">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">characterword</span><span class="p">)</span>
+        <span class="n">characterstring</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">word</span><span class="p">)</span>
+    <span class="k">return</span> <span class="s">&quot; &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">characterstring</span><span class="p">)</span>
+
+
+<span class="c">#################### LFSRs  ##########################################</span>
+
+</div>
+<div class="viewcode-block" id="lfsr_sequence"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.lfsr_sequence">[docs]</a><span class="k">def</span> <span class="nf">lfsr_sequence</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">fill</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+    <span class="sd">r&quot;&quot;&quot;</span>
+<span class="sd">    This function creates an lfsr sequence.</span>
+
+<span class="sd">    INPUT:</span>
+
+<span class="sd">        ``key``: a list of finite field elements,</span>
+<span class="sd">            `[c_0, c_1, \ldots, c_k].`</span>
+
+<span class="sd">        ``fill``: the list of the initial terms of the lfsr</span>
+<span class="sd">            sequence, `[x_0, x_1, \ldots, x_k].`</span>
+
+<span class="sd">        ``n``: number of terms of the sequence that the</span>
+<span class="sd">            function returns.</span>
+
+<span class="sd">    OUTPUT:</span>
+
+<span class="sd">        The lfsr sequence defined by `x_{n+1} = c_k x_n + \ldots + c_0 x_{n-k}`, for</span>
+<span class="sd">        `n \leq k`.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    =====</span>
+
+<span class="sd">    S. Golomb [G]_ gives a list of three statistical properties a</span>
+<span class="sd">    sequence of numbers `a = \{a_n\}_{n=1}^\infty`,</span>
+<span class="sd">    `a_n \in \{0,1\}`, should display to be considered</span>
+<span class="sd">    &quot;random&quot;. Define the autocorrelation of `a` to be</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        C(k) = C(k,a) = \lim_{N\rightarrow \infty} {1\over N}\sum_{n=1}^N (-1)^{a_n + a_{n+k}}.</span>
+
+<span class="sd">    In the case where `a` is periodic with period</span>
+<span class="sd">    `P` then this reduces to</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        C(k) = {1\over P}\sum_{n=1}^P (-1)^{a_n + a_{n+k}}.</span>
+
+<span class="sd">    Assume `a` is periodic with period `P`.</span>
+
+<span class="sd">    - balance:</span>
+
+<span class="sd">      .. math::</span>
+
+<span class="sd">        \left|\sum_{n=1}^P(-1)^{a_n}\right| \leq 1.</span>
+
+<span class="sd">    - low autocorrelation:</span>
+
+<span class="sd">       .. math::</span>
+
+<span class="sd">         C(k) = \left\{ \begin{array}{cc} 1,&amp; k = 0,\\ \epsilon, &amp; k \ne 0. \end{array} \right.</span>
+
+<span class="sd">      (For sequences satisfying these first two properties, it is known</span>
+<span class="sd">      that `\epsilon = -1/P` must hold.)</span>
+
+<span class="sd">    - proportional runs property: In each period, half the runs have</span>
+<span class="sd">      length `1`, one-fourth have length `2`, etc.</span>
+<span class="sd">      Moreover, there are as many runs of `1`&#39;s as there are of</span>
+<span class="sd">      `0`&#39;s.</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    .. [G] Solomon Golomb, Shift register sequences, Aegean Park Press, Laguna Hills, Ca, 1967</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.crypto.crypto import lfsr_sequence</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.polys.domains import FF</span>
+<span class="sd">    &gt;&gt;&gt; F = FF(2)</span>
+<span class="sd">    &gt;&gt;&gt; fill = [F(1), F(1), F(0), F(1)]</span>
+<span class="sd">    &gt;&gt;&gt; key = [F(1), F(0), F(0), F(1)]</span>
+<span class="sd">    &gt;&gt;&gt; lfsr_sequence(key, fill, 10)</span>
+<span class="sd">    [1 mod 2, 1 mod 2, 0 mod 2, 1 mod 2, 0 mod 2, 1 mod 2, 1 mod 2, 0 mod 2, 0 mod 2, 1 mod 2]</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s">&quot;key must be a list&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">fill</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s">&quot;fill must be a list&quot;</span><span class="p">)</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">key</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">mod</span>
+    <span class="n">F</span> <span class="o">=</span> <span class="n">FF</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+    <span class="n">s</span> <span class="o">=</span> <span class="n">fill</span>
+    <span class="n">k</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">fill</span><span class="p">)</span>
+    <span class="n">L</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+        <span class="n">s0</span> <span class="o">=</span> <span class="n">s</span><span class="p">[:]</span>
+        <span class="n">L</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">s</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">s</span> <span class="o">=</span> <span class="n">s</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="n">k</span><span class="p">]</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">([</span><span class="nb">int</span><span class="p">(</span><span class="n">key</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">*</span><span class="n">s0</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">k</span><span class="p">)])</span>
+        <span class="n">s</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">F</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">L</span>       <span class="c"># use [x.to_int() for x in L] for int version</span>
+
+</div>
+<div class="viewcode-block" id="lfsr_autocorrelation"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.lfsr_autocorrelation">[docs]</a><span class="k">def</span> <span class="nf">lfsr_autocorrelation</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">P</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This function computes the lsfr autocorrelation function.</span>
+
+<span class="sd">    INPUT:</span>
+
+<span class="sd">        ``L``: is a periodic sequence of elements of `GF(2)`.</span>
+<span class="sd">        ``L`` must have length larger than ``P``.</span>
+
+<span class="sd">        ``P``: the period of ``L``</span>
+
+<span class="sd">        ``k``: an integer (`0 &lt; k &lt; p`)</span>
+
+<span class="sd">    OUTPUT:</span>
+
+<span class="sd">        the ``k``-th value of the autocorrelation of the LFSR ``L``</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.crypto.crypto import lfsr_sequence, lfsr_autocorrelation</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.polys.domains import FF</span>
+<span class="sd">    &gt;&gt;&gt; F = FF(2)</span>
+<span class="sd">    &gt;&gt;&gt; fill = [F(1), F(1), F(0), F(1)]</span>
+<span class="sd">    &gt;&gt;&gt; key = [F(1), F(0), F(0), F(1)]</span>
+<span class="sd">    &gt;&gt;&gt; s = lfsr_sequence(key, fill, 20)</span>
+<span class="sd">    &gt;&gt;&gt; lfsr_autocorrelation(s, 15, 7)</span>
+<span class="sd">    -1/15</span>
+<span class="sd">    &gt;&gt;&gt; lfsr_autocorrelation(s, 15, 0)</span>
+<span class="sd">    1</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s">&quot;L (=</span><span class="si">%s</span><span class="s">) must be a list&quot;</span> <span class="o">%</span> <span class="n">L</span><span class="p">)</span>
+    <span class="n">P</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">P</span><span class="p">)</span>
+    <span class="n">k</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
+    <span class="n">L0</span> <span class="o">=</span> <span class="n">L</span><span class="p">[:</span><span class="n">P</span><span class="p">]</span>     <span class="c"># slices makes a copy</span>
+    <span class="n">L1</span> <span class="o">=</span> <span class="n">L0</span> <span class="o">+</span> <span class="n">L0</span><span class="p">[:</span><span class="n">k</span><span class="p">]</span>
+    <span class="n">L2</span> <span class="o">=</span> <span class="p">[(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">**</span><span class="p">(</span><span class="n">L1</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">to_int</span><span class="p">()</span> <span class="o">+</span> <span class="n">L1</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">to_int</span><span class="p">())</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">P</span><span class="p">)]</span>
+    <span class="n">tot</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">L2</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">Rational</span><span class="p">(</span><span class="n">tot</span><span class="p">,</span> <span class="n">P</span><span class="p">)</span>
+
+</div>
+<div class="viewcode-block" id="lfsr_connection_polynomial"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.lfsr_connection_polynomial">[docs]</a><span class="k">def</span> <span class="nf">lfsr_connection_polynomial</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This function computes the lsfr connection polynomial.</span>
+
+<span class="sd">    INPUT:</span>
+
+<span class="sd">        ``s``: a sequence of elements of even length, with entries in a finite field</span>
+
+<span class="sd">    OUTPUT:</span>
+
+<span class="sd">        ``C(x)``: the connection polynomial of a minimal LFSR yielding ``s``.</span>
+
+<span class="sd">    This implements the algorithm in section 3 of J. L. Massey&#39;s article [M]_.</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    .. [M] James L. Massey, &quot;Shift-Register Synthesis and BCH Decoding.&quot;</span>
+<span class="sd">        IEEE Trans. on Information Theory, vol. 15(1), pp. 122-127, Jan 1969.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.crypto.crypto import lfsr_sequence, lfsr_connection_polynomial</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.polys.domains import FF</span>
+<span class="sd">    &gt;&gt;&gt; F = FF(2)</span>
+<span class="sd">    &gt;&gt;&gt; fill = [F(1), F(1), F(0), F(1)]</span>
+<span class="sd">    &gt;&gt;&gt; key = [F(1), F(0), F(0), F(1)]</span>
+<span class="sd">    &gt;&gt;&gt; s = lfsr_sequence(key, fill, 20)</span>
+<span class="sd">    &gt;&gt;&gt; lfsr_connection_polynomial(s)</span>
+<span class="sd">    x**4 + x + 1</span>
+<span class="sd">    &gt;&gt;&gt; fill = [F(1), F(0), F(0), F(1)]</span>
+<span class="sd">    &gt;&gt;&gt; key = [F(1), F(1), F(0), F(1)]</span>
+<span class="sd">    &gt;&gt;&gt; s = lfsr_sequence(key, fill, 20)</span>
+<span class="sd">    &gt;&gt;&gt; lfsr_connection_polynomial(s)</span>
+<span class="sd">    x**3 + 1</span>
+<span class="sd">    &gt;&gt;&gt; fill = [F(1), F(0), F(1)]</span>
+<span class="sd">    &gt;&gt;&gt; key = [F(1), F(1), F(0)]</span>
+<span class="sd">    &gt;&gt;&gt; s = lfsr_sequence(key, fill, 20)</span>
+<span class="sd">    &gt;&gt;&gt; lfsr_connection_polynomial(s)</span>
+<span class="sd">    x**3 + x**2 + 1</span>
+<span class="sd">    &gt;&gt;&gt; fill = [F(1), F(0), F(1)]</span>
+<span class="sd">    &gt;&gt;&gt; key = [F(1), F(0), F(1)]</span>
+<span class="sd">    &gt;&gt;&gt; s = lfsr_sequence(key, fill, 20)</span>
+<span class="sd">    &gt;&gt;&gt; lfsr_connection_polynomial(s)</span>
+<span class="sd">    x**3 + x + 1</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c"># Initialization:</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">s</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">mod</span>
+    <span class="n">F</span> <span class="o">=</span> <span class="n">FF</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">Symbol</span><span class="p">(</span><span class="s">&quot;x&quot;</span><span class="p">)</span>
+    <span class="n">C</span> <span class="o">=</span> <span class="mi">1</span><span class="o">*</span><span class="n">x</span><span class="o">**</span><span class="mi">0</span>
+    <span class="n">B</span> <span class="o">=</span> <span class="mi">1</span><span class="o">*</span><span class="n">x</span><span class="o">**</span><span class="mi">0</span>
+    <span class="n">m</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">b</span> <span class="o">=</span> <span class="mi">1</span><span class="o">*</span><span class="n">x</span><span class="o">**</span><span class="mi">0</span>
+    <span class="n">L</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">N</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">while</span> <span class="n">N</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">L</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">dC</span> <span class="o">=</span> <span class="n">Poly</span><span class="p">(</span><span class="n">C</span><span class="p">)</span><span class="o">.</span><span class="n">degree</span><span class="p">()</span>
+            <span class="n">r</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">L</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">dC</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="n">coeffsC</span> <span class="o">=</span> <span class="p">[</span><span class="n">C</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="mi">0</span><span class="p">)]</span> <span class="o">+</span> <span class="p">[</span><span class="n">C</span><span class="o">.</span><span class="n">coeff</span><span class="p">(</span><span class="n">x</span><span class="o">**</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">dC</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span>
+            <span class="n">d</span> <span class="o">=</span> <span class="p">(</span><span class="n">s</span><span class="p">[</span><span class="n">N</span><span class="p">]</span><span class="o">.</span><span class="n">to_int</span><span class="p">()</span> <span class="o">+</span> <span class="nb">sum</span><span class="p">([</span><span class="n">coeffsC</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">*</span><span class="n">s</span><span class="p">[</span><span class="n">N</span> <span class="o">-</span> <span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">to_int</span><span class="p">()</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">r</span><span class="p">)]))</span> <span class="o">%</span> <span class="n">p</span>
+        <span class="k">if</span> <span class="n">L</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">d</span> <span class="o">=</span> <span class="n">s</span><span class="p">[</span><span class="n">N</span><span class="p">]</span><span class="o">.</span><span class="n">to_int</span><span class="p">()</span><span class="o">*</span><span class="n">x</span><span class="o">**</span><span class="mi">0</span>
+        <span class="k">if</span> <span class="n">d</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">m</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="n">N</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="n">d</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">if</span> <span class="mi">2</span><span class="o">*</span><span class="n">L</span> <span class="o">&gt;</span> <span class="n">N</span><span class="p">:</span>
+                <span class="n">C</span> <span class="o">=</span> <span class="p">(</span><span class="n">C</span> <span class="o">-</span> <span class="n">d</span><span class="o">*</span><span class="p">((</span><span class="n">b</span><span class="o">**</span><span class="p">(</span><span class="n">p</span> <span class="o">-</span> <span class="mi">2</span><span class="p">))</span> <span class="o">%</span> <span class="n">p</span><span class="p">)</span><span class="o">*</span><span class="n">x</span><span class="o">**</span><span class="n">m</span><span class="o">*</span><span class="n">B</span><span class="p">)</span><span class="o">.</span><span class="n">expand</span><span class="p">()</span>
+                <span class="n">m</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="n">N</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">T</span> <span class="o">=</span> <span class="n">C</span>
+                <span class="n">C</span> <span class="o">=</span> <span class="p">(</span><span class="n">C</span> <span class="o">-</span> <span class="n">d</span><span class="o">*</span><span class="p">((</span><span class="n">b</span><span class="o">**</span><span class="p">(</span><span class="n">p</span> <span class="o">-</span> <span class="mi">2</span><span class="p">))</span> <span class="o">%</span> <span class="n">p</span><span class="p">)</span><span class="o">*</span><span class="n">x</span><span class="o">**</span><span class="n">m</span><span class="o">*</span><span class="n">B</span><span class="p">)</span><span class="o">.</span><span class="n">expand</span><span class="p">()</span>
+                <span class="n">L</span> <span class="o">=</span> <span class="n">N</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">-</span> <span class="n">L</span>
+                <span class="n">m</span> <span class="o">=</span> <span class="mi">1</span>
+                <span class="n">b</span> <span class="o">=</span> <span class="n">d</span>
+                <span class="n">B</span> <span class="o">=</span> <span class="n">T</span>
+                <span class="n">N</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="n">dC</span> <span class="o">=</span> <span class="n">Poly</span><span class="p">(</span><span class="n">C</span><span class="p">)</span><span class="o">.</span><span class="n">degree</span><span class="p">()</span>
+    <span class="n">coeffsC</span> <span class="o">=</span> <span class="p">[</span><span class="n">C</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="mi">0</span><span class="p">)]</span> <span class="o">+</span> <span class="p">[</span><span class="n">C</span><span class="o">.</span><span class="n">coeff</span><span class="p">(</span><span class="n">x</span><span class="o">**</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">dC</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span>
+    <span class="k">return</span> <span class="nb">sum</span><span class="p">([</span><span class="n">coeffsC</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">%</span> <span class="n">p</span><span class="o">*</span><span class="n">x</span><span class="o">**</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">dC</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="k">if</span> <span class="n">coeffsC</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">])</span>
+
+
+<span class="c">#################### ElGamal  #############################</span>
+
+</div>
+<div class="viewcode-block" id="elgamal_private_key"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.elgamal_private_key">[docs]</a><span class="k">def</span> <span class="nf">elgamal_private_key</span><span class="p">(</span><span class="n">digit</span><span class="o">=</span><span class="mi">10</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return three number tuple as private key.</span>
+
+<span class="sd">    Elgamal encryption is based on mathmatical problem</span>
+<span class="sd">    Discrete Logarithm Problem (DLP). For example,</span>
+
+<span class="sd">    `a^{b} \equiv c \pmod p`</span>
+
+<span class="sd">    In general, if a and b are known, c is easily</span>
+<span class="sd">    calculated. If b is unknown, it is hard to use</span>
+<span class="sd">    a and c to get b.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    digit : Key length in binary</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    =======</span>
+
+<span class="sd">    (p, r, d) : p = prime number, r = primitive root, d = random number</span>
+
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.crypto.crypto import elgamal_private_key</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.ntheory import is_primitive_root, isprime</span>
+<span class="sd">    &gt;&gt;&gt; a, b, _ = elgamal_private_key()</span>
+<span class="sd">    &gt;&gt;&gt; isprime(a)</span>
+<span class="sd">    True</span>
+<span class="sd">    &gt;&gt;&gt; is_primitive_root(b, a)</span>
+<span class="sd">    True</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">nextprime</span><span class="p">(</span><span class="mi">2</span><span class="o">**</span><span class="n">digit</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">p</span><span class="p">,</span> <span class="n">primitive_root</span><span class="p">(</span><span class="n">p</span><span class="p">),</span> <span class="n">randrange</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">p</span><span class="p">)</span>
+
+</div>
+<div class="viewcode-block" id="elgamal_public_key"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.elgamal_public_key">[docs]</a><span class="k">def</span> <span class="nf">elgamal_public_key</span><span class="p">(</span><span class="n">prk</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return three number tuple as public key.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    prk : Tuple (p, r, e)  generated by ``elgamal_private_key``</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    =======</span>
+<span class="sd">    (p, r, e = r**d mod p) : d is a random number in private key.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.crypto.crypto import elgamal_public_key</span>
+<span class="sd">    &gt;&gt;&gt; elgamal_public_key((1031, 14, 636))</span>
+<span class="sd">    (1031, 14, 212)</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">prk</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">prk</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="nb">pow</span><span class="p">(</span><span class="n">prk</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">prk</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">prk</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+</div>
+<div class="viewcode-block" id="encipher_elgamal"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.encipher_elgamal">[docs]</a><span class="k">def</span> <span class="nf">encipher_elgamal</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="n">puk</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Encrypt message with public key</span>
+
+<span class="sd">    m is plain text message in int. puk is</span>
+<span class="sd">    public key (p, r, e). In order to encrypt</span>
+<span class="sd">    a message, random a number ``a`` between ``2`` and ``p``,</span>
+<span class="sd">    encryped message is `c_{1}` and `c_{2}`</span>
+
+<span class="sd">    `c_{1} \equiv r^{a} \pmod p`</span>
+
+<span class="sd">    `c_{2} \equiv m e^{a} \pmod p`</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    m : int of encoded message</span>
+<span class="sd">    puk : public key</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    =======</span>
+
+<span class="sd">    (c1, c2) : Encipher into two number</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.crypto.crypto import encipher_elgamal</span>
+<span class="sd">    &gt;&gt;&gt; encipher_elgamal(100, (1031, 14, 212))     # doctest: +SKIP</span>
+<span class="sd">    (835, 271)</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">m</span> <span class="o">&gt;</span> <span class="n">puk</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+        <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;Message {} should be less than prime {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="n">puk</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">randrange</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">puk</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="k">return</span> <span class="nb">pow</span><span class="p">(</span><span class="n">puk</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">r</span><span class="p">,</span> <span class="n">puk</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">m</span> <span class="o">*</span> <span class="nb">pow</span><span class="p">(</span><span class="n">puk</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">r</span><span class="p">,</span> <span class="n">puk</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">%</span> <span class="n">puk</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+</div>
+<div class="viewcode-block" id="decipher_elgamal"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.decipher_elgamal">[docs]</a><span class="k">def</span> <span class="nf">decipher_elgamal</span><span class="p">(</span><span class="n">ct</span><span class="p">,</span> <span class="n">prk</span><span class="p">):</span>
+    <span class="sd">r&quot;&quot;&quot;</span>
+<span class="sd">    Decrypt message with private key</span>
+
+<span class="sd">    `ct = (c_{1}, c_{2})`</span>
+
+<span class="sd">    `prk = (p, r, d)`</span>
+
+<span class="sd">    According to extended Eucliden theorem,</span>
+<span class="sd">    `u c_{1}^{d} + p n = 1`</span>
+
+<span class="sd">    `u \equiv 1/{{c_{1}}^d} \pmod p`</span>
+
+<span class="sd">    `u c_{2} \equiv \frac{1}{c_{1}^d} c_{2} \equiv \frac{1}{r^{ad}} c_{2} \pmod p`</span>
+
+<span class="sd">    `\frac{1}{r^{ad}} m e^a \equiv \frac{1}{r^{ad}} m {r^{d a}} \equiv m \pmod p`</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.crypto.crypto import decipher_elgamal</span>
+<span class="sd">    &gt;&gt;&gt; decipher_elgamal((835, 271), (1031, 14, 636))</span>
+<span class="sd">    100</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">u</span> <span class="o">=</span> <span class="n">igcdex</span><span class="p">(</span><span class="n">ct</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">**</span> <span class="n">prk</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">prk</span><span class="p">[</span><span class="mi">0</span><span class="p">])[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">u</span> <span class="o">*</span> <span class="n">ct</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">%</span> <span class="n">prk</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../../index.html">
+              <img class="logo" src="../../../_static/sympylogo.png" alt="Logo"/>
+            </a></p>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="../../../np-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">SymPy 0.7.5 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li>
+          <li><a href="../../sympy.html" >sympy</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2014 SymPy Development Team.
+      Last updated on Feb 22, 2014.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+  </body>
+</html>
