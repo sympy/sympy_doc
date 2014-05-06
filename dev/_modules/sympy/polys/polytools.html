@@ -110,7 +110,7 @@
 <span class="kn">import</span> <span class="nn">sympy.polys</span>
 <span class="kn">import</span> <span class="nn">sympy.mpmath</span>
 
-<span class="kn">from</span> <span class="nn">sympy.polys.domains</span> <span class="kn">import</span> <span class="n">FF</span><span class="p">,</span> <span class="n">QQ</span>
+<span class="kn">from</span> <span class="nn">sympy.polys.domains</span> <span class="kn">import</span> <span class="n">FF</span><span class="p">,</span> <span class="n">QQ</span><span class="p">,</span> <span class="n">ZZ</span>
 <span class="kn">from</span> <span class="nn">sympy.polys.constructor</span> <span class="kn">import</span> <span class="n">construct_domain</span>
 
 <span class="kn">from</span> <span class="nn">sympy.polys</span> <span class="kn">import</span> <span class="n">polyoptions</span> <span class="k">as</span> <span class="n">options</span>
@@ -3405,9 +3405,18 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">group</span><span class="p">(</span><span class="n">roots</span><span class="p">,</span> <span class="n">multiple</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
 </div>
-<div class="viewcode-block" id="Poly.nroots"><a class="viewcode-back" href="../../../modules/polys/reference.html#sympy.polys.polytools.Poly.nroots">[docs]</a>    <span class="k">def</span> <span class="nf">nroots</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">15</span><span class="p">,</span> <span class="n">maxsteps</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">cleanup</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">error</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+<div class="viewcode-block" id="Poly.nroots"><a class="viewcode-back" href="../../../modules/polys/reference.html#sympy.polys.polytools.Poly.nroots">[docs]</a>    <span class="k">def</span> <span class="nf">nroots</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">15</span><span class="p">,</span> <span class="n">maxsteps</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">cleanup</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Compute numerical approximations of roots of ``f``.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ==========</span>
+
+<span class="sd">        n ... the number of digits to calculate</span>
+<span class="sd">        maxsteps ... the maximum number of iterations to do</span>
+
+<span class="sd">        If the accuracy `n` cannot be reached in `maxsteps`, it will raise an</span>
+<span class="sd">        exception. You need to rerun with higher maxsteps.</span>
 
 <span class="sd">        Examples</span>
 <span class="sd">        ========</span>
@@ -3428,35 +3437,44 @@
         <span class="k">if</span> <span class="n">f</span><span class="o">.</span><span class="n">degree</span><span class="p">()</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
             <span class="k">return</span> <span class="p">[]</span>
 
-        <span class="n">coeffs</span> <span class="o">=</span> <span class="p">[</span><span class="n">coeff</span><span class="o">.</span><span class="n">evalf</span><span class="p">(</span><span class="n">n</span><span class="o">=</span><span class="n">n</span><span class="p">)</span><span class="o">.</span><span class="n">as_real_imag</span><span class="p">()</span>
-                  <span class="k">for</span> <span class="n">coeff</span> <span class="ow">in</span> <span class="n">f</span><span class="o">.</span><span class="n">all_coeffs</span><span class="p">()]</span>
+        <span class="c"># For integer and rational coefficients, convert them to integers only</span>
+        <span class="c"># (for accuracy). Otherwise just try to convert the coefficients to</span>
+        <span class="c"># mpmath.mpc and raise an exception if the conversion fails.</span>
+        <span class="k">if</span> <span class="n">f</span><span class="o">.</span><span class="n">rep</span><span class="o">.</span><span class="n">dom</span> <span class="ow">is</span> <span class="n">ZZ</span><span class="p">:</span>
+            <span class="n">coeffs</span> <span class="o">=</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">coeff</span><span class="p">)</span> <span class="k">for</span> <span class="n">coeff</span> <span class="ow">in</span> <span class="n">f</span><span class="o">.</span><span class="n">all_coeffs</span><span class="p">()]</span>
+        <span class="k">elif</span> <span class="n">f</span><span class="o">.</span><span class="n">rep</span><span class="o">.</span><span class="n">dom</span> <span class="ow">is</span> <span class="n">QQ</span><span class="p">:</span>
+            <span class="n">denoms</span> <span class="o">=</span> <span class="p">[</span><span class="n">coeff</span><span class="o">.</span><span class="n">q</span> <span class="k">for</span> <span class="n">coeff</span> <span class="ow">in</span> <span class="n">f</span><span class="o">.</span><span class="n">all_coeffs</span><span class="p">()]</span>
+            <span class="kn">from</span> <span class="nn">sympy.core.numbers</span> <span class="kn">import</span> <span class="n">ilcm</span>
+            <span class="n">fac</span> <span class="o">=</span> <span class="n">ilcm</span><span class="p">(</span><span class="o">*</span><span class="n">denoms</span><span class="p">)</span>
+            <span class="n">coeffs</span> <span class="o">=</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">coeff</span><span class="o">*</span><span class="n">fac</span><span class="p">)</span> <span class="k">for</span> <span class="n">coeff</span> <span class="ow">in</span> <span class="n">f</span><span class="o">.</span><span class="n">all_coeffs</span><span class="p">()]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">coeffs</span> <span class="o">=</span> <span class="p">[</span><span class="n">coeff</span><span class="o">.</span><span class="n">evalf</span><span class="p">(</span><span class="n">n</span><span class="o">=</span><span class="n">n</span><span class="p">)</span><span class="o">.</span><span class="n">as_real_imag</span><span class="p">()</span>
+                    <span class="k">for</span> <span class="n">coeff</span> <span class="ow">in</span> <span class="n">f</span><span class="o">.</span><span class="n">all_coeffs</span><span class="p">()]</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">coeffs</span> <span class="o">=</span> <span class="p">[</span><span class="n">sympy</span><span class="o">.</span><span class="n">mpmath</span><span class="o">.</span><span class="n">mpc</span><span class="p">(</span><span class="o">*</span><span class="n">coeff</span><span class="p">)</span> <span class="k">for</span> <span class="n">coeff</span> <span class="ow">in</span> <span class="n">coeffs</span><span class="p">]</span>
+            <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">DomainError</span><span class="p">(</span><span class="s">&quot;Numerical domain expected, got </span><span class="si">%s</span><span class="s">&quot;</span> <span class="o">%</span> \
+                        <span class="n">f</span><span class="o">.</span><span class="n">rep</span><span class="o">.</span><span class="n">dom</span><span class="p">)</span>
 
         <span class="n">dps</span> <span class="o">=</span> <span class="n">sympy</span><span class="o">.</span><span class="n">mpmath</span><span class="o">.</span><span class="n">mp</span><span class="o">.</span><span class="n">dps</span>
         <span class="n">sympy</span><span class="o">.</span><span class="n">mpmath</span><span class="o">.</span><span class="n">mp</span><span class="o">.</span><span class="n">dps</span> <span class="o">=</span> <span class="n">n</span>
 
         <span class="k">try</span><span class="p">:</span>
-            <span class="k">try</span><span class="p">:</span>
-                <span class="n">coeffs</span> <span class="o">=</span> <span class="p">[</span><span class="n">sympy</span><span class="o">.</span><span class="n">mpmath</span><span class="o">.</span><span class="n">mpc</span><span class="p">(</span><span class="o">*</span><span class="n">coeff</span><span class="p">)</span> <span class="k">for</span> <span class="n">coeff</span> <span class="ow">in</span> <span class="n">coeffs</span><span class="p">]</span>
-            <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
-                <span class="k">raise</span> <span class="n">DomainError</span><span class="p">(</span>
-                    <span class="s">&quot;numerical domain expected, got </span><span class="si">%s</span><span class="s">&quot;</span> <span class="o">%</span> <span class="n">f</span><span class="o">.</span><span class="n">rep</span><span class="o">.</span><span class="n">dom</span><span class="p">)</span>
+            <span class="c"># We need to add extra precision to guard against losing accuracy.</span>
+            <span class="c"># 10 times the degree of the polynomial seems to work well.</span>
+            <span class="n">roots</span> <span class="o">=</span> <span class="n">sympy</span><span class="o">.</span><span class="n">mpmath</span><span class="o">.</span><span class="n">polyroots</span><span class="p">(</span><span class="n">coeffs</span><span class="p">,</span> <span class="n">maxsteps</span><span class="o">=</span><span class="n">maxsteps</span><span class="p">,</span>
+                    <span class="n">cleanup</span><span class="o">=</span><span class="n">cleanup</span><span class="p">,</span> <span class="n">error</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">extraprec</span><span class="o">=</span><span class="n">f</span><span class="o">.</span><span class="n">degree</span><span class="p">()</span><span class="o">*</span><span class="mi">10</span><span class="p">)</span>
 
-            <span class="n">result</span> <span class="o">=</span> <span class="n">sympy</span><span class="o">.</span><span class="n">mpmath</span><span class="o">.</span><span class="n">polyroots</span><span class="p">(</span>
-                <span class="n">coeffs</span><span class="p">,</span> <span class="n">maxsteps</span><span class="o">=</span><span class="n">maxsteps</span><span class="p">,</span> <span class="n">cleanup</span><span class="o">=</span><span class="n">cleanup</span><span class="p">,</span> <span class="n">error</span><span class="o">=</span><span class="n">error</span><span class="p">)</span>
-
-            <span class="k">if</span> <span class="n">error</span><span class="p">:</span>
-                <span class="n">roots</span><span class="p">,</span> <span class="n">error</span> <span class="o">=</span> <span class="n">result</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="n">roots</span><span class="p">,</span> <span class="n">error</span> <span class="o">=</span> <span class="n">result</span><span class="p">,</span> <span class="bp">None</span>
-
-            <span class="n">roots</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="n">sympify</span><span class="p">,</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">roots</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">r</span><span class="p">:</span> <span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">real</span><span class="p">,</span> <span class="n">r</span><span class="o">.</span><span class="n">imag</span><span class="p">))))</span>
+            <span class="c"># Mpmath puts real roots first, then complex ones. SymPy polynomial</span>
+            <span class="c"># module orders roots by their real components (if they are equal,</span>
+            <span class="c"># then by their imaginary components). So we reorder the roots here</span>
+            <span class="c"># to conform to the SymPy ordering.</span>
+            <span class="n">roots</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="n">sympify</span><span class="p">,</span>
+                <span class="nb">sorted</span><span class="p">(</span><span class="n">roots</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">r</span><span class="p">:</span> <span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">real</span><span class="p">,</span> <span class="n">r</span><span class="o">.</span><span class="n">imag</span><span class="p">))))</span>
         <span class="k">finally</span><span class="p">:</span>
             <span class="n">sympy</span><span class="o">.</span><span class="n">mpmath</span><span class="o">.</span><span class="n">mp</span><span class="o">.</span><span class="n">dps</span> <span class="o">=</span> <span class="n">dps</span>
 
-        <span class="k">if</span> <span class="n">error</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">roots</span><span class="p">,</span> <span class="n">sympify</span><span class="p">(</span><span class="n">error</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">roots</span>
+        <span class="k">return</span> <span class="n">roots</span>
 </div>
 <div class="viewcode-block" id="Poly.ground_roots"><a class="viewcode-back" href="../../../modules/polys/reference.html#sympy.polys.polytools.Poly.ground_roots">[docs]</a>    <span class="k">def</span> <span class="nf">ground_roots</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
@@ -5188,6 +5206,8 @@
 <span class="sd">    sympy.core.exprtools.gcd_terms, sympy.core.exprtools.factor_terms</span>
 
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">sympy.core.relational</span> <span class="kn">import</span> <span class="n">Equality</span>
+
     <span class="n">orig</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">Expr</span><span class="p">)</span> <span class="ow">or</span> <span class="n">f</span><span class="o">.</span><span class="n">is_Atom</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">orig</span>
@@ -5197,6 +5217,9 @@
         <span class="n">args</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s">&#39;deep&#39;</span><span class="p">)</span>
         <span class="n">args</span><span class="p">[</span><span class="s">&#39;expand&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">False</span>
         <span class="k">return</span> <span class="n">terms_gcd</span><span class="p">(</span><span class="n">new</span><span class="p">,</span> <span class="o">*</span><span class="n">gens</span><span class="p">,</span> <span class="o">**</span><span class="n">args</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">Equality</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">f</span>
 
     <span class="n">clear</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s">&#39;clear&#39;</span><span class="p">,</span> <span class="bp">True</span><span class="p">)</span>
     <span class="n">options</span><span class="o">.</span><span class="n">allowed_flags</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="p">[</span><span class="s">&#39;polys&#39;</span><span class="p">])</span>
@@ -6141,7 +6164,7 @@
 
 </div>
 <span class="nd">@public</span>
-<div class="viewcode-block" id="nroots"><a class="viewcode-back" href="../../../modules/polys/reference.html#sympy.polys.polytools.nroots">[docs]</a><span class="k">def</span> <span class="nf">nroots</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">15</span><span class="p">,</span> <span class="n">maxsteps</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">cleanup</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">error</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+<div class="viewcode-block" id="nroots"><a class="viewcode-back" href="../../../modules/polys/reference.html#sympy.polys.polytools.nroots">[docs]</a><span class="k">def</span> <span class="nf">nroots</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">15</span><span class="p">,</span> <span class="n">maxsteps</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">cleanup</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Compute numerical approximations of roots of ``f``.</span>
 
@@ -6163,7 +6186,7 @@
         <span class="k">raise</span> <span class="n">PolynomialError</span><span class="p">(</span>
             <span class="s">&quot;can&#39;t compute numerical roots of </span><span class="si">%s</span><span class="s">, not a polynomial&quot;</span> <span class="o">%</span> <span class="n">f</span><span class="p">)</span>
 
-    <span class="k">return</span> <span class="n">F</span><span class="o">.</span><span class="n">nroots</span><span class="p">(</span><span class="n">n</span><span class="o">=</span><span class="n">n</span><span class="p">,</span> <span class="n">maxsteps</span><span class="o">=</span><span class="n">maxsteps</span><span class="p">,</span> <span class="n">cleanup</span><span class="o">=</span><span class="n">cleanup</span><span class="p">,</span> <span class="n">error</span><span class="o">=</span><span class="n">error</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">F</span><span class="o">.</span><span class="n">nroots</span><span class="p">(</span><span class="n">n</span><span class="o">=</span><span class="n">n</span><span class="p">,</span> <span class="n">maxsteps</span><span class="o">=</span><span class="n">maxsteps</span><span class="p">,</span> <span class="n">cleanup</span><span class="o">=</span><span class="n">cleanup</span><span class="p">)</span>
 
 </div>
 <span class="nd">@public</span>
@@ -6836,7 +6859,7 @@
     </div>
     <div class="footer">
         &copy; Copyright 2014 SymPy Development Team.
-      Last updated on Apr 17, 2014.
+      Last updated on May 06, 2014.
       Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2.1.
     </div>
   </body>

@@ -72,7 +72,7 @@
 <span class="kn">from</span> <span class="nn">sympy.simplify</span> <span class="kn">import</span> <span class="n">simplify</span>
 <span class="kn">from</span> <span class="nn">sympy.solvers</span> <span class="kn">import</span> <span class="n">solve</span>
 <span class="kn">from</span> <span class="nn">sympy.utilities</span> <span class="kn">import</span> <span class="n">default_sort_key</span>
-<span class="kn">from</span> <span class="nn">sympy.utilities.iterables</span> <span class="kn">import</span> <span class="n">has_variety</span><span class="p">,</span> <span class="n">has_dups</span>
+<span class="kn">from</span> <span class="nn">sympy.utilities.iterables</span> <span class="kn">import</span> <span class="n">has_variety</span><span class="p">,</span> <span class="n">has_dups</span><span class="p">,</span> <span class="n">uniq</span>
 
 <span class="kn">from</span> <span class="nn">.entity</span> <span class="kn">import</span> <span class="n">GeometryEntity</span>
 <span class="kn">from</span> <span class="nn">.point</span> <span class="kn">import</span> <span class="n">Point</span>
@@ -207,8 +207,6 @@
         <span class="n">i</span> <span class="o">=</span> <span class="o">-</span><span class="mi">3</span>
         <span class="k">while</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">nodup</span><span class="p">)</span> <span class="o">-</span> <span class="mi">3</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">nodup</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">2</span><span class="p">:</span>
             <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">c</span> <span class="o">=</span> <span class="n">nodup</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">nodup</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">],</span> <span class="n">nodup</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">2</span><span class="p">]</span>
-            <span class="c"># if flyback lines are desired then the following should</span>
-            <span class="c"># only be done if tuple(sorted((a, b, c))) == (a, b, c)</span>
             <span class="k">if</span> <span class="n">b</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">shared</span> <span class="ow">and</span> <span class="n">Point</span><span class="o">.</span><span class="n">is_collinear</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">c</span><span class="p">):</span>
                 <span class="n">nodup</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
                 <span class="k">if</span> <span class="n">a</span> <span class="o">==</span> <span class="n">c</span><span class="p">:</span>
@@ -232,23 +230,33 @@
         <span class="c"># random set of segments since only those sides that are not</span>
         <span class="c"># part of the convex hull can possibly intersect with other</span>
         <span class="c"># sides of the polygon...but for now we use the n**2 algorithm</span>
-        <span class="c"># and check if any side intersects with any preceding side</span>
-        <span class="n">hit</span> <span class="o">=</span> <span class="n">_symbol</span><span class="p">(</span><span class="s">&#39;hit&#39;</span><span class="p">)</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">rv</span><span class="o">.</span><span class="n">is_convex</span><span class="p">:</span>
+        <span class="c"># and check if any side intersects with any preceding side,</span>
+        <span class="c"># excluding the ones it is connected to</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">convex</span> <span class="o">=</span> <span class="n">rv</span><span class="o">.</span><span class="n">is_convex</span><span class="p">()</span>
+        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+            <span class="n">convex</span> <span class="o">=</span> <span class="bp">True</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">convex</span><span class="p">:</span>
             <span class="n">sides</span> <span class="o">=</span> <span class="n">rv</span><span class="o">.</span><span class="n">sides</span>
             <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">si</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">sides</span><span class="p">):</span>
-                <span class="n">pts</span> <span class="o">=</span> <span class="n">si</span><span class="o">.</span><span class="n">p1</span><span class="p">,</span> <span class="n">si</span><span class="o">.</span><span class="n">p2</span>
-                <span class="n">ai</span> <span class="o">=</span> <span class="n">si</span><span class="o">.</span><span class="n">arbitrary_point</span><span class="p">(</span><span class="n">hit</span><span class="p">)</span>
-                <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="n">i</span><span class="p">):</span>
+                <span class="n">pts</span> <span class="o">=</span> <span class="n">si</span><span class="o">.</span><span class="n">args</span>
+                <span class="c"># exclude the sides connected to si</span>
+                <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="mi">1</span> <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">sides</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span> <span class="k">else</span> <span class="mi">0</span><span class="p">,</span> <span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">):</span>
                     <span class="n">sj</span> <span class="o">=</span> <span class="n">sides</span><span class="p">[</span><span class="n">j</span><span class="p">]</span>
                     <span class="k">if</span> <span class="n">sj</span><span class="o">.</span><span class="n">p1</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">pts</span> <span class="ow">and</span> <span class="n">sj</span><span class="o">.</span><span class="n">p2</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">pts</span><span class="p">:</span>
-                        <span class="n">aj</span> <span class="o">=</span> <span class="n">si</span><span class="o">.</span><span class="n">arbitrary_point</span><span class="p">(</span><span class="n">hit</span><span class="p">)</span>
-                        <span class="n">tx</span> <span class="o">=</span> <span class="p">(</span><span class="n">solve</span><span class="p">(</span><span class="n">ai</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="n">aj</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="ow">or</span> <span class="p">[</span><span class="n">S</span><span class="o">.</span><span class="n">Zero</span><span class="p">])[</span><span class="mi">0</span><span class="p">]</span>
-                        <span class="k">if</span> <span class="n">tx</span><span class="o">.</span><span class="n">is_number</span> <span class="ow">and</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">tx</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
-                            <span class="n">ty</span> <span class="o">=</span> <span class="p">(</span><span class="n">solve</span><span class="p">(</span><span class="n">ai</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">aj</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="ow">or</span> <span class="p">[</span><span class="n">S</span><span class="o">.</span><span class="n">Zero</span><span class="p">])[</span><span class="mi">0</span><span class="p">]</span>
-                            <span class="k">if</span> <span class="p">(</span><span class="n">tx</span> <span class="ow">or</span> <span class="n">ty</span><span class="p">)</span> <span class="ow">and</span> <span class="n">ty</span><span class="o">.</span><span class="n">is_number</span> <span class="ow">and</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">ty</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
-                                <span class="k">raise</span> <span class="n">GeometryError</span><span class="p">(</span>
-                                    <span class="s">&quot;Polygon has intersecting sides.&quot;</span><span class="p">)</span>
+                        <span class="n">hit</span> <span class="o">=</span> <span class="n">si</span><span class="o">.</span><span class="n">intersection</span><span class="p">(</span><span class="n">sj</span><span class="p">)</span>
+                        <span class="k">if</span> <span class="ow">not</span> <span class="n">hit</span><span class="p">:</span>
+                            <span class="k">continue</span>
+                        <span class="n">hit</span> <span class="o">=</span> <span class="n">hit</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                        <span class="c"># don&#39;t complain unless the intersection is definite;</span>
+                        <span class="c"># if there are symbols present then the intersection</span>
+                        <span class="c"># might not occur; this may not be necessary since if</span>
+                        <span class="c"># the convex test passed, this will likely pass, too.</span>
+                        <span class="c"># But we are about to raise an error anyway so it</span>
+                        <span class="c"># won&#39;t matter too much.</span>
+                        <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">is_number</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">hit</span><span class="o">.</span><span class="n">args</span><span class="p">):</span>
+                            <span class="k">raise</span> <span class="n">GeometryError</span><span class="p">(</span>
+                                <span class="s">&quot;Polygon has intersecting sides.&quot;</span><span class="p">)</span>
 
         <span class="k">return</span> <span class="n">rv</span>
 
@@ -729,7 +737,7 @@
             <span class="n">inter</span> <span class="o">=</span> <span class="n">side</span><span class="o">.</span><span class="n">intersection</span><span class="p">(</span><span class="n">o</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">inter</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
                 <span class="n">res</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">inter</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">res</span>
+        <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="n">uniq</span><span class="p">(</span><span class="n">res</span><span class="p">))</span>
 </div>
 <div class="viewcode-block" id="Polygon.distance"><a class="viewcode-back" href="../../../modules/geometry.html#sympy.geometry.polygon.Polygon.distance">[docs]</a>    <span class="k">def</span> <span class="nf">distance</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
@@ -2355,7 +2363,7 @@
     </div>
     <div class="footer">
         &copy; Copyright 2014 SymPy Development Team.
-      Last updated on Apr 17, 2014.
+      Last updated on May 06, 2014.
       Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2.1.
     </div>
   </body>
