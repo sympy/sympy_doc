@@ -27,7 +27,7 @@ Then
 Finally, you need to make sure the index of the different docs on the the left
 of index.html remains intact. Run
 
-    ./generate_indices.py
+    ./generate_indexes.py
 
 ## Release docs
 
@@ -45,7 +45,7 @@ Checkout the SymPy release tag and build the docs as above.  Then do
 
 Edit `releases.txt` with the new release. Then run
 
-    ./generate_indices.py
+    ./generate_indexes.py
 
 Finally, you need to make sure the url with the latest version redirects to
 `latest`. This is easy. Just run `./generate_redirects.py 0.7.3 latest`, and

@@ -1,0 +1,463 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>sympy.calculus.finite_diff &mdash; SymPy 0.7.5-git documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="http://live.sympy.org/static/live-core.css" type="text/css" />
+    <link rel="stylesheet" href="http://live.sympy.org/static/live-autocomplete.css" type="text/css" />
+    <link rel="stylesheet" href="http://live.sympy.org/static/live-sphinx.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '0.7.5-git',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="https://c328740.ssl.cf1.rackcdn.com/mathjax/latest/MathJax.js?config=TeX-AMS_HTML-full"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/utilities.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/external/classy.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/live-core.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/live-autocomplete.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/live-sphinx.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/sympy-notailtext-favicon.ico"/>
+    <link rel="top" title="SymPy 0.7.5-git documentation" href="../../../index.html" />
+    <link rel="up" title="sympy" href="../../sympy.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">SymPy 0.7.5-git documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li>
+          <li><a href="../../sympy.html" accesskey="U">sympy</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for sympy.calculus.finite_diff</h1><div class="highlight"><pre>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Finite difference weights</span>
+<span class="sd">=========================</span>
+
+<span class="sd">This module implements an algorithm for efficient generation of finite</span>
+<span class="sd">difference weights for ordinary differentials of functions for</span>
+<span class="sd">derivatives from 0 (interpolation) up to arbitrary order.</span>
+
+<span class="sd">The core algorithm is provided in the finite difference weight generating</span>
+<span class="sd">function (finite_diff_weights), and two convenience functions are provided</span>
+<span class="sd">for:</span>
+
+<span class="sd">- estimating a derivative (or interpolate) directly from a series of points</span>
+<span class="sd">    is also provided (``apply_finite_diff``).</span>
+<span class="sd">- making a finite difference approximation of a Derivative instance</span>
+<span class="sd">    (``as_finite_diff``).</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">S</span>
+<span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="kn">import</span> <span class="n">iterable</span>
+
+
+<div class="viewcode-block" id="finite_diff_weights"><a class="viewcode-back" href="../../../modules/calculus/index.html#sympy.calculus.finite_diff.finite_diff_weights">[docs]</a><span class="k">def</span> <span class="nf">finite_diff_weights</span><span class="p">(</span><span class="n">order</span><span class="p">,</span> <span class="n">x_list</span><span class="p">,</span> <span class="n">x0</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Calculates the finite difference weights for an arbitrarily</span>
+<span class="sd">    spaced one-dimensional grid (x_list) for derivatives at &#39;x0&#39;</span>
+<span class="sd">    of order 0, 1, ..., up to &#39;order&#39; using a recursive formula.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    order : int</span>
+<span class="sd">        Up to what derivative order weights should be calculated.</span>
+<span class="sd">        0 corresponds to interpolation.</span>
+<span class="sd">    x_list: sequence</span>
+<span class="sd">        Strictly monotonically increasing sequence of values for</span>
+<span class="sd">        the independent variable.</span>
+<span class="sd">    x0: Number or Symbol</span>
+<span class="sd">        At what value of the independent variable the finite difference</span>
+<span class="sd">        weights should be generated.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    =======</span>
+
+<span class="sd">    list</span>
+<span class="sd">        A list of sublists, each corresponding to coefficients for</span>
+<span class="sd">        increasing derivative order, and each containing lists of</span>
+<span class="sd">        coefficients for increasing accuracy.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy import S</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.calculus import finite_diff_weights</span>
+<span class="sd">    &gt;&gt;&gt; finite_diff_weights(1, [-S(1)/2, S(1)/2, S(3)/2, S(5)/2], 0)</span>
+<span class="sd">    [[[1, 0, 0, 0],</span>
+<span class="sd">    [1/2, 1/2, 0, 0],</span>
+<span class="sd">    [3/8, 3/4, -1/8, 0],</span>
+<span class="sd">    [5/16, 15/16, -5/16, 1/16]],</span>
+<span class="sd">    [[0, 0, 0, 0], [-1, 1, 0, 0], [-1, 1, 0, 0], [-23/24, 7/8, 1/8, -1/24]]]</span>
+
+<span class="sd">    the result is two subslists, the first is for the 0:th derivative</span>
+<span class="sd">    (interpolation) and the second for the first derivative (we gave</span>
+<span class="sd">    1 as the parameter of order so this is why we get no list for</span>
+<span class="sd">    a higher order derivative). Each sublist contains the most accurate</span>
+<span class="sd">    formula in the end (all points used).</span>
+
+<span class="sd">    Beware of the offset in the lower accuracy formulae when looking at a</span>
+<span class="sd">    centered difference:</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy import S</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.calculus import finite_diff_weights</span>
+<span class="sd">    &gt;&gt;&gt; finite_diff_weights(1, [-S(5)/2, -S(3)/2, -S(1)/2, S(1)/2,</span>
+<span class="sd">    ...    S(3)/2, S(5)/2], 0) #doctest: +NORMALIZE_WHITESPACE</span>
+<span class="sd">    [[[1, 0, 0, 0, 0, 0],</span>
+<span class="sd">      [-3/2, 5/2, 0, 0, 0, 0],</span>
+<span class="sd">      [3/8, -5/4, 15/8, 0, 0, 0],</span>
+<span class="sd">      [1/16, -5/16, 15/16, 5/16, 0, 0],</span>
+<span class="sd">      [3/128, -5/32, 45/64, 15/32, -5/128, 0],</span>
+<span class="sd">      [3/256, -25/256, 75/128, 75/128, -25/256, 3/256]],</span>
+<span class="sd">     [[0, 0, 0, 0, 0, 0],</span>
+<span class="sd">      [-1, 1, 0, 0, 0, 0],</span>
+<span class="sd">      [1, -3, 2, 0, 0, 0],</span>
+<span class="sd">      [1/24, -1/8, -7/8, 23/24, 0, 0],</span>
+<span class="sd">      [0, 1/24, -9/8, 9/8, -1/24, 0],</span>
+<span class="sd">      [-3/640, 25/384, -75/64, 75/64, -25/384, 3/640]]]</span>
+
+
+<span class="sd">    The capability to generate weights at arbitrary points can be</span>
+<span class="sd">    used e.g. to minimize Runge&#39;s phenomenon by using Chebyshev nodes:</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy import cos, symbols, pi, simplify</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.calculus import finite_diff_weights</span>
+<span class="sd">    &gt;&gt;&gt; N, (h, x) = 4, symbols(&#39;h x&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; x_list = [x+h*cos(i*pi/(N)) for i in range(N,-1,-1)] # chebyshev nodes</span>
+<span class="sd">    &gt;&gt;&gt; print(x_list)</span>
+<span class="sd">    [-h + x, -sqrt(2)*h/2 + x, x, sqrt(2)*h/2 + x, h + x]</span>
+<span class="sd">    &gt;&gt;&gt; mycoeffs = finite_diff_weights(1, x_list, 0)[1][4]</span>
+<span class="sd">    &gt;&gt;&gt; [simplify(c) for c in  mycoeffs] #doctest: +NORMALIZE_WHITESPACE</span>
+<span class="sd">    [(h**3/2 + h**2*x - 3*h*x**2 - 4*x**3)/h**4,</span>
+<span class="sd">    (-sqrt(2)*h**3 - 4*h**2*x + 3*sqrt(2)*h*x**2 + 8*x**3)/h**4,</span>
+<span class="sd">    6*x/h**2 - 8*x**3/h**4,</span>
+<span class="sd">    (sqrt(2)*h**3 - 4*h**2*x - 3*sqrt(2)*h*x**2 + 8*x**3)/h**4,</span>
+<span class="sd">    (-h**3/2 + h**2*x + 3*h*x**2 - 4*x**3)/h**4]</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    =====</span>
+
+<span class="sd">    If weights for a finite difference approximation</span>
+<span class="sd">    of the 3rd order derivative is wanted, weights for 0th, 1st</span>
+<span class="sd">    and 2nd order are calculated &quot;for free&quot;, so are formulae using</span>
+<span class="sd">    fewer and fewer of the paramters. This is something one can</span>
+<span class="sd">    take advantage of to save computational cost.</span>
+
+<span class="sd">    See also</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    sympy.calculus.finite_diff.apply_finite_diff</span>
+
+
+<span class="sd">    References</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    .. [1] Generation of Finite Difference Formulas on Arbitrarily Spaced</span>
+<span class="sd">            Grids, Bengt Fornberg; Mathematics of compuation; 51; 184;</span>
+<span class="sd">            (1988); 699-706; doi:10.1090/S0025-5718-1988-0935077-0</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c"># The notation below colosely corresponds that used in the paper.</span>
+    <span class="k">if</span> <span class="n">order</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;Negtive derivative order illegal.&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="n">order</span><span class="p">)</span> <span class="o">!=</span> <span class="n">order</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;Non-integer order illegal&quot;</span><span class="p">)</span>
+    <span class="n">M</span> <span class="o">=</span> <span class="n">order</span>
+    <span class="n">N</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">x_list</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+    <span class="n">delta</span> <span class="o">=</span> <span class="p">[[[</span><span class="mi">0</span> <span class="k">for</span> <span class="n">nu</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">N</span><span class="o">+</span><span class="mi">1</span><span class="p">)]</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">N</span><span class="o">+</span><span class="mi">1</span><span class="p">)]</span> <span class="k">for</span>
+             <span class="n">m</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">M</span><span class="o">+</span><span class="mi">1</span><span class="p">)]</span>
+    <span class="n">delta</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">S</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">c1</span> <span class="o">=</span> <span class="n">S</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">N</span><span class="o">+</span><span class="mi">1</span><span class="p">):</span>
+        <span class="n">c2</span> <span class="o">=</span> <span class="n">S</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">nu</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+            <span class="n">c3</span> <span class="o">=</span> <span class="n">x_list</span><span class="p">[</span><span class="n">n</span><span class="p">]</span><span class="o">-</span><span class="n">x_list</span><span class="p">[</span><span class="n">nu</span><span class="p">]</span>
+            <span class="n">c2</span> <span class="o">=</span> <span class="n">c2</span> <span class="o">*</span> <span class="n">c3</span>
+            <span class="k">if</span> <span class="n">n</span> <span class="o">&lt;=</span> <span class="n">M</span><span class="p">:</span>
+                <span class="n">delta</span><span class="p">[</span><span class="n">n</span><span class="p">][</span><span class="n">n</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="n">nu</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">min</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">M</span><span class="p">)</span><span class="o">+</span><span class="mi">1</span><span class="p">):</span>
+                <span class="n">delta</span><span class="p">[</span><span class="n">m</span><span class="p">][</span><span class="n">n</span><span class="p">][</span><span class="n">nu</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">x_list</span><span class="p">[</span><span class="n">n</span><span class="p">]</span><span class="o">-</span><span class="n">x0</span><span class="p">)</span><span class="o">*</span><span class="n">delta</span><span class="p">[</span><span class="n">m</span><span class="p">][</span><span class="n">n</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="n">nu</span><span class="p">]</span> <span class="o">-</span>\
+                    <span class="n">m</span><span class="o">*</span><span class="n">delta</span><span class="p">[</span><span class="n">m</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="n">n</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="n">nu</span><span class="p">]</span>
+                <span class="n">delta</span><span class="p">[</span><span class="n">m</span><span class="p">][</span><span class="n">n</span><span class="p">][</span><span class="n">nu</span><span class="p">]</span> <span class="o">/=</span> <span class="n">c3</span>
+        <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">min</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">M</span><span class="p">)</span><span class="o">+</span><span class="mi">1</span><span class="p">):</span>
+            <span class="n">delta</span><span class="p">[</span><span class="n">m</span><span class="p">][</span><span class="n">n</span><span class="p">][</span><span class="n">n</span><span class="p">]</span> <span class="o">=</span> <span class="n">c1</span><span class="o">/</span><span class="n">c2</span><span class="o">*</span><span class="p">(</span><span class="n">m</span><span class="o">*</span><span class="n">delta</span><span class="p">[</span><span class="n">m</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="n">n</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="n">n</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span>
+                                    <span class="p">(</span><span class="n">x_list</span><span class="p">[</span><span class="n">n</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">-</span><span class="n">x0</span><span class="p">)</span><span class="o">*</span><span class="n">delta</span><span class="p">[</span><span class="n">m</span><span class="p">][</span><span class="n">n</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="n">n</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+        <span class="n">c1</span> <span class="o">=</span> <span class="n">c2</span>
+    <span class="k">return</span> <span class="n">delta</span>
+
+</div>
+<div class="viewcode-block" id="apply_finite_diff"><a class="viewcode-back" href="../../../modules/calculus/index.html#sympy.calculus.finite_diff.apply_finite_diff">[docs]</a><span class="k">def</span> <span class="nf">apply_finite_diff</span><span class="p">(</span><span class="n">order</span><span class="p">,</span> <span class="n">x_list</span><span class="p">,</span> <span class="n">y_list</span><span class="p">,</span> <span class="n">x0</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Calculates the finite difference approxiamtion of</span>
+<span class="sd">    the derivative of requested order at x0 from points</span>
+<span class="sd">    provided in x_list and y_list.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    order: int</span>
+<span class="sd">        order of derivative to approximate. 0 corresponds to interpolation.</span>
+<span class="sd">    x_list: sequence</span>
+<span class="sd">        Strictly monotonically increasing sequence of values for</span>
+<span class="sd">        the independent variable.</span>
+<span class="sd">    y_list: sequence</span>
+<span class="sd">        The function value at corresponding values for the independent</span>
+<span class="sd">        variable in x_list.</span>
+<span class="sd">    x0: Number or Symbol</span>
+<span class="sd">        At what value of the independent variable the derivative should be</span>
+<span class="sd">        evaluated.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    =======</span>
+
+<span class="sd">    sympy.core.add.Add or sympy.core.numbers.Number</span>
+<span class="sd">        The finite difference expression approximating the requested</span>
+<span class="sd">        derivative order at x0.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.calculus import apply_finite_diff</span>
+<span class="sd">    &gt;&gt;&gt; cube = lambda arg: (1.0*arg)**3</span>
+<span class="sd">    &gt;&gt;&gt; xlist = range(-3,3+1)</span>
+<span class="sd">    &gt;&gt;&gt; apply_finite_diff(2, xlist, map(cube, xlist), 2) - 12 # doctest: +SKIP</span>
+<span class="sd">    -3.55271367880050e-15</span>
+
+<span class="sd">    we see that the example above only contain rounding errors.</span>
+<span class="sd">    apply_finite_diff can also be used on more abstract objects:</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy import IndexedBase, Idx</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.calculus import apply_finite_diff</span>
+<span class="sd">    &gt;&gt;&gt; x, y = map(IndexedBase, &#39;xy&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; i = Idx(&#39;i&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; x_list, y_list = zip(*[(x[i+j], y[i+j]) for j in range(-1,2)])</span>
+<span class="sd">    &gt;&gt;&gt; apply_finite_diff(1, x_list, y_list, x[i])</span>
+<span class="sd">    (-1 + (x[i + 1] - x[i])/(-x[i - 1] + x[i]))*y[i]/(x[i + 1] - x[i]) + \</span>
+<span class="sd">(-x[i - 1] + x[i])*y[i + 1]/((-x[i - 1] + x[i + 1])*(x[i + 1] - x[i])) - \</span>
+<span class="sd">(x[i + 1] - x[i])*y[i - 1]/((-x[i - 1] + x[i + 1])*(-x[i - 1] + x[i]))</span>
+
+
+<span class="sd">    Notes</span>
+<span class="sd">    =====</span>
+
+<span class="sd">    Order = 0 corresponds to interpolation.</span>
+<span class="sd">    Only supply so many points you think makes sense</span>
+<span class="sd">    to around x0 when extracting the derivative (the function</span>
+<span class="sd">    need to be well behaved within that region). Also beware</span>
+<span class="sd">    of Runge&#39;s phenomenon.</span>
+
+<span class="sd">    See also</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    sympy.calculus.finite_diff.finite_diff_weights</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    Fortran 90 implementation with Python interface for numerics: finitediff_</span>
+
+<span class="sd">    .. _finitediff: https://github.com/bjodah/finitediff</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c"># In the original paper the following holds for the notation:</span>
+    <span class="c"># M = order</span>
+    <span class="c"># N = len(x_list) - 1</span>
+
+    <span class="n">N</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">x_list</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">x_list</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">y_list</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;x_list and y_list not equal in length.&quot;</span><span class="p">)</span>
+
+    <span class="n">delta</span> <span class="o">=</span> <span class="n">finite_diff_weights</span><span class="p">(</span><span class="n">order</span><span class="p">,</span> <span class="n">x_list</span><span class="p">,</span> <span class="n">x0</span><span class="p">)</span>
+
+    <span class="n">derivative</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">nu</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">x_list</span><span class="p">)):</span>
+        <span class="n">derivative</span> <span class="o">+=</span> <span class="n">delta</span><span class="p">[</span><span class="n">order</span><span class="p">][</span><span class="n">N</span><span class="p">][</span><span class="n">nu</span><span class="p">]</span><span class="o">*</span><span class="n">y_list</span><span class="p">[</span><span class="n">nu</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">derivative</span>
+
+</div>
+<div class="viewcode-block" id="as_finite_diff"><a class="viewcode-back" href="../../../modules/calculus/index.html#sympy.calculus.finite_diff.as_finite_diff">[docs]</a><span class="k">def</span> <span class="nf">as_finite_diff</span><span class="p">(</span><span class="n">derivative</span><span class="p">,</span> <span class="n">points</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">x0</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">wrt</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns an approximation of a derivative of a function in</span>
+<span class="sd">    the form of a finite difference formula. The expression is a</span>
+<span class="sd">    weighted sum of the function at a number of discrete values of</span>
+<span class="sd">    (one of) the independent variable(s).</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    derivative: a Derivative instance (needs to have an variables</span>
+<span class="sd">        and expr attribute).</span>
+
+<span class="sd">    points: sequence or coefficient, optional</span>
+<span class="sd">        If sequence: discrete values (length &gt;= order+1) of the</span>
+<span class="sd">        independent variable used for generating the finite</span>
+<span class="sd">        difference weights.</span>
+<span class="sd">        If it is a coefficient, it will be used as the step-size</span>
+<span class="sd">        for generating an equidistant sequence of length order+1</span>
+<span class="sd">        centered around x0. defult: 1 (step-size 1)</span>
+
+<span class="sd">    x0: number or Symbol, optional</span>
+<span class="sd">        the value of the independent variable (wrt) at which the</span>
+<span class="sd">        derivative is to be approximated. default: same as wrt</span>
+
+<span class="sd">    wrt: Symbol, optional</span>
+<span class="sd">        &quot;with respect to&quot; the variable for which the (partial)</span>
+<span class="sd">        derivative is to be approximated for. If not provided it</span>
+<span class="sd">        is required that the Derivative is ordinary. default: None</span>
+
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy import symbols, Function, exp, sqrt, Symbol, as_finite_diff</span>
+<span class="sd">    &gt;&gt;&gt; x, h = symbols(&#39;x h&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; f = Function(&#39;f&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; as_finite_diff(f(x).diff(x))</span>
+<span class="sd">    -f(x - 1/2) + f(x + 1/2)</span>
+
+<span class="sd">    The default step size and number of points are 1 and ``order + 1``</span>
+<span class="sd">    respectively. We can change the step size by passing a symbol</span>
+<span class="sd">    as a parameter:</span>
+
+<span class="sd">    &gt;&gt;&gt; as_finite_diff(f(x).diff(x), h)</span>
+<span class="sd">    -f(-h/2 + x)/h + f(h/2 + x)/h</span>
+
+<span class="sd">    We can also specify the discretized values to be used in a sequence:</span>
+
+<span class="sd">    &gt;&gt;&gt; as_finite_diff(f(x).diff(x), [x, x+h, x+2*h])</span>
+<span class="sd">    -3*f(x)/(2*h) + 2*f(h + x)/h - f(2*h + x)/(2*h)</span>
+
+<span class="sd">    The algorithm is not restricted to use equidistant spacing, nor</span>
+<span class="sd">    do we need to make the approximation around x0, but we can get</span>
+<span class="sd">    an expression estimating the derivative at an offset:</span>
+
+<span class="sd">    &gt;&gt;&gt; e, sq2 = exp(1), sqrt(2)</span>
+<span class="sd">    &gt;&gt;&gt; xl = [x-h, x+h, x+e*h]</span>
+<span class="sd">    &gt;&gt;&gt; as_finite_diff(f(x).diff(x, 1), xl, x+h*sq2)</span>
+<span class="sd">    2*h*((h + sqrt(2)*h)/(2*h) - (-sqrt(2)*h + h)/(2*h))*f(E*h + x)/\</span>
+<span class="sd">((-h + E*h)*(h + E*h)) + (-(-sqrt(2)*h + h)/(2*h) - \</span>
+<span class="sd">(-sqrt(2)*h + E*h)/(2*h))*f(-h + x)/(h + E*h) + \</span>
+<span class="sd">(-(h + sqrt(2)*h)/(2*h) + (-sqrt(2)*h + E*h)/(2*h))*f(h + x)/(-h + E*h)</span>
+
+<span class="sd">    Partial derivatives are also supported:</span>
+
+<span class="sd">    &gt;&gt;&gt; y = Symbol(&#39;y&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; d2fdxdy=f(x,y).diff(x,y)</span>
+<span class="sd">    &gt;&gt;&gt; as_finite_diff(d2fdxdy, wrt=x)</span>
+<span class="sd">    -f(x - 1/2, y) + f(x + 1/2, y)</span>
+
+<span class="sd">    See also</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    sympy.calculus.finite_diff.apply_finite_diff</span>
+<span class="sd">    sympy.calculus.finite_diff.finite_diff_weights</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">wrt</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">wrt</span> <span class="o">=</span> <span class="n">derivative</span><span class="o">.</span><span class="n">variables</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="c"># we need Derivative to be univariate to guess wrt</span>
+        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">v</span> <span class="o">!=</span> <span class="n">wrt</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">derivative</span><span class="o">.</span><span class="n">variables</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;if the function is not univariate&#39;</span> <span class="o">+</span>
+                             <span class="s">&#39; then `wrt` must be given&#39;</span><span class="p">)</span>
+
+    <span class="n">order</span> <span class="o">=</span> <span class="n">derivative</span><span class="o">.</span><span class="n">variables</span><span class="o">.</span><span class="n">count</span><span class="p">(</span><span class="n">wrt</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">x0</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">x0</span> <span class="o">=</span> <span class="n">wrt</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">iterable</span><span class="p">(</span><span class="n">points</span><span class="p">):</span>
+        <span class="c"># points is simply the step-size, let&#39;s make it a</span>
+        <span class="c"># equidistant sequence centered around x0</span>
+        <span class="k">if</span> <span class="n">order</span> <span class="o">%</span> <span class="mi">2</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c"># even order =&gt; odd number of points, grid point included</span>
+            <span class="n">points</span> <span class="o">=</span> <span class="p">[</span><span class="n">x0</span> <span class="o">+</span> <span class="n">points</span><span class="o">*</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span>
+                      <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="o">-</span><span class="n">order</span><span class="o">//</span><span class="mi">2</span><span class="p">,</span> <span class="n">order</span><span class="o">//</span><span class="mi">2</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c"># odd order =&gt; even number of points, half-way wrt grid point</span>
+            <span class="n">points</span> <span class="o">=</span> <span class="p">[</span><span class="n">x0</span> <span class="o">+</span> <span class="n">points</span><span class="o">*</span><span class="n">i</span><span class="o">/</span><span class="n">S</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span>
+                      <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="o">-</span><span class="n">order</span><span class="p">,</span> <span class="n">order</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)]</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">points</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">order</span><span class="o">+</span><span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;Too few points for order </span><span class="si">%d</span><span class="s">&quot;</span> <span class="o">%</span> <span class="n">order</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">apply_finite_diff</span><span class="p">(</span><span class="n">order</span><span class="p">,</span> <span class="n">points</span><span class="p">,</span> <span class="p">[</span>
+        <span class="n">derivative</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">subs</span><span class="p">({</span><span class="n">wrt</span><span class="p">:</span> <span class="n">x</span><span class="p">})</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">points</span><span class="p">],</span> <span class="n">x0</span><span class="p">)</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../../index.html">
+              <img class="logo" src="../../../_static/sympylogo.png" alt="Logo"/>
+            </a></p>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">SymPy 0.7.5-git documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li>
+          <li><a href="../../sympy.html" >sympy</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2014 SymPy Development Team.
+      Last updated on May 06, 2014.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2.1.
+    </div>
+  </body>
+</html>
