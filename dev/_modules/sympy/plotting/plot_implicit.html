@@ -92,10 +92,12 @@
 <span class="kn">from</span> <span class="nn">.intervalmath</span> <span class="kn">import</span> <span class="n">interval</span>
 <span class="kn">from</span> <span class="nn">sympy.core.relational</span> <span class="kn">import</span> <span class="p">(</span><span class="n">Equality</span><span class="p">,</span> <span class="n">GreaterThan</span><span class="p">,</span> <span class="n">LessThan</span><span class="p">,</span>
                 <span class="n">Relational</span><span class="p">,</span> <span class="n">StrictLessThan</span><span class="p">,</span> <span class="n">StrictGreaterThan</span><span class="p">)</span>
-<span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">sympify</span><span class="p">,</span> <span class="n">Dummy</span>
+<span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">sympify</span><span class="p">,</span> <span class="n">Symbol</span><span class="p">,</span> <span class="n">Dummy</span>
 <span class="kn">from</span> <span class="nn">sympy.external</span> <span class="kn">import</span> <span class="n">import_module</span>
 <span class="kn">from</span> <span class="nn">sympy.logic.boolalg</span> <span class="kn">import</span> <span class="n">BooleanFunction</span>
+<span class="kn">from</span> <span class="nn">sympy.polys.polyutils</span> <span class="kn">import</span> <span class="n">_sort_gens</span>
 <span class="kn">from</span> <span class="nn">sympy.utilities.decorator</span> <span class="kn">import</span> <span class="n">doctest_depends_on</span>
+<span class="kn">from</span> <span class="nn">sympy.utilities.iterables</span> <span class="kn">import</span> <span class="n">flatten</span>
 <span class="kn">import</span> <span class="nn">warnings</span>
 
 
@@ -258,19 +260,22 @@
 
 </div>
 <span class="nd">@doctest_depends_on</span><span class="p">(</span><span class="n">modules</span><span class="o">=</span><span class="p">(</span><span class="s">&#39;matplotlib&#39;</span><span class="p">,))</span>
-<div class="viewcode-block" id="plot_implicit"><a class="viewcode-back" href="../../../modules/plotting.html#sympy.plotting.plot_implicit.plot_implicit">[docs]</a><span class="k">def</span> <span class="nf">plot_implicit</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<div class="viewcode-block" id="plot_implicit"><a class="viewcode-back" href="../../../modules/plotting.html#sympy.plotting.plot_implicit.plot_implicit">[docs]</a><span class="k">def</span> <span class="nf">plot_implicit</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">x_var</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">y_var</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;A plot function to plot implicit equations / inequalities.</span>
 
 <span class="sd">    Arguments</span>
 <span class="sd">    =========</span>
 
 <span class="sd">    - ``expr`` : The equation / inequality that is to be plotted.</span>
-<span class="sd">    - ``(x, xmin, xmax)`` optional, 3-tuple denoting the range of symbol</span>
-<span class="sd">      ``x``</span>
-<span class="sd">    - ``(y, ymin, ymax)`` optional, 3-tuple denoting the range of symbol</span>
-<span class="sd">      ``y``</span>
+<span class="sd">    - ``x_var`` (optional) : symbol to plot on x-axis or tuple giving symbol</span>
+<span class="sd">      and range as ``(symbol, xmin, xmax)``</span>
+<span class="sd">    - ``y_var`` (optional) : symbol to plot on y-axis or tuple giving symbol</span>
+<span class="sd">      and range as ``(symbol, ymin, ymax)``</span>
 
-<span class="sd">    The following arguments can be passed as named parameters.</span>
+<span class="sd">    If neither ``x_var`` nor ``y_var`` are given then the free symbols in the</span>
+<span class="sd">    expression will be assigned in the order they are sorted.</span>
+
+<span class="sd">    The following keyword arguments can also be used:</span>
 
 <span class="sd">    - ``adaptive``. Boolean. The default value is set to True. It has to be</span>
 <span class="sd">        set to False if you want to use a mesh grid.</span>
@@ -283,9 +288,9 @@
 
 <span class="sd">    - ``title`` string .The title for the plot.</span>
 
-<span class="sd">    - ``xlabel`` string. The label for the x - axis</span>
+<span class="sd">    - ``xlabel`` string. The label for the x-axis</span>
 
-<span class="sd">    - ``ylabel`` string. The label for the y - axis</span>
+<span class="sd">    - ``ylabel`` string. The label for the y-axis</span>
 
 <span class="sd">    plot_implicit, by default, uses interval arithmetic to plot functions. If</span>
 <span class="sd">    the expression cannot be plotted using interval arithmetic, it defaults to</span>
@@ -363,36 +368,33 @@
     <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="p">(</span><span class="n">Equality</span><span class="p">,</span> <span class="n">GreaterThan</span><span class="p">,</span> <span class="n">LessThan</span><span class="p">)):</span>
         <span class="n">has_equality</span> <span class="o">=</span> <span class="bp">True</span>
 
-    <span class="n">free_symbols</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">)</span>
-    <span class="n">range_symbols</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([</span><span class="n">t</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">args</span><span class="p">])</span>
-    <span class="n">symbols</span> <span class="o">=</span> <span class="nb">set</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="n">free_symbols</span><span class="p">,</span> <span class="n">range_symbols</span><span class="p">)</span>
-    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">symbols</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">2</span><span class="p">:</span>
+    <span class="n">xyvar</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">(</span><span class="n">x_var</span><span class="p">,</span> <span class="n">y_var</span><span class="p">)</span> <span class="k">if</span> <span class="n">i</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">]</span>
+    <span class="n">free_symbols</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">free_symbols</span>
+    <span class="n">range_symbols</span> <span class="o">=</span> <span class="n">Tuple</span><span class="p">(</span><span class="o">*</span><span class="n">flatten</span><span class="p">(</span><span class="n">xyvar</span><span class="p">))</span><span class="o">.</span><span class="n">free_symbols</span>
+    <span class="n">undeclared</span> <span class="o">=</span> <span class="n">free_symbols</span> <span class="o">-</span> <span class="n">range_symbols</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">free_symbols</span> <span class="o">&amp;</span> <span class="n">range_symbols</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">2</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s">&quot;Implicit plotting is not implemented for &quot;</span>
                                   <span class="s">&quot;more than 2 variables&quot;</span><span class="p">)</span>
 
     <span class="c">#Create default ranges if the range is not provided.</span>
     <span class="n">default_range</span> <span class="o">=</span> <span class="n">Tuple</span><span class="p">(</span><span class="o">-</span><span class="mi">5</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span>
-    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
-        <span class="n">var_start_end_x</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-        <span class="n">var_start_end_y</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
-    <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
-        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">free_symbols</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
-            <span class="n">var_start_end_x</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-            <span class="n">var_start_end_y</span><span class="p">,</span> <span class="o">=</span> <span class="p">(</span><span class="n">Tuple</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="o">+</span> <span class="n">default_range</span>
-                                <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="p">(</span><span class="n">free_symbols</span> <span class="o">-</span> <span class="n">range_symbols</span><span class="p">))</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">var_start_end_x</span><span class="p">,</span> <span class="o">=</span> <span class="p">(</span><span class="n">Tuple</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="o">+</span> <span class="n">default_range</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">free_symbols</span><span class="p">)</span>
-            <span class="c">#Create a random symbol</span>
-            <span class="n">var_start_end_y</span> <span class="o">=</span> <span class="n">Tuple</span><span class="p">(</span><span class="n">Dummy</span><span class="p">())</span> <span class="o">+</span> <span class="n">default_range</span>
+    <span class="k">def</span> <span class="nf">_range_tuple</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">Symbol</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">Tuple</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="o">+</span> <span class="n">default_range</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">Tuple</span><span class="p">(</span><span class="o">*</span><span class="n">s</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;symbol or `(symbol, min, max)` expected but got </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="n">s</span><span class="p">)</span>
 
-    <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">free_symbols</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
-            <span class="n">var_start_end_x</span><span class="p">,</span> <span class="o">=</span> <span class="p">(</span><span class="n">Tuple</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="o">+</span> <span class="n">default_range</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">free_symbols</span><span class="p">)</span>
-            <span class="c">#create a random symbol</span>
-            <span class="n">var_start_end_y</span> <span class="o">=</span> <span class="n">Tuple</span><span class="p">(</span><span class="n">Dummy</span><span class="p">())</span> <span class="o">+</span> <span class="n">default_range</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">xyvar</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">xyvar</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">_sort_gens</span><span class="p">(</span><span class="n">free_symbols</span><span class="p">))</span>
+    <span class="n">var_start_end_x</span> <span class="o">=</span> <span class="n">_range_tuple</span><span class="p">(</span><span class="n">xyvar</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">var_start_end_x</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">xyvar</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">undeclared</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">undeclared</span><span class="p">:</span>
+            <span class="n">xyvar</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Dummy</span><span class="p">(</span><span class="s">&#39;f(</span><span class="si">%s</span><span class="s">)&#39;</span> <span class="o">%</span> <span class="n">x</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">var_start_end_x</span><span class="p">,</span> <span class="n">var_start_end_y</span> <span class="o">=</span> <span class="p">(</span><span class="n">Tuple</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="o">+</span> <span class="n">default_range</span>
-                                                <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">free_symbols</span><span class="p">)</span>
+            <span class="n">xyvar</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">undeclared</span><span class="o">.</span><span class="n">pop</span><span class="p">())</span>
+    <span class="n">var_start_end_y</span> <span class="o">=</span> <span class="n">_range_tuple</span><span class="p">(</span><span class="n">xyvar</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
 
     <span class="n">use_interval</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s">&#39;adaptive&#39;</span><span class="p">,</span> <span class="bp">True</span><span class="p">)</span>
     <span class="n">nb_of_points</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s">&#39;points&#39;</span><span class="p">,</span> <span class="mi">300</span><span class="p">)</span>
@@ -411,6 +413,9 @@
     <span class="c">#set the x and y limits</span>
     <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;xlim&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">var_start_end_x</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
     <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;ylim&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">y</span><span class="p">)</span> <span class="k">for</span> <span class="n">y</span> <span class="ow">in</span> <span class="n">var_start_end_y</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
+    <span class="c"># set the x and y labels</span>
+    <span class="n">kwargs</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s">&#39;xlabel&#39;</span><span class="p">,</span> <span class="n">var_start_end_x</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+    <span class="n">kwargs</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s">&#39;ylabel&#39;</span><span class="p">,</span> <span class="n">var_start_end_y</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
     <span class="n">p</span> <span class="o">=</span> <span class="n">Plot</span><span class="p">(</span><span class="n">series_argument</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">show</span><span class="p">:</span>
         <span class="n">p</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
@@ -458,7 +463,7 @@
     </div>
     <div class="footer">
         &copy; Copyright 2014 SymPy Development Team.
-      Last updated on May 06, 2014.
+      Last updated on May 26, 2014.
       Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2.1.
     </div>
   </body>
