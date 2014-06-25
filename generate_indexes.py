@@ -55,7 +55,7 @@ def main():
         # If we didn't find a match in the whole file, we need to stop and fix something.
         if contexti < len(context):
             print "Couldn't find where to insert Docs for other versions in {0}".format(releasedir)
-            sys.exit(2)
+            sys.exit(0)
 
         # Do we want to delete anything? Is there a table there already?
         if "Docs for other versions" in lines[linei]:
