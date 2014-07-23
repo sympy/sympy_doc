@@ -65,10 +65,15 @@
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;LagrangesMethod&#39;</span><span class="p">]</span>
 
-<span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">diff</span><span class="p">,</span> <span class="n">zeros</span><span class="p">,</span> <span class="n">Matrix</span><span class="p">,</span> <span class="n">eye</span><span class="p">,</span> <span class="n">sympify</span><span class="p">,</span> <span class="n">Symbol</span>
+<span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">diff</span><span class="p">,</span> <span class="n">zeros</span><span class="p">,</span> <span class="n">Matrix</span><span class="p">,</span> <span class="n">eye</span><span class="p">,</span> <span class="n">sympify</span>
 <span class="kn">from</span> <span class="nn">sympy.physics.vector</span> <span class="kn">import</span> <span class="p">(</span><span class="n">dynamicsymbols</span><span class="p">,</span> <span class="n">ReferenceFrame</span><span class="p">,</span> <span class="n">Point</span><span class="p">)</span>
-<span class="kn">from</span> <span class="nn">sympy.physics.mechanics.functions</span> <span class="kn">import</span> <span class="n">_mat_inv_mul</span>
+<span class="kn">from</span> <span class="nn">sympy.physics.mechanics.functions</span> <span class="kn">import</span> <span class="n">_mat_inv_mul</span><span class="p">,</span> \
+        <span class="n">_find_dynamicsymbols</span><span class="p">,</span> <span class="n">_subs_keep_derivs</span>
+<span class="kn">from</span> <span class="nn">sympy.physics.mechanics.linearize</span> <span class="kn">import</span> <span class="n">Linearizer</span>
+<span class="kn">from</span> <span class="nn">sympy.utilities</span> <span class="kn">import</span> <span class="n">default_sort_key</span>
 <span class="kn">from</span> <span class="nn">sympy.utilities.exceptions</span> <span class="kn">import</span> <span class="n">SymPyDeprecationWarning</span>
+<span class="kn">from</span> <span class="nn">sympy.utilities.misc</span> <span class="kn">import</span> <span class="n">filldedent</span>
+<span class="kn">import</span> <span class="nn">collections</span>
 <span class="kn">import</span> <span class="nn">warnings</span>
 
 <span class="n">warnings</span><span class="o">.</span><span class="n">simplefilter</span><span class="p">(</span><span class="s">&quot;always&quot;</span><span class="p">,</span> <span class="n">SymPyDeprecationWarning</span><span class="p">)</span>
@@ -159,7 +164,8 @@
 
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">Lagrangian</span><span class="p">,</span> <span class="n">q_list</span><span class="p">,</span> <span class="n">coneqs</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">forcelist</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">frame</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">Lagrangian</span><span class="p">,</span> <span class="n">q_list</span><span class="p">,</span> <span class="n">coneqs</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">forcelist</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+            <span class="n">frame</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">hol_coneqs</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">nonhol_coneqs</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Supply the following for the initialization of LagrangesMethod</span>
 
 <span class="sd">        Lagrangian : Sympifyable</span>
@@ -167,10 +173,11 @@
 <span class="sd">        q_list : list</span>
 <span class="sd">            A list of the generalized coordinates</span>
 
-<span class="sd">        coneqs : list</span>
-<span class="sd">            A list of the holonomic and non-holonomic constraint equations.</span>
-<span class="sd">            VERY IMPORTANT NOTE- The holonomic constraints must be</span>
-<span class="sd">            differentiated with respect to time and then included in coneqs.</span>
+<span class="sd">        hol_coneqs: list</span>
+<span class="sd">            A list of the holonomic constraint equations</span>
+
+<span class="sd">        nonhol_coneqs: list</span>
+<span class="sd">            A list of the nonholonomic constraint equations</span>
 
 <span class="sd">        forcelist : list</span>
 <span class="sd">            Takes a list of (Point, Vector) or (ReferenceFrame, Vector) tuples</span>
@@ -211,7 +218,19 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_qdots</span> <span class="o">=</span> <span class="p">[</span><span class="n">diff</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">dynamicsymbols</span><span class="o">.</span><span class="n">_t</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_q</span><span class="p">]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_qdoubledots</span> <span class="o">=</span> <span class="p">[</span><span class="n">diff</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">dynamicsymbols</span><span class="o">.</span><span class="n">_t</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_qdots</span><span class="p">]</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">coneqs</span> <span class="o">=</span> <span class="n">coneqs</span>
+        <span class="c"># Deal with constraint equations</span>
+        <span class="k">if</span> <span class="n">coneqs</span><span class="p">:</span>
+            <span class="n">SymPyDeprecationWarning</span><span class="p">(</span><span class="n">filldedent</span><span class="p">(</span><span class="s">&quot;&quot;&quot;The `coneqs` kwarg is</span>
+<span class="s">            deprecated in favor of `hol_coneqs` and `nonhol_coneqs`. Please</span>
+<span class="s">            update your code&quot;&quot;&quot;</span><span class="p">))</span><span class="o">.</span><span class="n">warn</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">coneqs</span> <span class="o">=</span> <span class="n">coneqs</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">mat_build</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">Matrix</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">if</span> <span class="n">x</span> <span class="k">else</span> <span class="n">Matrix</span><span class="p">()</span>
+            <span class="n">hol_coneqs</span> <span class="o">=</span> <span class="n">mat_build</span><span class="p">(</span><span class="n">hol_coneqs</span><span class="p">)</span>
+            <span class="n">nonhol_coneqs</span> <span class="o">=</span> <span class="n">mat_build</span><span class="p">(</span><span class="n">nonhol_coneqs</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">coneqs</span> <span class="o">=</span> <span class="n">Matrix</span><span class="p">([</span><span class="n">hol_coneqs</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">dynamicsymbols</span><span class="o">.</span><span class="n">_t</span><span class="p">),</span>
+                    <span class="n">nonhol_coneqs</span><span class="p">])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_hol_coneqs</span> <span class="o">=</span> <span class="n">hol_coneqs</span>
 
 <div class="viewcode-block" id="LagrangesMethod.form_lagranges_equations"><a class="viewcode-back" href="../../../../modules/physics/mechanics/api/kane.html#sympy.physics.mechanics.lagrange.LagrangesMethod.form_lagranges_equations">[docs]</a>    <span class="k">def</span> <span class="nf">form_lagranges_equations</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Method to form Lagrange&#39;s equations of motion.</span>
@@ -238,7 +257,7 @@
 
         <span class="c">#term1 and term2 will be there no matter what so leave them as they are</span>
 
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">coneqs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">coneqs</span><span class="p">:</span>
             <span class="n">coneqs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">coneqs</span>
             <span class="c">#If there are coneqs supplied then the following will be created</span>
             <span class="n">coneqs</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">coneqs</span><span class="p">)</span>
@@ -338,7 +357,7 @@
         <span class="c">#THE FIRST TWO ROWS OF THE MATRIX</span>
         <span class="n">row1</span> <span class="o">=</span> <span class="n">eye</span><span class="p">(</span><span class="n">n</span><span class="p">)</span><span class="o">.</span><span class="n">row_join</span><span class="p">(</span><span class="n">zeros</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">n</span><span class="p">))</span>
         <span class="n">row2</span> <span class="o">=</span> <span class="n">zeros</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">n</span><span class="p">)</span><span class="o">.</span><span class="n">row_join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mass_matrix</span><span class="p">)</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">coneqs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">coneqs</span><span class="p">:</span>
             <span class="n">m</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">coneqs</span><span class="p">)</span>
             <span class="n">I</span> <span class="o">=</span> <span class="n">eye</span><span class="p">(</span><span class="n">n</span><span class="p">)</span><span class="o">.</span><span class="n">row_join</span><span class="p">(</span><span class="n">zeros</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">n</span> <span class="o">+</span> <span class="n">m</span><span class="p">))</span>
             <span class="n">below_eye</span> <span class="o">=</span> <span class="n">zeros</span><span class="p">(</span><span class="n">n</span> <span class="o">+</span> <span class="n">m</span><span class="p">,</span> <span class="n">n</span><span class="p">)</span>
@@ -359,7 +378,7 @@
         <span class="n">qdd</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_qdoubledots</span>
         <span class="n">qddzero</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">qdd</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">qdd</span><span class="p">)))</span>
 
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">coneqs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">coneqs</span><span class="p">:</span>
             <span class="n">lam</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">lam_vec</span>
             <span class="n">lamzero</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">lam</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">lam</span><span class="p">)))</span>
 
@@ -378,10 +397,150 @@
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">eom</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;Need to compute the equations of motion first&#39;</span><span class="p">)</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">coneqs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">coneqs</span><span class="p">:</span>
             <span class="k">return</span> <span class="p">(</span><span class="n">Matrix</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_qdots</span><span class="p">))</span><span class="o">.</span><span class="n">col_join</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">forcing</span><span class="p">)</span><span class="o">.</span><span class="n">col_join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_f_cd</span><span class="p">))</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">return</span> <span class="p">(</span><span class="n">Matrix</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_qdots</span><span class="p">))</span><span class="o">.</span><span class="n">col_join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">forcing</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="LagrangesMethod.to_linearizer"><a class="viewcode-back" href="../../../../modules/physics/mechanics/api/kane.html#sympy.physics.mechanics.lagrange.LagrangesMethod.to_linearizer">[docs]</a>    <span class="k">def</span> <span class="nf">to_linearizer</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">q_ind</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">qd_ind</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">q_dep</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">qd_dep</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Returns an instance of the Linearizer class, initiated from the</span>
+<span class="sd">        data in the LagrangesMethod class. This may be more desirable than using</span>
+<span class="sd">        the linearize class method, as the Linearizer object will allow more</span>
+<span class="sd">        efficient recalculation (i.e. about varying operating points).</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        q_ind, qd_ind : array_like, optional</span>
+<span class="sd">            The independent generalized coordinates and speeds.</span>
+<span class="sd">        q_dep, qd_dep : array_like, optional</span>
+<span class="sd">            The dependent generalized coordinates and speeds.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c"># Compose vectors</span>
+        <span class="n">t</span> <span class="o">=</span> <span class="n">dynamicsymbols</span><span class="o">.</span><span class="n">_t</span>
+        <span class="n">q</span> <span class="o">=</span> <span class="n">Matrix</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_q</span><span class="p">)</span>
+        <span class="n">u</span> <span class="o">=</span> <span class="n">Matrix</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_qdots</span><span class="p">)</span>
+        <span class="n">ud</span> <span class="o">=</span> <span class="n">u</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+        <span class="c"># Get vector of lagrange multipliers</span>
+        <span class="n">lams</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">lam_vec</span>
+
+        <span class="n">mat_build</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">Matrix</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">if</span> <span class="n">x</span> <span class="k">else</span> <span class="n">Matrix</span><span class="p">()</span>
+        <span class="n">q_i</span> <span class="o">=</span> <span class="n">mat_build</span><span class="p">(</span><span class="n">q_ind</span><span class="p">)</span>
+        <span class="n">q_d</span> <span class="o">=</span> <span class="n">mat_build</span><span class="p">(</span><span class="n">q_dep</span><span class="p">)</span>
+        <span class="n">u_i</span> <span class="o">=</span> <span class="n">mat_build</span><span class="p">(</span><span class="n">qd_ind</span><span class="p">)</span>
+        <span class="n">u_d</span> <span class="o">=</span> <span class="n">mat_build</span><span class="p">(</span><span class="n">qd_dep</span><span class="p">)</span>
+
+        <span class="c"># Compose general form equations</span>
+        <span class="n">f_c</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_hol_coneqs</span>
+        <span class="n">f_v</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">coneqs</span>
+        <span class="n">f_a</span> <span class="o">=</span> <span class="n">f_v</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+        <span class="n">f_0</span> <span class="o">=</span> <span class="n">u</span>
+        <span class="n">f_1</span> <span class="o">=</span> <span class="o">-</span><span class="n">u</span>
+        <span class="n">f_2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_term1</span>
+        <span class="n">f_3</span> <span class="o">=</span> <span class="o">-</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_term2</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_term4</span><span class="p">)</span>
+        <span class="n">f_4</span> <span class="o">=</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">_term3</span>
+
+        <span class="c"># Check that there are an appropriate number of independent and</span>
+        <span class="c"># dependent coordinates</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">q_d</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">f_c</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="n">u_d</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">f_v</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">((</span><span class="s">&quot;Must supply {:} dependent coordinates, and &quot;</span> <span class="o">+</span>
+                    <span class="s">&quot;{:} dependent speeds&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">f_c</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">f_v</span><span class="p">)))</span>
+        <span class="k">if</span> <span class="nb">set</span><span class="p">(</span><span class="n">Matrix</span><span class="p">([</span><span class="n">q_i</span><span class="p">,</span> <span class="n">q_d</span><span class="p">]))</span> <span class="o">!=</span> <span class="nb">set</span><span class="p">(</span><span class="n">q</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;Must partition q into q_ind and q_dep, with &quot;</span> <span class="o">+</span>
+                    <span class="s">&quot;no extra or missing symbols.&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">set</span><span class="p">(</span><span class="n">Matrix</span><span class="p">([</span><span class="n">u_i</span><span class="p">,</span> <span class="n">u_d</span><span class="p">]))</span> <span class="o">!=</span> <span class="nb">set</span><span class="p">(</span><span class="n">u</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;Must partition qd into qd_ind and qd_dep, &quot;</span> <span class="o">+</span>
+                    <span class="s">&quot;with no extra or missing symbols.&quot;</span><span class="p">)</span>
+
+        <span class="c"># Find all other dynamic symbols, forming the forcing vector r.</span>
+        <span class="c"># Sort r to make it canonical.</span>
+        <span class="n">insyms</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">Matrix</span><span class="p">([</span><span class="n">q</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">ud</span><span class="p">,</span> <span class="n">lams</span><span class="p">]))</span>
+        <span class="n">r</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">_find_dynamicsymbols</span><span class="p">(</span><span class="n">f_3</span><span class="p">,</span> <span class="n">insyms</span><span class="p">))</span>
+        <span class="n">r</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="n">default_sort_key</span><span class="p">)</span>
+        <span class="c"># Check for any derivatives of variables in r that are also found in r.</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">r</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">diff</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">dynamicsymbols</span><span class="o">.</span><span class="n">_t</span><span class="p">)</span> <span class="ow">in</span> <span class="n">r</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;Cannot have derivatives of specified </span><span class="se">\</span>
+<span class="s">                                 quantities when linearizing forcing terms.&#39;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">Linearizer</span><span class="p">(</span><span class="n">f_0</span><span class="p">,</span> <span class="n">f_1</span><span class="p">,</span> <span class="n">f_2</span><span class="p">,</span> <span class="n">f_3</span><span class="p">,</span> <span class="n">f_4</span><span class="p">,</span> <span class="n">f_c</span><span class="p">,</span> <span class="n">f_v</span><span class="p">,</span> <span class="n">f_a</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">q_i</span><span class="p">,</span>
+                <span class="n">q_d</span><span class="p">,</span> <span class="n">u_i</span><span class="p">,</span> <span class="n">u_d</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">lams</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="LagrangesMethod.linearize"><a class="viewcode-back" href="../../../../modules/physics/mechanics/api/kane.html#sympy.physics.mechanics.lagrange.LagrangesMethod.linearize">[docs]</a>    <span class="k">def</span> <span class="nf">linearize</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">q_ind</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">qd_ind</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">q_dep</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">qd_dep</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+            <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Linearize the equations of motion about a symbolic operating point.</span>
+
+<span class="sd">        If kwarg A_and_B is False (default), returns M, A, B, r for the</span>
+<span class="sd">        linearized form, M*[q&#39;, u&#39;]^T = A*[q_ind, u_ind]^T + B*r.</span>
+
+<span class="sd">        If kwarg A_and_B is True, returns A, B, r for the linearized form</span>
+<span class="sd">        dx = A*x + B*r, where x = [q_ind, u_ind]^T. Note that this is</span>
+<span class="sd">        computationally intensive if there are many symbolic parameters. For</span>
+<span class="sd">        this reason, it may be more desirable to use the default A_and_B=False,</span>
+<span class="sd">        returning M, A, and B. Values may then be substituted in to these</span>
+<span class="sd">        matrices, and the state space form found as</span>
+<span class="sd">        A = P.T*M.inv()*A, B = P.T*M.inv()*B, where P = Linearizer.perm_mat.</span>
+
+<span class="sd">        In both cases, r is found as all dynamicsymbols in the equations of</span>
+<span class="sd">        motion that are not part of q, u, q&#39;, or u&#39;. They are sorted in</span>
+<span class="sd">        canonical form.</span>
+
+<span class="sd">        The operating points may be also entered using the `op_point` kwarg.</span>
+<span class="sd">        This takes a dictionary of {symbol: value}, or a an iterable of such</span>
+<span class="sd">        dictionaries. The values may be numberic or symbolic. The more values</span>
+<span class="sd">        you can specify beforehand, the faster this computation will run.</span>
+
+<span class="sd">        For more documentation, please see the `Linearizer` class.&quot;&quot;&quot;</span>
+
+        <span class="n">linearizer</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_linearizer</span><span class="p">(</span><span class="n">q_ind</span><span class="p">,</span> <span class="n">qd_ind</span><span class="p">,</span> <span class="n">q_dep</span><span class="p">,</span> <span class="n">qd_dep</span><span class="p">)</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">linearizer</span><span class="o">.</span><span class="n">linearize</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">result</span> <span class="o">+</span> <span class="p">(</span><span class="n">linearizer</span><span class="o">.</span><span class="n">r</span><span class="p">,)</span>
+</div>
+<div class="viewcode-block" id="LagrangesMethod.solve_multipliers"><a class="viewcode-back" href="../../../../modules/physics/mechanics/api/kane.html#sympy.physics.mechanics.lagrange.LagrangesMethod.solve_multipliers">[docs]</a>    <span class="k">def</span> <span class="nf">solve_multipliers</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">op_point</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">sol_type</span><span class="o">=</span><span class="s">&#39;dict&#39;</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Solves for the values of the lagrange multipliers symbolically at</span>
+<span class="sd">        the specified operating point</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        op_point : dict or iterable of dicts, optional</span>
+<span class="sd">            Point at which to solve at. The operating point is specified as</span>
+<span class="sd">            a dictionary or iterable of dictionaries of {symbol: value}. The</span>
+<span class="sd">            value may be numeric or symbolic itself.</span>
+
+<span class="sd">        sol_type : str, optional</span>
+<span class="sd">            Solution return type. Valid options are:</span>
+<span class="sd">            - &#39;dict&#39;: A dict of {symbol : value} (default)</span>
+<span class="sd">            - &#39;Matrix&#39;: An ordered column matrix of the solution</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c"># Determine number of multipliers</span>
+        <span class="n">k</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lam_vec</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">k</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;System has no lagrange multipliers to solve for.&quot;</span><span class="p">)</span>
+        <span class="c"># Compose dict of operating conditions</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">op_point</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+            <span class="n">op_point_dict</span> <span class="o">=</span> <span class="n">op_point</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">op_point</span><span class="p">,</span> <span class="n">collections</span><span class="o">.</span><span class="n">Iterable</span><span class="p">):</span>
+            <span class="n">op_point_dict</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="k">for</span> <span class="n">op</span> <span class="ow">in</span> <span class="n">op_point</span><span class="p">:</span>
+                <span class="n">op_point_dict</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">op</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">op_point_dict</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="c"># Compose the system to be solved</span>
+        <span class="n">mass_matrix</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mass_matrix</span><span class="o">.</span><span class="n">col_join</span><span class="p">((</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">lam_coeffs</span><span class="o">.</span><span class="n">row_join</span><span class="p">(</span>
+                <span class="n">zeros</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">k</span><span class="p">))))</span>
+        <span class="n">force_matrix</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">forcing</span><span class="o">.</span><span class="n">col_join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_f_cd</span><span class="p">)</span>
+        <span class="c"># Sub in the operating point</span>
+        <span class="n">mass_matrix</span> <span class="o">=</span> <span class="n">_subs_keep_derivs</span><span class="p">(</span><span class="n">mass_matrix</span><span class="p">,</span> <span class="n">op_point_dict</span><span class="p">)</span>
+        <span class="n">force_matrix</span> <span class="o">=</span> <span class="n">_subs_keep_derivs</span><span class="p">(</span><span class="n">force_matrix</span><span class="p">,</span> <span class="n">op_point_dict</span><span class="p">)</span>
+        <span class="c"># Solve for the multipliers</span>
+        <span class="n">sol_list</span> <span class="o">=</span> <span class="n">mass_matrix</span><span class="o">.</span><span class="n">LUsolve</span><span class="p">(</span><span class="o">-</span><span class="n">force_matrix</span><span class="p">)[</span><span class="o">-</span><span class="n">k</span><span class="p">:]</span>
+        <span class="k">if</span> <span class="n">sol_type</span> <span class="o">==</span> <span class="s">&#39;dict&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lam_vec</span><span class="p">,</span> <span class="n">sol_list</span><span class="p">))</span>
+        <span class="k">elif</span> <span class="n">sol_type</span> <span class="o">==</span> <span class="s">&#39;Matrix&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">Matrix</span><span class="p">(</span><span class="n">sol_list</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;Unknown sol_type {:}.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">sol_type</span><span class="p">))</span>
 </div>
 <div class="viewcode-block" id="LagrangesMethod.rhs"><a class="viewcode-back" href="../../../../modules/physics/mechanics/api/kane.html#sympy.physics.mechanics.lagrange.LagrangesMethod.rhs">[docs]</a>    <span class="k">def</span> <span class="nf">rhs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">inv_method</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot; Returns equations that can be solved numerically</span>
@@ -454,7 +613,7 @@
     </div>
     <div class="footer">
         &copy; Copyright 2014 SymPy Development Team.
-      Last updated on Jul 22, 2014.
+      Last updated on Jul 23, 2014.
       Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
     </div>
   </body>
