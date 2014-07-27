@@ -68,6 +68,7 @@
 <span class="kn">from</span> <span class="nn">.evalf</span> <span class="kn">import</span> <span class="n">EvalfMixin</span>
 <span class="kn">from</span> <span class="nn">.symbol</span> <span class="kn">import</span> <span class="n">Symbol</span>
 <span class="kn">from</span> <span class="nn">.sympify</span> <span class="kn">import</span> <span class="n">_sympify</span>
+<span class="kn">from</span> <span class="nn">.evaluate</span> <span class="kn">import</span> <span class="n">global_evaluate</span>
 
 <span class="kn">from</span> <span class="nn">sympy.logic.boolalg</span> <span class="kn">import</span> <span class="n">Boolean</span>
 
@@ -247,31 +248,35 @@
 
     <span class="n">is_Equality</span> <span class="o">=</span> <span class="bp">True</span>
 
-    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="o">**</span><span class="n">assumptions</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">):</span>
         <span class="n">lhs</span> <span class="o">=</span> <span class="n">_sympify</span><span class="p">(</span><span class="n">lhs</span><span class="p">)</span>
         <span class="n">rhs</span> <span class="o">=</span> <span class="n">_sympify</span><span class="p">(</span><span class="n">rhs</span><span class="p">)</span>
-        <span class="c"># If one expression has an _eval_Eq, return its results.</span>
-        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">lhs</span><span class="p">,</span> <span class="s">&#39;_eval_Eq&#39;</span><span class="p">):</span>
-            <span class="n">r</span> <span class="o">=</span> <span class="n">lhs</span><span class="o">.</span><span class="n">_eval_Eq</span><span class="p">(</span><span class="n">rhs</span><span class="p">)</span>
+
+        <span class="n">evaluate</span> <span class="o">=</span> <span class="n">options</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s">&#39;evaluate&#39;</span><span class="p">,</span> <span class="n">global_evaluate</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+        <span class="k">if</span> <span class="n">evaluate</span><span class="p">:</span>
+            <span class="c"># If one expression has an _eval_Eq, return its results.</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">lhs</span><span class="p">,</span> <span class="s">&#39;_eval_Eq&#39;</span><span class="p">):</span>
+                <span class="n">r</span> <span class="o">=</span> <span class="n">lhs</span><span class="o">.</span><span class="n">_eval_Eq</span><span class="p">(</span><span class="n">rhs</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">r</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">r</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">rhs</span><span class="p">,</span> <span class="s">&#39;_eval_Eq&#39;</span><span class="p">):</span>
+                <span class="n">r</span> <span class="o">=</span> <span class="n">rhs</span><span class="o">.</span><span class="n">_eval_Eq</span><span class="p">(</span><span class="n">lhs</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">r</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">r</span>
+            <span class="c"># If expressions have the same structure, they must be equal.</span>
+            <span class="k">if</span> <span class="n">lhs</span> <span class="o">==</span> <span class="n">rhs</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">true</span>
+            <span class="c"># If one side is real and the other complex, they must be unequal.</span>
+            <span class="k">elif</span> <span class="p">(</span><span class="n">lhs</span><span class="o">.</span><span class="n">is_real</span> <span class="o">!=</span> <span class="n">rhs</span><span class="o">.</span><span class="n">is_real</span> <span class="ow">and</span>
+                  <span class="bp">None</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="n">lhs</span><span class="o">.</span><span class="n">is_real</span><span class="p">,</span> <span class="n">rhs</span><span class="o">.</span><span class="n">is_real</span><span class="p">)):</span>
+                <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">false</span>
+            <span class="c"># Otherwise, see if the difference can be evaluated.</span>
+            <span class="n">r</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">_eval_sides</span><span class="p">(</span><span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">r</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
                 <span class="k">return</span> <span class="n">r</span>
-        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">rhs</span><span class="p">,</span> <span class="s">&#39;_eval_Eq&#39;</span><span class="p">):</span>
-            <span class="n">r</span> <span class="o">=</span> <span class="n">rhs</span><span class="o">.</span><span class="n">_eval_Eq</span><span class="p">(</span><span class="n">lhs</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">r</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
-                <span class="k">return</span> <span class="n">r</span>
-        <span class="c"># If expressions have the same structure, they must be equal.</span>
-        <span class="k">if</span> <span class="n">lhs</span> <span class="o">==</span> <span class="n">rhs</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">true</span>
-        <span class="c"># If one side is real and the other complex, they must be unequal.</span>
-        <span class="k">elif</span> <span class="p">(</span><span class="n">lhs</span><span class="o">.</span><span class="n">is_real</span> <span class="o">!=</span> <span class="n">rhs</span><span class="o">.</span><span class="n">is_real</span> <span class="ow">and</span>
-                <span class="bp">None</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="n">lhs</span><span class="o">.</span><span class="n">is_real</span><span class="p">,</span> <span class="n">rhs</span><span class="o">.</span><span class="n">is_real</span><span class="p">)):</span>
-            <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">false</span>
-        <span class="c"># Otherwise, see if the difference can be evaluated.</span>
-        <span class="n">r</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">_eval_sides</span><span class="p">(</span><span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">r</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">r</span>
-        <span class="c"># If not, pass arguments to Relational.</span>
-        <span class="k">return</span> <span class="n">Relational</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">,</span> <span class="o">**</span><span class="n">assumptions</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">Relational</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">)</span>
 
     <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">_eval_relation</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">):</span>
@@ -314,13 +319,18 @@
 
     <span class="n">__slots__</span> <span class="o">=</span> <span class="p">[]</span>
 
-    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">,</span> <span class="o">**</span><span class="n">assumptions</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">):</span>
         <span class="n">lhs</span> <span class="o">=</span> <span class="n">_sympify</span><span class="p">(</span><span class="n">lhs</span><span class="p">)</span>
         <span class="n">rhs</span> <span class="o">=</span> <span class="n">_sympify</span><span class="p">(</span><span class="n">rhs</span><span class="p">)</span>
-        <span class="n">is_equal</span> <span class="o">=</span> <span class="n">Equality</span><span class="p">(</span><span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">is_equal</span> <span class="o">==</span> <span class="bp">True</span> <span class="ow">or</span> <span class="n">is_equal</span> <span class="o">==</span> <span class="bp">False</span><span class="p">:</span>
-            <span class="k">return</span> <span class="o">~</span><span class="n">is_equal</span>
-        <span class="k">return</span> <span class="n">Relational</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">,</span> <span class="o">**</span><span class="n">assumptions</span><span class="p">)</span>
+
+        <span class="n">evaluate</span> <span class="o">=</span> <span class="n">options</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s">&#39;evaluate&#39;</span><span class="p">,</span> <span class="n">global_evaluate</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+        <span class="k">if</span> <span class="n">evaluate</span><span class="p">:</span>
+            <span class="n">is_equal</span> <span class="o">=</span> <span class="n">Equality</span><span class="p">(</span><span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">is_equal</span> <span class="o">==</span> <span class="bp">True</span> <span class="ow">or</span> <span class="n">is_equal</span> <span class="o">==</span> <span class="bp">False</span><span class="p">:</span>
+                <span class="k">return</span> <span class="o">~</span><span class="n">is_equal</span>
+
+        <span class="k">return</span> <span class="n">Relational</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">)</span>
 
     <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">_eval_relation</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">):</span>
@@ -338,15 +348,19 @@
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">__slots__</span> <span class="o">=</span> <span class="p">[]</span>
 
-    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">,</span> <span class="o">**</span><span class="n">assumptions</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">):</span>
         <span class="n">lhs</span> <span class="o">=</span> <span class="n">_sympify</span><span class="p">(</span><span class="n">lhs</span><span class="p">)</span>
         <span class="n">rhs</span> <span class="o">=</span> <span class="n">_sympify</span><span class="p">(</span><span class="n">rhs</span><span class="p">)</span>
-        <span class="c"># Try to evaluate the difference between sides.</span>
-        <span class="n">r</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">_eval_sides</span><span class="p">(</span><span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">r</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">r</span>
-        <span class="c"># If that fails, pass arguments to Relational.</span>
-        <span class="k">return</span> <span class="n">Relational</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">,</span> <span class="o">**</span><span class="n">assumptions</span><span class="p">)</span>
+
+        <span class="n">evaluate</span> <span class="o">=</span> <span class="n">options</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s">&#39;evaluate&#39;</span><span class="p">,</span> <span class="n">global_evaluate</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+        <span class="k">if</span> <span class="n">evaluate</span><span class="p">:</span>
+            <span class="c"># Try to evaluate the difference between sides.</span>
+            <span class="n">r</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">_eval_sides</span><span class="p">(</span><span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">r</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">r</span>
+
+        <span class="k">return</span> <span class="n">Relational</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">)</span>
 
     <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">_eval_relation_doit</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">):</span>
