@@ -76,7 +76,7 @@
 <span class="kn">from</span> <span class="nn">sympy.core.mul</span> <span class="kn">import</span> <span class="n">Mul</span>
 
 <span class="kn">from</span> <span class="nn">sympy.mpmath</span> <span class="kn">import</span> <span class="n">mpi</span><span class="p">,</span> <span class="n">mpf</span>
-<span class="kn">from</span> <span class="nn">sympy.logic.boolalg</span> <span class="kn">import</span> <span class="n">And</span><span class="p">,</span> <span class="n">Or</span><span class="p">,</span> <span class="n">true</span><span class="p">,</span> <span class="n">false</span>
+<span class="kn">from</span> <span class="nn">sympy.logic.boolalg</span> <span class="kn">import</span> <span class="n">And</span><span class="p">,</span> <span class="n">Or</span><span class="p">,</span> <span class="n">Not</span><span class="p">,</span> <span class="n">true</span><span class="p">,</span> <span class="n">false</span>
 <span class="kn">from</span> <span class="nn">sympy.utilities</span> <span class="kn">import</span> <span class="n">default_sort_key</span><span class="p">,</span> <span class="n">subsets</span>
 
 
@@ -102,6 +102,7 @@
     <span class="n">is_Intersection</span> <span class="o">=</span> <span class="bp">None</span>
     <span class="n">is_EmptySet</span> <span class="o">=</span> <span class="bp">None</span>
     <span class="n">is_UniversalSet</span> <span class="o">=</span> <span class="bp">None</span>
+    <span class="n">is_Complement</span> <span class="o">=</span> <span class="bp">None</span>
 
 <div class="viewcode-block" id="Set.sort_key"><a class="viewcode-back" href="../../../modules/sets.html#sympy.sets.sets.Set.sort_key">[docs]</a>    <span class="k">def</span> <span class="nf">sort_key</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
@@ -209,28 +210,55 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">None</span>
 
-    <span class="nd">@property</span>
-<div class="viewcode-block" id="Set.complement"><a class="viewcode-back" href="../../../modules/sets.html#sympy.sets.sets.Set.complement">[docs]</a>    <span class="k">def</span> <span class="nf">complement</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<div class="viewcode-block" id="Set.complement"><a class="viewcode-back" href="../../../modules/sets.html#sympy.sets.sets.Set.complement">[docs]</a>    <span class="k">def</span> <span class="nf">complement</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">universe</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        The complement of &#39;self&#39;.</span>
+<span class="sd">        The complement of &#39;self&#39; w.r.t the given the universe.</span>
 
-<span class="sd">        As a shortcut it is possible to use the &#39;~&#39; or &#39;-&#39; operators:</span>
+<span class="sd">        &gt;&gt;&gt; from sympy import Interval, S</span>
 
-<span class="sd">        &gt;&gt;&gt; from sympy import Interval</span>
+<span class="sd">        &gt;&gt;&gt; Interval(0, 1).complement(S.Reals)</span>
+<span class="sd">        (-oo, 0) U (1, oo)</span>
 
-<span class="sd">        &gt;&gt;&gt; Interval(0, 1).complement</span>
-<span class="sd">        (-oo, 0) U (1, oo)</span>
-<span class="sd">        &gt;&gt;&gt; ~Interval(0, 1)</span>
-<span class="sd">        (-oo, 0) U (1, oo)</span>
-<span class="sd">        &gt;&gt;&gt; -Interval(0, 1)</span>
-<span class="sd">        (-oo, 0) U (1, oo)</span>
+<span class="sd">        &gt;&gt;&gt; Interval(0, 1).complement(S.UniversalSet)</span>
+<span class="sd">        UniversalSet() \ [0, 1]</span>
 
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_complement</span>
+        <span class="k">return</span> <span class="n">Complement</span><span class="p">(</span><span class="n">universe</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
 </div>
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">_complement</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s">&quot;(</span><span class="si">%s</span><span class="s">)._complement&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">_complement</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="c"># this behaves as other - self</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">ProductSet</span><span class="p">):</span>
+            <span class="c"># For each set consider it or it&#39;s complement</span>
+            <span class="c"># We need at least one of the sets to be complemented</span>
+            <span class="c"># Consider all 2^n combinations.</span>
+            <span class="c"># We can conveniently represent these options easily using a ProductSet</span>
+
+            <span class="c"># XXX: this doesn&#39;t work if the dimentions of the sets isn&#39;t same.</span>
+            <span class="c"># A - B is essentially same as A if B has a different</span>
+            <span class="c"># dimentionality than A</span>
+            <span class="n">switch_sets</span> <span class="o">=</span> <span class="n">ProductSet</span><span class="p">(</span><span class="n">FiniteSet</span><span class="p">(</span><span class="n">o</span><span class="p">,</span> <span class="n">o</span> <span class="o">-</span> <span class="n">s</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span><span class="p">,</span> <span class="n">o</span> <span class="ow">in</span>
+                                     <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sets</span><span class="p">,</span> <span class="n">other</span><span class="o">.</span><span class="n">sets</span><span class="p">))</span>
+            <span class="n">product_sets</span> <span class="o">=</span> <span class="p">(</span><span class="n">ProductSet</span><span class="p">(</span><span class="o">*</span><span class="nb">set</span><span class="p">)</span> <span class="k">for</span> <span class="nb">set</span> <span class="ow">in</span> <span class="n">switch_sets</span><span class="p">)</span>
+            <span class="c"># Union of all combinations but this one</span>
+            <span class="k">return</span> <span class="n">Union</span><span class="p">(</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">product_sets</span> <span class="k">if</span> <span class="n">p</span> <span class="o">!=</span> <span class="n">other</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">Interval</span><span class="p">):</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">Interval</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">FiniteSet</span><span class="p">):</span>
+                <span class="k">return</span> <span class="n">Intersection</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">complement</span><span class="p">(</span><span class="n">S</span><span class="o">.</span><span class="n">Reals</span><span class="p">))</span>
+
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">Union</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">Union</span><span class="p">(</span><span class="n">o</span> <span class="o">-</span> <span class="bp">self</span> <span class="k">for</span> <span class="n">o</span> <span class="ow">in</span> <span class="n">other</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">Complement</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">Complement</span><span class="p">(</span><span class="n">other</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">Union</span><span class="p">(</span><span class="n">other</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="bp">self</span><span class="p">))</span>
+
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">EmptySet</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">EmptySet</span>
+
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">FiniteSet</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">FiniteSet</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">el</span> <span class="k">for</span> <span class="n">el</span> <span class="ow">in</span> <span class="n">other</span> <span class="k">if</span> <span class="n">el</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">])</span>
+
+        <span class="k">return</span> <span class="bp">None</span>
 
     <span class="nd">@property</span>
 <div class="viewcode-block" id="Set.inf"><a class="viewcode-back" href="../../../modules/sets.html#sympy.sets.sets.Set.inf">[docs]</a>    <span class="k">def</span> <span class="nf">inf</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -496,13 +524,7 @@
         <span class="k">return</span> <span class="n">ProductSet</span><span class="p">([</span><span class="bp">self</span><span class="p">]</span><span class="o">*</span><span class="n">exp</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">__sub__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">intersect</span><span class="p">(</span><span class="n">other</span><span class="o">.</span><span class="n">complement</span><span class="p">)</span>
-
-    <span class="k">def</span> <span class="nf">__neg__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">complement</span>
-
-    <span class="k">def</span> <span class="nf">__invert__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">complement</span>
+        <span class="k">return</span> <span class="n">Complement</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">__contains__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
         <span class="kn">from</span> <span class="nn">sympy.assumptions</span> <span class="kn">import</span> <span class="n">ask</span>
@@ -627,17 +649,6 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">sets</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">_complement</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="c"># For each set consider it or it&#39;s complement</span>
-        <span class="c"># We need at least one of the sets to be complemented</span>
-        <span class="c"># Consider all 2^n combinations.</span>
-        <span class="c"># We can conveniently represent these options easily using a ProductSet</span>
-        <span class="n">switch_sets</span> <span class="o">=</span> <span class="n">ProductSet</span><span class="p">(</span><span class="n">FiniteSet</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">s</span><span class="o">.</span><span class="n">complement</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">sets</span><span class="p">)</span>
-        <span class="n">product_sets</span> <span class="o">=</span> <span class="p">(</span><span class="n">ProductSet</span><span class="p">(</span><span class="o">*</span><span class="nb">set</span><span class="p">)</span> <span class="k">for</span> <span class="nb">set</span> <span class="ow">in</span> <span class="n">switch_sets</span><span class="p">)</span>
-        <span class="c"># Union of all combinations but this one</span>
-        <span class="k">return</span> <span class="n">Union</span><span class="p">(</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">product_sets</span> <span class="k">if</span> <span class="n">p</span> <span class="o">!=</span> <span class="bp">self</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_boundary</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -857,6 +868,17 @@
 
         <span class="k">return</span> <span class="n">Interval</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">,</span> <span class="n">left_open</span><span class="p">,</span> <span class="n">right_open</span><span class="p">)</span>
 
+
+    <span class="k">def</span> <span class="nf">_complement</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">other</span> <span class="ow">is</span> <span class="n">S</span><span class="o">.</span><span class="n">Reals</span><span class="p">:</span>
+            <span class="n">a</span> <span class="o">=</span> <span class="n">Interval</span><span class="p">(</span><span class="n">S</span><span class="o">.</span><span class="n">NegativeInfinity</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">,</span>
+                         <span class="bp">True</span><span class="p">,</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">left_open</span><span class="p">)</span>
+            <span class="n">b</span> <span class="o">=</span> <span class="n">Interval</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">end</span><span class="p">,</span> <span class="n">S</span><span class="o">.</span><span class="n">Infinity</span><span class="p">,</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">right_open</span><span class="p">,</span> <span class="bp">True</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">Union</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">Set</span><span class="o">.</span><span class="n">_complement</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">)</span>
+
+
     <span class="k">def</span> <span class="nf">_union</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        This function should only be used internally</span>
@@ -892,12 +914,6 @@
             <span class="k">return</span> <span class="nb">set</span><span class="p">((</span><span class="n">new_self</span><span class="p">,</span> <span class="n">other</span><span class="p">))</span>
 
         <span class="k">return</span> <span class="bp">None</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">_complement</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="n">a</span> <span class="o">=</span> <span class="n">Interval</span><span class="p">(</span><span class="n">S</span><span class="o">.</span><span class="n">NegativeInfinity</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">,</span> <span class="bp">True</span><span class="p">,</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">left_open</span><span class="p">)</span>
-        <span class="n">b</span> <span class="o">=</span> <span class="n">Interval</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">end</span><span class="p">,</span> <span class="n">S</span><span class="o">.</span><span class="n">Infinity</span><span class="p">,</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">right_open</span><span class="p">,</span> <span class="bp">True</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">Union</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_boundary</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -1132,6 +1148,10 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">Union</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
 </div>
+    <span class="k">def</span> <span class="nf">complement</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">universe</span><span class="p">):</span>
+        <span class="c"># DeMorgan&#39;s Law</span>
+        <span class="k">return</span> <span class="n">Intersection</span><span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">complement</span><span class="p">(</span><span class="n">universe</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
+
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_inf</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="c"># We use Min so that sup is meaningful in combination with symbolic</span>
@@ -1145,14 +1165,6 @@
         <span class="c"># end points.</span>
         <span class="kn">from</span> <span class="nn">sympy.functions.elementary.miscellaneous</span> <span class="kn">import</span> <span class="n">Max</span>
         <span class="k">return</span> <span class="n">Max</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="nb">set</span><span class="o">.</span><span class="n">sup</span> <span class="k">for</span> <span class="nb">set</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">])</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">_complement</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="c"># De Morgan&#39;s formula.</span>
-        <span class="n">complement</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">complement</span>
-        <span class="k">for</span> <span class="nb">set</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">:]:</span>
-            <span class="n">complement</span> <span class="o">=</span> <span class="n">complement</span><span class="o">.</span><span class="n">intersect</span><span class="p">(</span><span class="nb">set</span><span class="o">.</span><span class="n">complement</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">complement</span>
 
     <span class="k">def</span> <span class="nf">_contains</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
         <span class="n">or_args</span> <span class="o">=</span> <span class="p">[</span><span class="n">the_set</span><span class="o">.</span><span class="n">contains</span><span class="p">(</span><span class="n">other</span><span class="p">)</span> <span class="k">for</span> <span class="n">the_set</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">]</span>
@@ -1286,9 +1298,8 @@
             <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s">&quot;Input must be Sets or iterables of Sets&quot;</span><span class="p">)</span>
         <span class="n">args</span> <span class="o">=</span> <span class="n">flatten</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
 
-        <span class="c"># Intersection of no sets is everything</span>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">UniversalSet</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s">&quot;Intersection expected at least one argument&quot;</span><span class="p">)</span>
 
         <span class="n">args</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">default_sort_key</span><span class="p">)</span>
 
@@ -1308,10 +1319,6 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_sup</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">_complement</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
 
     <span class="k">def</span> <span class="nf">_eval_imageset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">f</span><span class="p">):</span>
@@ -1358,8 +1365,17 @@
         <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">args</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">s</span><span class="o">.</span><span class="n">is_Union</span><span class="p">:</span>
                 <span class="n">other_sets</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">-</span> <span class="nb">set</span><span class="p">((</span><span class="n">s</span><span class="p">,))</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">other_sets</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">other</span> <span class="o">=</span> <span class="n">Intersection</span><span class="p">(</span><span class="n">other_sets</span><span class="p">)</span>
+                    <span class="k">return</span> <span class="n">Union</span><span class="p">(</span><span class="n">Intersection</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">other</span><span class="p">)</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">s</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">Union</span><span class="p">(</span><span class="n">arg</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">s</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">args</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">s</span><span class="o">.</span><span class="n">is_Complement</span><span class="p">:</span>
+                <span class="n">other_sets</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">-</span> <span class="nb">set</span><span class="p">((</span><span class="n">s</span><span class="p">,))</span>
                 <span class="n">other</span> <span class="o">=</span> <span class="n">Intersection</span><span class="p">(</span><span class="n">other_sets</span><span class="p">)</span>
-                <span class="k">return</span> <span class="n">Union</span><span class="p">(</span><span class="n">Intersection</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">other</span><span class="p">)</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">s</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
+                <span class="k">return</span> <span class="n">Complement</span><span class="p">(</span><span class="n">Intersection</span><span class="p">(</span><span class="o">*</span><span class="nb">list</span><span class="p">(</span><span class="n">other_sets</span><span class="p">)),</span> <span class="n">s</span><span class="p">)</span>
 
         <span class="c"># At this stage we are guaranteed not to have any</span>
         <span class="c"># EmptySets, FiniteSets, or Unions in the intersection</span>
@@ -1392,6 +1408,61 @@
         <span class="k">return</span> <span class="n">And</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="nb">set</span><span class="o">.</span><span class="n">as_relational</span><span class="p">(</span><span class="n">symbol</span><span class="p">)</span> <span class="k">for</span> <span class="nb">set</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">])</span>
 
 </div></div>
+<div class="viewcode-block" id="Complement"><a class="viewcode-back" href="../../../modules/sets.html#sympy.sets.sets.Complement">[docs]</a><span class="k">class</span> <span class="nc">Complement</span><span class="p">(</span><span class="n">Set</span><span class="p">,</span> <span class="n">EvalfMixin</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Represents the set difference or relative complement of a set with another set.</span>
+
+<span class="sd">    `A - B = \{x \in A| x \\notin B\}`</span>
+
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy import Complement, FiniteSet</span>
+<span class="sd">    &gt;&gt;&gt; Complement(FiniteSet(0, 1, 2), FiniteSet(1))</span>
+<span class="sd">    {0, 2}</span>
+
+<span class="sd">    See Also</span>
+<span class="sd">    =========</span>
+<span class="sd">    Intersection, Union</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ==========</span>
+<span class="sd">    http://mathworld.wolfram.com/SetComplement.html</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">is_Complement</span> <span class="o">=</span> <span class="bp">True</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">evaluate</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">Complement</span><span class="o">.</span><span class="n">reduce</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">Basic</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+<div class="viewcode-block" id="Complement.reduce"><a class="viewcode-back" href="../../../modules/sets.html#sympy.sets.sets.Complement.reduce">[docs]</a>    <span class="k">def</span> <span class="nf">reduce</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">B</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Simplify a :class:`Complement`.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">B</span> <span class="o">==</span> <span class="n">S</span><span class="o">.</span><span class="n">UniversalSet</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">EmptySet</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">B</span><span class="p">,</span> <span class="n">Union</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">Intersection</span><span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">complement</span><span class="p">(</span><span class="n">A</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">B</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
+
+        <span class="n">result</span> <span class="o">=</span> <span class="n">B</span><span class="o">.</span><span class="n">_complement</span><span class="p">(</span><span class="n">A</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">result</span> <span class="o">!=</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">result</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">Complement</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">B</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+</div>
+    <span class="k">def</span> <span class="nf">_contains</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="n">A</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">B</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">And</span><span class="p">(</span><span class="n">A</span><span class="o">.</span><span class="n">contains</span><span class="p">(</span><span class="n">other</span><span class="p">),</span> <span class="n">Not</span><span class="p">(</span><span class="n">B</span><span class="o">.</span><span class="n">contains</span><span class="p">(</span><span class="n">other</span><span class="p">)))</span>
+
+</div>
 <div class="viewcode-block" id="EmptySet"><a class="viewcode-back" href="../../../modules/sets.html#sympy.sets.sets.EmptySet">[docs]</a><span class="k">class</span> <span class="nc">EmptySet</span><span class="p">(</span><span class="n">with_metaclass</span><span class="p">(</span><span class="n">Singleton</span><span class="p">,</span> <span class="n">Set</span><span class="p">)):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Represents the empty set. The empty set is available as a singleton</span>
@@ -1423,10 +1494,6 @@
         <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">EmptySet</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">_complement</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">UniversalSet</span>
-
-    <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_measure</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="mi">0</span>
 
@@ -1454,6 +1521,7 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_boundary</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span>
+
 </div>
 <div class="viewcode-block" id="UniversalSet"><a class="viewcode-back" href="../../../modules/sets.html#sympy.sets.sets.UniversalSet">[docs]</a><span class="k">class</span> <span class="nc">UniversalSet</span><span class="p">(</span><span class="n">with_metaclass</span><span class="p">(</span><span class="n">Singleton</span><span class="p">,</span> <span class="n">Set</span><span class="p">)):</span>
     <span class="sd">&quot;&quot;&quot;</span>
@@ -1485,8 +1553,7 @@
     <span class="k">def</span> <span class="nf">_intersect</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">other</span>
 
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">_complement</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">complement</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">universal_set</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">EmptySet</span>
 
     <span class="nd">@property</span>
@@ -1556,6 +1623,27 @@
             <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_elements</span> <span class="o">&amp;</span> <span class="n">other</span><span class="o">.</span><span class="n">_elements</span><span class="p">))</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="p">(</span><span class="n">el</span> <span class="k">for</span> <span class="n">el</span> <span class="ow">in</span> <span class="bp">self</span> <span class="k">if</span> <span class="n">el</span> <span class="ow">in</span> <span class="n">other</span><span class="p">)</span>
 
+    <span class="k">def</span> <span class="nf">_complement</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">other</span> <span class="ow">is</span> <span class="n">S</span><span class="o">.</span><span class="n">Reals</span><span class="p">:</span>
+            <span class="n">nums</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">m</span> <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span> <span class="k">if</span> <span class="n">m</span><span class="o">.</span><span class="n">is_number</span><span class="p">)</span>
+            <span class="n">syms</span> <span class="o">=</span> <span class="p">[</span><span class="n">m</span> <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span> <span class="k">if</span> <span class="n">m</span><span class="o">.</span><span class="n">is_Symbol</span><span class="p">]</span>
+            <span class="c"># Reals cannot contain elements other than numbers and symbols.</span>
+
+            <span class="n">intervals</span> <span class="o">=</span> <span class="p">[]</span>  <span class="c"># Build up a list of intervals between the elements</span>
+            <span class="k">if</span> <span class="n">nums</span> <span class="o">!=</span> <span class="p">[]:</span>
+                <span class="n">intervals</span> <span class="o">+=</span> <span class="p">[</span><span class="n">Interval</span><span class="p">(</span><span class="n">S</span><span class="o">.</span><span class="n">NegativeInfinity</span><span class="p">,</span> <span class="n">nums</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="bp">True</span><span class="p">,</span> <span class="bp">True</span><span class="p">)]</span>
+                <span class="k">for</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">nums</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">nums</span><span class="p">[</span><span class="mi">1</span><span class="p">:]):</span>
+                    <span class="n">intervals</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Interval</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="bp">True</span><span class="p">,</span> <span class="bp">True</span><span class="p">))</span>  <span class="c"># open intervals</span>
+                <span class="n">intervals</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Interval</span><span class="p">(</span><span class="n">nums</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">S</span><span class="o">.</span><span class="n">Infinity</span><span class="p">,</span> <span class="bp">True</span><span class="p">,</span> <span class="bp">True</span><span class="p">))</span>
+
+            <span class="k">if</span> <span class="n">syms</span> <span class="o">!=</span> <span class="p">[]:</span>
+                <span class="k">return</span> <span class="n">Complement</span><span class="p">(</span><span class="n">Union</span><span class="p">(</span><span class="n">intervals</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="bp">False</span><span class="p">),</span> <span class="n">FiniteSet</span><span class="p">(</span><span class="o">*</span><span class="n">syms</span><span class="p">),</span> <span class="n">evaluate</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">Union</span><span class="p">(</span><span class="n">intervals</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">Set</span><span class="o">.</span><span class="n">_complement</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">)</span>
+
+
     <span class="k">def</span> <span class="nf">_union</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        This function should only be used internally</span>
@@ -1594,33 +1682,6 @@
         <span class="k">return</span> <span class="n">FiniteSet</span><span class="p">(</span><span class="o">*</span><span class="nb">map</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="bp">self</span><span class="p">))</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">_complement</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        The complement of a real finite set is the Union of open Intervals</span>
-<span class="sd">        between the elements of the set.</span>
-
-<span class="sd">        &gt;&gt;&gt; from sympy import FiniteSet</span>
-<span class="sd">        &gt;&gt;&gt; FiniteSet(1, 2, 3).complement</span>
-<span class="sd">        (-oo, 1) U (1, 2) U (2, 3) U (3, oo)</span>
-
-
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">(</span><span class="n">elem</span><span class="o">.</span><span class="n">is_number</span> <span class="k">for</span> <span class="n">elem</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">):</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;</span><span class="si">%s</span><span class="s">: Complement not defined for symbolic inputs&quot;</span>
-                    <span class="o">%</span> <span class="bp">self</span><span class="p">)</span>
-
-        <span class="c"># as there are only numbers involved, a straight sort is sufficient;</span>
-        <span class="c"># default_sort_key is not needed</span>
-        <span class="n">args</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
-
-        <span class="n">intervals</span> <span class="o">=</span> <span class="p">[]</span>  <span class="c"># Build up a list of intervals between the elements</span>
-        <span class="n">intervals</span> <span class="o">+=</span> <span class="p">[</span><span class="n">Interval</span><span class="p">(</span><span class="n">S</span><span class="o">.</span><span class="n">NegativeInfinity</span><span class="p">,</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="bp">True</span><span class="p">,</span> <span class="bp">True</span><span class="p">)]</span>
-        <span class="k">for</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">args</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">:]):</span>
-            <span class="n">intervals</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Interval</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="bp">True</span><span class="p">,</span> <span class="bp">True</span><span class="p">))</span>  <span class="c"># open intervals</span>
-        <span class="n">intervals</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Interval</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">S</span><span class="o">.</span><span class="n">Infinity</span><span class="p">,</span> <span class="bp">True</span><span class="p">,</span> <span class="bp">True</span><span class="p">))</span>
-        <span class="k">return</span> <span class="n">Union</span><span class="p">(</span><span class="n">intervals</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
-
-    <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_boundary</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span>
 
@@ -1640,9 +1701,6 @@
 
     <span class="k">def</span> <span class="nf">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
-
-    <span class="k">def</span> <span class="nf">__sub__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">FiniteSet</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">el</span> <span class="k">for</span> <span class="n">el</span> <span class="ow">in</span> <span class="bp">self</span> <span class="k">if</span> <span class="n">el</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">other</span><span class="p">])</span>
 
 <div class="viewcode-block" id="FiniteSet.as_relational"><a class="viewcode-back" href="../../../modules/sets.html#sympy.sets.sets.FiniteSet.as_relational">[docs]</a>    <span class="k">def</span> <span class="nf">as_relational</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">symbol</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Rewrite a FiniteSet in terms of equalities and logic operators. &quot;&quot;&quot;</span>
@@ -1788,7 +1846,7 @@
     </div>
     <div class="footer">
         &copy; Copyright 2014 SymPy Development Team.
-      Last updated on Aug 13, 2014.
+      Last updated on Aug 14, 2014.
       Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
     </div>
   </body>
