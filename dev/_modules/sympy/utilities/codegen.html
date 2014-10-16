@@ -150,7 +150,8 @@
 <span class="kn">from</span> <span class="nn">sympy.printing.ccode</span> <span class="kn">import</span> <span class="n">ccode</span><span class="p">,</span> <span class="n">CCodePrinter</span>
 <span class="kn">from</span> <span class="nn">sympy.printing.fcode</span> <span class="kn">import</span> <span class="n">fcode</span><span class="p">,</span> <span class="n">FCodePrinter</span>
 <span class="kn">from</span> <span class="nn">sympy.tensor</span> <span class="kn">import</span> <span class="n">Idx</span><span class="p">,</span> <span class="n">Indexed</span><span class="p">,</span> <span class="n">IndexedBase</span>
-<span class="kn">from</span> <span class="nn">sympy.matrices</span> <span class="kn">import</span> <span class="n">MatrixSymbol</span><span class="p">,</span> <span class="n">ImmutableMatrix</span><span class="p">,</span> <span class="n">MatrixBase</span>
+<span class="kn">from</span> <span class="nn">sympy.matrices</span> <span class="kn">import</span> <span class="p">(</span><span class="n">MatrixSymbol</span><span class="p">,</span> <span class="n">ImmutableMatrix</span><span class="p">,</span> <span class="n">MatrixBase</span><span class="p">,</span>
+                            <span class="n">MatrixExpr</span><span class="p">)</span>
 
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
@@ -160,7 +161,7 @@
     <span class="c"># routines -&gt; code</span>
     <span class="s">&quot;CodeGen&quot;</span><span class="p">,</span> <span class="s">&quot;CCodeGen&quot;</span><span class="p">,</span> <span class="s">&quot;FCodeGen&quot;</span><span class="p">,</span>
     <span class="c"># friendly functions</span>
-    <span class="s">&quot;codegen&quot;</span><span class="p">,</span>
+    <span class="s">&quot;codegen&quot;</span><span class="p">,</span> <span class="s">&quot;make_routine&quot;</span><span class="p">,</span>
 <span class="p">]</span>
 
 
@@ -170,41 +171,373 @@
 
 
 <div class="viewcode-block" id="Routine"><a class="viewcode-back" href="../../../modules/utilities/codegen.html#sympy.utilities.codegen.Routine">[docs]</a><span class="k">class</span> <span class="nc">Routine</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Generic description of an evaluation routine for a set of sympy expressions.</span>
+    <span class="sd">&quot;&quot;&quot;Generic description of evaluation routine for set of expressions.</span>
 
-<span class="sd">       A CodeGen class can translate instances of this class into C/Fortran/...</span>
-<span class="sd">       code. The routine specification covers all the features present in these</span>
-<span class="sd">       languages. The CodeGen part must raise an exception when certain features</span>
-<span class="sd">       are not present in the target language. For example, multiple return</span>
-<span class="sd">       values are possible in Python, but not in C or Fortran. Another example:</span>
-<span class="sd">       Fortran and Python support complex numbers, while C does not.</span>
+<span class="sd">    A CodeGen class can translate instances of this class into code in a</span>
+<span class="sd">    particular language.  The routine specification covers all the features</span>
+<span class="sd">    present in these languages.  The CodeGen part must raise an exception</span>
+<span class="sd">    when certain features are not present in the target language.  For</span>
+<span class="sd">    example, multiple return values are possible in Python, but not in C or</span>
+<span class="sd">    Fortran.  Another example: Fortran and Python support complex numbers,</span>
+<span class="sd">    while C does not.</span>
+
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">argument_sequence</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">arguments</span><span class="p">,</span> <span class="n">results</span><span class="p">,</span> <span class="n">local_vars</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Initialize a Routine instance.</span>
 
-<span class="sd">        ``name``</span>
-<span class="sd">            A string with the name of this routine in the generated code</span>
-<span class="sd">        ``expr``</span>
-<span class="sd">            The sympy expression that the Routine instance will represent.  If</span>
-<span class="sd">            given a list or tuple of expressions, the routine will be</span>
-<span class="sd">            considered to have multiple return values.</span>
-<span class="sd">        ``argument_sequence``</span>
-<span class="sd">            Optional list/tuple containing arguments for the routine in a</span>
-<span class="sd">            preferred order.  If omitted, arguments will be ordered</span>
-<span class="sd">            alphabetically, but with all input aguments first, and then output</span>
-<span class="sd">            or in-out arguments.</span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ==========</span>
 
-<span class="sd">        A decision about whether to use output arguments or return values,</span>
-<span class="sd">        is made depending on the mathematical expressions.  For an expression</span>
-<span class="sd">        of type Equality, the left hand side is made into an OutputArgument</span>
-<span class="sd">        (or an InOutArgument if appropriate).  Else, the calculated</span>
-<span class="sd">        expression is the return values of the routine.</span>
+<span class="sd">        name : string</span>
+<span class="sd">            Name of the routine.</span>
 
-<span class="sd">        A tuple of exressions can be used to create a routine with both</span>
-<span class="sd">        return value(s) and output argument(s).</span>
+<span class="sd">        arguments : list of Arguments</span>
+<span class="sd">            These are things that appear in arguments of a routine, often</span>
+<span class="sd">            appearing on the right-hand side of a function call.  These are</span>
+<span class="sd">            commonly InputArguments but in some languages, they can also be</span>
+<span class="sd">            OutputArguments or InOutArguments (e.g., pass-by-reference in C</span>
+<span class="sd">            code).</span>
+
+<span class="sd">        results : list of Results</span>
+<span class="sd">            These are the return values of the routine, often appearing on</span>
+<span class="sd">            the left-hand side of a function call.  The difference between</span>
+<span class="sd">            Results and OutputArguments and when you should use each is</span>
+<span class="sd">            language-specific.</span>
+
+<span class="sd">        local_vars : list of Symbols</span>
+<span class="sd">            These are used internally by the routine.</span>
 
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">arg_list</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="c"># extract all input symbols and all symbols appearing in an expression</span>
+        <span class="n">input_symbols</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([])</span>
+        <span class="n">symbols</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([])</span>
+        <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">arguments</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">OutputArgument</span><span class="p">):</span>
+                <span class="n">symbols</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">arg</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">InputArgument</span><span class="p">):</span>
+                <span class="n">input_symbols</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">arg</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">InOutArgument</span><span class="p">):</span>
+                <span class="n">input_symbols</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">arg</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+                <span class="n">symbols</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">arg</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;Unknown Routine argument: </span><span class="si">%s</span><span class="s">&quot;</span> <span class="o">%</span> <span class="n">arg</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">results</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">Result</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;Unknown Routine result: </span><span class="si">%s</span><span class="s">&quot;</span> <span class="o">%</span> <span class="n">r</span><span class="p">)</span>
+            <span class="n">symbols</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">)</span>
+
+        <span class="c"># Check that all symbols in the expressions are covered by</span>
+        <span class="c"># InputArguments/InOutArguments---subset because user could</span>
+        <span class="c"># specify additional (unused) InputArguments or local_vars.</span>
+        <span class="n">notcovered</span> <span class="o">=</span> <span class="n">symbols</span><span class="o">.</span><span class="n">difference</span><span class="p">(</span><span class="n">input_symbols</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="n">local_vars</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">notcovered</span> <span class="o">!=</span> <span class="nb">set</span><span class="p">([]):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;Symbols needed for output are not in input &quot;</span> <span class="o">+</span>
+                             <span class="s">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="nb">str</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">notcovered</span><span class="p">]))</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">arguments</span> <span class="o">=</span> <span class="n">arguments</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">results</span> <span class="o">=</span> <span class="n">results</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">local_vars</span> <span class="o">=</span> <span class="n">local_vars</span>
+
+    <span class="nd">@property</span>
+<div class="viewcode-block" id="Routine.variables"><a class="viewcode-back" href="../../../modules/utilities/codegen.html#sympy.utilities.codegen.Routine.variables">[docs]</a>    <span class="k">def</span> <span class="nf">variables</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Returns a set of all variables possibly used in the routine.</span>
+
+<span class="sd">        For routines with unnamed return values, the dummies that may or</span>
+<span class="sd">        may not be used will be included in the set.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">v</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">local_vars</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">arguments</span><span class="p">:</span>
+            <span class="n">v</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">arg</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">res</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">results</span><span class="p">:</span>
+            <span class="n">v</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">res</span><span class="o">.</span><span class="n">result_var</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">v</span>
+</div>
+    <span class="nd">@property</span>
+<div class="viewcode-block" id="Routine.result_variables"><a class="viewcode-back" href="../../../modules/utilities/codegen.html#sympy.utilities.codegen.Routine.result_variables">[docs]</a>    <span class="k">def</span> <span class="nf">result_variables</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Returns a list of OutputArgument, InOutArgument and Result.</span>
+
+<span class="sd">        If return values are present, they are at the end ot the list.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="p">[</span><span class="n">arg</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">arguments</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span>
+            <span class="n">arg</span><span class="p">,</span> <span class="p">(</span><span class="n">OutputArgument</span><span class="p">,</span> <span class="n">InOutArgument</span><span class="p">))]</span>
+        <span class="n">args</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">results</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">args</span>
+
+</div></div>
+<div class="viewcode-block" id="DataType"><a class="viewcode-back" href="../../../modules/utilities/codegen.html#sympy.utilities.codegen.DataType">[docs]</a><span class="k">class</span> <span class="nc">DataType</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Holds strings for a certain datatype in different languages.&quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cname</span><span class="p">,</span> <span class="n">fname</span><span class="p">,</span> <span class="n">pyname</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cname</span> <span class="o">=</span> <span class="n">cname</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fname</span> <span class="o">=</span> <span class="n">fname</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pyname</span> <span class="o">=</span> <span class="n">pyname</span>
+
+</div>
+<span class="n">default_datatypes</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s">&quot;int&quot;</span><span class="p">:</span> <span class="n">DataType</span><span class="p">(</span><span class="s">&quot;int&quot;</span><span class="p">,</span> <span class="s">&quot;INTEGER*4&quot;</span><span class="p">,</span> <span class="s">&quot;int&quot;</span><span class="p">),</span>
+    <span class="s">&quot;float&quot;</span><span class="p">:</span> <span class="n">DataType</span><span class="p">(</span><span class="s">&quot;double&quot;</span><span class="p">,</span> <span class="s">&quot;REAL*8&quot;</span><span class="p">,</span> <span class="s">&quot;float&quot;</span><span class="p">)</span>
+<span class="p">}</span>
+
+
+<div class="viewcode-block" id="get_default_datatype"><a class="viewcode-back" href="../../../modules/utilities/codegen.html#sympy.utilities.codegen.get_default_datatype">[docs]</a><span class="k">def</span> <span class="nf">get_default_datatype</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Derives an appropriate datatype based on the expression.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_integer</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">default_datatypes</span><span class="p">[</span><span class="s">&quot;int&quot;</span><span class="p">]</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">MatrixBase</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">element</span> <span class="ow">in</span> <span class="n">expr</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">element</span><span class="o">.</span><span class="n">is_integer</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">default_datatypes</span><span class="p">[</span><span class="s">&quot;float&quot;</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">default_datatypes</span><span class="p">[</span><span class="s">&quot;int&quot;</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">default_datatypes</span><span class="p">[</span><span class="s">&quot;float&quot;</span><span class="p">]</span>
+
+</div>
+<span class="k">class</span> <span class="nc">Variable</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Represents a typed variable.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">datatype</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">precision</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a new variable.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ==========</span>
+
+<span class="sd">        name : Symbol or MatrixSymbol</span>
+
+<span class="sd">        datatype : optional</span>
+<span class="sd">            When not given, the data type will be guessed based on the</span>
+<span class="sd">            assumptions on the symbol argument.</span>
+
+<span class="sd">        dimension : sequence containing tupes, optional</span>
+<span class="sd">            If present, the argument is interpreted as an array, where this</span>
+<span class="sd">            sequence of tuples specifies (lower, upper) bounds for each</span>
+<span class="sd">            index of the array.</span>
+
+<span class="sd">        precision : int, optional</span>
+<span class="sd">            Controls the precision of floating point constants.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="p">(</span><span class="n">Symbol</span><span class="p">,</span> <span class="n">MatrixSymbol</span><span class="p">)):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s">&quot;The first argument must be a sympy symbol.&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">datatype</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">datatype</span> <span class="o">=</span> <span class="n">get_default_datatype</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">datatype</span><span class="p">,</span> <span class="n">DataType</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s">&quot;The (optional) `datatype&#39; argument must be an&quot;</span>
+                            <span class="s">&quot;instance of the DataType class.&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">dimensions</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">dimensions</span><span class="p">,</span> <span class="p">(</span><span class="nb">tuple</span><span class="p">,</span> <span class="nb">list</span><span class="p">)):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+                <span class="s">&quot;The dimension argument must be a sequence of tuples&quot;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_name</span> <span class="o">=</span> <span class="n">name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_datatype</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s">&#39;C&#39;</span><span class="p">:</span> <span class="n">datatype</span><span class="o">.</span><span class="n">cname</span><span class="p">,</span>
+            <span class="s">&#39;FORTRAN&#39;</span><span class="p">:</span> <span class="n">datatype</span><span class="o">.</span><span class="n">fname</span><span class="p">,</span>
+            <span class="s">&#39;PYTHON&#39;</span><span class="p">:</span> <span class="n">datatype</span><span class="o">.</span><span class="n">pyname</span>
+        <span class="p">}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span> <span class="o">=</span> <span class="n">dimensions</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">precision</span> <span class="o">=</span> <span class="n">precision</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_name</span>
+
+    <span class="k">def</span> <span class="nf">get_datatype</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">language</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Returns the datatype string for the requested langage.</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        ========</span>
+
+<span class="sd">        &gt;&gt;&gt; from sympy import Symbol</span>
+<span class="sd">        &gt;&gt;&gt; from sympy.utilities.codegen import Variable</span>
+<span class="sd">        &gt;&gt;&gt; x = Variable(Symbol(&#39;x&#39;))</span>
+<span class="sd">        &gt;&gt;&gt; x.get_datatype(&#39;c&#39;)</span>
+<span class="sd">        &#39;double&#39;</span>
+<span class="sd">        &gt;&gt;&gt; x.get_datatype(&#39;fortran&#39;)</span>
+<span class="sd">        &#39;REAL*8&#39;</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_datatype</span><span class="p">[</span><span class="n">language</span><span class="o">.</span><span class="n">upper</span><span class="p">()]</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">CodeGenError</span><span class="p">(</span><span class="s">&quot;Has datatypes for languages: </span><span class="si">%s</span><span class="s">&quot;</span> <span class="o">%</span>
+                    <span class="s">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_datatype</span><span class="p">))</span>
+
+
+<div class="viewcode-block" id="Argument"><a class="viewcode-back" href="../../../modules/utilities/codegen.html#sympy.utilities.codegen.Argument">[docs]</a><span class="k">class</span> <span class="nc">Argument</span><span class="p">(</span><span class="n">Variable</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;An abstract Argument data structure: a name and a data type.</span>
+
+<span class="sd">    This structure is refined in the descendants below.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">pass</span>
+
+</div>
+<span class="k">class</span> <span class="nc">InputArgument</span><span class="p">(</span><span class="n">Argument</span><span class="p">):</span>
+    <span class="k">pass</span>
+
+
+<span class="k">class</span> <span class="nc">ResultBase</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Base class for all &quot;outgoing&quot; information from a routine.</span>
+
+<span class="sd">    Objects of this class stores a sympy expression, and a sympy object</span>
+<span class="sd">    representing a result variable that will be used in the generated code</span>
+<span class="sd">    only if necessary.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">result_var</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">expr</span> <span class="o">=</span> <span class="n">expr</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">result_var</span> <span class="o">=</span> <span class="n">result_var</span>
+
+
+<span class="k">class</span> <span class="nc">OutputArgument</span><span class="p">(</span><span class="n">Argument</span><span class="p">,</span> <span class="n">ResultBase</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;OutputArgument are always initialized in the routine.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">result_var</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">datatype</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">precision</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a new variable.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ==========</span>
+
+<span class="sd">        name : Symbol, MatrixSymbol</span>
+<span class="sd">            The name of this variable.  When used for code generation, this</span>
+<span class="sd">            might appear, for example, in the prototype of function in the</span>
+<span class="sd">            argument list.</span>
+
+<span class="sd">        result_var : Symbol, Indexed</span>
+<span class="sd">            Something that can be used to assign a value to this variable.</span>
+<span class="sd">            Typically the same as `name` but for Indexed this should be e.g.,</span>
+<span class="sd">            &quot;y[i]&quot; whereas `name` should be the Symbol &quot;y&quot;.</span>
+
+<span class="sd">        expr : object</span>
+<span class="sd">            The expression that should be output, typically a SymPy</span>
+<span class="sd">            expression.</span>
+
+<span class="sd">        datatype : optional</span>
+<span class="sd">            When not given, the data type will be guessed based on the</span>
+<span class="sd">            assumptions on the symbol argument.</span>
+
+<span class="sd">        dimension : sequence containing tupes, optional</span>
+<span class="sd">            If present, the argument is interpreted as an array, where this</span>
+<span class="sd">            sequence of tuples specifies (lower, upper) bounds for each</span>
+<span class="sd">            index of the array.</span>
+
+<span class="sd">        precision : int, optional</span>
+<span class="sd">            Controls the precision of floating point constants.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">Argument</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">datatype</span><span class="p">,</span> <span class="n">dimensions</span><span class="p">,</span> <span class="n">precision</span><span class="p">)</span>
+        <span class="n">ResultBase</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">result_var</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">InOutArgument</span><span class="p">(</span><span class="n">Argument</span><span class="p">,</span> <span class="n">ResultBase</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;InOutArgument are never initialized in the routine.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">result_var</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">datatype</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">precision</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">datatype</span><span class="p">:</span>
+            <span class="n">datatype</span> <span class="o">=</span> <span class="n">get_default_datatype</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+        <span class="n">Argument</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">datatype</span><span class="p">,</span> <span class="n">dimensions</span><span class="p">,</span> <span class="n">precision</span><span class="p">)</span>
+        <span class="n">ResultBase</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">result_var</span><span class="p">)</span>
+    <span class="n">__init__</span><span class="o">.</span><span class="n">__doc__</span> <span class="o">=</span> <span class="n">OutputArgument</span><span class="o">.</span><span class="n">__init__</span><span class="o">.</span><span class="n">__doc__</span>
+
+
+<div class="viewcode-block" id="Result"><a class="viewcode-back" href="../../../modules/utilities/codegen.html#sympy.utilities.codegen.Result">[docs]</a><span class="k">class</span> <span class="nc">Result</span><span class="p">(</span><span class="n">Variable</span><span class="p">,</span> <span class="n">ResultBase</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;An expression for a return value.</span>
+
+<span class="sd">    The name result is used to avoid conflicts with the reserved word</span>
+<span class="sd">    &quot;return&quot; in the python language.  It is also shorter than ReturnValue.</span>
+
+<span class="sd">    These may or may not need a name in the destination (e.g., &quot;return(x*y)&quot;</span>
+<span class="sd">    might return a value without ever naming it).</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">result_var</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">datatype</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                 <span class="n">dimensions</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">precision</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Initialize a return value.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ==========</span>
+
+<span class="sd">        expr : SymPy expression</span>
+
+<span class="sd">        name : Symbol, MatrixSymbol, optional</span>
+<span class="sd">            The name of this return variable.  When used for code generation,</span>
+<span class="sd">            this might appear, for example, in the prototype of function in a</span>
+<span class="sd">            list of return values.  A dummy name is generated if omitted.</span>
+
+<span class="sd">        result_var : Symbol, Indexed, optional</span>
+<span class="sd">            Something that can be used to assign a value to this variable.</span>
+<span class="sd">            Typically the same as `name` but for Indexed this should be e.g.,</span>
+<span class="sd">            &quot;y[i]&quot; whereas `name` should be the Symbol &quot;y&quot;.  Defaults to</span>
+<span class="sd">            `name` if omitted.</span>
+
+<span class="sd">        datatype : optional</span>
+<span class="sd">            When not given, the data type will be guessed based on the</span>
+<span class="sd">            assumptions on the symbol argument.</span>
+
+<span class="sd">        dimension : sequence containing tupes, optional</span>
+<span class="sd">            If present, this variable is interpreted as an array,</span>
+<span class="sd">            where this sequence of tuples specifies (lower, upper)</span>
+<span class="sd">            bounds for each index of the array.</span>
+
+<span class="sd">        precision : int, optional</span>
+<span class="sd">            Controls the precision of floating point constants.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="p">(</span><span class="n">Expr</span><span class="p">,</span> <span class="n">MatrixBase</span><span class="p">,</span> <span class="n">MatrixExpr</span><span class="p">)):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s">&quot;The first argument must be a sympy expression.&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">name</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">name</span> <span class="o">=</span> <span class="s">&#39;result_</span><span class="si">%d</span><span class="s">&#39;</span> <span class="o">%</span> <span class="nb">abs</span><span class="p">(</span><span class="nb">hash</span><span class="p">(</span><span class="n">expr</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">string_types</span><span class="p">):</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="p">(</span><span class="n">MatrixBase</span><span class="p">,</span> <span class="n">MatrixExpr</span><span class="p">)):</span>
+                <span class="n">name</span> <span class="o">=</span> <span class="n">MatrixSymbol</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="o">*</span><span class="n">expr</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">name</span> <span class="o">=</span> <span class="n">Symbol</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">result_var</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">result_var</span> <span class="o">=</span> <span class="n">name</span>
+
+        <span class="n">Variable</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">datatype</span><span class="o">=</span><span class="n">datatype</span><span class="p">,</span>
+                          <span class="n">dimensions</span><span class="o">=</span><span class="n">dimensions</span><span class="p">,</span> <span class="n">precision</span><span class="o">=</span><span class="n">precision</span><span class="p">)</span>
+        <span class="n">ResultBase</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">result_var</span><span class="p">)</span>
+
+
+<span class="c">#</span>
+<span class="c"># Transformation of routine objects into code</span>
+<span class="c">#</span>
+</div>
+<div class="viewcode-block" id="CodeGen"><a class="viewcode-back" href="../../../modules/utilities/codegen.html#sympy.utilities.codegen.CodeGen">[docs]</a><span class="k">class</span> <span class="nc">CodeGen</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Abstract class for the code generators.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">project</span><span class="o">=</span><span class="s">&quot;project&quot;</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Initialize a code generator.</span>
+
+<span class="sd">        Derived classes will offer more options that affect the generated</span>
+<span class="sd">        code.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">project</span> <span class="o">=</span> <span class="n">project</span>
+
+<div class="viewcode-block" id="CodeGen.routine"><a class="viewcode-back" href="../../../modules/utilities/codegen.html#sympy.utilities.codegen.CodeGen.routine">[docs]</a>    <span class="k">def</span> <span class="nf">routine</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">argument_sequence</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Creates an Routine object that is appropriate for this language.</span>
+
+<span class="sd">        This implementation is appropriate for at least C/Fortran.  Subclasses</span>
+<span class="sd">        can override this if necessary.</span>
+
+<span class="sd">        Here, we assume at most one return value (the l-value) which must be</span>
+<span class="sd">        scalar.  Additional outputs are OutputArguments (e.g., pointers on</span>
+<span class="sd">        right-hand-side or pass-by-reference).  Matrices are always returned</span>
+<span class="sd">        via OutputArguments.  If ``argument_sequence`` is None, arguments will</span>
+<span class="sd">        be ordered alphabetically, but with all InputArguments first, and then</span>
+<span class="sd">        OutputArgument and InOutArguments.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="k">if</span> <span class="n">is_sequence</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">MatrixBase</span><span class="p">):</span>
             <span class="k">if</span> <span class="ow">not</span> <span class="n">expr</span><span class="p">:</span>
@@ -243,8 +576,8 @@
                     <span class="n">output_args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
                         <span class="n">InOutArgument</span><span class="p">(</span><span class="n">symbol</span><span class="p">,</span> <span class="n">out_arg</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="n">dims</span><span class="p">))</span>
                 <span class="k">else</span><span class="p">:</span>
-                    <span class="n">output_args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">OutputArgument</span><span class="p">(</span>
-                        <span class="n">symbol</span><span class="p">,</span> <span class="n">out_arg</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="n">dims</span><span class="p">))</span>
+                    <span class="n">output_args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                        <span class="n">OutputArgument</span><span class="p">(</span><span class="n">symbol</span><span class="p">,</span> <span class="n">out_arg</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="n">dims</span><span class="p">))</span>
 
                 <span class="c"># avoid duplicate arguments</span>
                 <span class="n">symbols</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">symbol</span><span class="p">)</span>
@@ -252,10 +585,12 @@
                 <span class="c"># Create a &quot;dummy&quot; MatrixSymbol to use as the Output arg</span>
                 <span class="n">out_arg</span> <span class="o">=</span> <span class="n">MatrixSymbol</span><span class="p">(</span><span class="s">&#39;out_</span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="nb">abs</span><span class="p">(</span><span class="nb">hash</span><span class="p">(</span><span class="n">expr</span><span class="p">)),</span> <span class="o">*</span><span class="n">expr</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
                 <span class="n">dims</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">([(</span><span class="n">S</span><span class="o">.</span><span class="n">Zero</span><span class="p">,</span> <span class="n">dim</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">dim</span> <span class="ow">in</span> <span class="n">out_arg</span><span class="o">.</span><span class="n">shape</span><span class="p">])</span>
-                <span class="n">output_args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">OutputArgument</span><span class="p">(</span><span class="n">out_arg</span><span class="p">,</span> <span class="n">out_arg</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span>
-                        <span class="n">dimensions</span><span class="o">=</span><span class="n">dims</span><span class="p">))</span>
+                <span class="n">output_args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                    <span class="n">OutputArgument</span><span class="p">(</span><span class="n">out_arg</span><span class="p">,</span> <span class="n">out_arg</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="n">dims</span><span class="p">))</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">return_val</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Result</span><span class="p">(</span><span class="n">expr</span><span class="p">))</span>
+
+        <span class="n">arg_list</span> <span class="o">=</span> <span class="p">[]</span>
 
         <span class="c"># setup input argument list</span>
         <span class="n">array_symbols</span> <span class="o">=</span> <span class="p">{}</span>
@@ -291,7 +626,7 @@
 
             <span class="n">missing</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">arg_list</span> <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">argument_sequence</span><span class="p">]</span>
             <span class="k">if</span> <span class="n">missing</span><span class="p">:</span>
-                <span class="k">raise</span> <span class="n">CodeGenArgumentListError</span><span class="p">(</span><span class="s">&quot;Argument list didn&#39;t specify: </span><span class="si">%s</span><span class="s">&quot;</span> <span class="o">%</span>
+                <span class="k">raise</span> <span class="n">CodeGenArgumentListError</span><span class="p">(</span><span class="s">&quot;Argument list didn&#39;t specify: &quot;</span>
                         <span class="s">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="nb">str</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">name</span><span class="p">)</span> <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">missing</span><span class="p">]),</span> <span class="n">missing</span><span class="p">)</span>
 
             <span class="c"># create redundant arguments to produce the requested sequence</span>
@@ -304,233 +639,35 @@
                     <span class="n">new_args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">InputArgument</span><span class="p">(</span><span class="n">symbol</span><span class="p">))</span>
             <span class="n">arg_list</span> <span class="o">=</span> <span class="n">new_args</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">arguments</span> <span class="o">=</span> <span class="n">arg_list</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">results</span> <span class="o">=</span> <span class="n">return_val</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">local_vars</span> <span class="o">=</span> <span class="n">local_vars</span>
-
-    <span class="nd">@property</span>
-<div class="viewcode-block" id="Routine.variables"><a class="viewcode-back" href="../../../modules/utilities/codegen.html#sympy.utilities.codegen.Routine.variables">[docs]</a>    <span class="k">def</span> <span class="nf">variables</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Returns a set containing all variables possibly used in this routine.</span>
-
-<span class="sd">        For routines with unnamed return values, the dummies that may or may</span>
-<span class="sd">        not be used will be included in the set.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">v</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">local_vars</span><span class="p">)</span>
-        <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">arguments</span><span class="p">:</span>
-            <span class="n">v</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">arg</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
-        <span class="k">for</span> <span class="n">res</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">results</span><span class="p">:</span>
-            <span class="n">v</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">res</span><span class="o">.</span><span class="n">result_var</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">v</span>
+        <span class="k">return</span> <span class="n">Routine</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">arg_list</span><span class="p">,</span> <span class="n">return_val</span><span class="p">,</span> <span class="n">local_vars</span><span class="p">)</span>
 </div>
-    <span class="nd">@property</span>
-<div class="viewcode-block" id="Routine.result_variables"><a class="viewcode-back" href="../../../modules/utilities/codegen.html#sympy.utilities.codegen.Routine.result_variables">[docs]</a>    <span class="k">def</span> <span class="nf">result_variables</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Returns a list of OutputArgument, InOutArgument and Result.</span>
-
-<span class="sd">        If return values are present, they are at the end ot the list.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">args</span> <span class="o">=</span> <span class="p">[</span><span class="n">arg</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">arguments</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span>
-            <span class="n">arg</span><span class="p">,</span> <span class="p">(</span><span class="n">OutputArgument</span><span class="p">,</span> <span class="n">InOutArgument</span><span class="p">))]</span>
-        <span class="n">args</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">results</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">args</span>
-
-</div></div>
-<div class="viewcode-block" id="DataType"><a class="viewcode-back" href="../../../modules/utilities/codegen.html#sympy.utilities.codegen.DataType">[docs]</a><span class="k">class</span> <span class="nc">DataType</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Holds strings for a certain datatype in different programming languages.&quot;&quot;&quot;</span>
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cname</span><span class="p">,</span> <span class="n">fname</span><span class="p">,</span> <span class="n">pyname</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">cname</span> <span class="o">=</span> <span class="n">cname</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">fname</span> <span class="o">=</span> <span class="n">fname</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">pyname</span> <span class="o">=</span> <span class="n">pyname</span>
-
-</div>
-<span class="n">default_datatypes</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s">&quot;int&quot;</span><span class="p">:</span> <span class="n">DataType</span><span class="p">(</span><span class="s">&quot;int&quot;</span><span class="p">,</span> <span class="s">&quot;INTEGER*4&quot;</span><span class="p">,</span> <span class="s">&quot;int&quot;</span><span class="p">),</span>
-    <span class="s">&quot;float&quot;</span><span class="p">:</span> <span class="n">DataType</span><span class="p">(</span><span class="s">&quot;double&quot;</span><span class="p">,</span> <span class="s">&quot;REAL*8&quot;</span><span class="p">,</span> <span class="s">&quot;float&quot;</span><span class="p">)</span>
-<span class="p">}</span>
-
-
-<div class="viewcode-block" id="get_default_datatype"><a class="viewcode-back" href="../../../modules/utilities/codegen.html#sympy.utilities.codegen.get_default_datatype">[docs]</a><span class="k">def</span> <span class="nf">get_default_datatype</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Derives a decent data type based on the assumptions on the expression.&quot;&quot;&quot;</span>
-    <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_integer</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">default_datatypes</span><span class="p">[</span><span class="s">&quot;int&quot;</span><span class="p">]</span>
-    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">MatrixBase</span><span class="p">):</span>
-        <span class="k">for</span> <span class="n">element</span> <span class="ow">in</span> <span class="n">expr</span><span class="p">:</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="n">element</span><span class="o">.</span><span class="n">is_integer</span><span class="p">:</span>
-                <span class="k">return</span><span class="p">(</span><span class="n">default_datatypes</span><span class="p">[</span><span class="s">&quot;float&quot;</span><span class="p">])</span>
-        <span class="k">return</span> <span class="n">default_datatypes</span><span class="p">[</span><span class="s">&quot;int&quot;</span><span class="p">]</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">default_datatypes</span><span class="p">[</span><span class="s">&quot;float&quot;</span><span class="p">]</span>
-
-</div>
-<span class="k">class</span> <span class="nc">Variable</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Represents a typed variable.&quot;&quot;&quot;</span>
-
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">datatype</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">precision</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Initializes a Variable instance</span>
-
-<span class="sd">           name  --  must be of class Symbol or MatrixSymbol</span>
-<span class="sd">           datatype  --  When not given, the data type will be guessed based</span>
-<span class="sd">                         on the assumptions on the symbol argument.</span>
-<span class="sd">           dimension  --  If present, the argument is interpreted as an array.</span>
-<span class="sd">                          Dimensions must be a sequence containing tuples, i.e.</span>
-<span class="sd">                          (lower, upper) bounds for each index of the array</span>
-<span class="sd">           precision  --  FIXME</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="p">(</span><span class="n">Symbol</span><span class="p">,</span> <span class="n">MatrixSymbol</span><span class="p">)):</span>
-            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s">&quot;The first argument must be a sympy symbol.&quot;</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">datatype</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
-            <span class="n">datatype</span> <span class="o">=</span> <span class="n">get_default_datatype</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
-        <span class="k">elif</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">datatype</span><span class="p">,</span> <span class="n">DataType</span><span class="p">):</span>
-            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s">&quot;The (optional) `datatype&#39; argument must be an instance of the DataType class.&quot;</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">dimensions</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">dimensions</span><span class="p">,</span> <span class="p">(</span><span class="nb">tuple</span><span class="p">,</span> <span class="nb">list</span><span class="p">)):</span>
-            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
-                <span class="s">&quot;The dimension argument must be a sequence of tuples&quot;</span><span class="p">)</span>
-
-        <span class="bp">self</span><span class="o">.</span><span class="n">_name</span> <span class="o">=</span> <span class="n">name</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_datatype</span> <span class="o">=</span> <span class="p">{</span>
-            <span class="s">&#39;C&#39;</span><span class="p">:</span> <span class="n">datatype</span><span class="o">.</span><span class="n">cname</span><span class="p">,</span>
-            <span class="s">&#39;FORTRAN&#39;</span><span class="p">:</span> <span class="n">datatype</span><span class="o">.</span><span class="n">fname</span><span class="p">,</span>
-            <span class="s">&#39;PYTHON&#39;</span><span class="p">:</span> <span class="n">datatype</span><span class="o">.</span><span class="n">pyname</span>
-        <span class="p">}</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span> <span class="o">=</span> <span class="n">dimensions</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">precision</span> <span class="o">=</span> <span class="n">precision</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_name</span>
-
-    <span class="k">def</span> <span class="nf">get_datatype</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">language</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Returns the datatype string for the requested langage.</span>
-
-<span class="sd">            &gt;&gt;&gt; from sympy import Symbol</span>
-<span class="sd">            &gt;&gt;&gt; from sympy.utilities.codegen import Variable</span>
-<span class="sd">            &gt;&gt;&gt; x = Variable(Symbol(&#39;x&#39;))</span>
-<span class="sd">            &gt;&gt;&gt; x.get_datatype(&#39;c&#39;)</span>
-<span class="sd">            &#39;double&#39;</span>
-<span class="sd">            &gt;&gt;&gt; x.get_datatype(&#39;fortran&#39;)</span>
-<span class="sd">            &#39;REAL*8&#39;</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_datatype</span><span class="p">[</span><span class="n">language</span><span class="o">.</span><span class="n">upper</span><span class="p">()]</span>
-        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="n">CodeGenError</span><span class="p">(</span><span class="s">&quot;Has datatypes for languages: </span><span class="si">%s</span><span class="s">&quot;</span> <span class="o">%</span>
-                    <span class="s">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_datatype</span><span class="p">))</span>
-
-
-<div class="viewcode-block" id="Argument"><a class="viewcode-back" href="../../../modules/utilities/codegen.html#sympy.utilities.codegen.Argument">[docs]</a><span class="k">class</span> <span class="nc">Argument</span><span class="p">(</span><span class="n">Variable</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;An abstract Argument data structure: a name and a data type.</span>
-
-<span class="sd">       This structure is refined in the descendants below.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">datatype</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">precision</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot; See docstring of Variable.__init__</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-
-        <span class="n">Variable</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">datatype</span><span class="p">,</span> <span class="n">dimensions</span><span class="p">,</span> <span class="n">precision</span><span class="p">)</span>
-
-</div>
-<span class="k">class</span> <span class="nc">InputArgument</span><span class="p">(</span><span class="n">Argument</span><span class="p">):</span>
-    <span class="k">pass</span>
-
-
-<span class="k">class</span> <span class="nc">ResultBase</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Base class for all ``outgoing&#39;&#39; information from a routine</span>
-
-<span class="sd">       Objects of this class stores a sympy expression, and a sympy object</span>
-<span class="sd">       representing a result variable that will be used in the generated code</span>
-<span class="sd">       only if necessary.</span>
-<span class="sd">   &quot;&quot;&quot;</span>
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">result_var</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">expr</span> <span class="o">=</span> <span class="n">expr</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">result_var</span> <span class="o">=</span> <span class="n">result_var</span>
-
-
-<span class="k">class</span> <span class="nc">OutputArgument</span><span class="p">(</span><span class="n">Argument</span><span class="p">,</span> <span class="n">ResultBase</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;OutputArgument are always initialized in the routine</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">result_var</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">datatype</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">precision</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot; See docstring of Variable.__init__</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">Argument</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">datatype</span><span class="p">,</span> <span class="n">dimensions</span><span class="p">,</span> <span class="n">precision</span><span class="p">)</span>
-        <span class="n">ResultBase</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">result_var</span><span class="p">)</span>
-
-
-<span class="k">class</span> <span class="nc">InOutArgument</span><span class="p">(</span><span class="n">Argument</span><span class="p">,</span> <span class="n">ResultBase</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;InOutArgument are never initialized in the routine</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">result_var</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">datatype</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">precision</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot; See docstring of Variable.__init__</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">datatype</span><span class="p">:</span>
-            <span class="n">datatype</span> <span class="o">=</span> <span class="n">get_default_datatype</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
-        <span class="n">Argument</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">datatype</span><span class="p">,</span> <span class="n">dimensions</span><span class="p">,</span> <span class="n">precision</span><span class="p">)</span>
-        <span class="n">ResultBase</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">result_var</span><span class="p">)</span>
-
-
-<div class="viewcode-block" id="Result"><a class="viewcode-back" href="../../../modules/utilities/codegen.html#sympy.utilities.codegen.Result">[docs]</a><span class="k">class</span> <span class="nc">Result</span><span class="p">(</span><span class="n">ResultBase</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;An expression for a scalar return value.</span>
-
-<span class="sd">       The name result is used to avoid conflicts with the reserved word</span>
-<span class="sd">       &#39;return&#39; in the python language. It is also shorter than ReturnValue.</span>
-
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">datatype</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">precision</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Initialize a (scalar) return value.</span>
-
-<span class="sd">           The second argument is optional. When not given, the data type will</span>
-<span class="sd">           be guessed based on the assumptions on the expression argument.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">Expr</span><span class="p">):</span>
-            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s">&quot;The first argument must be a sympy expression.&quot;</span><span class="p">)</span>
-
-        <span class="n">temp_var</span> <span class="o">=</span> <span class="n">Variable</span><span class="p">(</span><span class="n">Symbol</span><span class="p">(</span><span class="s">&#39;result_</span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="nb">abs</span><span class="p">(</span><span class="nb">hash</span><span class="p">(</span><span class="n">expr</span><span class="p">))),</span>
-                <span class="n">datatype</span><span class="o">=</span><span class="n">datatype</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">precision</span><span class="o">=</span><span class="n">precision</span><span class="p">)</span>
-        <span class="n">ResultBase</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">temp_var</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_temp_variable</span> <span class="o">=</span> <span class="n">temp_var</span>
-
-    <span class="k">def</span> <span class="nf">get_datatype</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">language</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_temp_variable</span><span class="o">.</span><span class="n">get_datatype</span><span class="p">(</span><span class="n">language</span><span class="p">)</span>
-
-
-<span class="c">#</span>
-<span class="c"># Transformation of routine objects into code</span>
-<span class="c">#</span>
-</div>
-<div class="viewcode-block" id="CodeGen"><a class="viewcode-back" href="../../../modules/utilities/codegen.html#sympy.utilities.codegen.CodeGen">[docs]</a><span class="k">class</span> <span class="nc">CodeGen</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Abstract class for the code generators.&quot;&quot;&quot;</span>
-
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">project</span><span class="o">=</span><span class="s">&quot;project&quot;</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Initialize a code generator.</span>
-
-<span class="sd">           Derived classes will offer more options that affect the generated</span>
-<span class="sd">           code.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">project</span> <span class="o">=</span> <span class="n">project</span>
-
 <div class="viewcode-block" id="CodeGen.write"><a class="viewcode-back" href="../../../modules/utilities/codegen.html#sympy.utilities.codegen.CodeGen.write">[docs]</a>    <span class="k">def</span> <span class="nf">write</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">routines</span><span class="p">,</span> <span class="n">prefix</span><span class="p">,</span> <span class="n">to_files</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">header</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">empty</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Writes all the source code files for the given routines.</span>
 
-<span class="sd">            The generate source is returned as a list of (filename, contents)</span>
-<span class="sd">            tuples, or is written to files (see options). Each filename consists</span>
-<span class="sd">            of the given prefix, appended with an appropriate extension.</span>
+<span class="sd">        The generated source is returned as a list of (filename, contents)</span>
+<span class="sd">        tuples, or is written to files (see below).  Each filename consists</span>
+<span class="sd">        of the given prefix, appended with an appropriate extension.</span>
 
-<span class="sd">            ``routines``</span>
-<span class="sd">                A list of Routine instances to be written</span>
-<span class="sd">            ``prefix``</span>
-<span class="sd">                The prefix for the output files</span>
-<span class="sd">            ``to_files``</span>
-<span class="sd">                When True, the output is effectively written to files.</span>
-<span class="sd">                [DEFAULT=False] Otherwise, a list of (filename, contents)</span>
-<span class="sd">                tuples is returned.</span>
-<span class="sd">            ``header``</span>
-<span class="sd">                When True, a header comment is included on top of each source</span>
-<span class="sd">                file. [DEFAULT=True]</span>
-<span class="sd">            ``empty``</span>
-<span class="sd">                When True, empty lines are included to structure the source</span>
-<span class="sd">                files. [DEFAULT=True]</span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ==========</span>
+
+<span class="sd">        routines : list</span>
+<span class="sd">            A list of Routine instances to be written</span>
+
+<span class="sd">        prefix : string</span>
+<span class="sd">            The prefix for the output files</span>
+
+<span class="sd">        to_files : bool, optional</span>
+<span class="sd">            When True, the output is written to files.  Otherwise, a list</span>
+<span class="sd">            of (filename, contents) tuples is returned.  [default: False]</span>
+
+<span class="sd">        header : bool, optional</span>
+<span class="sd">            When True, a header comment is included on top of each source</span>
+<span class="sd">            file. [default: True]</span>
+
+<span class="sd">        empty : bool, optional</span>
+<span class="sd">            When True, empty lines are included to structure the source</span>
+<span class="sd">            files. [default: True]</span>
 
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="n">to_files</span><span class="p">:</span>
@@ -548,29 +685,32 @@
             <span class="k">return</span> <span class="n">result</span>
 </div>
 <div class="viewcode-block" id="CodeGen.dump_code"><a class="viewcode-back" href="../../../modules/utilities/codegen.html#sympy.utilities.codegen.CodeGen.dump_code">[docs]</a>    <span class="k">def</span> <span class="nf">dump_code</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">routines</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">prefix</span><span class="p">,</span> <span class="n">header</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">empty</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Write the code file by calling language specific methods in correct order</span>
+        <span class="sd">&quot;&quot;&quot;Write the code by calling language specific methods.</span>
 
 <span class="sd">        The generated file contains all the definitions of the routines in</span>
 <span class="sd">        low-level code and refers to the header file if appropriate.</span>
 
-<span class="sd">        :Arguments:</span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ==========</span>
 
-<span class="sd">        routines</span>
-<span class="sd">            A list of Routine instances</span>
-<span class="sd">        f</span>
-<span class="sd">            A file-like object to write the file to</span>
-<span class="sd">        prefix</span>
-<span class="sd">            The filename prefix, used to refer to the proper header file. Only</span>
-<span class="sd">            the basename of the prefix is used.</span>
+<span class="sd">        routines : list</span>
+<span class="sd">            A list of Routine instances.</span>
 
-<span class="sd">        :Optional arguments:</span>
+<span class="sd">        f : file-like</span>
+<span class="sd">            Where to write the file.</span>
 
-<span class="sd">        header</span>
-<span class="sd">            When True, a header comment is included on top of each source file.</span>
-<span class="sd">            [DEFAULT=True]</span>
-<span class="sd">        empty</span>
-<span class="sd">            When True, empty lines are included to structure the source files.</span>
-<span class="sd">            [DEFAULT=True]</span>
+<span class="sd">        prefix : string</span>
+<span class="sd">            The filename prefix, used to refer to the proper header file.</span>
+<span class="sd">            Only the basename of the prefix is used.</span>
+
+<span class="sd">        header : bool, optional</span>
+<span class="sd">            When True, a header comment is included on top of each source</span>
+<span class="sd">            file.  [default : True]</span>
+
+<span class="sd">        empty : bool, optional</span>
+<span class="sd">            When True, empty lines are included to structure the source</span>
+<span class="sd">            files.  [default : True]</span>
+
 <span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="n">code_lines</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_preprocessor_statements</span><span class="p">(</span><span class="n">prefix</span><span class="p">)</span>
@@ -616,11 +756,11 @@
 
 
 <div class="viewcode-block" id="CCodeGen"><a class="viewcode-back" href="../../../modules/utilities/codegen.html#sympy.utilities.codegen.CCodeGen">[docs]</a><span class="k">class</span> <span class="nc">CCodeGen</span><span class="p">(</span><span class="n">CodeGen</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Generator for C code</span>
+    <span class="sd">&quot;&quot;&quot;Generator for C code.</span>
 
-<span class="sd">    The .write() method inherited from CodeGen will output a code file and an</span>
-<span class="sd">    interface file, &lt;prefix&gt;.c and &lt;prefix&gt;.h respectively.</span>
+<span class="sd">    The .write() method inherited from CodeGen will output a code file and</span>
+<span class="sd">    an interface file, &lt;prefix&gt;.c and &lt;prefix&gt;.h respectively.</span>
+
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">code_extension</span> <span class="o">=</span> <span class="s">&quot;c&quot;</span>
@@ -638,12 +778,13 @@
         <span class="k">return</span> <span class="n">code_lines</span>
 
 <div class="viewcode-block" id="CCodeGen.get_prototype"><a class="viewcode-back" href="../../../modules/utilities/codegen.html#sympy.utilities.codegen.CCodeGen.get_prototype">[docs]</a>    <span class="k">def</span> <span class="nf">get_prototype</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">routine</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Returns a string for the function prototype for the given routine.</span>
+        <span class="sd">&quot;&quot;&quot;Returns a string for the function prototype of the routine.</span>
 
-<span class="sd">           If the routine has multiple result objects, an CodeGenError is</span>
-<span class="sd">           raised.</span>
+<span class="sd">        If the routine has multiple result objects, an CodeGenError is</span>
+<span class="sd">        raised.</span>
 
-<span class="sd">           See: http://en.wikipedia.org/wiki/Function_prototype</span>
+<span class="sd">        See: http://en.wikipedia.org/wiki/Function_prototype</span>
+
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">routine</span><span class="o">.</span><span class="n">results</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
             <span class="k">raise</span> <span class="n">CodeGenError</span><span class="p">(</span><span class="s">&quot;C only supports a single or no return value.&quot;</span><span class="p">)</span>
@@ -734,25 +875,29 @@
 <div class="viewcode-block" id="CCodeGen.dump_h"><a class="viewcode-back" href="../../../modules/utilities/codegen.html#sympy.utilities.codegen.CCodeGen.dump_h">[docs]</a>    <span class="k">def</span> <span class="nf">dump_h</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">routines</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">prefix</span><span class="p">,</span> <span class="n">header</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">empty</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Writes the C header file.</span>
 
-<span class="sd">           This file contains all the function declarations.</span>
+<span class="sd">        This file contains all the function declarations.</span>
 
-<span class="sd">           :Arguments:</span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ==========</span>
 
-<span class="sd">           routines</span>
-<span class="sd">                A list of Routine instances</span>
-<span class="sd">           f</span>
-<span class="sd">                A file-like object to write the file to</span>
-<span class="sd">           prefix</span>
-<span class="sd">                The filename prefix, used to construct the include guards.</span>
+<span class="sd">        routines : list</span>
+<span class="sd">            A list of Routine instances.</span>
 
-<span class="sd">           :Optional arguments:</span>
+<span class="sd">        f : file-like</span>
+<span class="sd">            Where to write the file.</span>
 
-<span class="sd">           header</span>
-<span class="sd">                When True, a header comment is included on top of each source</span>
-<span class="sd">                file. [DEFAULT=True]</span>
-<span class="sd">           empty</span>
-<span class="sd">                When True, empty lines are included to structure the source</span>
-<span class="sd">                files. [DEFAULT=True]</span>
+<span class="sd">        prefix : string</span>
+<span class="sd">            The filename prefix, used to construct the include guards.</span>
+<span class="sd">            Only the basename of the prefix is used.</span>
+
+<span class="sd">        header : bool, optional</span>
+<span class="sd">            When True, a header comment is included on top of each source</span>
+<span class="sd">            file.  [default : True]</span>
+
+<span class="sd">        empty : bool, optional</span>
+<span class="sd">            When True, empty lines are included to structure the source</span>
+<span class="sd">            files.  [default : True]</span>
+
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="n">header</span><span class="p">:</span>
             <span class="k">print</span><span class="p">(</span><span class="s">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_get_header</span><span class="p">()),</span> <span class="nb">file</span><span class="o">=</span><span class="n">f</span><span class="p">)</span>
@@ -783,11 +928,11 @@
 
 </div>
 <div class="viewcode-block" id="FCodeGen"><a class="viewcode-back" href="../../../modules/utilities/codegen.html#sympy.utilities.codegen.FCodeGen">[docs]</a><span class="k">class</span> <span class="nc">FCodeGen</span><span class="p">(</span><span class="n">CodeGen</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Generator for Fortran 95 code</span>
+    <span class="sd">&quot;&quot;&quot;Generator for Fortran 95 code</span>
 
-<span class="sd">    The .write() method inherited from CodeGen will output a code file and an</span>
-<span class="sd">    interface file, &lt;prefix&gt;.f90 and &lt;prefix&gt;.h respectively.</span>
+<span class="sd">    The .write() method inherited from CodeGen will output a code file and</span>
+<span class="sd">    an interface file, &lt;prefix&gt;.f90 and &lt;prefix&gt;.h respectively.</span>
+
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">code_extension</span> <span class="o">=</span> <span class="s">&quot;f90&quot;</span>
@@ -797,7 +942,7 @@
         <span class="n">CodeGen</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">project</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">_get_symbol</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">s</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;returns the symbol as fcode print it&quot;&quot;&quot;</span>
+        <span class="sd">&quot;&quot;&quot;Returns the symbol as fcode prints it.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="n">fcode</span><span class="p">(</span><span class="n">s</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
 
     <span class="k">def</span> <span class="nf">_get_header</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -815,9 +960,7 @@
         <span class="k">return</span> <span class="p">[]</span>
 
     <span class="k">def</span> <span class="nf">_get_routine_opening</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">routine</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Returns the opening statements of the fortran routine</span>
-<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="sd">&quot;&quot;&quot;Returns the opening statements of the fortran routine.&quot;&quot;&quot;</span>
         <span class="n">code_list</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">routine</span><span class="o">.</span><span class="n">results</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
             <span class="k">raise</span> <span class="n">CodeGenError</span><span class="p">(</span>
@@ -886,22 +1029,20 @@
         <span class="k">return</span> <span class="n">code_list</span>
 
     <span class="k">def</span> <span class="nf">_get_routine_ending</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">routine</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Returns the closing statements of the fortran routine</span>
-<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="sd">&quot;&quot;&quot;Returns the closing statements of the fortran routine.&quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">routine</span><span class="o">.</span><span class="n">results</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
             <span class="k">return</span> <span class="p">[</span><span class="s">&quot;end function</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">]</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">return</span> <span class="p">[</span><span class="s">&quot;end subroutine</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">]</span>
 
 <div class="viewcode-block" id="FCodeGen.get_interface"><a class="viewcode-back" href="../../../modules/utilities/codegen.html#sympy.utilities.codegen.FCodeGen.get_interface">[docs]</a>    <span class="k">def</span> <span class="nf">get_interface</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">routine</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Returns a string for the function interface for the given routine and</span>
-<span class="sd">           a single result object, which can be None.</span>
+        <span class="sd">&quot;&quot;&quot;Returns a string for the function interface.</span>
 
-<span class="sd">           If the routine has multiple result objects, a CodeGenError is</span>
-<span class="sd">           raised.</span>
+<span class="sd">        The routine should have a single result object, which can be None.</span>
+<span class="sd">        If the routine has multiple result objects, a CodeGenError is</span>
+<span class="sd">        raised.</span>
 
-<span class="sd">           See: http://en.wikipedia.org/wiki/Function_prototype</span>
+<span class="sd">        See: http://en.wikipedia.org/wiki/Function_prototype</span>
 
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">prototype</span> <span class="o">=</span> <span class="p">[</span> <span class="s">&quot;interface</span><span class="se">\n</span><span class="s">&quot;</span> <span class="p">]</span>
@@ -958,25 +1099,28 @@
 <div class="viewcode-block" id="FCodeGen.dump_h"><a class="viewcode-back" href="../../../modules/utilities/codegen.html#sympy.utilities.codegen.FCodeGen.dump_h">[docs]</a>    <span class="k">def</span> <span class="nf">dump_h</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">routines</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">prefix</span><span class="p">,</span> <span class="n">header</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">empty</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Writes the interface to a header file.</span>
 
-<span class="sd">           This file contains all the function declarations.</span>
+<span class="sd">        This file contains all the function declarations.</span>
 
-<span class="sd">           :Arguments:</span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ==========</span>
 
-<span class="sd">           routines</span>
-<span class="sd">                A list of Routine instances</span>
-<span class="sd">           f</span>
-<span class="sd">                A file-like object to write the file to</span>
-<span class="sd">           prefix</span>
-<span class="sd">                The filename prefix</span>
+<span class="sd">        routines : list</span>
+<span class="sd">            A list of Routine instances.</span>
 
-<span class="sd">           :Optional arguments:</span>
+<span class="sd">        f : file-like</span>
+<span class="sd">            Where to write the file.</span>
 
-<span class="sd">           header</span>
-<span class="sd">                When True, a header comment is included on top of each source</span>
-<span class="sd">                file. [DEFAULT=True]</span>
-<span class="sd">           empty</span>
-<span class="sd">                When True, empty lines are included to structure the source</span>
-<span class="sd">                files. [DEFAULT=True]</span>
+<span class="sd">        prefix : string</span>
+<span class="sd">            The filename prefix.</span>
+
+<span class="sd">        header : bool, optional</span>
+<span class="sd">            When True, a header comment is included on top of each source</span>
+<span class="sd">            file.  [default : True]</span>
+
+<span class="sd">        empty : bool, optional</span>
+<span class="sd">            When True, empty lines are included to structure the source</span>
+<span class="sd">            files.  [default : True]</span>
+
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="n">header</span><span class="p">:</span>
             <span class="k">print</span><span class="p">(</span><span class="s">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_get_header</span><span class="p">()),</span> <span class="nb">file</span><span class="o">=</span><span class="n">f</span><span class="p">)</span>
@@ -1011,43 +1155,51 @@
             <span class="n">to_files</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">header</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">empty</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">argument_sequence</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Generate source code for expressions in a given language.</span>
 
-<span class="sd">    :Mandatory Arguments:</span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
 
-<span class="sd">    ``name_expr``</span>
+<span class="sd">    name_expr : tuple, or list of tuples</span>
 <span class="sd">        A single (name, expression) tuple or a list of (name, expression)</span>
-<span class="sd">        tuples. Each tuple corresponds to a routine.  If the expression is an</span>
-<span class="sd">        equality (an instance of class Equality) the left hand side is</span>
-<span class="sd">        considered an output argument.</span>
-<span class="sd">    ``language``</span>
-<span class="sd">            A string that indicates the source code language. This is case</span>
-<span class="sd">            insensitive. For the moment, only &#39;C&#39; and &#39;F95&#39; is supported.</span>
-<span class="sd">    ``prefix``</span>
-<span class="sd">            A prefix for the names of the files that contain the source code.</span>
-<span class="sd">            Proper (language dependent) suffixes will be appended.  If omitted,</span>
-<span class="sd">            the name of the first name_expr tuple is used.</span>
+<span class="sd">        tuples.  Each tuple corresponds to a routine.  If the expression is</span>
+<span class="sd">        an equality (an instance of class Equality) the left hand side is</span>
+<span class="sd">        considered an output argument.  If expression is an iterable, then</span>
+<span class="sd">        the routine will have multiple outputs.</span>
 
+<span class="sd">    language : string</span>
+<span class="sd">        A string that indicates the source code language.  This is case</span>
+<span class="sd">        insensitive.  For the moment, only &#39;C&#39; and &#39;F95&#39; is supported.</span>
 
-<span class="sd">    :Optional Arguments:</span>
+<span class="sd">    prefix : string, optional</span>
+<span class="sd">        A prefix for the names of the files that contain the source code.</span>
+<span class="sd">        Language-dependent suffixes will be appended.  If omitted, the name</span>
+<span class="sd">        of the first name_expr tuple is used.</span>
 
-<span class="sd">    ``project``</span>
+<span class="sd">    project : string, optional</span>
 <span class="sd">        A project name, used for making unique preprocessor instructions.</span>
-<span class="sd">        [DEFAULT=&quot;project&quot;]</span>
-<span class="sd">    ``to_files``</span>
-<span class="sd">        When True, the code will be written to one or more files with the given</span>
-<span class="sd">        prefix, otherwise strings with the names and contents of these files</span>
-<span class="sd">        are returned. [DEFAULT=False]</span>
-<span class="sd">    ``header``</span>
-<span class="sd">        When True, a header is written on top of each source file.</span>
-<span class="sd">        [DEFAULT=True]</span>
-<span class="sd">    ``empty``</span>
-<span class="sd">        When True, empty lines are used to structure the code.  [DEFAULT=True]</span>
-<span class="sd">    ``argument_sequence``</span>
-<span class="sd">        sequence of arguments for the routine in a preferred order.  A</span>
-<span class="sd">        CodeGenError is raised if required arguments are missing.  Redundant</span>
-<span class="sd">        arguments are used without warning.</span>
+<span class="sd">        [default: &quot;project&quot;]</span>
 
-<span class="sd">        If omitted, arguments will be ordered alphabetically, but with all</span>
-<span class="sd">        input aguments first, and then output or in-out arguments.</span>
+<span class="sd">    to_files : bool, optional</span>
+<span class="sd">        When True, the code will be written to one or more files with the</span>
+<span class="sd">        given prefix, otherwise strings with the names and contents of</span>
+<span class="sd">        these files are returned. [default: False]</span>
+
+<span class="sd">    header : bool, optional</span>
+<span class="sd">        When True, a header is written on top of each source file.</span>
+<span class="sd">        [default: True]</span>
+
+<span class="sd">    empty : bool, optional</span>
+<span class="sd">        When True, empty lines are used to structure the code.</span>
+<span class="sd">        [default: True]</span>
+
+<span class="sd">    argument_sequence : iterable, optional</span>
+<span class="sd">        Sequence of arguments for the routine in a preferred order.  A</span>
+<span class="sd">        CodeGenError is raised if required arguments are missing.</span>
+<span class="sd">        Redundant arguments are used without warning.  If omitted,</span>
+<span class="sd">        arguments will be ordered alphabetically, but with all input</span>
+<span class="sd">        aguments first, and then output or in-out arguments.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
 
 <span class="sd">    &gt;&gt;&gt; from sympy.utilities.codegen import codegen</span>
 <span class="sd">    &gt;&gt;&gt; from sympy.abc import x, y, z</span>
@@ -1106,13 +1258,97 @@
     <span class="k">if</span> <span class="n">prefix</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
         <span class="n">prefix</span> <span class="o">=</span> <span class="n">name_expr</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
 
-    <span class="c"># Construct the routines based on the name_expression pairs.</span>
+    <span class="c"># Construct Routines appropriate for this code_gen from (name, expr) pairs.</span>
     <span class="n">routines</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">expr</span> <span class="ow">in</span> <span class="n">name_expr</span><span class="p">:</span>
-        <span class="n">routines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Routine</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">argument_sequence</span><span class="p">))</span>
+        <span class="n">routines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">code_gen</span><span class="o">.</span><span class="n">routine</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">argument_sequence</span><span class="p">))</span>
 
     <span class="c"># Write the code.</span>
-    <span class="k">return</span> <span class="n">code_gen</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">routines</span><span class="p">,</span> <span class="n">prefix</span><span class="p">,</span> <span class="n">to_files</span><span class="p">,</span> <span class="n">header</span><span class="p">,</span> <span class="n">empty</span><span class="p">)</span></div>
+    <span class="k">return</span> <span class="n">code_gen</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">routines</span><span class="p">,</span> <span class="n">prefix</span><span class="p">,</span> <span class="n">to_files</span><span class="p">,</span> <span class="n">header</span><span class="p">,</span> <span class="n">empty</span><span class="p">)</span>
+
+</div>
+<div class="viewcode-block" id="make_routine"><a class="viewcode-back" href="../../../modules/utilities/codegen.html#sympy.utilities.codegen.make_routine">[docs]</a><span class="k">def</span> <span class="nf">make_routine</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">argument_sequence</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">language</span><span class="o">=</span><span class="s">&quot;F95&quot;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A factory that makes an appropriate Routine from an expression.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    name : string</span>
+<span class="sd">        The name of this routine in the generated code.</span>
+
+<span class="sd">    expr : expression or list/tuple of expressions</span>
+<span class="sd">        A SymPy expression that the Routine instance will represent.  If</span>
+<span class="sd">        given a list or tuple of expressions, the routine will be</span>
+<span class="sd">        considered to have multiple return values and/or output arguments.</span>
+
+<span class="sd">    argument_sequence : list or tuple, optional</span>
+<span class="sd">        List arguments for the routine in a preferred order.  If omitted,</span>
+<span class="sd">        the results are language dependent, for example, alphabetical order</span>
+<span class="sd">        or in the same order as the given expressions.</span>
+
+<span class="sd">    language : string, optional</span>
+<span class="sd">        Specify a target language.  The Routine itself should be</span>
+<span class="sd">        language-agnostic but the precise way one is created, error</span>
+<span class="sd">        checking, etc depend on the language.  [default: &quot;F95&quot;].</span>
+
+<span class="sd">    A decision about whether to use output arguments or return values is made</span>
+<span class="sd">    depending on both the language and the particular mathematical expressions.</span>
+<span class="sd">    For an expression of type Equality, the left hand side is typically made</span>
+<span class="sd">    into an OutputArgument (or perhaps an InOutArgument if appropriate).</span>
+<span class="sd">    Otherwise, typically, the calculated expression is made a return values of</span>
+<span class="sd">    the routine.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.utilities.codegen import make_routine</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.abc import x, y, f, g</span>
+<span class="sd">    &gt;&gt;&gt; from sympy import Eq</span>
+<span class="sd">    &gt;&gt;&gt; r = make_routine(&#39;test&#39;, [Eq(f, 2*x), Eq(g, x + y)])</span>
+<span class="sd">    &gt;&gt;&gt; [arg.result_var for arg in r.results]</span>
+<span class="sd">    []</span>
+<span class="sd">    &gt;&gt;&gt; [arg.name for arg in r.arguments]</span>
+<span class="sd">    [x, y, f, g]</span>
+<span class="sd">    &gt;&gt;&gt; [arg.name for arg in r.result_variables]</span>
+<span class="sd">    [f, g]</span>
+<span class="sd">    &gt;&gt;&gt; r.local_vars</span>
+<span class="sd">    set()</span>
+
+<span class="sd">    Another more complicated example with a mixture of specified and</span>
+<span class="sd">    automatically-assigned names.  Also has Matrix output.</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy import Matrix</span>
+<span class="sd">    &gt;&gt;&gt; r = make_routine(&#39;fcn&#39;, [x*y, Eq(f, 1), Eq(g, x + g), Matrix([[x, 2]])])</span>
+<span class="sd">    &gt;&gt;&gt; [arg.result_var for arg in r.results]  # doctest: +SKIP</span>
+<span class="sd">    [result_5397460570204848505]</span>
+<span class="sd">    &gt;&gt;&gt; [arg.expr for arg in r.results]</span>
+<span class="sd">    [x*y]</span>
+<span class="sd">    &gt;&gt;&gt; [arg.name for arg in r.arguments]  # doctest: +SKIP</span>
+<span class="sd">    [x, y, f, g, out_8598435338387848786]</span>
+
+<span class="sd">    We can examine the various arguments more closely:</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.utilities.codegen import (InputArgument, OutputArgument,</span>
+<span class="sd">    ...                                      InOutArgument)</span>
+<span class="sd">    &gt;&gt;&gt; [a.name for a in r.arguments if isinstance(a, InputArgument)]</span>
+<span class="sd">    [x, y]</span>
+
+<span class="sd">    &gt;&gt;&gt; [a.name for a in r.arguments if isinstance(a, OutputArgument)]  # doctest: +SKIP</span>
+<span class="sd">    [f, out_8598435338387848786]</span>
+<span class="sd">    &gt;&gt;&gt; [a.expr for a in r.arguments if isinstance(a, OutputArgument)]</span>
+<span class="sd">    [1, Matrix([[x, 2]])]</span>
+
+<span class="sd">    &gt;&gt;&gt; [a.name for a in r.arguments if isinstance(a, InOutArgument)]</span>
+<span class="sd">    [g]</span>
+<span class="sd">    &gt;&gt;&gt; [a.expr for a in r.arguments if isinstance(a, InOutArgument)]</span>
+<span class="sd">    [g + x]</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c"># initialize a new code generator</span>
+    <span class="n">code_gen</span> <span class="o">=</span> <span class="n">get_code_generator</span><span class="p">(</span><span class="n">language</span><span class="p">,</span> <span class="s">&quot;nothingElseMatters&quot;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">code_gen</span><span class="o">.</span><span class="n">routine</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">argument_sequence</span><span class="p">)</span></div>
 </pre></div>
 
           </div>
@@ -1156,7 +1392,7 @@
     </div>
     <div class="footer">
         &copy; Copyright 2014 SymPy Development Team.
-      Last updated on Oct 15, 2014.
+      Last updated on Oct 16, 2014.
       Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
     </div>
   </body>
