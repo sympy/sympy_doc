@@ -39,7 +39,7 @@ def main():
             '<img class="logo" src="_static/sympylogo.png" alt="Logo"/>',
             '</a></p>'
         ]
-
+        redirect = ' <meta http-equiv="refresh" content="0;URL=/latest/index.html" />'
         contexti = 0
         for linei, line in enumerate(lines):
             # Did we match all we need to match?
@@ -55,6 +55,8 @@ def main():
 
         # If we didn't find a match in the whole file, we need to stop and fix something.
         if contexti < len(context):
+            if any(redirect in line for line in lines):
+                continue
             print("Couldn't find where to insert Docs for other versions in {0}".format(releasedir))
             sys.exit(0)
 
