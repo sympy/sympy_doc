@@ -39,7 +39,7 @@ def main():
             '<img class="logo" src="_static/sympylogo.png" alt="Logo"/>',
             '</a></p>'
         ]
-        redirect = ' <meta http-equiv="refresh" content="0;URL=/latest/index.html" />'
+        redirect = 'http-equiv="refresh"'
         contexti = 0
         for linei, line in enumerate(lines):
             # Did we match all we need to match?
