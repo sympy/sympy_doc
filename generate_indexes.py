@@ -5,6 +5,8 @@ Automatically generate "Docs for other versions".
 
 """
 
+from __future__ import print_function
+
 import codecs
 import os
 import os.path
