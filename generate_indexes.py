@@ -9,7 +9,6 @@ import codecs
 import os
 import os.path
 import sys
-import shutil
 
 
 def main():
@@ -21,7 +20,7 @@ def main():
         for linei, line in enumerate(f):
             parts = line.strip().split(":")
             if len(parts) != 2:
-                print "Error parsing line {0}".format(linei)
+                print("Error parsing line {0}".format(linei))
                 sys.exit(1)
             releases.append((parts[0], parts[1]))
 
@@ -54,7 +53,7 @@ def main():
 
         # If we didn't find a match in the whole file, we need to stop and fix something.
         if contexti < len(context):
-            print "Couldn't find where to insert Docs for other versions in {0}".format(releasedir)
+            print("Couldn't find where to insert Docs for other versions in {0}".format(releasedir))
             sys.exit(0)
 
         # Do we want to delete anything? Is there a table there already?
