@@ -8,7 +8,7 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>sympy.utilities.lambdify &mdash; SymPy 1.0 documentation</title>
+    <title>sympy.utilities.lambdify &mdash; SymPy 0.7.6.1 documentation</title>
     
     <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
@@ -19,7 +19,7 @@
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../../../',
-        VERSION:     '1.0',
+        VERSION:     '0.7.6.1',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -34,9 +34,10 @@
     <script type="text/javascript" src="http://live.sympy.org/static/live-core.js"></script>
     <script type="text/javascript" src="http://live.sympy.org/static/live-autocomplete.js"></script>
     <script type="text/javascript" src="http://live.sympy.org/static/live-sphinx.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
     <link rel="shortcut icon" href="../../../_static/sympy-notailtext-favicon.ico"/>
-    <link rel="top" title="SymPy 1.0 documentation" href="../../../index.html" />
-    <link rel="up" title="Module code" href="../../index.html" /> 
+    <link rel="top" title="SymPy 0.7.6.1 documentation" href="../../../index.html" />
+    <link rel="up" title="sympy" href="../../sympy.html" /> 
   </head>
   <body>
     <div class="related">
@@ -48,8 +49,9 @@
         <li class="right" >
           <a href="../../../py-modindex.html" title="Python Module Index"
              >modules</a> |</li>
-        <li><a href="../../../index.html">SymPy 1.0 documentation</a> &raquo;</li>
-          <li><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+        <li><a href="../../../index.html">SymPy 0.7.6.1 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li>
+          <li><a href="../../sympy.html" accesskey="U">sympy</a> &raquo;</li> 
       </ul>
     </div>  
 
@@ -59,7 +61,7 @@
           <div class="body">
             
   <h1>Source code for sympy.utilities.lambdify</h1><div class="highlight"><pre>
-<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">This module provides convenient functions to transform sympy expressions to</span>
 <span class="sd">lambda functions which can be used to calculate numerical values very fast.</span>
 <span class="sd">&quot;&quot;&quot;</span>
@@ -68,102 +70,104 @@
 
 <span class="kn">import</span> <span class="nn">inspect</span>
 <span class="kn">import</span> <span class="nn">textwrap</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
 
-<span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="kn">import</span> <span class="n">exec_</span><span class="p">,</span> <span class="n">is_sequence</span><span class="p">,</span> <span class="n">iterable</span><span class="p">,</span> <span class="n">string_types</span><span class="p">,</span> <span class="nb">range</span><span class="p">,</span> <span class="n">builtins</span>
+<span class="kn">from</span> <span class="nn">sympy.external</span> <span class="kn">import</span> <span class="n">import_module</span>
+<span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="kn">import</span> <span class="n">exec_</span><span class="p">,</span> <span class="n">is_sequence</span><span class="p">,</span> <span class="n">iterable</span><span class="p">,</span> <span class="n">string_types</span>
 <span class="kn">from</span> <span class="nn">sympy.utilities.decorator</span> <span class="kn">import</span> <span class="n">doctest_depends_on</span>
+<span class="kn">from</span> <span class="nn">sympy.utilities.exceptions</span> <span class="kn">import</span> <span class="n">SymPyDeprecationWarning</span>
 
-<span class="c1"># These are the namespaces the lambda functions will use.</span>
+<span class="c"># These are the namespaces the lambda functions will use.</span>
 <span class="n">MATH</span> <span class="o">=</span> <span class="p">{}</span>
 <span class="n">MPMATH</span> <span class="o">=</span> <span class="p">{}</span>
 <span class="n">NUMPY</span> <span class="o">=</span> <span class="p">{}</span>
 <span class="n">SYMPY</span> <span class="o">=</span> <span class="p">{}</span>
 <span class="n">NUMEXPR</span> <span class="o">=</span> <span class="p">{}</span>
 
-<span class="c1"># Default namespaces, letting us define translations that can&#39;t be defined</span>
-<span class="c1"># by simple variable maps, like I =&gt; 1j</span>
-<span class="c1"># These are separate from the names above because the above names are modified</span>
-<span class="c1"># throughout this file, whereas these should remain unmodified.</span>
+<span class="c"># Default namespaces, letting us define translations that can&#39;t be defined</span>
+<span class="c"># by simple variable maps, like I =&gt; 1j</span>
+<span class="c"># These are separate from the names above because the above names are modified</span>
+<span class="c"># throughout this file, whereas these should remain unmodified.</span>
 <span class="n">MATH_DEFAULT</span> <span class="o">=</span> <span class="p">{}</span>
 <span class="n">MPMATH_DEFAULT</span> <span class="o">=</span> <span class="p">{}</span>
-<span class="n">NUMPY_DEFAULT</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;I&quot;</span><span class="p">:</span> <span class="mi">1j</span><span class="p">}</span>
+<span class="n">NUMPY_DEFAULT</span> <span class="o">=</span> <span class="p">{</span><span class="s">&quot;I&quot;</span><span class="p">:</span> <span class="mi">1j</span><span class="p">}</span>
 <span class="n">SYMPY_DEFAULT</span> <span class="o">=</span> <span class="p">{}</span>
 <span class="n">NUMEXPR_DEFAULT</span> <span class="o">=</span> <span class="p">{}</span>
 
-<span class="c1"># Mappings between sympy and other modules function names.</span>
+<span class="c"># Mappings between sympy and other modules function names.</span>
 <span class="n">MATH_TRANSLATIONS</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s2">&quot;ceiling&quot;</span><span class="p">:</span> <span class="s2">&quot;ceil&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;E&quot;</span><span class="p">:</span> <span class="s2">&quot;e&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;ln&quot;</span><span class="p">:</span> <span class="s2">&quot;log&quot;</span><span class="p">,</span>
+    <span class="s">&quot;Abs&quot;</span><span class="p">:</span> <span class="s">&quot;fabs&quot;</span><span class="p">,</span>
+    <span class="s">&quot;ceiling&quot;</span><span class="p">:</span> <span class="s">&quot;ceil&quot;</span><span class="p">,</span>
+    <span class="s">&quot;E&quot;</span><span class="p">:</span> <span class="s">&quot;e&quot;</span><span class="p">,</span>
+    <span class="s">&quot;ln&quot;</span><span class="p">:</span> <span class="s">&quot;log&quot;</span><span class="p">,</span>
 <span class="p">}</span>
 
 <span class="n">MPMATH_TRANSLATIONS</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s2">&quot;Abs&quot;</span><span class="p">:</span> <span class="s2">&quot;fabs&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;elliptic_k&quot;</span><span class="p">:</span> <span class="s2">&quot;ellipk&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;elliptic_f&quot;</span><span class="p">:</span> <span class="s2">&quot;ellipf&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;elliptic_e&quot;</span><span class="p">:</span> <span class="s2">&quot;ellipe&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;elliptic_pi&quot;</span><span class="p">:</span> <span class="s2">&quot;ellippi&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;ceiling&quot;</span><span class="p">:</span> <span class="s2">&quot;ceil&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;chebyshevt&quot;</span><span class="p">:</span> <span class="s2">&quot;chebyt&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;chebyshevu&quot;</span><span class="p">:</span> <span class="s2">&quot;chebyu&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;E&quot;</span><span class="p">:</span> <span class="s2">&quot;e&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;I&quot;</span><span class="p">:</span> <span class="s2">&quot;j&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;ln&quot;</span><span class="p">:</span> <span class="s2">&quot;log&quot;</span><span class="p">,</span>
-    <span class="c1">#&quot;lowergamma&quot;:&quot;lower_gamma&quot;,</span>
-    <span class="s2">&quot;oo&quot;</span><span class="p">:</span> <span class="s2">&quot;inf&quot;</span><span class="p">,</span>
-    <span class="c1">#&quot;uppergamma&quot;:&quot;upper_gamma&quot;,</span>
-    <span class="s2">&quot;LambertW&quot;</span><span class="p">:</span> <span class="s2">&quot;lambertw&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;MutableDenseMatrix&quot;</span><span class="p">:</span> <span class="s2">&quot;matrix&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;ImmutableMatrix&quot;</span><span class="p">:</span> <span class="s2">&quot;matrix&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;conjugate&quot;</span><span class="p">:</span> <span class="s2">&quot;conj&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;dirichlet_eta&quot;</span><span class="p">:</span> <span class="s2">&quot;altzeta&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;Ei&quot;</span><span class="p">:</span> <span class="s2">&quot;ei&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;Shi&quot;</span><span class="p">:</span> <span class="s2">&quot;shi&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;Chi&quot;</span><span class="p">:</span> <span class="s2">&quot;chi&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;Si&quot;</span><span class="p">:</span> <span class="s2">&quot;si&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;Ci&quot;</span><span class="p">:</span> <span class="s2">&quot;ci&quot;</span>
+    <span class="s">&quot;Abs&quot;</span><span class="p">:</span> <span class="s">&quot;fabs&quot;</span><span class="p">,</span>
+    <span class="s">&quot;elliptic_k&quot;</span><span class="p">:</span> <span class="s">&quot;ellipk&quot;</span><span class="p">,</span>
+    <span class="s">&quot;elliptic_f&quot;</span><span class="p">:</span> <span class="s">&quot;ellipf&quot;</span><span class="p">,</span>
+    <span class="s">&quot;elliptic_e&quot;</span><span class="p">:</span> <span class="s">&quot;ellipe&quot;</span><span class="p">,</span>
+    <span class="s">&quot;elliptic_pi&quot;</span><span class="p">:</span> <span class="s">&quot;ellippi&quot;</span><span class="p">,</span>
+    <span class="s">&quot;ceiling&quot;</span><span class="p">:</span> <span class="s">&quot;ceil&quot;</span><span class="p">,</span>
+    <span class="s">&quot;chebyshevt&quot;</span><span class="p">:</span> <span class="s">&quot;chebyt&quot;</span><span class="p">,</span>
+    <span class="s">&quot;chebyshevu&quot;</span><span class="p">:</span> <span class="s">&quot;chebyu&quot;</span><span class="p">,</span>
+    <span class="s">&quot;E&quot;</span><span class="p">:</span> <span class="s">&quot;e&quot;</span><span class="p">,</span>
+    <span class="s">&quot;I&quot;</span><span class="p">:</span> <span class="s">&quot;j&quot;</span><span class="p">,</span>
+    <span class="s">&quot;ln&quot;</span><span class="p">:</span> <span class="s">&quot;log&quot;</span><span class="p">,</span>
+    <span class="c">#&quot;lowergamma&quot;:&quot;lower_gamma&quot;,</span>
+    <span class="s">&quot;oo&quot;</span><span class="p">:</span> <span class="s">&quot;inf&quot;</span><span class="p">,</span>
+    <span class="c">#&quot;uppergamma&quot;:&quot;upper_gamma&quot;,</span>
+    <span class="s">&quot;LambertW&quot;</span><span class="p">:</span> <span class="s">&quot;lambertw&quot;</span><span class="p">,</span>
+    <span class="s">&quot;MutableDenseMatrix&quot;</span><span class="p">:</span> <span class="s">&quot;matrix&quot;</span><span class="p">,</span>
+    <span class="s">&quot;ImmutableMatrix&quot;</span><span class="p">:</span> <span class="s">&quot;matrix&quot;</span><span class="p">,</span>
+    <span class="s">&quot;conjugate&quot;</span><span class="p">:</span> <span class="s">&quot;conj&quot;</span><span class="p">,</span>
+    <span class="s">&quot;dirichlet_eta&quot;</span><span class="p">:</span> <span class="s">&quot;altzeta&quot;</span><span class="p">,</span>
+    <span class="s">&quot;Ei&quot;</span><span class="p">:</span> <span class="s">&quot;ei&quot;</span><span class="p">,</span>
+    <span class="s">&quot;Shi&quot;</span><span class="p">:</span> <span class="s">&quot;shi&quot;</span><span class="p">,</span>
+    <span class="s">&quot;Chi&quot;</span><span class="p">:</span> <span class="s">&quot;chi&quot;</span><span class="p">,</span>
+    <span class="s">&quot;Si&quot;</span><span class="p">:</span> <span class="s">&quot;si&quot;</span><span class="p">,</span>
+    <span class="s">&quot;Ci&quot;</span><span class="p">:</span> <span class="s">&quot;ci&quot;</span>
 <span class="p">}</span>
 
 <span class="n">NUMPY_TRANSLATIONS</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s2">&quot;acos&quot;</span><span class="p">:</span> <span class="s2">&quot;arccos&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;acosh&quot;</span><span class="p">:</span> <span class="s2">&quot;arccosh&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;arg&quot;</span><span class="p">:</span> <span class="s2">&quot;angle&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;asin&quot;</span><span class="p">:</span> <span class="s2">&quot;arcsin&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;asinh&quot;</span><span class="p">:</span> <span class="s2">&quot;arcsinh&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;atan&quot;</span><span class="p">:</span> <span class="s2">&quot;arctan&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;atan2&quot;</span><span class="p">:</span> <span class="s2">&quot;arctan2&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;atanh&quot;</span><span class="p">:</span> <span class="s2">&quot;arctanh&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;ceiling&quot;</span><span class="p">:</span> <span class="s2">&quot;ceil&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;E&quot;</span><span class="p">:</span> <span class="s2">&quot;e&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;im&quot;</span><span class="p">:</span> <span class="s2">&quot;imag&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;ln&quot;</span><span class="p">:</span> <span class="s2">&quot;log&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;Mod&quot;</span><span class="p">:</span> <span class="s2">&quot;mod&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;oo&quot;</span><span class="p">:</span> <span class="s2">&quot;inf&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;re&quot;</span><span class="p">:</span> <span class="s2">&quot;real&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;SparseMatrix&quot;</span><span class="p">:</span> <span class="s2">&quot;array&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;ImmutableSparseMatrix&quot;</span><span class="p">:</span> <span class="s2">&quot;array&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;Matrix&quot;</span><span class="p">:</span> <span class="s2">&quot;array&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;MutableDenseMatrix&quot;</span><span class="p">:</span> <span class="s2">&quot;array&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;ImmutableMatrix&quot;</span><span class="p">:</span> <span class="s2">&quot;array&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;ImmutableDenseMatrix&quot;</span><span class="p">:</span> <span class="s2">&quot;array&quot;</span><span class="p">,</span>
+    <span class="s">&quot;Abs&quot;</span><span class="p">:</span> <span class="s">&quot;abs&quot;</span><span class="p">,</span>
+    <span class="s">&quot;acos&quot;</span><span class="p">:</span> <span class="s">&quot;arccos&quot;</span><span class="p">,</span>
+    <span class="s">&quot;acosh&quot;</span><span class="p">:</span> <span class="s">&quot;arccosh&quot;</span><span class="p">,</span>
+    <span class="s">&quot;arg&quot;</span><span class="p">:</span> <span class="s">&quot;angle&quot;</span><span class="p">,</span>
+    <span class="s">&quot;asin&quot;</span><span class="p">:</span> <span class="s">&quot;arcsin&quot;</span><span class="p">,</span>
+    <span class="s">&quot;asinh&quot;</span><span class="p">:</span> <span class="s">&quot;arcsinh&quot;</span><span class="p">,</span>
+    <span class="s">&quot;atan&quot;</span><span class="p">:</span> <span class="s">&quot;arctan&quot;</span><span class="p">,</span>
+    <span class="s">&quot;atan2&quot;</span><span class="p">:</span> <span class="s">&quot;arctan2&quot;</span><span class="p">,</span>
+    <span class="s">&quot;atanh&quot;</span><span class="p">:</span> <span class="s">&quot;arctanh&quot;</span><span class="p">,</span>
+    <span class="s">&quot;ceiling&quot;</span><span class="p">:</span> <span class="s">&quot;ceil&quot;</span><span class="p">,</span>
+    <span class="s">&quot;E&quot;</span><span class="p">:</span> <span class="s">&quot;e&quot;</span><span class="p">,</span>
+    <span class="s">&quot;im&quot;</span><span class="p">:</span> <span class="s">&quot;imag&quot;</span><span class="p">,</span>
+    <span class="s">&quot;ln&quot;</span><span class="p">:</span> <span class="s">&quot;log&quot;</span><span class="p">,</span>
+    <span class="s">&quot;MutableDenseMatrix&quot;</span><span class="p">:</span> <span class="s">&quot;matrix&quot;</span><span class="p">,</span>
+    <span class="s">&quot;ImmutableMatrix&quot;</span><span class="p">:</span> <span class="s">&quot;matrix&quot;</span><span class="p">,</span>
+    <span class="s">&quot;Max&quot;</span><span class="p">:</span> <span class="s">&quot;amax&quot;</span><span class="p">,</span>
+    <span class="s">&quot;Min&quot;</span><span class="p">:</span> <span class="s">&quot;amin&quot;</span><span class="p">,</span>
+    <span class="s">&quot;oo&quot;</span><span class="p">:</span> <span class="s">&quot;inf&quot;</span><span class="p">,</span>
+    <span class="s">&quot;re&quot;</span><span class="p">:</span> <span class="s">&quot;real&quot;</span><span class="p">,</span>
 <span class="p">}</span>
 
 <span class="n">NUMEXPR_TRANSLATIONS</span> <span class="o">=</span> <span class="p">{}</span>
 
-<span class="c1"># Available modules:</span>
+<span class="c"># Available modules:</span>
 <span class="n">MODULES</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s2">&quot;math&quot;</span><span class="p">:</span> <span class="p">(</span><span class="n">MATH</span><span class="p">,</span> <span class="n">MATH_DEFAULT</span><span class="p">,</span> <span class="n">MATH_TRANSLATIONS</span><span class="p">,</span> <span class="p">(</span><span class="s2">&quot;from math import *&quot;</span><span class="p">,)),</span>
-    <span class="s2">&quot;mpmath&quot;</span><span class="p">:</span> <span class="p">(</span><span class="n">MPMATH</span><span class="p">,</span> <span class="n">MPMATH_DEFAULT</span><span class="p">,</span> <span class="n">MPMATH_TRANSLATIONS</span><span class="p">,</span> <span class="p">(</span><span class="s2">&quot;from mpmath import *&quot;</span><span class="p">,)),</span>
-    <span class="s2">&quot;numpy&quot;</span><span class="p">:</span> <span class="p">(</span><span class="n">NUMPY</span><span class="p">,</span> <span class="n">NUMPY_DEFAULT</span><span class="p">,</span> <span class="n">NUMPY_TRANSLATIONS</span><span class="p">,</span> <span class="p">(</span><span class="s2">&quot;import_module(&#39;numpy&#39;)&quot;</span><span class="p">,)),</span>
-    <span class="s2">&quot;sympy&quot;</span><span class="p">:</span> <span class="p">(</span><span class="n">SYMPY</span><span class="p">,</span> <span class="n">SYMPY_DEFAULT</span><span class="p">,</span> <span class="p">{},</span> <span class="p">(</span>
-        <span class="s2">&quot;from sympy.functions import *&quot;</span><span class="p">,</span>
-        <span class="s2">&quot;from sympy.matrices import *&quot;</span><span class="p">,</span>
-        <span class="s2">&quot;from sympy import Integral, pi, oo, nan, zoo, E, I&quot;</span><span class="p">,)),</span>
-    <span class="s2">&quot;numexpr&quot;</span> <span class="p">:</span> <span class="p">(</span><span class="n">NUMEXPR</span><span class="p">,</span> <span class="n">NUMEXPR_DEFAULT</span><span class="p">,</span> <span class="n">NUMEXPR_TRANSLATIONS</span><span class="p">,</span>
-                 <span class="p">(</span><span class="s2">&quot;import_module(&#39;numexpr&#39;)&quot;</span><span class="p">,</span> <span class="p">)),</span>
+    <span class="s">&quot;math&quot;</span><span class="p">:</span> <span class="p">(</span><span class="n">MATH</span><span class="p">,</span> <span class="n">MATH_DEFAULT</span><span class="p">,</span> <span class="n">MATH_TRANSLATIONS</span><span class="p">,</span> <span class="p">(</span><span class="s">&quot;from math import *&quot;</span><span class="p">,)),</span>
+    <span class="s">&quot;mpmath&quot;</span><span class="p">:</span> <span class="p">(</span><span class="n">MPMATH</span><span class="p">,</span> <span class="n">MPMATH_DEFAULT</span><span class="p">,</span> <span class="n">MPMATH_TRANSLATIONS</span><span class="p">,</span> <span class="p">(</span><span class="s">&quot;from sympy.mpmath import *&quot;</span><span class="p">,)),</span>
+    <span class="s">&quot;numpy&quot;</span><span class="p">:</span> <span class="p">(</span><span class="n">NUMPY</span><span class="p">,</span> <span class="n">NUMPY_DEFAULT</span><span class="p">,</span> <span class="n">NUMPY_TRANSLATIONS</span><span class="p">,</span> <span class="p">(</span><span class="s">&quot;import_module(&#39;numpy&#39;)&quot;</span><span class="p">,)),</span>
+    <span class="s">&quot;sympy&quot;</span><span class="p">:</span> <span class="p">(</span><span class="n">SYMPY</span><span class="p">,</span> <span class="n">SYMPY_DEFAULT</span><span class="p">,</span> <span class="p">{},</span> <span class="p">(</span>
+        <span class="s">&quot;from sympy.functions import *&quot;</span><span class="p">,</span>
+        <span class="s">&quot;from sympy.matrices import *&quot;</span><span class="p">,</span>
+        <span class="s">&quot;from sympy import Integral, pi, oo, nan, zoo, E, I&quot;</span><span class="p">,)),</span>
+    <span class="s">&quot;numexpr&quot;</span> <span class="p">:</span> <span class="p">(</span><span class="n">NUMEXPR</span><span class="p">,</span> <span class="n">NUMEXPR_DEFAULT</span><span class="p">,</span> <span class="n">NUMEXPR_TRANSLATIONS</span><span class="p">,</span>
+                 <span class="p">(</span><span class="s">&quot;import_module(&#39;numexpr&#39;)&quot;</span><span class="p">,</span> <span class="p">)),</span>
 <span class="p">}</span>
 
 
-<span class="k">def</span> <span class="nf">_import</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="nb">reload</span><span class="o">=</span><span class="s2">&quot;False&quot;</span><span class="p">):</span>
+<span class="k">def</span> <span class="nf">_import</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="nb">reload</span><span class="o">=</span><span class="s">&quot;False&quot;</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Creates a global translation dictionary for module.</span>
 
@@ -172,17 +176,16 @@
 <span class="sd">    These dictionaries map names of python functions to their equivalent in</span>
 <span class="sd">    other modules.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="kn">from</span> <span class="nn">sympy.external</span> <span class="kn">import</span> <span class="n">import_module</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="n">namespace</span><span class="p">,</span> <span class="n">namespace_default</span><span class="p">,</span> <span class="n">translations</span><span class="p">,</span> <span class="n">import_commands</span> <span class="o">=</span> <span class="n">MODULES</span><span class="p">[</span>
             <span class="n">module</span><span class="p">]</span>
     <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">NameError</span><span class="p">(</span>
-            <span class="s2">&quot;&#39;</span><span class="si">%s</span><span class="s2">&#39; module can&#39;t be used for lambdification&quot;</span> <span class="o">%</span> <span class="n">module</span><span class="p">)</span>
+            <span class="s">&quot;&#39;</span><span class="si">%s</span><span class="s">&#39; module can&#39;t be used for lambdification&quot;</span> <span class="o">%</span> <span class="n">module</span><span class="p">)</span>
 
-    <span class="c1"># Clear namespace or exit</span>
+    <span class="c"># Clear namespace or exit</span>
     <span class="k">if</span> <span class="n">namespace</span> <span class="o">!=</span> <span class="n">namespace_default</span><span class="p">:</span>
-        <span class="c1"># The namespace was already generated, don&#39;t do it again if not forced.</span>
+        <span class="c"># The namespace was already generated, don&#39;t do it again if not forced.</span>
         <span class="k">if</span> <span class="nb">reload</span><span class="p">:</span>
             <span class="n">namespace</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
             <span class="n">namespace</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">namespace_default</span><span class="p">)</span>
@@ -190,7 +193,7 @@
             <span class="k">return</span>
 
     <span class="k">for</span> <span class="n">import_command</span> <span class="ow">in</span> <span class="n">import_commands</span><span class="p">:</span>
-        <span class="k">if</span> <span class="n">import_command</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;import_module&#39;</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">import_command</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s">&#39;import_module&#39;</span><span class="p">):</span>
             <span class="n">module</span> <span class="o">=</span> <span class="nb">eval</span><span class="p">(</span><span class="n">import_command</span><span class="p">)</span>
 
             <span class="k">if</span> <span class="n">module</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
@@ -204,26 +207,16 @@
                 <span class="k">pass</span>
 
         <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span>
-            <span class="s2">&quot;can&#39;t import &#39;</span><span class="si">%s</span><span class="s2">&#39; with &#39;</span><span class="si">%s</span><span class="s2">&#39; command&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">import_command</span><span class="p">))</span>
+            <span class="s">&quot;can&#39;t import &#39;</span><span class="si">%s</span><span class="s">&#39; with &#39;</span><span class="si">%s</span><span class="s">&#39; command&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">import_command</span><span class="p">))</span>
 
-    <span class="c1"># Add translated names to namespace</span>
+    <span class="c"># Add translated names to namespace</span>
     <span class="k">for</span> <span class="n">sympyname</span><span class="p">,</span> <span class="n">translation</span> <span class="ow">in</span> <span class="n">translations</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
         <span class="n">namespace</span><span class="p">[</span><span class="n">sympyname</span><span class="p">]</span> <span class="o">=</span> <span class="n">namespace</span><span class="p">[</span><span class="n">translation</span><span class="p">]</span>
 
-    <span class="c1"># For computing the modulus of a sympy expression we use the builtin abs</span>
-    <span class="c1"># function, instead of the previously used fabs function for all</span>
-    <span class="c1"># translation modules. This is because the fabs function in the math</span>
-    <span class="c1"># module does not accept complex valued arguments. (see issue 9474). The</span>
-    <span class="c1"># only exception, where we don&#39;t use the builtin abs function is the</span>
-    <span class="c1"># mpmath translation module, because mpmath.fabs returns mpf objects in</span>
-    <span class="c1"># contrast to abs().</span>
-    <span class="k">if</span> <span class="s1">&#39;Abs&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">namespace</span><span class="p">:</span>
-        <span class="n">namespace</span><span class="p">[</span><span class="s1">&#39;Abs&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">abs</span>
 
-
-<span class="nd">@doctest_depends_on</span><span class="p">(</span><span class="n">modules</span><span class="o">=</span><span class="p">(</span><span class="s1">&#39;numpy&#39;</span><span class="p">))</span>
+<span class="nd">@doctest_depends_on</span><span class="p">(</span><span class="n">modules</span><span class="o">=</span><span class="p">(</span><span class="s">&#39;numpy&#39;</span><span class="p">))</span>
 <div class="viewcode-block" id="lambdify"><a class="viewcode-back" href="../../../modules/utilities/lambdify.html#sympy.utilities.lambdify.lambdify">[docs]</a><span class="k">def</span> <span class="nf">lambdify</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">modules</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">printer</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">use_imps</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
-             <span class="n">dummify</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+        <span class="n">dummify</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Returns a lambda function for fast calculation of numerical values.</span>
 
@@ -253,19 +246,23 @@
 <span class="sd">    functions can be found at:</span>
 <span class="sd">    https://github.com/pydata/numexpr#supported-functions</span>
 
+<span class="sd">    Deprecation Warnings</span>
+<span class="sd">    ====================</span>
+
 <span class="sd">    In previous releases ``lambdify`` replaced ``Matrix`` with ``numpy.matrix``</span>
-<span class="sd">    by default. As of release 1.0 ``numpy.array`` is the default.</span>
-<span class="sd">    To get the old default behavior you must pass in ``[{&#39;ImmutableMatrix&#39;:</span>
-<span class="sd">    numpy.matrix}, &#39;numpy&#39;]`` to the ``modules`` kwarg.</span>
+<span class="sd">    by default. As of release 0.7.6 ``numpy.array`` is being transitioned to</span>
+<span class="sd">    the default. In release 0.7.7 this transition will be complete. For now, to</span>
+<span class="sd">    use the new default behavior you must pass in ``[{&#39;ImmutableMatrix&#39;:</span>
+<span class="sd">    numpy.array}, &#39;numpy&#39;]`` to the ``modules`` kwarg.</span>
 
 <span class="sd">    &gt;&gt;&gt; from sympy import lambdify, Matrix</span>
 <span class="sd">    &gt;&gt;&gt; from sympy.abc import x, y</span>
 <span class="sd">    &gt;&gt;&gt; import numpy</span>
-<span class="sd">    &gt;&gt;&gt; array2mat = [{&#39;ImmutableMatrix&#39;: numpy.matrix}, &#39;numpy&#39;]</span>
-<span class="sd">    &gt;&gt;&gt; f = lambdify((x, y), Matrix([x, y]), modules=array2mat)</span>
+<span class="sd">    &gt;&gt;&gt; mat2array = [{&#39;ImmutableMatrix&#39;: numpy.array}, &#39;numpy&#39;]</span>
+<span class="sd">    &gt;&gt;&gt; f = lambdify((x, y), Matrix([x, y]), modules=mat2array)</span>
 <span class="sd">    &gt;&gt;&gt; f(1, 2)</span>
-<span class="sd">    matrix([[1],</span>
-<span class="sd">            [2]])</span>
+<span class="sd">    array([[1],</span>
+<span class="sd">           [2]])</span>
 
 <span class="sd">    Usage</span>
 <span class="sd">    =====</span>
@@ -365,105 +362,114 @@
     <span class="kn">from</span> <span class="nn">sympy.core.symbol</span> <span class="kn">import</span> <span class="n">Symbol</span>
     <span class="kn">from</span> <span class="nn">sympy.utilities.iterables</span> <span class="kn">import</span> <span class="n">flatten</span>
 
-    <span class="c1"># If the user hasn&#39;t specified any modules, use what is available.</span>
+    <span class="c"># If the user hasn&#39;t specified any modules, use what is available.</span>
     <span class="n">module_provided</span> <span class="o">=</span> <span class="bp">True</span>
     <span class="k">if</span> <span class="n">modules</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
         <span class="n">module_provided</span> <span class="o">=</span> <span class="bp">False</span>
-        <span class="c1"># Use either numpy (if available) or python.math where possible.</span>
-        <span class="c1"># XXX: This leads to different behaviour on different systems and</span>
-        <span class="c1">#      might be the reason for irreproducible errors.</span>
-        <span class="n">modules</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;math&quot;</span><span class="p">,</span> <span class="s2">&quot;mpmath&quot;</span><span class="p">,</span> <span class="s2">&quot;sympy&quot;</span><span class="p">]</span>
+        <span class="c"># Use either numpy (if available) or python.math where possible.</span>
+        <span class="c"># XXX: This leads to different behaviour on different systems and</span>
+        <span class="c">#      might be the reason for irreproducible errors.</span>
+        <span class="n">modules</span> <span class="o">=</span> <span class="p">[</span><span class="s">&quot;math&quot;</span><span class="p">,</span> <span class="s">&quot;mpmath&quot;</span><span class="p">,</span> <span class="s">&quot;sympy&quot;</span><span class="p">]</span>
 
-        <span class="c1">#Attempt to import numpy</span>
+        <span class="c">#Attempt to import numpy</span>
         <span class="k">try</span><span class="p">:</span>
-            <span class="n">_import</span><span class="p">(</span><span class="s2">&quot;numpy&quot;</span><span class="p">)</span>
+            <span class="n">_import</span><span class="p">(</span><span class="s">&quot;numpy&quot;</span><span class="p">)</span>
         <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
             <span class="k">pass</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">modules</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;numpy&quot;</span><span class="p">)</span>
+            <span class="n">modules</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s">&quot;numpy&quot;</span><span class="p">)</span>
 
-    <span class="c1"># Get the needed namespaces.</span>
+    <span class="c"># Get the needed namespaces.</span>
     <span class="n">namespaces</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="c1"># First find any function implementations</span>
+    <span class="c"># First find any function implementations</span>
     <span class="k">if</span> <span class="n">use_imps</span><span class="p">:</span>
         <span class="n">namespaces</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">_imp_namespace</span><span class="p">(</span><span class="n">expr</span><span class="p">))</span>
-    <span class="c1"># Check for dict before iterating</span>
-    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">modules</span><span class="p">,</span> <span class="p">(</span><span class="nb">dict</span><span class="p">,</span> <span class="nb">str</span><span class="p">))</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">modules</span><span class="p">,</span> <span class="s1">&#39;__iter__&#39;</span><span class="p">):</span>
+    <span class="c"># Check for dict before iterating</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">modules</span><span class="p">,</span> <span class="p">(</span><span class="nb">dict</span><span class="p">,</span> <span class="nb">str</span><span class="p">))</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">modules</span><span class="p">,</span> <span class="s">&#39;__iter__&#39;</span><span class="p">):</span>
         <span class="n">namespaces</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">modules</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="c1"># consistency check</span>
-        <span class="k">if</span> <span class="n">_module_present</span><span class="p">(</span><span class="s1">&#39;numexpr&#39;</span><span class="p">,</span> <span class="n">modules</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">modules</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;numexpr must be the only item in &#39;modules&#39;&quot;</span><span class="p">)</span>
+        <span class="c"># consistency check</span>
+        <span class="k">if</span> <span class="s">&#39;numexpr&#39;</span> <span class="ow">in</span> <span class="n">modules</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">modules</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s">&quot;numexpr must be the only item in &#39;modules&#39;&quot;</span><span class="p">)</span>
         <span class="n">namespaces</span> <span class="o">+=</span> <span class="nb">list</span><span class="p">(</span><span class="n">modules</span><span class="p">)</span>
-    <span class="c1"># fill namespace with first having highest priority</span>
+    <span class="c"># fill namespace with first having highest priority</span>
     <span class="n">namespace</span> <span class="o">=</span> <span class="p">{}</span>
     <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">namespaces</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span>
         <span class="n">buf</span> <span class="o">=</span> <span class="n">_get_namespace</span><span class="p">(</span><span class="n">m</span><span class="p">)</span>
         <span class="n">namespace</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">buf</span><span class="p">)</span>
+    <span class="n">_issue_7853_dep_check</span><span class="p">(</span><span class="n">namespaces</span><span class="p">,</span> <span class="n">namespace</span><span class="p">,</span> <span class="n">expr</span><span class="p">)</span>
 
-    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="s2">&quot;atoms&quot;</span><span class="p">):</span>
-        <span class="c1">#Try if you can extract symbols from the expression.</span>
-        <span class="c1">#Move on if expr.atoms in not implemented.</span>
+    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="s">&quot;atoms&quot;</span><span class="p">):</span>
+        <span class="c">#Try if you can extract symbols from the expression.</span>
+        <span class="c">#Move on if expr.atoms in not implemented.</span>
         <span class="n">syms</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">atoms</span><span class="p">(</span><span class="n">Symbol</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">term</span> <span class="ow">in</span> <span class="n">syms</span><span class="p">:</span>
             <span class="n">namespace</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="nb">str</span><span class="p">(</span><span class="n">term</span><span class="p">):</span> <span class="n">term</span><span class="p">})</span>
 
-    <span class="k">if</span> <span class="n">_module_present</span><span class="p">(</span><span class="s1">&#39;numpy&#39;</span><span class="p">,</span><span class="n">namespaces</span><span class="p">)</span> <span class="ow">and</span> <span class="n">printer</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
-        <span class="c1">#XXX: This has to be done here because of circular imports</span>
-        <span class="kn">from</span> <span class="nn">sympy.printing.lambdarepr</span> <span class="kn">import</span> <span class="n">NumPyPrinter</span> <span class="k">as</span> <span class="n">printer</span>
-
-    <span class="k">if</span> <span class="n">_module_present</span><span class="p">(</span><span class="s1">&#39;numexpr&#39;</span><span class="p">,</span><span class="n">namespaces</span><span class="p">)</span> <span class="ow">and</span> <span class="n">printer</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
-        <span class="c1">#XXX: This has to be done here because of circular imports</span>
+    <span class="k">if</span> <span class="s">&#39;numexpr&#39;</span> <span class="ow">in</span> <span class="n">namespaces</span> <span class="ow">and</span> <span class="n">printer</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="c">#XXX: This has to be done here because of circular imports</span>
         <span class="kn">from</span> <span class="nn">sympy.printing.lambdarepr</span> <span class="kn">import</span> <span class="n">NumExprPrinter</span> <span class="k">as</span> <span class="n">printer</span>
 
-    <span class="c1"># Get the names of the args, for creating a docstring</span>
+    <span class="c"># Get the names of the args, for creating a docstring</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">iterable</span><span class="p">(</span><span class="n">args</span><span class="p">):</span>
         <span class="n">args</span> <span class="o">=</span> <span class="p">(</span><span class="n">args</span><span class="p">,)</span>
     <span class="n">names</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="c1"># Grab the callers frame, for getting the names by inspection (if needed)</span>
+    <span class="c"># Grab the callers frame, for getting the names by inspection (if needed)</span>
     <span class="n">callers_local_vars</span> <span class="o">=</span> <span class="n">inspect</span><span class="o">.</span><span class="n">currentframe</span><span class="p">()</span><span class="o">.</span><span class="n">f_back</span><span class="o">.</span><span class="n">f_locals</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
     <span class="k">for</span> <span class="n">n</span><span class="p">,</span> <span class="n">var</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">args</span><span class="p">):</span>
-        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="s1">&#39;name&#39;</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="s">&#39;name&#39;</span><span class="p">):</span>
             <span class="n">names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">var</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="c1"># It&#39;s an iterable. Try to get name by inspection of calling frame.</span>
+            <span class="c"># It&#39;s an iterable. Try to get name by inspection of calling frame.</span>
             <span class="n">name_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">var_name</span> <span class="k">for</span> <span class="n">var_name</span><span class="p">,</span> <span class="n">var_val</span> <span class="ow">in</span> <span class="n">callers_local_vars</span>
                     <span class="k">if</span> <span class="n">var_val</span> <span class="ow">is</span> <span class="n">var</span><span class="p">]</span>
             <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">name_list</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
                 <span class="n">names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">name_list</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="c1"># Cannot infer name with certainty. arg_# will have to do.</span>
-                <span class="n">names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;arg_&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">n</span><span class="p">))</span>
+                <span class="c"># Cannot infer name with certainty. arg_# will have to do.</span>
+                <span class="n">names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s">&#39;arg_&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">n</span><span class="p">))</span>
 
-    <span class="c1"># Create lambda function.</span>
+    <span class="c"># Create lambda function.</span>
     <span class="n">lstr</span> <span class="o">=</span> <span class="n">lambdastr</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">printer</span><span class="o">=</span><span class="n">printer</span><span class="p">,</span> <span class="n">dummify</span><span class="o">=</span><span class="n">dummify</span><span class="p">)</span>
-    <span class="n">flat</span> <span class="o">=</span> <span class="s1">&#39;__flatten_args__&#39;</span>
+    <span class="n">flat</span> <span class="o">=</span> <span class="s">&#39;__flatten_args__&#39;</span>
 
     <span class="k">if</span> <span class="n">flat</span> <span class="ow">in</span> <span class="n">lstr</span><span class="p">:</span>
+        <span class="kn">import</span> <span class="nn">itertools</span>
         <span class="n">namespace</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">flat</span><span class="p">:</span> <span class="n">flatten</span><span class="p">})</span>
-
-    <span class="c1"># Provide lambda expression with builtins, and compatible implementation of range</span>
-    <span class="n">namespace</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s1">&#39;builtins&#39;</span><span class="p">:</span><span class="n">builtins</span><span class="p">,</span> <span class="s1">&#39;range&#39;</span><span class="p">:</span><span class="nb">range</span><span class="p">})</span>
-
     <span class="n">func</span> <span class="o">=</span> <span class="nb">eval</span><span class="p">(</span><span class="n">lstr</span><span class="p">,</span> <span class="n">namespace</span><span class="p">)</span>
-    <span class="c1"># Apply the docstring</span>
-    <span class="n">sig</span> <span class="o">=</span> <span class="s2">&quot;func({0})&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">names</span><span class="p">))</span>
-    <span class="n">sig</span> <span class="o">=</span> <span class="n">textwrap</span><span class="o">.</span><span class="n">fill</span><span class="p">(</span><span class="n">sig</span><span class="p">,</span> <span class="n">subsequent_indent</span><span class="o">=</span><span class="s1">&#39; &#39;</span><span class="o">*</span><span class="mi">8</span><span class="p">)</span>
+    <span class="c"># Apply the docstring</span>
+    <span class="n">sig</span> <span class="o">=</span> <span class="s">&quot;func({0})&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="s">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">names</span><span class="p">))</span>
+    <span class="n">sig</span> <span class="o">=</span> <span class="n">textwrap</span><span class="o">.</span><span class="n">fill</span><span class="p">(</span><span class="n">sig</span><span class="p">,</span> <span class="n">subsequent_indent</span><span class="o">=</span><span class="s">&#39; &#39;</span><span class="o">*</span><span class="mi">8</span><span class="p">)</span>
     <span class="n">expr_str</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
     <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">expr_str</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">78</span><span class="p">:</span>
-        <span class="n">expr_str</span> <span class="o">=</span> <span class="n">textwrap</span><span class="o">.</span><span class="n">wrap</span><span class="p">(</span><span class="n">expr_str</span><span class="p">,</span> <span class="mi">75</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;...&#39;</span>
-    <span class="n">func</span><span class="o">.</span><span class="n">__doc__</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;Created with lambdify. Signature:</span><span class="se">\n\n</span><span class="s2">{sig}</span><span class="se">\n\n</span><span class="s2">&quot;</span>
-                    <span class="s2">&quot;Expression:</span><span class="se">\n\n</span><span class="s2">{expr}&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">sig</span><span class="o">=</span><span class="n">sig</span><span class="p">,</span> <span class="n">expr</span><span class="o">=</span><span class="n">expr_str</span><span class="p">)</span>
+        <span class="n">expr_str</span> <span class="o">=</span> <span class="n">textwrap</span><span class="o">.</span><span class="n">wrap</span><span class="p">(</span><span class="n">expr_str</span><span class="p">,</span> <span class="mi">75</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="s">&#39;...&#39;</span>
+    <span class="n">func</span><span class="o">.</span><span class="n">__doc__</span> <span class="o">=</span> <span class="p">(</span><span class="s">&quot;Created with lambdify. Signature:</span><span class="se">\n\n</span><span class="s">{sig}</span><span class="se">\n\n</span><span class="s">&quot;</span>
+                    <span class="s">&quot;Expression:</span><span class="se">\n\n</span><span class="s">{expr}&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">sig</span><span class="o">=</span><span class="n">sig</span><span class="p">,</span> <span class="n">expr</span><span class="o">=</span><span class="n">expr_str</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">func</span>
 </div>
-<span class="k">def</span> <span class="nf">_module_present</span><span class="p">(</span><span class="n">modname</span><span class="p">,</span> <span class="n">modlist</span><span class="p">):</span>
-    <span class="k">if</span> <span class="n">modname</span> <span class="ow">in</span> <span class="n">modlist</span><span class="p">:</span>
-        <span class="k">return</span> <span class="bp">True</span>
-    <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">modlist</span><span class="p">:</span>
-        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="s1">&#39;__name__&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">m</span><span class="o">.</span><span class="n">__name__</span> <span class="o">==</span> <span class="n">modname</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">True</span>
-    <span class="k">return</span> <span class="bp">False</span>
+<span class="k">def</span> <span class="nf">_issue_7853_dep_check</span><span class="p">(</span><span class="n">namespaces</span><span class="p">,</span> <span class="n">namespace</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Used for checking things passed into modules kwarg for deprecation</span>
+<span class="sd">    issue #7853. This function and the call to it in lambdify should be</span>
+<span class="sd">    deleted once the cycle has ended.&quot;&quot;&quot;</span>
 
+    <span class="c"># If some module changed `ImmutableMatrix` to be something else</span>
+    <span class="n">mat</span> <span class="o">=</span> <span class="n">namespace</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;ImmutableMatrix&#39;</span><span class="p">,</span> <span class="bp">False</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">mat</span> <span class="ow">or</span> <span class="s">&#39;numpy&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">namespaces</span> <span class="ow">or</span> <span class="p">(</span><span class="s">&#39;</span><span class="si">%s</span><span class="s">.</span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">mat</span><span class="o">.</span><span class="n">__module__</span><span class="p">,</span>
+            <span class="n">mat</span><span class="o">.</span><span class="n">__name__</span><span class="p">)</span> <span class="o">==</span> <span class="s">&#39;numpy.matrixlib.defmatrix.matrix&#39;</span><span class="p">):</span>
+        <span class="k">return</span>
+    <span class="n">dicts</span> <span class="o">=</span> <span class="p">[</span><span class="n">m</span> <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">namespaces</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)]</span>
+    <span class="n">test</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">expr</span><span class="p">:</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="s">&#39;is_Matrix&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Matrix</span>
+    <span class="k">if</span> <span class="n">test</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="p">[</span><span class="n">d</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">dicts</span> <span class="k">if</span> <span class="s">&#39;ImmutableMatrix&#39;</span> <span class="ow">in</span> <span class="n">d</span><span class="p">]:</span>
+        <span class="n">SymPyDeprecationWarning</span><span class="p">(</span>
+                <span class="s">&quot;Currently, `sympy.Matrix` is replaced with `numpy.matrix` if &quot;</span>
+                <span class="s">&quot;the NumPy package is utilized in lambdify. In future versions &quot;</span>
+                <span class="s">&quot;of SymPy (&gt; 0.7.6), we will default to replacing &quot;</span>
+                <span class="s">&quot;`sympy.Matrix` with `numpy.array`. To use the future &quot;</span>
+                <span class="s">&quot;behavior now, supply the kwarg &quot;</span>
+                <span class="s">&quot;`modules=[{&#39;ImmutableMatrix&#39;: numpy.array}, &#39;numpy&#39;]`. &quot;</span>
+                <span class="s">&quot;The old behavior can be retained in future versions by &quot;</span>
+                <span class="s">&quot;supplying `modules=[{&#39;ImmutableMatrix&#39;: numpy.matrix}, &quot;</span>
+                <span class="s">&quot;&#39;numpy&#39;]`.&quot;</span><span class="p">,</span> <span class="n">issue</span><span class="o">=</span><span class="mi">7853</span><span class="p">)</span><span class="o">.</span><span class="n">warn</span><span class="p">()</span>
 
 <span class="k">def</span> <span class="nf">_get_namespace</span><span class="p">(</span><span class="n">m</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
@@ -474,10 +480,10 @@
         <span class="k">return</span> <span class="n">MODULES</span><span class="p">[</span><span class="n">m</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
     <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">m</span>
-    <span class="k">elif</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="s2">&quot;__dict__&quot;</span><span class="p">):</span>
+    <span class="k">elif</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="s">&quot;__dict__&quot;</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">m</span><span class="o">.</span><span class="n">__dict__</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Argument must be either a string, dict or module but it is: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">m</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s">&quot;Argument must be either a string, dict or module but it is: </span><span class="si">%s</span><span class="s">&quot;</span> <span class="o">%</span> <span class="n">m</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="lambdastr"><a class="viewcode-back" href="../../../modules/utilities/lambdify.html#sympy.utilities.lambdify.lambdastr">[docs]</a><span class="k">def</span> <span class="nf">lambdastr</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">printer</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">dummify</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
@@ -501,7 +507,7 @@
 <span class="sd">    &gt;&gt;&gt; lambdastr((x, (y, z)), x + y)</span>
 <span class="sd">    &#39;lambda _0,_1: (lambda x,y,z: (x + y))(*list(__flatten_args__([_0,_1])))&#39;</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="c1"># Transforming everything to strings.</span>
+    <span class="c"># Transforming everything to strings.</span>
     <span class="kn">from</span> <span class="nn">sympy.matrices</span> <span class="kn">import</span> <span class="n">DeferredVector</span>
     <span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">Dummy</span><span class="p">,</span> <span class="n">sympify</span><span class="p">,</span> <span class="n">Symbol</span><span class="p">,</span> <span class="n">Function</span><span class="p">,</span> <span class="n">flatten</span>
 
@@ -514,7 +520,7 @@
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">lambdarepr</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">expr</span><span class="p">:</span> <span class="n">printer</span><span class="o">.</span><span class="n">doprint</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="c1">#XXX: This has to be done here because of circular imports</span>
+        <span class="c">#XXX: This has to be done here because of circular imports</span>
         <span class="kn">from</span> <span class="nn">sympy.printing.lambdarepr</span> <span class="kn">import</span> <span class="n">lambdarepr</span>
 
     <span class="k">def</span> <span class="nf">sub_args</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">dummies_dict</span><span class="p">):</span>
@@ -524,9 +530,9 @@
             <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
         <span class="k">elif</span> <span class="n">iterable</span><span class="p">(</span><span class="n">args</span><span class="p">):</span>
             <span class="n">dummies</span> <span class="o">=</span> <span class="n">flatten</span><span class="p">([</span><span class="n">sub_args</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">dummies_dict</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">args</span><span class="p">])</span>
-            <span class="k">return</span> <span class="s2">&quot;,&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">dummies</span><span class="p">)</span>
+            <span class="k">return</span> <span class="s">&quot;,&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">dummies</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="c1">#Sub in dummy variables for functions or symbols</span>
+            <span class="c">#Sub in dummy variables for functions or symbols</span>
             <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="p">(</span><span class="n">Function</span><span class="p">,</span> <span class="n">Symbol</span><span class="p">)):</span>
                 <span class="n">dummies</span> <span class="o">=</span> <span class="n">Dummy</span><span class="p">()</span>
                 <span class="n">dummies_dict</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">args</span> <span class="p">:</span> <span class="n">dummies</span><span class="p">})</span>
@@ -550,7 +556,7 @@
                 <span class="n">expr</span> <span class="o">=</span> <span class="p">[</span><span class="n">sub_expr</span><span class="p">(</span><span class="n">sympify</span><span class="p">(</span><span class="n">a</span><span class="p">),</span> <span class="n">dummies_dict</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">expr</span><span class="p">]</span>
         <span class="k">return</span> <span class="n">expr</span>
 
-    <span class="c1"># Transform args</span>
+    <span class="c"># Transform args</span>
     <span class="k">def</span> <span class="nf">isiter</span><span class="p">(</span><span class="n">l</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">iterable</span><span class="p">(</span><span class="n">l</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="n">DeferredVector</span><span class="p">))</span>
 
@@ -558,14 +564,14 @@
         <span class="kn">from</span> <span class="nn">sympy.utilities.iterables</span> <span class="kn">import</span> <span class="n">flatten</span>
         <span class="kn">import</span> <span class="nn">re</span>
         <span class="n">dum_args</span> <span class="o">=</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">Dummy</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">)))</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">))]</span>
-        <span class="n">iter_args</span> <span class="o">=</span> <span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">i</span> <span class="k">if</span> <span class="n">isiter</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="k">else</span> <span class="n">i</span>
+        <span class="n">iter_args</span> <span class="o">=</span> <span class="s">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">i</span> <span class="k">if</span> <span class="n">isiter</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="k">else</span> <span class="n">i</span>
             <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">a</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">dum_args</span><span class="p">,</span> <span class="n">args</span><span class="p">)])</span>
         <span class="n">lstr</span> <span class="o">=</span> <span class="n">lambdastr</span><span class="p">(</span><span class="n">flatten</span><span class="p">(</span><span class="n">args</span><span class="p">),</span> <span class="n">expr</span><span class="p">,</span> <span class="n">printer</span><span class="o">=</span><span class="n">printer</span><span class="p">,</span> <span class="n">dummify</span><span class="o">=</span><span class="n">dummify</span><span class="p">)</span>
-        <span class="n">flat</span> <span class="o">=</span> <span class="s1">&#39;__flatten_args__&#39;</span>
-        <span class="n">rv</span> <span class="o">=</span> <span class="s1">&#39;lambda </span><span class="si">%s</span><span class="s1">: (</span><span class="si">%s</span><span class="s1">)(*list(</span><span class="si">%s</span><span class="s1">([</span><span class="si">%s</span><span class="s1">])))&#39;</span> <span class="o">%</span> <span class="p">(</span>
-            <span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">dum_args</span><span class="p">),</span> <span class="n">lstr</span><span class="p">,</span> <span class="n">flat</span><span class="p">,</span> <span class="n">iter_args</span><span class="p">)</span>
-        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="s1">r&#39;\b</span><span class="si">%s</span><span class="s1">\b&#39;</span> <span class="o">%</span> <span class="n">flat</span><span class="p">,</span> <span class="n">rv</span><span class="p">))</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;the name </span><span class="si">%s</span><span class="s1"> is reserved by lambdastr&#39;</span> <span class="o">%</span> <span class="n">flat</span><span class="p">)</span>
+        <span class="n">flat</span> <span class="o">=</span> <span class="s">&#39;__flatten_args__&#39;</span>
+        <span class="n">rv</span> <span class="o">=</span> <span class="s">&#39;lambda </span><span class="si">%s</span><span class="s">: (</span><span class="si">%s</span><span class="s">)(*list(</span><span class="si">%s</span><span class="s">([</span><span class="si">%s</span><span class="s">])))&#39;</span> <span class="o">%</span> <span class="p">(</span>
+            <span class="s">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">dum_args</span><span class="p">),</span> <span class="n">lstr</span><span class="p">,</span> <span class="n">flat</span><span class="p">,</span> <span class="n">iter_args</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="s">r&#39;\b</span><span class="si">%s</span><span class="s">\b&#39;</span> <span class="o">%</span> <span class="n">flat</span><span class="p">,</span> <span class="n">rv</span><span class="p">))</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;the name </span><span class="si">%s</span><span class="s"> is reserved by lambdastr&#39;</span> <span class="o">%</span> <span class="n">flat</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">rv</span>
 
     <span class="n">dummies_dict</span> <span class="o">=</span> <span class="p">{}</span>
@@ -575,9 +581,9 @@
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
             <span class="k">pass</span>
         <span class="k">elif</span> <span class="n">iterable</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="n">DeferredVector</span><span class="p">):</span>
-            <span class="n">args</span> <span class="o">=</span> <span class="s2">&quot;,&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">args</span><span class="p">)</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="s">&quot;,&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">args</span><span class="p">)</span>
 
-    <span class="c1"># Transform expr</span>
+    <span class="c"># Transform expr</span>
     <span class="k">if</span> <span class="n">dummify</span><span class="p">:</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
             <span class="k">pass</span>
@@ -585,7 +591,7 @@
             <span class="n">expr</span> <span class="o">=</span> <span class="n">sub_expr</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">dummies_dict</span><span class="p">)</span>
     <span class="n">expr</span> <span class="o">=</span> <span class="n">lambdarepr</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
 
-    <span class="k">return</span> <span class="s2">&quot;lambda </span><span class="si">%s</span><span class="s2">: (</span><span class="si">%s</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">expr</span><span class="p">)</span>
+    <span class="k">return</span> <span class="s">&quot;lambda </span><span class="si">%s</span><span class="s">: (</span><span class="si">%s</span><span class="s">)&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">expr</span><span class="p">)</span>
 
 </div>
 <span class="k">def</span> <span class="nf">_imp_namespace</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">namespace</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
@@ -612,8 +618,7 @@
 <span class="sd">       function</span>
 
 <span class="sd">    Examples</span>
-<span class="sd">    ========</span>
-
+<span class="sd">    --------</span>
 <span class="sd">    &gt;&gt;&gt; from sympy.abc import x</span>
 <span class="sd">    &gt;&gt;&gt; from sympy.utilities.lambdify import implemented_function, _imp_namespace</span>
 <span class="sd">    &gt;&gt;&gt; from sympy import Function</span>
@@ -623,34 +628,34 @@
 <span class="sd">    &gt;&gt;&gt; sorted(namespace.keys())</span>
 <span class="sd">    [&#39;f&#39;, &#39;g&#39;]</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="c1"># Delayed import to avoid circular imports</span>
+    <span class="c"># Delayed import to avoid circular imports</span>
     <span class="kn">from</span> <span class="nn">sympy.core.function</span> <span class="kn">import</span> <span class="n">FunctionClass</span>
     <span class="k">if</span> <span class="n">namespace</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
         <span class="n">namespace</span> <span class="o">=</span> <span class="p">{}</span>
-    <span class="c1"># tuples, lists, dicts are valid expressions</span>
+    <span class="c"># tuples, lists, dicts are valid expressions</span>
     <span class="k">if</span> <span class="n">is_sequence</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
         <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">expr</span><span class="p">:</span>
             <span class="n">_imp_namespace</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">namespace</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">namespace</span>
     <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
         <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-            <span class="c1"># functions can be in dictionary keys</span>
+            <span class="c"># functions can be in dictionary keys</span>
             <span class="n">_imp_namespace</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">namespace</span><span class="p">)</span>
             <span class="n">_imp_namespace</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="n">namespace</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">namespace</span>
-    <span class="c1"># sympy expressions may be Functions themselves</span>
-    <span class="n">func</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="s1">&#39;func&#39;</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+    <span class="c"># sympy expressions may be Functions themselves</span>
+    <span class="n">func</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="s">&#39;func&#39;</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="n">FunctionClass</span><span class="p">):</span>
-        <span class="n">imp</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="s1">&#39;_imp_&#39;</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+        <span class="n">imp</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="s">&#39;_imp_&#39;</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">imp</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
             <span class="n">name</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="n">__name__</span>
             <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">namespace</span> <span class="ow">and</span> <span class="n">namespace</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">!=</span> <span class="n">imp</span><span class="p">:</span>
-                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;We found more than one &#39;</span>
-                                 <span class="s1">&#39;implementation with name &#39;</span>
-                                 <span class="s1">&#39;&quot;</span><span class="si">%s</span><span class="s1">&quot;&#39;</span> <span class="o">%</span> <span class="n">name</span><span class="p">)</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;We found more than one &#39;</span>
+                                 <span class="s">&#39;implementation with name &#39;</span>
+                                 <span class="s">&#39;&quot;</span><span class="si">%s</span><span class="s">&quot;&#39;</span> <span class="o">%</span> <span class="n">name</span><span class="p">)</span>
             <span class="n">namespace</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">imp</span>
-    <span class="c1"># and / or they may take Functions as arguments</span>
-    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="s1">&#39;args&#39;</span><span class="p">):</span>
+    <span class="c"># and / or they may take Functions as arguments</span>
+    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="s">&#39;args&#39;</span><span class="p">):</span>
         <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
             <span class="n">_imp_namespace</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">namespace</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">namespace</span>
@@ -682,8 +687,7 @@
 <span class="sd">       function with attached implementation</span>
 
 <span class="sd">    Examples</span>
-<span class="sd">    ========</span>
-
+<span class="sd">    --------</span>
 <span class="sd">    &gt;&gt;&gt; from sympy.abc import x</span>
 <span class="sd">    &gt;&gt;&gt; from sympy.utilities.lambdify import lambdify, implemented_function</span>
 <span class="sd">    &gt;&gt;&gt; from sympy import Function</span>
@@ -692,15 +696,15 @@
 <span class="sd">    &gt;&gt;&gt; lam_f(4)</span>
 <span class="sd">    5</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="c1"># Delayed import to avoid circular imports</span>
+    <span class="c"># Delayed import to avoid circular imports</span>
     <span class="kn">from</span> <span class="nn">sympy.core.function</span> <span class="kn">import</span> <span class="n">UndefinedFunction</span>
-    <span class="c1"># if name, create function to hold implementation</span>
+    <span class="c"># if name, create function to hold implementation</span>
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">symfunc</span><span class="p">,</span> <span class="n">string_types</span><span class="p">):</span>
         <span class="n">symfunc</span> <span class="o">=</span> <span class="n">UndefinedFunction</span><span class="p">(</span><span class="n">symfunc</span><span class="p">)</span>
     <span class="k">elif</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">symfunc</span><span class="p">,</span> <span class="n">UndefinedFunction</span><span class="p">):</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;symfunc should be either a string or&#39;</span>
-                         <span class="s1">&#39; an UndefinedFunction instance.&#39;</span><span class="p">)</span>
-    <span class="c1"># We need to attach as a method because symfunc will be a class</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&#39;symfunc should be either a string or&#39;</span>
+                         <span class="s">&#39; an UndefinedFunction instance.&#39;</span><span class="p">)</span>
+    <span class="c"># We need to attach as a method because symfunc will be a class</span>
     <span class="n">symfunc</span><span class="o">.</span><span class="n">_imp_</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">implementation</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">symfunc</span></div>
 </pre></div>
@@ -739,13 +743,14 @@
         <li class="right" >
           <a href="../../../py-modindex.html" title="Python Module Index"
              >modules</a> |</li>
-        <li><a href="../../../index.html">SymPy 1.0 documentation</a> &raquo;</li>
-          <li><a href="../../index.html" >Module code</a> &raquo;</li> 
+        <li><a href="../../../index.html">SymPy 0.7.6.1 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li>
+          <li><a href="../../sympy.html" >sympy</a> &raquo;</li> 
       </ul>
     </div>
     <div class="footer">
-        &copy; Copyright 2015 SymPy Development Team.
-      Last updated on Mar 08, 2016.
+        &copy; Copyright 2014 SymPy Development Team.
+      Last updated on Sep 03, 2015.
       Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
     </div>
   </body>

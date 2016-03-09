@@ -8,7 +8,7 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>sympy.simplify.cse_main &mdash; SymPy 1.0 documentation</title>
+    <title>sympy.simplify.cse_main &mdash; SymPy 0.7.6.1 documentation</title>
     
     <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
@@ -19,7 +19,7 @@
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../../../',
-        VERSION:     '1.0',
+        VERSION:     '0.7.6.1',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -34,9 +34,10 @@
     <script type="text/javascript" src="http://live.sympy.org/static/live-core.js"></script>
     <script type="text/javascript" src="http://live.sympy.org/static/live-autocomplete.js"></script>
     <script type="text/javascript" src="http://live.sympy.org/static/live-sphinx.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
     <link rel="shortcut icon" href="../../../_static/sympy-notailtext-favicon.ico"/>
-    <link rel="top" title="SymPy 1.0 documentation" href="../../../index.html" />
-    <link rel="up" title="Module code" href="../../index.html" /> 
+    <link rel="top" title="SymPy 0.7.6.1 documentation" href="../../../index.html" />
+    <link rel="up" title="sympy" href="../../sympy.html" /> 
   </head>
   <body>
     <div class="related">
@@ -48,8 +49,9 @@
         <li class="right" >
           <a href="../../../py-modindex.html" title="Python Module Index"
              >modules</a> |</li>
-        <li><a href="../../../index.html">SymPy 1.0 documentation</a> &raquo;</li>
-          <li><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+        <li><a href="../../../index.html">SymPy 0.7.6.1 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li>
+          <li><a href="../../sympy.html" accesskey="U">sympy</a> &raquo;</li> 
       </ul>
     </div>  
 
@@ -59,39 +61,42 @@
           <div class="body">
             
   <h1>Source code for sympy.simplify.cse_main</h1><div class="highlight"><pre>
-<span></span><span class="sd">&quot;&quot;&quot; Tools for doing common subexpression elimination.</span>
+<span class="sd">&quot;&quot;&quot; Tools for doing common subexpression elimination.</span>
 <span class="sd">&quot;&quot;&quot;</span>
 <span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">division</span>
 
-<span class="kn">from</span> <span class="nn">sympy.core</span> <span class="kn">import</span> <span class="n">Basic</span><span class="p">,</span> <span class="n">Mul</span><span class="p">,</span> <span class="n">Add</span><span class="p">,</span> <span class="n">Pow</span><span class="p">,</span> <span class="n">sympify</span><span class="p">,</span> <span class="n">Symbol</span><span class="p">,</span> <span class="n">Tuple</span>
+<span class="kn">import</span> <span class="nn">difflib</span>
+
+<span class="kn">from</span> <span class="nn">sympy.core</span> <span class="kn">import</span> <span class="n">Basic</span><span class="p">,</span> <span class="n">Mul</span><span class="p">,</span> <span class="n">Add</span><span class="p">,</span> <span class="n">Pow</span><span class="p">,</span> <span class="n">sympify</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">Symbol</span>
 <span class="kn">from</span> <span class="nn">sympy.core.singleton</span> <span class="kn">import</span> <span class="n">S</span>
+<span class="kn">from</span> <span class="nn">sympy.core.basic</span> <span class="kn">import</span> <span class="n">preorder_traversal</span>
 <span class="kn">from</span> <span class="nn">sympy.core.function</span> <span class="kn">import</span> <span class="n">_coeff_isneg</span>
 <span class="kn">from</span> <span class="nn">sympy.core.exprtools</span> <span class="kn">import</span> <span class="n">factor_terms</span>
-<span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="kn">import</span> <span class="n">iterable</span><span class="p">,</span> <span class="nb">range</span>
+<span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="kn">import</span> <span class="n">iterable</span><span class="p">,</span> <span class="nb">xrange</span>
 <span class="kn">from</span> <span class="nn">sympy.utilities.iterables</span> <span class="kn">import</span> <span class="n">filter_symbols</span><span class="p">,</span> \
     <span class="n">numbered_symbols</span><span class="p">,</span> <span class="n">sift</span><span class="p">,</span> <span class="n">topological_sort</span><span class="p">,</span> <span class="n">ordered</span>
 
 <span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">cse_opts</span>
 
-<span class="c1"># (preprocessor, postprocessor) pairs which are commonly useful. They should</span>
-<span class="c1"># each take a sympy expression and return a possibly transformed expression.</span>
-<span class="c1"># When used in the function ``cse()``, the target expressions will be transformed</span>
-<span class="c1"># by each of the preprocessor functions in order. After the common</span>
-<span class="c1"># subexpressions are eliminated, each resulting expression will have the</span>
-<span class="c1"># postprocessor functions transform them in *reverse* order in order to undo the</span>
-<span class="c1"># transformation if necessary. This allows the algorithm to operate on</span>
-<span class="c1"># a representation of the expressions that allows for more optimization</span>
-<span class="c1"># opportunities.</span>
-<span class="c1"># ``None`` can be used to specify no transformation for either the preprocessor or</span>
-<span class="c1"># postprocessor.</span>
+<span class="c"># (preprocessor, postprocessor) pairs which are commonly useful. They should</span>
+<span class="c"># each take a sympy expression and return a possibly transformed expression.</span>
+<span class="c"># When used in the function ``cse()``, the target expressions will be transformed</span>
+<span class="c"># by each of the preprocessor functions in order. After the common</span>
+<span class="c"># subexpressions are eliminated, each resulting expression will have the</span>
+<span class="c"># postprocessor functions transform them in *reverse* order in order to undo the</span>
+<span class="c"># transformation if necessary. This allows the algorithm to operate on</span>
+<span class="c"># a representation of the expressions that allows for more optimization</span>
+<span class="c"># opportunities.</span>
+<span class="c"># ``None`` can be used to specify no transformation for either the preprocessor or</span>
+<span class="c"># postprocessor.</span>
 
 
 <span class="n">basic_optimizations</span> <span class="o">=</span> <span class="p">[(</span><span class="n">cse_opts</span><span class="o">.</span><span class="n">sub_pre</span><span class="p">,</span> <span class="n">cse_opts</span><span class="o">.</span><span class="n">sub_post</span><span class="p">),</span>
                        <span class="p">(</span><span class="n">factor_terms</span><span class="p">,</span> <span class="bp">None</span><span class="p">)]</span>
 
-<span class="c1"># sometimes we want the output in a different format; non-trivial</span>
-<span class="c1"># transformations can be put here for users</span>
-<span class="c1"># ===============================================================</span>
+<span class="c"># sometimes we want the output in a different format; non-trivial</span>
+<span class="c"># transformations can be put here for users</span>
+<span class="c"># ===============================================================</span>
 
 
 <span class="k">def</span> <span class="nf">reps_toposort</span><span class="p">(</span><span class="n">r</span><span class="p">):</span>
@@ -110,8 +115,8 @@
 <span class="sd">    &gt;&gt;&gt; for l, r in reps_toposort([(x, y + 1), (y, 2)]):</span>
 <span class="sd">    ...     print(Eq(l, r))</span>
 <span class="sd">    ...</span>
-<span class="sd">    Eq(y, 2)</span>
-<span class="sd">    Eq(x, y + 1)</span>
+<span class="sd">    y == 2</span>
+<span class="sd">    x == y + 1</span>
 
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">r</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">r</span><span class="p">)</span>
@@ -148,7 +153,7 @@
     <span class="n">e</span> <span class="o">=</span> <span class="n">d</span><span class="p">[</span><span class="bp">False</span><span class="p">]</span>
     <span class="k">return</span> <span class="p">[</span><span class="n">reps_toposort</span><span class="p">(</span><span class="n">r</span><span class="p">),</span> <span class="n">e</span><span class="p">]</span>
 
-<span class="c1"># ====end of cse postprocess idioms===========================</span>
+<span class="c"># ====end of cse postprocess idioms===========================</span>
 
 
 <span class="k">def</span> <span class="nf">preprocess_for_cse</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">optimizations</span><span class="p">):</span>
@@ -191,13 +196,15 @@
 <span class="sd">    expr : sympy expression</span>
 <span class="sd">        The transformed expression.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">optimizations</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">optimizations</span> <span class="o">=</span> <span class="n">cse_optimizations</span>
     <span class="k">for</span> <span class="n">pre</span><span class="p">,</span> <span class="n">post</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="n">optimizations</span><span class="p">):</span>
         <span class="k">if</span> <span class="n">post</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
             <span class="n">expr</span> <span class="o">=</span> <span class="n">post</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">expr</span>
 
 
-<div class="viewcode-block" id="opt_cse"><a class="viewcode-back" href="../../../modules/simplify/simplify.html#sympy.simplify.cse_main.opt_cse">[docs]</a><span class="k">def</span> <span class="nf">opt_cse</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s1">&#39;canonical&#39;</span><span class="p">):</span>
+<div class="viewcode-block" id="opt_cse"><a class="viewcode-back" href="../../../modules/simplify/simplify.html#sympy.simplify.cse_main.opt_cse">[docs]</a><span class="k">def</span> <span class="nf">opt_cse</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s">&#39;canonical&#39;</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Find optimization opportunities in Adds, Muls, Pows and negative</span>
 <span class="sd">    coefficient Muls</span>
 
@@ -215,15 +222,15 @@
 <span class="sd">        The expression substitutions which can be useful to optimize CSE.</span>
 
 <span class="sd">    Examples</span>
-<span class="sd">    ========</span>
-
+<span class="sd">    --------</span>
 <span class="sd">    &gt;&gt;&gt; from sympy.simplify.cse_main import opt_cse</span>
 <span class="sd">    &gt;&gt;&gt; from sympy.abc import x</span>
 <span class="sd">    &gt;&gt;&gt; opt_subs = opt_cse([x**-2])</span>
 <span class="sd">    &gt;&gt;&gt; print(opt_subs)</span>
 <span class="sd">    {x**(-2): 1/(x**2)}</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="kn">from</span> <span class="nn">sympy.matrices.expressions</span> <span class="kn">import</span> <span class="n">MatAdd</span><span class="p">,</span> <span class="n">MatMul</span><span class="p">,</span> <span class="n">MatPow</span>
+    <span class="kn">from</span> <span class="nn">sympy.matrices</span> <span class="kn">import</span> <span class="n">Matrix</span>
+
     <span class="n">opt_subs</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
 
     <span class="n">adds</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
@@ -232,9 +239,6 @@
     <span class="n">seen_subexp</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
 
     <span class="k">def</span> <span class="nf">_find_opts</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
-
-        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">Basic</span><span class="p">):</span>
-            <span class="k">return</span>
 
         <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Atom</span> <span class="ow">or</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Order</span><span class="p">:</span>
             <span class="k">return</span>
@@ -256,13 +260,13 @@
                 <span class="n">seen_subexp</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">neg_expr</span><span class="p">)</span>
                 <span class="n">expr</span> <span class="o">=</span> <span class="n">neg_expr</span>
 
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="p">(</span><span class="n">Mul</span><span class="p">,</span> <span class="n">MatMul</span><span class="p">)):</span>
+        <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Mul</span><span class="p">:</span>
             <span class="n">muls</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
 
-        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="p">(</span><span class="n">Add</span><span class="p">,</span> <span class="n">MatAdd</span><span class="p">)):</span>
+        <span class="k">elif</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Add</span><span class="p">:</span>
             <span class="n">adds</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
 
-        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="p">(</span><span class="n">Pow</span><span class="p">,</span> <span class="n">MatPow</span><span class="p">)):</span>
+        <span class="k">elif</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Pow</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">_coeff_isneg</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">exp</span><span class="p">):</span>
                 <span class="n">opt_subs</span><span class="p">[</span><span class="n">expr</span><span class="p">]</span> <span class="o">=</span> <span class="n">Pow</span><span class="p">(</span><span class="n">Pow</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">base</span><span class="p">,</span> <span class="o">-</span><span class="n">expr</span><span class="o">.</span><span class="n">exp</span><span class="p">),</span> <span class="n">S</span><span class="o">.</span><span class="n">NegativeOne</span><span class="p">,</span>
                                      <span class="n">evaluate</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
@@ -271,23 +275,23 @@
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">Basic</span><span class="p">):</span>
             <span class="n">_find_opts</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
 
-    <span class="c1">## Process Adds and commutative Muls</span>
+    <span class="c">## Process Adds and commutative Muls</span>
 
     <span class="k">def</span> <span class="nf">_match_common_args</span><span class="p">(</span><span class="n">Func</span><span class="p">,</span> <span class="n">funcs</span><span class="p">):</span>
-        <span class="k">if</span> <span class="n">order</span> <span class="o">!=</span> <span class="s1">&#39;none&#39;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">order</span> <span class="o">!=</span> <span class="s">&#39;none&#39;</span><span class="p">:</span>
             <span class="n">funcs</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">ordered</span><span class="p">(</span><span class="n">funcs</span><span class="p">))</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">funcs</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">funcs</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">args</span><span class="p">))</span>
 
         <span class="n">func_args</span> <span class="o">=</span> <span class="p">[</span><span class="nb">set</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">funcs</span><span class="p">]</span>
-        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">func_args</span><span class="p">)):</span>
-            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">func_args</span><span class="p">)):</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">func_args</span><span class="p">)):</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">func_args</span><span class="p">)):</span>
                 <span class="n">com_args</span> <span class="o">=</span> <span class="n">func_args</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">intersection</span><span class="p">(</span><span class="n">func_args</span><span class="p">[</span><span class="n">j</span><span class="p">])</span>
                 <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">com_args</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
                     <span class="n">com_func</span> <span class="o">=</span> <span class="n">Func</span><span class="p">(</span><span class="o">*</span><span class="n">com_args</span><span class="p">)</span>
 
-                    <span class="c1"># for all sets, replace the common symbols by the function</span>
-                    <span class="c1"># over them, to allow recursive matches</span>
+                    <span class="c"># for all sets, replace the common symbols by the function</span>
+                    <span class="c"># over them, to allow recursive matches</span>
 
                     <span class="n">diff_i</span> <span class="o">=</span> <span class="n">func_args</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">difference</span><span class="p">(</span><span class="n">com_args</span><span class="p">)</span>
                     <span class="n">func_args</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">diff_i</span> <span class="o">|</span> <span class="nb">set</span><span class="p">([</span><span class="n">com_func</span><span class="p">])</span>
@@ -300,25 +304,21 @@
                     <span class="n">opt_subs</span><span class="p">[</span><span class="n">funcs</span><span class="p">[</span><span class="n">j</span><span class="p">]]</span> <span class="o">=</span> <span class="n">Func</span><span class="p">(</span><span class="n">Func</span><span class="p">(</span><span class="o">*</span><span class="n">diff_j</span><span class="p">),</span> <span class="n">com_func</span><span class="p">,</span>
                                               <span class="n">evaluate</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
 
-                    <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">j</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">func_args</span><span class="p">)):</span>
+                    <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="n">j</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">func_args</span><span class="p">)):</span>
                         <span class="k">if</span> <span class="ow">not</span> <span class="n">com_args</span><span class="o">.</span><span class="n">difference</span><span class="p">(</span><span class="n">func_args</span><span class="p">[</span><span class="n">k</span><span class="p">]):</span>
                             <span class="n">diff_k</span> <span class="o">=</span> <span class="n">func_args</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">difference</span><span class="p">(</span><span class="n">com_args</span><span class="p">)</span>
                             <span class="n">func_args</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">diff_k</span> <span class="o">|</span> <span class="nb">set</span><span class="p">([</span><span class="n">com_func</span><span class="p">])</span>
                             <span class="n">opt_subs</span><span class="p">[</span><span class="n">funcs</span><span class="p">[</span><span class="n">k</span><span class="p">]]</span> <span class="o">=</span> <span class="n">Func</span><span class="p">(</span><span class="n">Func</span><span class="p">(</span><span class="o">*</span><span class="n">diff_k</span><span class="p">),</span> <span class="n">com_func</span><span class="p">,</span>
                                                       <span class="n">evaluate</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
 
-    <span class="c1"># split muls into commutative</span>
+    <span class="c"># split muls into commutative</span>
     <span class="n">comutative_muls</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
     <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">muls</span><span class="p">:</span>
         <span class="n">c</span><span class="p">,</span> <span class="n">nc</span> <span class="o">=</span> <span class="n">m</span><span class="o">.</span><span class="n">args_cnc</span><span class="p">(</span><span class="n">cset</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">c</span><span class="p">:</span>
-            <span class="n">c_mul</span> <span class="o">=</span> <span class="n">m</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">c</span><span class="p">)</span>
+            <span class="n">c_mul</span> <span class="o">=</span> <span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">c</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">nc</span><span class="p">:</span>
-                <span class="k">if</span> <span class="n">c_mul</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
-                    <span class="n">new_obj</span> <span class="o">=</span> <span class="n">m</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">nc</span><span class="p">)</span>
-                <span class="k">else</span><span class="p">:</span>
-                    <span class="n">new_obj</span> <span class="o">=</span> <span class="n">m</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">c_mul</span><span class="p">,</span> <span class="n">m</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">nc</span><span class="p">),</span> <span class="n">evaluate</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
-                <span class="n">opt_subs</span><span class="p">[</span><span class="n">m</span><span class="p">]</span> <span class="o">=</span> <span class="n">new_obj</span>
+                <span class="n">opt_subs</span><span class="p">[</span><span class="n">m</span><span class="p">]</span> <span class="o">=</span> <span class="n">Mul</span><span class="p">(</span><span class="n">c_mul</span><span class="p">,</span> <span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">nc</span><span class="p">),</span> <span class="n">evaluate</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
             <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
                 <span class="n">comutative_muls</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">c_mul</span><span class="p">)</span>
 
@@ -328,7 +328,7 @@
     <span class="k">return</span> <span class="n">opt_subs</span>
 
 </div>
-<div class="viewcode-block" id="tree_cse"><a class="viewcode-back" href="../../../modules/simplify/simplify.html#sympy.simplify.cse_main.tree_cse">[docs]</a><span class="k">def</span> <span class="nf">tree_cse</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="n">symbols</span><span class="p">,</span> <span class="n">opt_subs</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s1">&#39;canonical&#39;</span><span class="p">):</span>
+<div class="viewcode-block" id="tree_cse"><a class="viewcode-back" href="../../../modules/simplify/simplify.html#sympy.simplify.cse_main.tree_cse">[docs]</a><span class="k">def</span> <span class="nf">tree_cse</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="n">symbols</span><span class="p">,</span> <span class="n">opt_subs</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s">&#39;canonical&#39;</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Perform raw CSE on expression tree, taking opt_subs into account.</span>
 
 <span class="sd">    Parameters</span>
@@ -345,21 +345,18 @@
 <span class="sd">        The order by which Mul and Add arguments are processed. For large</span>
 <span class="sd">        expressions where speed is a concern, use the setting order=&#39;none&#39;.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="kn">from</span> <span class="nn">sympy.matrices.expressions</span> <span class="kn">import</span> <span class="n">MatrixExpr</span><span class="p">,</span> <span class="n">MatrixSymbol</span><span class="p">,</span> <span class="n">MatMul</span><span class="p">,</span> <span class="n">MatAdd</span>
+    <span class="kn">from</span> <span class="nn">sympy.matrices</span> <span class="kn">import</span> <span class="n">Matrix</span>
 
     <span class="k">if</span> <span class="n">opt_subs</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
         <span class="n">opt_subs</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
 
-    <span class="c1">## Find repeated sub-expressions</span>
+    <span class="c">## Find repeated sub-expressions</span>
 
     <span class="n">to_eliminate</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
 
     <span class="n">seen_subexp</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
 
     <span class="k">def</span> <span class="nf">_find_repeated</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">Basic</span><span class="p">):</span>
-            <span class="k">return</span>
-
         <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Atom</span> <span class="ow">or</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Order</span><span class="p">:</span>
             <span class="k">return</span>
 
@@ -384,17 +381,15 @@
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">Basic</span><span class="p">):</span>
             <span class="n">_find_repeated</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
 
-    <span class="c1">## Rebuild tree</span>
+    <span class="c">## Rebuild tree</span>
 
     <span class="n">replacements</span> <span class="o">=</span> <span class="p">[]</span>
 
     <span class="n">subs</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
 
     <span class="k">def</span> <span class="nf">_rebuild</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">Basic</span><span class="p">):</span>
-            <span class="k">return</span> <span class="n">expr</span>
 
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Atom</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">expr</span>
 
         <span class="k">if</span> <span class="n">iterable</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
@@ -408,16 +403,13 @@
         <span class="k">if</span> <span class="n">expr</span> <span class="ow">in</span> <span class="n">opt_subs</span><span class="p">:</span>
             <span class="n">expr</span> <span class="o">=</span> <span class="n">opt_subs</span><span class="p">[</span><span class="n">expr</span><span class="p">]</span>
 
-        <span class="c1"># If enabled, parse Muls and Adds arguments by order to ensure</span>
-        <span class="c1"># replacement order independent from hashes</span>
-        <span class="k">if</span> <span class="n">order</span> <span class="o">!=</span> <span class="s1">&#39;none&#39;</span><span class="p">:</span>
-            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="p">(</span><span class="n">Mul</span><span class="p">,</span> <span class="n">MatMul</span><span class="p">)):</span>
+        <span class="c"># If enabled, parse Muls and Adds arguments by order to ensure</span>
+        <span class="c"># replacement order independent from hashes</span>
+        <span class="k">if</span> <span class="n">order</span> <span class="o">!=</span> <span class="s">&#39;none&#39;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Mul</span><span class="p">:</span>
                 <span class="n">c</span><span class="p">,</span> <span class="n">nc</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">args_cnc</span><span class="p">()</span>
-                <span class="k">if</span> <span class="n">c</span> <span class="o">==</span> <span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
-                    <span class="n">args</span> <span class="o">=</span> <span class="n">nc</span>
-                <span class="k">else</span><span class="p">:</span>
-                    <span class="n">args</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">ordered</span><span class="p">(</span><span class="n">c</span><span class="p">))</span> <span class="o">+</span> <span class="n">nc</span>
-            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="p">(</span><span class="n">Add</span><span class="p">,</span> <span class="n">MatAdd</span><span class="p">)):</span>
+                <span class="n">args</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">ordered</span><span class="p">(</span><span class="n">c</span><span class="p">))</span> <span class="o">+</span> <span class="n">nc</span>
+            <span class="k">elif</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Add</span><span class="p">:</span>
                 <span class="n">args</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">ordered</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">))</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">args</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span>
@@ -434,12 +426,7 @@
             <span class="k">try</span><span class="p">:</span>
                 <span class="n">sym</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="n">symbols</span><span class="p">)</span>
             <span class="k">except</span> <span class="ne">StopIteration</span><span class="p">:</span>
-                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Symbols iterator ran out of symbols.&quot;</span><span class="p">)</span>
-
-            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">orig_expr</span><span class="p">,</span> <span class="n">MatrixExpr</span><span class="p">):</span>
-                <span class="n">sym</span> <span class="o">=</span> <span class="n">MatrixSymbol</span><span class="p">(</span><span class="n">sym</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">orig_expr</span><span class="o">.</span><span class="n">rows</span><span class="p">,</span>
-                    <span class="n">orig_expr</span><span class="o">.</span><span class="n">cols</span><span class="p">)</span>
-
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;Symbols iterator ran out of symbols.&quot;</span><span class="p">)</span>
             <span class="n">subs</span><span class="p">[</span><span class="n">orig_expr</span><span class="p">]</span> <span class="o">=</span> <span class="n">sym</span>
             <span class="n">replacements</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">sym</span><span class="p">,</span> <span class="n">new_expr</span><span class="p">))</span>
             <span class="k">return</span> <span class="n">sym</span>
@@ -459,7 +446,7 @@
 
 </div>
 <div class="viewcode-block" id="cse"><a class="viewcode-back" href="../../../modules/simplify/simplify.html#sympy.simplify.cse_main.cse">[docs]</a><span class="k">def</span> <span class="nf">cse</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="n">symbols</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">optimizations</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">postprocess</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
-        <span class="n">order</span><span class="o">=</span><span class="s1">&#39;canonical&#39;</span><span class="p">):</span>
+        <span class="n">order</span><span class="o">=</span><span class="s">&#39;canonical&#39;</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot; Perform common subexpression elimination on an expression.</span>
 
 <span class="sd">    Parameters</span>
@@ -498,104 +485,51 @@
 <span class="sd">        list.</span>
 <span class="sd">    reduced_exprs : list of sympy expressions</span>
 <span class="sd">        The reduced expressions with all of the replacements above.</span>
-
-<span class="sd">    Examples</span>
-<span class="sd">    ========</span>
-
-<span class="sd">    &gt;&gt;&gt; from sympy import cse, SparseMatrix</span>
-<span class="sd">    &gt;&gt;&gt; from sympy.abc import x, y, z, w</span>
-<span class="sd">    &gt;&gt;&gt; cse(((w + x + y + z)*(w + y + z))/(w + x)**3)</span>
-<span class="sd">    ([(x0, y + z), (x1, w + x)], [(w + x0)*(x0 + x1)/x1**3])</span>
-
-<span class="sd">    Note that currently, y + z will not get substituted if -y - z is used.</span>
-
-<span class="sd">     &gt;&gt;&gt; cse(((w + x + y + z)*(w - y - z))/(w + x)**3)</span>
-<span class="sd">     ([(x0, w + x)], [(w - y - z)*(x0 + y + z)/x0**3])</span>
-
-<span class="sd">    List of expressions with recursive substitutions:</span>
-
-<span class="sd">    &gt;&gt;&gt; m = SparseMatrix([x + y, x + y + z])</span>
-<span class="sd">    &gt;&gt;&gt; cse([(x+y)**2, x + y + z, y + z, x + z + y, m])</span>
-<span class="sd">    ([(x0, x + y), (x1, x0 + z)], [x0**2, x1, y + z, x1, Matrix([</span>
-<span class="sd">    [x0],</span>
-<span class="sd">    [x1]])])</span>
-
-<span class="sd">    Note: the type and mutability of input matrices is retained.</span>
-
-<span class="sd">    &gt;&gt;&gt; isinstance(_[1][-1], SparseMatrix)</span>
-<span class="sd">    True</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="kn">from</span> <span class="nn">sympy.matrices</span> <span class="kn">import</span> <span class="p">(</span><span class="n">MatrixBase</span><span class="p">,</span> <span class="n">Matrix</span><span class="p">,</span> <span class="n">ImmutableMatrix</span><span class="p">,</span>
-                                <span class="n">SparseMatrix</span><span class="p">,</span> <span class="n">ImmutableSparseMatrix</span><span class="p">)</span>
+    <span class="kn">from</span> <span class="nn">sympy.matrices</span> <span class="kn">import</span> <span class="n">Matrix</span>
 
-    <span class="c1"># Handle the case if just one expression was passed.</span>
-    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="p">(</span><span class="n">Basic</span><span class="p">,</span> <span class="n">MatrixBase</span><span class="p">)):</span>
+    <span class="c"># Handle the case if just one expression was passed.</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="n">Basic</span><span class="p">):</span>
         <span class="n">exprs</span> <span class="o">=</span> <span class="p">[</span><span class="n">exprs</span><span class="p">]</span>
-
-    <span class="n">copy</span> <span class="o">=</span> <span class="n">exprs</span>
-    <span class="n">temp</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">exprs</span><span class="p">:</span>
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="p">(</span><span class="n">Matrix</span><span class="p">,</span> <span class="n">ImmutableMatrix</span><span class="p">)):</span>
-            <span class="n">temp</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Tuple</span><span class="p">(</span><span class="o">*</span><span class="n">e</span><span class="o">.</span><span class="n">_mat</span><span class="p">))</span>
-        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="p">(</span><span class="n">SparseMatrix</span><span class="p">,</span> <span class="n">ImmutableSparseMatrix</span><span class="p">)):</span>
-            <span class="n">temp</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Tuple</span><span class="p">(</span><span class="o">*</span><span class="n">e</span><span class="o">.</span><span class="n">_smat</span><span class="o">.</span><span class="n">items</span><span class="p">()))</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">temp</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
-    <span class="n">exprs</span> <span class="o">=</span> <span class="n">temp</span>
-    <span class="k">del</span> <span class="n">temp</span>
 
     <span class="k">if</span> <span class="n">optimizations</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
         <span class="n">optimizations</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
-    <span class="k">elif</span> <span class="n">optimizations</span> <span class="o">==</span> <span class="s1">&#39;basic&#39;</span><span class="p">:</span>
+    <span class="k">elif</span> <span class="n">optimizations</span> <span class="o">==</span> <span class="s">&#39;basic&#39;</span><span class="p">:</span>
         <span class="n">optimizations</span> <span class="o">=</span> <span class="n">basic_optimizations</span>
 
-    <span class="c1"># Preprocess the expressions to give us better optimization opportunities.</span>
+    <span class="c"># Preprocess the expressions to give us better optimization opportunities.</span>
     <span class="n">reduced_exprs</span> <span class="o">=</span> <span class="p">[</span><span class="n">preprocess_for_cse</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">optimizations</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">exprs</span><span class="p">]</span>
 
-    <span class="n">excluded_symbols</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">expr</span><span class="o">.</span><span class="n">atoms</span><span class="p">(</span><span class="n">Symbol</span><span class="p">)</span>
+    <span class="n">excluded_symbols</span> <span class="o">=</span> <span class="nb">set</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">expr</span><span class="o">.</span><span class="n">atoms</span><span class="p">(</span><span class="n">Symbol</span><span class="p">)</span>
                                    <span class="k">for</span> <span class="n">expr</span> <span class="ow">in</span> <span class="n">reduced_exprs</span><span class="p">])</span>
 
     <span class="k">if</span> <span class="n">symbols</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
         <span class="n">symbols</span> <span class="o">=</span> <span class="n">numbered_symbols</span><span class="p">()</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="c1"># In case we get passed an iterable with an __iter__ method instead of</span>
-        <span class="c1"># an actual iterator.</span>
+        <span class="c"># In case we get passed an iterable with an __iter__ method instead of</span>
+        <span class="c"># an actual iterator.</span>
         <span class="n">symbols</span> <span class="o">=</span> <span class="nb">iter</span><span class="p">(</span><span class="n">symbols</span><span class="p">)</span>
 
     <span class="n">symbols</span> <span class="o">=</span> <span class="n">filter_symbols</span><span class="p">(</span><span class="n">symbols</span><span class="p">,</span> <span class="n">excluded_symbols</span><span class="p">)</span>
 
-    <span class="c1"># Find other optimization opportunities.</span>
+    <span class="c"># Find other optimization opportunities.</span>
     <span class="n">opt_subs</span> <span class="o">=</span> <span class="n">opt_cse</span><span class="p">(</span><span class="n">reduced_exprs</span><span class="p">,</span> <span class="n">order</span><span class="p">)</span>
 
-    <span class="c1"># Main CSE algorithm.</span>
+    <span class="c"># Main CSE algorithm.</span>
     <span class="n">replacements</span><span class="p">,</span> <span class="n">reduced_exprs</span> <span class="o">=</span> <span class="n">tree_cse</span><span class="p">(</span><span class="n">reduced_exprs</span><span class="p">,</span> <span class="n">symbols</span><span class="p">,</span> <span class="n">opt_subs</span><span class="p">,</span>
                                            <span class="n">order</span><span class="p">)</span>
 
-    <span class="c1"># Postprocess the expressions to return the expressions to canonical form.</span>
-    <span class="n">exprs</span> <span class="o">=</span> <span class="n">copy</span>
+    <span class="c"># Postprocess the expressions to return the expressions to canonical form.</span>
     <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">sym</span><span class="p">,</span> <span class="n">subtree</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">replacements</span><span class="p">):</span>
         <span class="n">subtree</span> <span class="o">=</span> <span class="n">postprocess_for_cse</span><span class="p">(</span><span class="n">subtree</span><span class="p">,</span> <span class="n">optimizations</span><span class="p">)</span>
         <span class="n">replacements</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">sym</span><span class="p">,</span> <span class="n">subtree</span><span class="p">)</span>
     <span class="n">reduced_exprs</span> <span class="o">=</span> <span class="p">[</span><span class="n">postprocess_for_cse</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">optimizations</span><span class="p">)</span>
                      <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">reduced_exprs</span><span class="p">]</span>
 
-    <span class="c1"># Get the matrices back</span>
-    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">e</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">exprs</span><span class="p">):</span>
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="p">(</span><span class="n">Matrix</span><span class="p">,</span> <span class="n">ImmutableMatrix</span><span class="p">)):</span>
-            <span class="n">reduced_exprs</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">Matrix</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">rows</span><span class="p">,</span> <span class="n">e</span><span class="o">.</span><span class="n">cols</span><span class="p">,</span> <span class="n">reduced_exprs</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
-            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">ImmutableMatrix</span><span class="p">):</span>
-                <span class="n">reduced_exprs</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">reduced_exprs</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">as_immutable</span><span class="p">()</span>
-        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="p">(</span><span class="n">SparseMatrix</span><span class="p">,</span> <span class="n">ImmutableSparseMatrix</span><span class="p">)):</span>
-            <span class="n">m</span> <span class="o">=</span> <span class="n">SparseMatrix</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">rows</span><span class="p">,</span> <span class="n">e</span><span class="o">.</span><span class="n">cols</span><span class="p">,</span> <span class="p">{})</span>
-            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">reduced_exprs</span><span class="p">[</span><span class="n">i</span><span class="p">]:</span>
-                <span class="n">m</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span>
-            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">ImmutableSparseMatrix</span><span class="p">):</span>
-                <span class="n">m</span> <span class="o">=</span> <span class="n">m</span><span class="o">.</span><span class="n">as_immutable</span><span class="p">()</span>
-            <span class="n">reduced_exprs</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">m</span>
-
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="n">Matrix</span><span class="p">):</span>
+        <span class="n">reduced_exprs</span> <span class="o">=</span> <span class="p">[</span><span class="n">Matrix</span><span class="p">(</span><span class="n">exprs</span><span class="o">.</span><span class="n">rows</span><span class="p">,</span> <span class="n">exprs</span><span class="o">.</span><span class="n">cols</span><span class="p">,</span> <span class="n">reduced_exprs</span><span class="p">)]</span>
     <span class="k">if</span> <span class="n">postprocess</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">replacements</span><span class="p">,</span> <span class="n">reduced_exprs</span>
-
     <span class="k">return</span> <span class="n">postprocess</span><span class="p">(</span><span class="n">replacements</span><span class="p">,</span> <span class="n">reduced_exprs</span><span class="p">)</span></div>
 </pre></div>
 
@@ -633,13 +567,14 @@
         <li class="right" >
           <a href="../../../py-modindex.html" title="Python Module Index"
              >modules</a> |</li>
-        <li><a href="../../../index.html">SymPy 1.0 documentation</a> &raquo;</li>
-          <li><a href="../../index.html" >Module code</a> &raquo;</li> 
+        <li><a href="../../../index.html">SymPy 0.7.6.1 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li>
+          <li><a href="../../sympy.html" >sympy</a> &raquo;</li> 
       </ul>
     </div>
     <div class="footer">
-        &copy; Copyright 2015 SymPy Development Team.
-      Last updated on Mar 08, 2016.
+        &copy; Copyright 2014 SymPy Development Team.
+      Last updated on Sep 03, 2015.
       Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
     </div>
   </body>
