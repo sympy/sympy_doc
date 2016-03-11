@@ -1,0 +1,504 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>sympy.series.fourier &mdash; SymPy 1.0 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="http://live.sympy.org/static/live-core.css" type="text/css" />
+    <link rel="stylesheet" href="http://live.sympy.org/static/live-autocomplete.css" type="text/css" />
+    <link rel="stylesheet" href="http://live.sympy.org/static/live-sphinx.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_HTML-full"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/utilities.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/external/classy.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/live-core.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/live-autocomplete.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/live-sphinx.js"></script>
+    <link rel="shortcut icon" href="../../../_static/sympy-notailtext-favicon.ico"/>
+    <link rel="top" title="SymPy 1.0 documentation" href="../../../index.html" />
+    <link rel="up" title="Module code" href="../../index.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">SymPy 1.0 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for sympy.series.fourier</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Fourier Series&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">division</span>
+
+<span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">pi</span><span class="p">,</span> <span class="n">oo</span>
+<span class="kn">from</span> <span class="nn">sympy.core.expr</span> <span class="kn">import</span> <span class="n">Expr</span>
+<span class="kn">from</span> <span class="nn">sympy.core.add</span> <span class="kn">import</span> <span class="n">Add</span>
+<span class="kn">from</span> <span class="nn">sympy.core.sympify</span> <span class="kn">import</span> <span class="n">sympify</span>
+<span class="kn">from</span> <span class="nn">sympy.core.singleton</span> <span class="kn">import</span> <span class="n">S</span>
+<span class="kn">from</span> <span class="nn">sympy.core.symbol</span> <span class="kn">import</span> <span class="n">Dummy</span><span class="p">,</span> <span class="n">Symbol</span>
+<span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="kn">import</span> <span class="n">is_sequence</span>
+<span class="kn">from</span> <span class="nn">sympy.core.containers</span> <span class="kn">import</span> <span class="n">Tuple</span>
+<span class="kn">from</span> <span class="nn">sympy.functions.elementary.trigonometric</span> <span class="kn">import</span> <span class="n">sin</span><span class="p">,</span> <span class="n">cos</span>
+<span class="kn">from</span> <span class="nn">sympy.sets.sets</span> <span class="kn">import</span> <span class="n">Interval</span>
+<span class="kn">from</span> <span class="nn">sympy.series.series_class</span> <span class="kn">import</span> <span class="n">SeriesBase</span>
+<span class="kn">from</span> <span class="nn">sympy.series.sequences</span> <span class="kn">import</span> <span class="n">SeqFormula</span>
+
+
+<span class="k">def</span> <span class="nf">fourier_cos_seq</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="n">limits</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Returns the cos sequence in a Fourier series&quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">sympy.integrals</span> <span class="kn">import</span> <span class="n">integrate</span>
+    <span class="n">x</span><span class="p">,</span> <span class="n">L</span> <span class="o">=</span> <span class="n">limits</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">limits</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">-</span> <span class="n">limits</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">cos_term</span> <span class="o">=</span> <span class="n">cos</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">n</span><span class="o">*</span><span class="n">pi</span><span class="o">*</span><span class="n">x</span> <span class="o">/</span> <span class="n">L</span><span class="p">)</span>
+    <span class="n">formula</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">cos_term</span> <span class="o">*</span> <span class="n">integrate</span><span class="p">(</span><span class="n">func</span> <span class="o">*</span> <span class="n">cos_term</span><span class="p">,</span> <span class="n">limits</span><span class="p">)</span> <span class="o">/</span> <span class="n">L</span>
+    <span class="n">a0</span> <span class="o">=</span> <span class="n">formula</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span>
+    <span class="k">return</span> <span class="n">a0</span><span class="p">,</span> <span class="n">SeqFormula</span><span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">cos_term</span> <span class="o">*</span> <span class="n">integrate</span><span class="p">(</span><span class="n">func</span> <span class="o">*</span> <span class="n">cos_term</span><span class="p">,</span> <span class="n">limits</span><span class="p">)</span>
+                          <span class="o">/</span> <span class="n">L</span><span class="p">,</span> <span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">oo</span><span class="p">))</span>
+
+
+<span class="k">def</span> <span class="nf">fourier_sin_seq</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="n">limits</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Returns the sin sequence in a Fourier series&quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">sympy.integrals</span> <span class="kn">import</span> <span class="n">integrate</span>
+    <span class="n">x</span><span class="p">,</span> <span class="n">L</span> <span class="o">=</span> <span class="n">limits</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">limits</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">-</span> <span class="n">limits</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">sin_term</span> <span class="o">=</span> <span class="n">sin</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">n</span><span class="o">*</span><span class="n">pi</span><span class="o">*</span><span class="n">x</span> <span class="o">/</span> <span class="n">L</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">SeqFormula</span><span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">sin_term</span> <span class="o">*</span> <span class="n">integrate</span><span class="p">(</span><span class="n">func</span> <span class="o">*</span> <span class="n">sin_term</span><span class="p">,</span> <span class="n">limits</span><span class="p">)</span>
+                      <span class="o">/</span> <span class="n">L</span><span class="p">,</span> <span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">oo</span><span class="p">))</span>
+
+
+<span class="k">def</span> <span class="nf">_process_limits</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="n">limits</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Limits should be of the form (x, start, stop).</span>
+<span class="sd">    x should be a symbol. Both start and stop should be bounded.</span>
+
+<span class="sd">    * If x is not given, x is determined from func.</span>
+<span class="sd">    * If limits is None. Limit of the form (x, -pi, pi) is returned.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy import pi</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.series.fourier import _process_limits as pari</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.abc import x</span>
+<span class="sd">    &gt;&gt;&gt; pari(x**2, (x, -2, 2))</span>
+<span class="sd">    (x, -2, 2)</span>
+<span class="sd">    &gt;&gt;&gt; pari(x**2, (-2, 2))</span>
+<span class="sd">    (x, -2, 2)</span>
+<span class="sd">    &gt;&gt;&gt; pari(x**2, None)</span>
+<span class="sd">    (x, -pi, pi)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">_find_x</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
+        <span class="n">free</span> <span class="o">=</span> <span class="n">func</span><span class="o">.</span><span class="n">free_symbols</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">func</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">free</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">func</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">Dummy</span><span class="p">(</span><span class="s1">&#39;k&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot; specify dummy variables for </span><span class="si">%s</span><span class="s2">. If the function contains&quot;</span>
+                <span class="s2">&quot; more than one free symbol, a dummy variable should be&quot;</span>
+                <span class="s2">&quot; supplied explicitly e.g. FourierSeries(m*n**2, (n, -pi, pi))&quot;</span>
+                <span class="o">%</span> <span class="n">func</span><span class="p">)</span>
+
+    <span class="n">x</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">stop</span> <span class="o">=</span> <span class="bp">None</span><span class="p">,</span> <span class="bp">None</span><span class="p">,</span> <span class="bp">None</span>
+    <span class="k">if</span> <span class="n">limits</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">x</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">stop</span> <span class="o">=</span> <span class="n">_find_x</span><span class="p">(</span><span class="n">func</span><span class="p">),</span> <span class="o">-</span><span class="n">pi</span><span class="p">,</span> <span class="n">pi</span>
+    <span class="k">if</span> <span class="n">is_sequence</span><span class="p">(</span><span class="n">limits</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">limits</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="n">x</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">stop</span> <span class="o">=</span> <span class="n">limits</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">limits</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="n">x</span> <span class="o">=</span> <span class="n">_find_x</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>
+            <span class="n">start</span><span class="p">,</span> <span class="n">stop</span> <span class="o">=</span> <span class="n">limits</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">Symbol</span><span class="p">)</span> <span class="ow">or</span> <span class="n">start</span> <span class="ow">is</span> <span class="bp">None</span> <span class="ow">or</span> <span class="n">stop</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Invalid limits given: </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">limits</span><span class="p">))</span>
+
+    <span class="n">unbounded</span> <span class="o">=</span> <span class="p">[</span><span class="n">S</span><span class="o">.</span><span class="n">NegativeInfinity</span><span class="p">,</span> <span class="n">S</span><span class="o">.</span><span class="n">Infinity</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">start</span> <span class="ow">in</span> <span class="n">unbounded</span> <span class="ow">or</span> <span class="n">stop</span> <span class="ow">in</span> <span class="n">unbounded</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Both the start and end value should be bounded&quot;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">sympify</span><span class="p">((</span><span class="n">x</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">stop</span><span class="p">))</span>
+
+
+<div class="viewcode-block" id="FourierSeries"><a class="viewcode-back" href="../../../modules/series/fourier.html#sympy.series.fourier.FourierSeries">[docs]</a><span class="k">class</span> <span class="nc">FourierSeries</span><span class="p">(</span><span class="n">SeriesBase</span><span class="p">):</span>
+    <span class="sd">r&quot;&quot;&quot;Represents Fourier sine/cosine series.</span>
+
+<span class="sd">    This class only represents a fourier series.</span>
+<span class="sd">    No computation is performed.</span>
+
+<span class="sd">    For how to compute Fourier series, see the :func:`fourier_series`</span>
+<span class="sd">    docstring.</span>
+
+<span class="sd">    See Also</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    sympy.series.fourier.fourier_series</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="nb">map</span><span class="p">(</span><span class="n">sympify</span><span class="p">,</span> <span class="n">args</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Expr</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">function</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">x</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">period</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">2</span><span class="p">])</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">a0</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">2</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">an</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">2</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">bn</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">2</span><span class="p">][</span><span class="mi">2</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">interval</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">Interval</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">oo</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">start</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">interval</span><span class="o">.</span><span class="n">inf</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">stop</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">interval</span><span class="o">.</span><span class="n">sup</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">length</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">oo</span>
+
+    <span class="k">def</span> <span class="nf">_eval_subs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">):</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">x</span>
+        <span class="k">if</span> <span class="n">old</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">self</span>
+
+<div class="viewcode-block" id="FourierSeries.truncate"><a class="viewcode-back" href="../../../modules/series/fourier.html#sympy.series.fourier.FourierSeries.truncate">[docs]</a>    <span class="k">def</span> <span class="nf">truncate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">3</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Returns the first n (non-zero)terms of the series.</span>
+
+<span class="sd">        If n is ``None`` returns an iterator.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">n</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">iter</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+
+        <span class="n">terms</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">terms</span><span class="p">)</span> <span class="o">==</span> <span class="n">n</span><span class="p">:</span>
+                <span class="k">break</span>
+            <span class="k">if</span> <span class="n">t</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span><span class="p">:</span>
+                <span class="n">terms</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">Add</span><span class="p">(</span><span class="o">*</span><span class="n">terms</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="FourierSeries.shift"><a class="viewcode-back" href="../../../modules/series/fourier.html#sympy.series.fourier.FourierSeries.shift">[docs]</a>    <span class="k">def</span> <span class="nf">shift</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">s</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Shift the function by a term independent of x.</span>
+
+<span class="sd">        f(x) -&gt; f(x) + s</span>
+
+<span class="sd">        This is fast, if Fourier series of f(x) is already</span>
+<span class="sd">        computed.</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        ========</span>
+
+<span class="sd">        &gt;&gt;&gt; from sympy import fourier_series, pi</span>
+<span class="sd">        &gt;&gt;&gt; from sympy.abc import x</span>
+<span class="sd">        &gt;&gt;&gt; s = fourier_series(x**2, (x, -pi, pi))</span>
+<span class="sd">        &gt;&gt;&gt; s.shift(1).truncate()</span>
+<span class="sd">        -4*cos(x) + cos(2*x) + 1 + pi**2/3</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">s</span><span class="p">,</span> <span class="n">x</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">s</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">x</span>
+
+        <span class="k">if</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">s</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;&#39;</span><span class="si">%s</span><span class="s2">&#39; should be independent of </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">x</span><span class="p">))</span>
+
+        <span class="n">a0</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">a0</span> <span class="o">+</span> <span class="n">s</span>
+        <span class="n">sfunc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">function</span> <span class="o">+</span> <span class="n">s</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">sfunc</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="p">(</span><span class="n">a0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">an</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">bn</span><span class="p">))</span>
+</div>
+<div class="viewcode-block" id="FourierSeries.shiftx"><a class="viewcode-back" href="../../../modules/series/fourier.html#sympy.series.fourier.FourierSeries.shiftx">[docs]</a>    <span class="k">def</span> <span class="nf">shiftx</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">s</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Shift x by a term independent of x.</span>
+
+<span class="sd">        f(x) -&gt; f(x + s)</span>
+
+<span class="sd">        This is fast, if Fourier series of f(x) is already</span>
+<span class="sd">        computed.</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        ========</span>
+
+<span class="sd">        &gt;&gt;&gt; from sympy import fourier_series, pi</span>
+<span class="sd">        &gt;&gt;&gt; from sympy.abc import x</span>
+<span class="sd">        &gt;&gt;&gt; s = fourier_series(x**2, (x, -pi, pi))</span>
+<span class="sd">        &gt;&gt;&gt; s.shiftx(1).truncate()</span>
+<span class="sd">        -4*cos(x + 1) + cos(2*x + 2) + pi**2/3</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">s</span><span class="p">,</span> <span class="n">x</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">s</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">x</span>
+
+        <span class="k">if</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">s</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;&#39;</span><span class="si">%s</span><span class="s2">&#39; should be independent of </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">x</span><span class="p">))</span>
+
+        <span class="n">an</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">an</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">x</span> <span class="o">+</span> <span class="n">s</span><span class="p">)</span>
+        <span class="n">bn</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">bn</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">x</span> <span class="o">+</span> <span class="n">s</span><span class="p">)</span>
+        <span class="n">sfunc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">x</span> <span class="o">+</span> <span class="n">s</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">sfunc</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">a0</span><span class="p">,</span> <span class="n">an</span><span class="p">,</span> <span class="n">bn</span><span class="p">))</span>
+</div>
+<div class="viewcode-block" id="FourierSeries.scale"><a class="viewcode-back" href="../../../modules/series/fourier.html#sympy.series.fourier.FourierSeries.scale">[docs]</a>    <span class="k">def</span> <span class="nf">scale</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">s</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Scale the function by a term independent of x.</span>
+
+<span class="sd">        f(x) -&gt; s * f(x)</span>
+
+<span class="sd">        This is fast, if Fourier series of f(x) is already</span>
+<span class="sd">        computed.</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        ========</span>
+
+<span class="sd">        &gt;&gt;&gt; from sympy import fourier_series, pi</span>
+<span class="sd">        &gt;&gt;&gt; from sympy.abc import x</span>
+<span class="sd">        &gt;&gt;&gt; s = fourier_series(x**2, (x, -pi, pi))</span>
+<span class="sd">        &gt;&gt;&gt; s.scale(2).truncate()</span>
+<span class="sd">        -8*cos(x) + 2*cos(2*x) + 2*pi**2/3</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">s</span><span class="p">,</span> <span class="n">x</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">s</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">x</span>
+
+        <span class="k">if</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">s</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;&#39;</span><span class="si">%s</span><span class="s2">&#39; should be independent of </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">x</span><span class="p">))</span>
+
+        <span class="n">an</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">an</span><span class="o">.</span><span class="n">coeff_mul</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+        <span class="n">bn</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">bn</span><span class="o">.</span><span class="n">coeff_mul</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+        <span class="n">a0</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">a0</span> <span class="o">*</span> <span class="n">s</span>
+        <span class="n">sfunc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">s</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">sfunc</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="p">(</span><span class="n">a0</span><span class="p">,</span> <span class="n">an</span><span class="p">,</span> <span class="n">bn</span><span class="p">))</span>
+</div>
+<div class="viewcode-block" id="FourierSeries.scalex"><a class="viewcode-back" href="../../../modules/series/fourier.html#sympy.series.fourier.FourierSeries.scalex">[docs]</a>    <span class="k">def</span> <span class="nf">scalex</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">s</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Scale x by a term independent of x.</span>
+
+<span class="sd">        f(x) -&gt; f(s*x)</span>
+
+<span class="sd">        This is fast, if Fourier series of f(x) is already</span>
+<span class="sd">        computed.</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        ========</span>
+
+<span class="sd">        &gt;&gt;&gt; from sympy import fourier_series, pi</span>
+<span class="sd">        &gt;&gt;&gt; from sympy.abc import x</span>
+<span class="sd">        &gt;&gt;&gt; s = fourier_series(x**2, (x, -pi, pi))</span>
+<span class="sd">        &gt;&gt;&gt; s.scalex(2).truncate()</span>
+<span class="sd">        -4*cos(2*x) + cos(4*x) + pi**2/3</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">s</span><span class="p">,</span> <span class="n">x</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">s</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">x</span>
+
+        <span class="k">if</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">s</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;&#39;</span><span class="si">%s</span><span class="s2">&#39; should be independent of </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">x</span><span class="p">))</span>
+
+        <span class="n">an</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">an</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">x</span> <span class="o">*</span> <span class="n">s</span><span class="p">)</span>
+        <span class="n">bn</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">bn</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">x</span> <span class="o">*</span> <span class="n">s</span><span class="p">)</span>
+        <span class="n">sfunc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">x</span> <span class="o">*</span> <span class="n">s</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">sfunc</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">a0</span><span class="p">,</span> <span class="n">an</span><span class="p">,</span> <span class="n">bn</span><span class="p">))</span>
+</div>
+    <span class="k">def</span> <span class="nf">_eval_as_leading_term</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">t</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">t</span>
+
+    <span class="k">def</span> <span class="nf">_eval_term</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pt</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">pt</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">a0</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">an</span><span class="o">.</span><span class="n">coeff</span><span class="p">(</span><span class="n">pt</span><span class="p">)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">bn</span><span class="o">.</span><span class="n">coeff</span><span class="p">(</span><span class="n">pt</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__neg__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">scale</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__add__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">FourierSeries</span><span class="p">):</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">period</span> <span class="o">!=</span> <span class="n">other</span><span class="o">.</span><span class="n">period</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Both the series should have same periods&quot;</span><span class="p">)</span>
+
+            <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">x</span><span class="p">,</span> <span class="n">other</span><span class="o">.</span><span class="n">x</span>
+            <span class="n">function</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">function</span> <span class="o">+</span> <span class="n">other</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">x</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">function</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">function</span>
+
+            <span class="n">an</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">an</span> <span class="o">+</span> <span class="n">other</span><span class="o">.</span><span class="n">an</span>
+            <span class="n">bn</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">bn</span> <span class="o">+</span> <span class="n">other</span><span class="o">.</span><span class="n">bn</span>
+            <span class="n">a0</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">a0</span> <span class="o">+</span> <span class="n">other</span><span class="o">.</span><span class="n">a0</span>
+
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="p">(</span><span class="n">a0</span><span class="p">,</span> <span class="n">an</span><span class="p">,</span> <span class="n">bn</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">Add</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__sub__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__add__</span><span class="p">(</span><span class="o">-</span><span class="n">other</span><span class="p">)</span>
+
+</div>
+<div class="viewcode-block" id="fourier_series"><a class="viewcode-back" href="../../../modules/series/fourier.html#sympy.series.fourier.fourier_series">[docs]</a><span class="k">def</span> <span class="nf">fourier_series</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">limits</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Computes Fourier sine/cosine series expansion.</span>
+
+<span class="sd">    Returns a :class:`FourierSeries` object.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy import fourier_series, pi, cos</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.abc import x</span>
+
+<span class="sd">    &gt;&gt;&gt; s = fourier_series(x**2, (x, -pi, pi))</span>
+<span class="sd">    &gt;&gt;&gt; s.truncate(n=3)</span>
+<span class="sd">    -4*cos(x) + cos(2*x) + pi**2/3</span>
+
+<span class="sd">    Shifting</span>
+
+<span class="sd">    &gt;&gt;&gt; s.shift(1).truncate()</span>
+<span class="sd">    -4*cos(x) + cos(2*x) + 1 + pi**2/3</span>
+<span class="sd">    &gt;&gt;&gt; s.shiftx(1).truncate()</span>
+<span class="sd">    -4*cos(x + 1) + cos(2*x + 2) + pi**2/3</span>
+
+<span class="sd">    Scaling</span>
+
+<span class="sd">    &gt;&gt;&gt; s.scale(2).truncate()</span>
+<span class="sd">    -8*cos(x) + 2*cos(2*x) + 2*pi**2/3</span>
+<span class="sd">    &gt;&gt;&gt; s.scalex(2).truncate()</span>
+<span class="sd">    -4*cos(2*x) + cos(4*x) + pi**2/3</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    =====</span>
+
+<span class="sd">    Computing Fourier series can be slow</span>
+<span class="sd">    due to the integration required in computing</span>
+<span class="sd">    an, bn.</span>
+
+<span class="sd">    It is faster to compute Fourier series of a function</span>
+<span class="sd">    by using shifting and scaling on an already</span>
+<span class="sd">    computed Fourier series rather than computing</span>
+<span class="sd">    again.</span>
+
+<span class="sd">    e.g. If the Fourier series of ``x**2`` is known</span>
+<span class="sd">    the Fourier series of ``x**2 - 1`` can be found by shifting by ``-1``.</span>
+
+<span class="sd">    See Also</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    sympy.series.fourier.FourierSeries</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    .. [1] mathworld.wolfram.com/FourierSeries.html</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">f</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+
+    <span class="n">limits</span> <span class="o">=</span> <span class="n">_process_limits</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">limits</span><span class="p">)</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">limits</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="n">x</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">f</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">f</span>
+
+    <span class="n">n</span> <span class="o">=</span> <span class="n">Dummy</span><span class="p">(</span><span class="s1">&#39;n&#39;</span><span class="p">)</span>
+    <span class="n">neg_f</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="o">-</span><span class="n">x</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">f</span> <span class="o">==</span> <span class="n">neg_f</span><span class="p">:</span>
+        <span class="n">a0</span><span class="p">,</span> <span class="n">an</span> <span class="o">=</span> <span class="n">fourier_cos_seq</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">limits</span><span class="p">,</span> <span class="n">n</span><span class="p">)</span>
+        <span class="n">bn</span> <span class="o">=</span> <span class="n">SeqFormula</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">oo</span><span class="p">))</span>
+    <span class="k">elif</span> <span class="n">f</span> <span class="o">==</span> <span class="o">-</span><span class="n">neg_f</span><span class="p">:</span>
+        <span class="n">a0</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span>
+        <span class="n">an</span> <span class="o">=</span> <span class="n">SeqFormula</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">oo</span><span class="p">))</span>
+        <span class="n">bn</span> <span class="o">=</span> <span class="n">fourier_sin_seq</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">limits</span><span class="p">,</span> <span class="n">n</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">a0</span><span class="p">,</span> <span class="n">an</span> <span class="o">=</span> <span class="n">fourier_cos_seq</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">limits</span><span class="p">,</span> <span class="n">n</span><span class="p">)</span>
+        <span class="n">bn</span> <span class="o">=</span> <span class="n">fourier_sin_seq</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">limits</span><span class="p">,</span> <span class="n">n</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">FourierSeries</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">limits</span><span class="p">,</span> <span class="p">(</span><span class="n">a0</span><span class="p">,</span> <span class="n">an</span><span class="p">,</span> <span class="n">bn</span><span class="p">))</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../../index.html">
+              <img class="logo" src="../../../_static/sympylogo.png" alt="Logo"/>
+            </a></p>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">SymPy 1.0 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2015 SymPy Development Team.
+      Last updated on Mar 08, 2016.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+  </body>
+</html>

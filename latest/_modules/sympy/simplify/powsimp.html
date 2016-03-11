@@ -1,0 +1,809 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>sympy.simplify.powsimp &mdash; SymPy 1.0 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="http://live.sympy.org/static/live-core.css" type="text/css" />
+    <link rel="stylesheet" href="http://live.sympy.org/static/live-autocomplete.css" type="text/css" />
+    <link rel="stylesheet" href="http://live.sympy.org/static/live-sphinx.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_HTML-full"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/utilities.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/external/classy.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/live-core.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/live-autocomplete.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/live-sphinx.js"></script>
+    <link rel="shortcut icon" href="../../../_static/sympy-notailtext-favicon.ico"/>
+    <link rel="top" title="SymPy 1.0 documentation" href="../../../index.html" />
+    <link rel="up" title="Module code" href="../../index.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">SymPy 1.0 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for sympy.simplify.powsimp</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">division</span>
+
+<span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">defaultdict</span>
+
+<span class="kn">from</span> <span class="nn">sympy.core.function</span> <span class="kn">import</span> <span class="n">expand_log</span><span class="p">,</span> <span class="n">count_ops</span>
+<span class="kn">from</span> <span class="nn">sympy.core</span> <span class="kn">import</span> <span class="n">sympify</span><span class="p">,</span> <span class="n">Basic</span><span class="p">,</span> <span class="n">Dummy</span><span class="p">,</span> <span class="n">S</span><span class="p">,</span> <span class="n">Add</span><span class="p">,</span> <span class="n">Mul</span><span class="p">,</span> <span class="n">Pow</span><span class="p">,</span> <span class="n">expand_mul</span><span class="p">,</span> <span class="n">factor_terms</span>
+<span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="kn">import</span> <span class="n">ordered</span><span class="p">,</span> <span class="n">default_sort_key</span><span class="p">,</span> <span class="nb">reduce</span>
+<span class="kn">from</span> <span class="nn">sympy.core.numbers</span> <span class="kn">import</span> <span class="n">Integer</span><span class="p">,</span> <span class="n">Rational</span>
+<span class="kn">from</span> <span class="nn">sympy.core.mul</span> <span class="kn">import</span> <span class="n">prod</span><span class="p">,</span> <span class="n">_keep_coeff</span>
+<span class="kn">from</span> <span class="nn">sympy.core.rules</span> <span class="kn">import</span> <span class="n">Transform</span>
+<span class="kn">from</span> <span class="nn">sympy.functions</span> <span class="kn">import</span> <span class="n">exp_polar</span><span class="p">,</span> <span class="n">exp</span><span class="p">,</span> <span class="n">log</span><span class="p">,</span> <span class="n">root</span><span class="p">,</span> <span class="n">polarify</span><span class="p">,</span> <span class="n">unpolarify</span>
+<span class="kn">from</span> <span class="nn">sympy.polys</span> <span class="kn">import</span> <span class="n">lcm</span><span class="p">,</span> <span class="n">gcd</span>
+<span class="kn">from</span> <span class="nn">sympy.ntheory.factor_</span> <span class="kn">import</span> <span class="n">multiplicity</span>
+
+
+
+<div class="viewcode-block" id="powsimp"><a class="viewcode-back" href="../../../modules/simplify/simplify.html#sympy.simplify.powsimp.powsimp">[docs]</a><span class="k">def</span> <span class="nf">powsimp</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">deep</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">combine</span><span class="o">=</span><span class="s1">&#39;all&#39;</span><span class="p">,</span> <span class="n">force</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">measure</span><span class="o">=</span><span class="n">count_ops</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    reduces expression by combining powers with similar bases and exponents.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    =====</span>
+
+<span class="sd">    If deep is True then powsimp() will also simplify arguments of</span>
+<span class="sd">    functions. By default deep is set to False.</span>
+
+<span class="sd">    If force is True then bases will be combined without checking for</span>
+<span class="sd">    assumptions, e.g. sqrt(x)*sqrt(y) -&gt; sqrt(x*y) which is not true</span>
+<span class="sd">    if x and y are both negative.</span>
+
+<span class="sd">    You can make powsimp() only combine bases or only combine exponents by</span>
+<span class="sd">    changing combine=&#39;base&#39; or combine=&#39;exp&#39;.  By default, combine=&#39;all&#39;,</span>
+<span class="sd">    which does both.  combine=&#39;base&#39; will only combine::</span>
+
+<span class="sd">         a   a          a                          2x      x</span>
+<span class="sd">        x * y  =&gt;  (x*y)   as well as things like 2   =&gt;  4</span>
+
+<span class="sd">    and combine=&#39;exp&#39; will only combine</span>
+<span class="sd">    ::</span>
+
+<span class="sd">         a   b      (a + b)</span>
+<span class="sd">        x * x  =&gt;  x</span>
+
+<span class="sd">    combine=&#39;exp&#39; will strictly only combine exponents in the way that used</span>
+<span class="sd">    to be automatic.  Also use deep=True if you need the old behavior.</span>
+
+<span class="sd">    When combine=&#39;all&#39;, &#39;exp&#39; is evaluated first.  Consider the first</span>
+<span class="sd">    example below for when there could be an ambiguity relating to this.</span>
+<span class="sd">    This is done so things like the second example can be completely</span>
+<span class="sd">    combined.  If you want &#39;base&#39; combined first, do something like</span>
+<span class="sd">    powsimp(powsimp(expr, combine=&#39;base&#39;), combine=&#39;exp&#39;).</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy import powsimp, exp, log, symbols</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.abc import x, y, z, n</span>
+<span class="sd">    &gt;&gt;&gt; powsimp(x**y*x**z*y**z, combine=&#39;all&#39;)</span>
+<span class="sd">    x**(y + z)*y**z</span>
+<span class="sd">    &gt;&gt;&gt; powsimp(x**y*x**z*y**z, combine=&#39;exp&#39;)</span>
+<span class="sd">    x**(y + z)*y**z</span>
+<span class="sd">    &gt;&gt;&gt; powsimp(x**y*x**z*y**z, combine=&#39;base&#39;, force=True)</span>
+<span class="sd">    x**y*(x*y)**z</span>
+
+<span class="sd">    &gt;&gt;&gt; powsimp(x**z*x**y*n**z*n**y, combine=&#39;all&#39;, force=True)</span>
+<span class="sd">    (n*x)**(y + z)</span>
+<span class="sd">    &gt;&gt;&gt; powsimp(x**z*x**y*n**z*n**y, combine=&#39;exp&#39;)</span>
+<span class="sd">    n**(y + z)*x**(y + z)</span>
+<span class="sd">    &gt;&gt;&gt; powsimp(x**z*x**y*n**z*n**y, combine=&#39;base&#39;, force=True)</span>
+<span class="sd">    (n*x)**y*(n*x)**z</span>
+
+<span class="sd">    &gt;&gt;&gt; x, y = symbols(&#39;x y&#39;, positive=True)</span>
+<span class="sd">    &gt;&gt;&gt; powsimp(log(exp(x)*exp(y)))</span>
+<span class="sd">    log(exp(x)*exp(y))</span>
+<span class="sd">    &gt;&gt;&gt; powsimp(log(exp(x)*exp(y)), deep=True)</span>
+<span class="sd">    x + y</span>
+
+<span class="sd">    Radicals with Mul bases will be combined if combine=&#39;exp&#39;</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy import sqrt, Mul</span>
+<span class="sd">    &gt;&gt;&gt; x, y = symbols(&#39;x y&#39;)</span>
+
+<span class="sd">    Two radicals are automatically joined through Mul:</span>
+
+<span class="sd">    &gt;&gt;&gt; a=sqrt(x*sqrt(y))</span>
+<span class="sd">    &gt;&gt;&gt; a*a**3 == a**4</span>
+<span class="sd">    True</span>
+
+<span class="sd">    But if an integer power of that radical has been</span>
+<span class="sd">    autoexpanded then Mul does not join the resulting factors:</span>
+
+<span class="sd">    &gt;&gt;&gt; a**4 # auto expands to a Mul, no longer a Pow</span>
+<span class="sd">    x**2*y</span>
+<span class="sd">    &gt;&gt;&gt; _*a # so Mul doesn&#39;t combine them</span>
+<span class="sd">    x**2*y*sqrt(x*sqrt(y))</span>
+<span class="sd">    &gt;&gt;&gt; powsimp(_) # but powsimp will</span>
+<span class="sd">    (x*sqrt(y))**(5/2)</span>
+<span class="sd">    &gt;&gt;&gt; powsimp(x*y*a) # but won&#39;t when doing so would violate assumptions</span>
+<span class="sd">    x*y*sqrt(x*sqrt(y))</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">sympy.matrices.expressions.matexpr</span> <span class="kn">import</span> <span class="n">MatrixSymbol</span>
+
+    <span class="k">def</span> <span class="nf">recurse</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">_deep</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;deep&#39;</span><span class="p">,</span> <span class="n">deep</span><span class="p">)</span>
+        <span class="n">_combine</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;combine&#39;</span><span class="p">,</span> <span class="n">combine</span><span class="p">)</span>
+        <span class="n">_force</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;force&#39;</span><span class="p">,</span> <span class="n">force</span><span class="p">)</span>
+        <span class="n">_measure</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;measure&#39;</span><span class="p">,</span> <span class="n">measure</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">powsimp</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">_deep</span><span class="p">,</span> <span class="n">_combine</span><span class="p">,</span> <span class="n">_force</span><span class="p">,</span> <span class="n">_measure</span><span class="p">)</span>
+
+    <span class="n">expr</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">Basic</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">MatrixSymbol</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span>
+            <span class="n">expr</span><span class="o">.</span><span class="n">is_Atom</span> <span class="ow">or</span> <span class="n">expr</span> <span class="ow">in</span> <span class="p">(</span><span class="n">exp_polar</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span> <span class="n">exp_polar</span><span class="p">(</span><span class="mi">1</span><span class="p">)))):</span>
+        <span class="k">return</span> <span class="n">expr</span>
+
+    <span class="k">if</span> <span class="n">deep</span> <span class="ow">or</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Add</span> <span class="ow">or</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Mul</span> <span class="ow">and</span> <span class="n">_y</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
+        <span class="n">expr</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">recurse</span><span class="p">(</span><span class="n">w</span><span class="p">)</span> <span class="k">for</span> <span class="n">w</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">])</span>
+
+    <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Pow</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">recurse</span><span class="p">(</span><span class="n">expr</span><span class="o">*</span><span class="n">_y</span><span class="p">,</span> <span class="n">deep</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span><span class="o">/</span><span class="n">_y</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Mul</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">expr</span>
+
+    <span class="c1"># handle the Mul</span>
+    <span class="k">if</span> <span class="n">combine</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;exp&#39;</span><span class="p">,</span> <span class="s1">&#39;all&#39;</span><span class="p">):</span>
+        <span class="c1"># Collect base/exp data, while maintaining order in the</span>
+        <span class="c1"># non-commutative parts of the product</span>
+        <span class="n">c_powers</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+        <span class="n">nc_part</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">newexpr</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">coeff</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span>
+        <span class="k">for</span> <span class="n">term</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">term</span><span class="o">.</span><span class="n">is_Rational</span><span class="p">:</span>
+                <span class="n">coeff</span> <span class="o">*=</span> <span class="n">term</span>
+                <span class="k">continue</span>
+            <span class="k">if</span> <span class="n">term</span><span class="o">.</span><span class="n">is_Pow</span><span class="p">:</span>
+                <span class="n">term</span> <span class="o">=</span> <span class="n">_denest_pow</span><span class="p">(</span><span class="n">term</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">term</span><span class="o">.</span><span class="n">is_commutative</span><span class="p">:</span>
+                <span class="n">b</span><span class="p">,</span> <span class="n">e</span> <span class="o">=</span> <span class="n">term</span><span class="o">.</span><span class="n">as_base_exp</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">deep</span><span class="p">:</span>
+                    <span class="n">b</span><span class="p">,</span> <span class="n">e</span> <span class="o">=</span> <span class="p">[</span><span class="n">recurse</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">[</span><span class="n">b</span><span class="p">,</span> <span class="n">e</span><span class="p">]]</span>
+                <span class="k">if</span> <span class="n">b</span><span class="o">.</span><span class="n">is_Pow</span> <span class="ow">or</span> <span class="n">b</span><span class="o">.</span><span class="n">func</span> <span class="ow">is</span> <span class="n">exp</span><span class="p">:</span>
+                    <span class="c1"># don&#39;t let smthg like sqrt(x**a) split into x**a, 1/2</span>
+                    <span class="c1"># or else it will be joined as x**(a/2) later</span>
+                    <span class="n">b</span><span class="p">,</span> <span class="n">e</span> <span class="o">=</span> <span class="n">b</span><span class="o">**</span><span class="n">e</span><span class="p">,</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span>
+                <span class="n">c_powers</span><span class="p">[</span><span class="n">b</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># This is the logic that combines exponents for equal,</span>
+                <span class="c1"># but non-commutative bases: A**x*A**y == A**(x+y).</span>
+                <span class="k">if</span> <span class="n">nc_part</span><span class="p">:</span>
+                    <span class="n">b1</span><span class="p">,</span> <span class="n">e1</span> <span class="o">=</span> <span class="n">nc_part</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">as_base_exp</span><span class="p">()</span>
+                    <span class="n">b2</span><span class="p">,</span> <span class="n">e2</span> <span class="o">=</span> <span class="n">term</span><span class="o">.</span><span class="n">as_base_exp</span><span class="p">()</span>
+                    <span class="k">if</span> <span class="p">(</span><span class="n">b1</span> <span class="o">==</span> <span class="n">b2</span> <span class="ow">and</span>
+                            <span class="n">e1</span><span class="o">.</span><span class="n">is_commutative</span> <span class="ow">and</span> <span class="n">e2</span><span class="o">.</span><span class="n">is_commutative</span><span class="p">):</span>
+                        <span class="n">nc_part</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">Pow</span><span class="p">(</span><span class="n">b1</span><span class="p">,</span> <span class="n">Add</span><span class="p">(</span><span class="n">e1</span><span class="p">,</span> <span class="n">e2</span><span class="p">))</span>
+                        <span class="k">continue</span>
+                <span class="n">nc_part</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">term</span><span class="p">)</span>
+
+        <span class="c1"># add up exponents of common bases</span>
+        <span class="k">for</span> <span class="n">b</span><span class="p">,</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">ordered</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="n">c_powers</span><span class="o">.</span><span class="n">items</span><span class="p">())):</span>
+            <span class="c1"># allow 2**x/4 -&gt; 2**(x - 2); don&#39;t do this when b and e are</span>
+            <span class="c1"># Numbers since autoevaluation will undo it, e.g.</span>
+            <span class="c1"># 2**(1/3)/4 -&gt; 2**(1/3 - 2) -&gt; 2**(1/3)/4</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">b</span> <span class="ow">and</span> <span class="n">b</span><span class="o">.</span><span class="n">is_Number</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">(</span><span class="n">ei</span><span class="o">.</span><span class="n">is_Number</span> <span class="k">for</span> <span class="n">ei</span> <span class="ow">in</span> <span class="n">e</span><span class="p">)</span> <span class="ow">and</span> \
+                    <span class="n">coeff</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span> <span class="ow">and</span>
+                    <span class="n">b</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">,</span> <span class="n">S</span><span class="o">.</span><span class="n">NegativeOne</span><span class="p">)):</span>
+                <span class="n">m</span> <span class="o">=</span> <span class="n">multiplicity</span><span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">b</span><span class="p">),</span> <span class="nb">abs</span><span class="p">(</span><span class="n">coeff</span><span class="p">))</span>
+                <span class="k">if</span> <span class="n">m</span><span class="p">:</span>
+                    <span class="n">e</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">m</span><span class="p">)</span>
+                    <span class="n">coeff</span> <span class="o">/=</span> <span class="n">b</span><span class="o">**</span><span class="n">m</span>
+            <span class="n">c_powers</span><span class="p">[</span><span class="n">b</span><span class="p">]</span> <span class="o">=</span> <span class="n">Add</span><span class="p">(</span><span class="o">*</span><span class="n">e</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">coeff</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">coeff</span> <span class="ow">in</span> <span class="n">c_powers</span><span class="p">:</span>
+                <span class="n">c_powers</span><span class="p">[</span><span class="n">coeff</span><span class="p">]</span> <span class="o">+=</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">c_powers</span><span class="p">[</span><span class="n">coeff</span><span class="p">]</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span>
+
+        <span class="c1"># convert to plain dictionary</span>
+        <span class="n">c_powers</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">c_powers</span><span class="p">)</span>
+
+        <span class="c1"># check for base and inverted base pairs</span>
+        <span class="n">be</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">c_powers</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
+        <span class="n">skip</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>  <span class="c1"># skip if we already saw them</span>
+        <span class="k">for</span> <span class="n">b</span><span class="p">,</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">be</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">skip</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">bpos</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">is_positive</span> <span class="ow">or</span> <span class="n">b</span><span class="o">.</span><span class="n">is_polar</span>
+            <span class="k">if</span> <span class="n">bpos</span><span class="p">:</span>
+                <span class="n">binv</span> <span class="o">=</span> <span class="mi">1</span><span class="o">/</span><span class="n">b</span>
+                <span class="k">if</span> <span class="n">b</span> <span class="o">!=</span> <span class="n">binv</span> <span class="ow">and</span> <span class="n">binv</span> <span class="ow">in</span> <span class="n">c_powers</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">b</span><span class="o">.</span><span class="n">as_numer_denom</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">is</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">:</span>
+                        <span class="n">c_powers</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">b</span><span class="p">)</span>
+                        <span class="n">c_powers</span><span class="p">[</span><span class="n">binv</span><span class="p">]</span> <span class="o">-=</span> <span class="n">e</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">skip</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">binv</span><span class="p">)</span>
+                        <span class="n">e</span> <span class="o">=</span> <span class="n">c_powers</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">binv</span><span class="p">)</span>
+                        <span class="n">c_powers</span><span class="p">[</span><span class="n">b</span><span class="p">]</span> <span class="o">-=</span> <span class="n">e</span>
+
+        <span class="c1"># check for base and negated base pairs</span>
+        <span class="n">be</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">c_powers</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
+        <span class="n">_n</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">NegativeOne</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">be</span><span class="p">):</span>
+            <span class="k">if</span> <span class="p">((</span><span class="o">-</span><span class="n">b</span><span class="p">)</span><span class="o">.</span><span class="n">is_Symbol</span> <span class="ow">or</span> <span class="n">b</span><span class="o">.</span><span class="n">is_Add</span><span class="p">)</span> <span class="ow">and</span> <span class="o">-</span><span class="n">b</span> <span class="ow">in</span> <span class="n">c_powers</span><span class="p">:</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">b</span><span class="o">.</span><span class="n">is_positive</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="ow">or</span> <span class="n">e</span><span class="o">.</span><span class="n">is_integer</span><span class="p">):</span>
+                    <span class="n">c_powers</span><span class="p">[</span><span class="o">-</span><span class="n">b</span><span class="p">]</span> <span class="o">+=</span> <span class="n">c_powers</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">b</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">_n</span> <span class="ow">in</span> <span class="n">c_powers</span><span class="p">:</span>
+                        <span class="n">c_powers</span><span class="p">[</span><span class="n">_n</span><span class="p">]</span> <span class="o">+=</span> <span class="n">e</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">c_powers</span><span class="p">[</span><span class="n">_n</span><span class="p">]</span> <span class="o">=</span> <span class="n">e</span>
+
+        <span class="c1"># filter c_powers and convert to a list</span>
+        <span class="n">c_powers</span> <span class="o">=</span> <span class="p">[(</span><span class="n">b</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span> <span class="k">for</span> <span class="n">b</span><span class="p">,</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">c_powers</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">e</span><span class="p">]</span>
+
+        <span class="c1"># ==============================================================</span>
+        <span class="c1"># check for Mul bases of Rational powers that can be combined with</span>
+        <span class="c1"># separated bases, e.g. x*sqrt(x*y)*sqrt(x*sqrt(x*y)) -&gt;</span>
+        <span class="c1"># (x*sqrt(x*y))**(3/2)</span>
+        <span class="c1"># ---------------- helper functions</span>
+
+        <span class="k">def</span> <span class="nf">ratq</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+            <span class="sd">&#39;&#39;&#39;Return Rational part of x&#39;s exponent as it appears in the bkey.</span>
+<span class="sd">            &#39;&#39;&#39;</span>
+            <span class="k">return</span> <span class="n">bkey</span><span class="p">(</span><span class="n">x</span><span class="p">)[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="k">def</span> <span class="nf">bkey</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">e</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+            <span class="sd">&#39;&#39;&#39;Return (b**s, c.q), c.p where e -&gt; c*s. If e is not given then</span>
+<span class="sd">            it will be taken by using as_base_exp() on the input b.</span>
+<span class="sd">            e.g.</span>
+<span class="sd">                x**3/2 -&gt; (x, 2), 3</span>
+<span class="sd">                x**y -&gt; (x**y, 1), 1</span>
+<span class="sd">                x**(2*y/3) -&gt; (x**y, 3), 2</span>
+<span class="sd">                exp(x/2) -&gt; (exp(a), 2), 1</span>
+
+<span class="sd">            &#39;&#39;&#39;</span>
+            <span class="k">if</span> <span class="n">e</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>  <span class="c1"># coming from c_powers or from below</span>
+                <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">is_Integer</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">),</span> <span class="n">e</span>
+                <span class="k">elif</span> <span class="n">e</span><span class="o">.</span><span class="n">is_Rational</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">Integer</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">q</span><span class="p">)),</span> <span class="n">Integer</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">p</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">c</span><span class="p">,</span> <span class="n">m</span> <span class="o">=</span> <span class="n">e</span><span class="o">.</span><span class="n">as_coeff_Mul</span><span class="p">(</span><span class="n">rational</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">c</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="n">m</span><span class="o">.</span><span class="n">is_integer</span><span class="p">:</span>
+                            <span class="k">return</span> <span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">Integer</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">q</span><span class="p">)),</span> <span class="n">m</span><span class="o">*</span><span class="n">Integer</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">p</span><span class="p">)</span>
+                        <span class="k">return</span> <span class="p">(</span><span class="n">b</span><span class="o">**</span><span class="n">m</span><span class="p">,</span> <span class="n">Integer</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">q</span><span class="p">)),</span> <span class="n">Integer</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">p</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="k">return</span> <span class="p">(</span><span class="n">b</span><span class="o">**</span><span class="n">e</span><span class="p">,</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">),</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">bkey</span><span class="p">(</span><span class="o">*</span><span class="n">b</span><span class="o">.</span><span class="n">as_base_exp</span><span class="p">())</span>
+
+        <span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="n">b</span><span class="p">):</span>
+            <span class="sd">&#39;&#39;&#39;Decide what to do with base, b. If its exponent is now an</span>
+<span class="sd">            integer multiple of the Rational denominator, then remove it</span>
+<span class="sd">            and put the factors of its base in the common_b dictionary or</span>
+<span class="sd">            update the existing bases if necessary. If it has been zeroed</span>
+<span class="sd">            out, simply remove the base.</span>
+<span class="sd">            &#39;&#39;&#39;</span>
+            <span class="n">newe</span><span class="p">,</span> <span class="n">r</span> <span class="o">=</span> <span class="nb">divmod</span><span class="p">(</span><span class="n">common_b</span><span class="p">[</span><span class="n">b</span><span class="p">],</span> <span class="n">b</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">r</span><span class="p">:</span>
+                <span class="n">common_b</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">b</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">newe</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">Mul</span><span class="o">.</span><span class="n">make_args</span><span class="p">(</span><span class="n">b</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">**</span><span class="n">newe</span><span class="p">):</span>
+                        <span class="n">b</span><span class="p">,</span> <span class="n">e</span> <span class="o">=</span> <span class="n">bkey</span><span class="p">(</span><span class="n">m</span><span class="p">)</span>
+                        <span class="k">if</span> <span class="n">b</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">common_b</span><span class="p">:</span>
+                            <span class="n">common_b</span><span class="p">[</span><span class="n">b</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+                        <span class="n">common_b</span><span class="p">[</span><span class="n">b</span><span class="p">]</span> <span class="o">+=</span> <span class="n">e</span>
+                        <span class="k">if</span> <span class="n">b</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+                            <span class="n">bases</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">b</span><span class="p">)</span>
+        <span class="c1"># ---------------- end of helper functions</span>
+
+        <span class="c1"># assemble a dictionary of the factors having a Rational power</span>
+        <span class="n">common_b</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">done</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">bases</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">b</span><span class="p">,</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">c_powers</span><span class="p">:</span>
+            <span class="n">b</span><span class="p">,</span> <span class="n">e</span> <span class="o">=</span> <span class="n">bkey</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">common_b</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                <span class="n">common_b</span><span class="p">[</span><span class="n">b</span><span class="p">]</span> <span class="o">=</span> <span class="n">common_b</span><span class="p">[</span><span class="n">b</span><span class="p">]</span> <span class="o">+</span> <span class="n">e</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">common_b</span><span class="p">[</span><span class="n">b</span><span class="p">]</span> <span class="o">=</span> <span class="n">e</span>
+            <span class="k">if</span> <span class="n">b</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">b</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">is_Mul</span><span class="p">:</span>
+                <span class="n">bases</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">b</span><span class="p">)</span>
+        <span class="n">c_powers</span> <span class="o">=</span> <span class="p">[(</span><span class="n">b</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span> <span class="k">for</span> <span class="n">b</span><span class="p">,</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">common_b</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">e</span><span class="p">]</span>
+        <span class="n">bases</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="n">default_sort_key</span><span class="p">)</span>  <span class="c1"># this makes tie-breaking canonical</span>
+        <span class="n">bases</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="n">measure</span><span class="p">,</span> <span class="n">reverse</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>  <span class="c1"># handle longest first</span>
+        <span class="k">for</span> <span class="n">base</span> <span class="ow">in</span> <span class="n">bases</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">base</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">common_b</span><span class="p">:</span>  <span class="c1"># it may have been removed already</span>
+                <span class="k">continue</span>
+            <span class="n">b</span><span class="p">,</span> <span class="n">exponent</span> <span class="o">=</span> <span class="n">base</span>
+            <span class="n">last</span> <span class="o">=</span> <span class="bp">False</span>  <span class="c1"># True when no factor of base is a radical</span>
+            <span class="n">qlcm</span> <span class="o">=</span> <span class="mi">1</span>  <span class="c1"># the lcm of the radical denominators</span>
+            <span class="k">while</span> <span class="bp">True</span><span class="p">:</span>
+                <span class="n">bstart</span> <span class="o">=</span> <span class="n">b</span>
+                <span class="n">qstart</span> <span class="o">=</span> <span class="n">qlcm</span>
+
+                <span class="n">bb</span> <span class="o">=</span> <span class="p">[]</span>  <span class="c1"># list of factors</span>
+                <span class="n">ee</span> <span class="o">=</span> <span class="p">[]</span>  <span class="c1"># (factor&#39;s expo. and it&#39;s current value in common_b)</span>
+                <span class="k">for</span> <span class="n">bi</span> <span class="ow">in</span> <span class="n">Mul</span><span class="o">.</span><span class="n">make_args</span><span class="p">(</span><span class="n">b</span><span class="p">):</span>
+                    <span class="n">bib</span><span class="p">,</span> <span class="n">bie</span> <span class="o">=</span> <span class="n">bkey</span><span class="p">(</span><span class="n">bi</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">bib</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">common_b</span> <span class="ow">or</span> <span class="n">common_b</span><span class="p">[</span><span class="n">bib</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">bie</span><span class="p">:</span>
+                        <span class="n">ee</span> <span class="o">=</span> <span class="n">bb</span> <span class="o">=</span> <span class="p">[]</span>  <span class="c1"># failed</span>
+                        <span class="k">break</span>
+                    <span class="n">ee</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="n">bie</span><span class="p">,</span> <span class="n">common_b</span><span class="p">[</span><span class="n">bib</span><span class="p">]])</span>
+                    <span class="n">bb</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">bib</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">ee</span><span class="p">:</span>
+                    <span class="c1"># find the number of extractions possible</span>
+                    <span class="c1"># e.g. [(1, 2), (2, 2)] -&gt; min(2/1, 2/2) -&gt; 1</span>
+                    <span class="n">min1</span> <span class="o">=</span> <span class="n">ee</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span><span class="o">/</span><span class="n">ee</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+                    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">ee</span><span class="p">)):</span>
+                        <span class="n">rat</span> <span class="o">=</span> <span class="n">ee</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span><span class="o">/</span><span class="n">ee</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+                        <span class="k">if</span> <span class="n">rat</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+                            <span class="k">break</span>
+                        <span class="n">min1</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">min1</span><span class="p">,</span> <span class="n">rat</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="c1"># update base factor counts</span>
+                        <span class="c1"># e.g. if ee = [(2, 5), (3, 6)] then min1 = 2</span>
+                        <span class="c1"># and the new base counts will be 5-2*2 and 6-2*3</span>
+                        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">bb</span><span class="p">)):</span>
+                            <span class="n">common_b</span><span class="p">[</span><span class="n">bb</span><span class="p">[</span><span class="n">i</span><span class="p">]]</span> <span class="o">-=</span> <span class="n">min1</span><span class="o">*</span><span class="n">ee</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+                            <span class="n">update</span><span class="p">(</span><span class="n">bb</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+                        <span class="c1"># update the count of the base</span>
+                        <span class="c1"># e.g. x**2*y*sqrt(x*sqrt(y)) the count of x*sqrt(y)</span>
+                        <span class="c1"># will increase by 4 to give bkey (x*sqrt(y), 2, 5)</span>
+                        <span class="n">common_b</span><span class="p">[</span><span class="n">base</span><span class="p">]</span> <span class="o">+=</span> <span class="n">min1</span><span class="o">*</span><span class="n">qstart</span><span class="o">*</span><span class="n">exponent</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">last</span>  <span class="c1"># no more radicals in base</span>
+                    <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="n">common_b</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>  <span class="c1"># nothing left to join with</span>
+                    <span class="ow">or</span> <span class="nb">all</span><span class="p">(</span><span class="n">k</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">common_b</span><span class="p">)</span>  <span class="c1"># no rad&#39;s in common_b</span>
+                        <span class="p">):</span>
+                    <span class="k">break</span>
+                <span class="c1"># see what we can exponentiate base by to remove any radicals</span>
+                <span class="c1"># so we know what to search for</span>
+                <span class="c1"># e.g. if base were x**(1/2)*y**(1/3) then we should</span>
+                <span class="c1"># exponentiate by 6 and look for powers of x and y in the ratio</span>
+                <span class="c1"># of 2 to 3</span>
+                <span class="n">qlcm</span> <span class="o">=</span> <span class="n">lcm</span><span class="p">([</span><span class="n">ratq</span><span class="p">(</span><span class="n">bi</span><span class="p">)</span> <span class="k">for</span> <span class="n">bi</span> <span class="ow">in</span> <span class="n">Mul</span><span class="o">.</span><span class="n">make_args</span><span class="p">(</span><span class="n">bstart</span><span class="p">)])</span>
+                <span class="k">if</span> <span class="n">qlcm</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="k">break</span>  <span class="c1"># we are done</span>
+                <span class="n">b</span> <span class="o">=</span> <span class="n">bstart</span><span class="o">**</span><span class="n">qlcm</span>
+                <span class="n">qlcm</span> <span class="o">*=</span> <span class="n">qstart</span>
+                <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">ratq</span><span class="p">(</span><span class="n">bi</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">for</span> <span class="n">bi</span> <span class="ow">in</span> <span class="n">Mul</span><span class="o">.</span><span class="n">make_args</span><span class="p">(</span><span class="n">b</span><span class="p">)):</span>
+                    <span class="n">last</span> <span class="o">=</span> <span class="bp">True</span>  <span class="c1"># we are going to be done after this next pass</span>
+            <span class="c1"># this base no longer can find anything to join with and</span>
+            <span class="c1"># since it was longer than any other we are done with it</span>
+            <span class="n">b</span><span class="p">,</span> <span class="n">q</span> <span class="o">=</span> <span class="n">base</span>
+            <span class="n">done</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">b</span><span class="p">,</span> <span class="n">common_b</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">base</span><span class="p">)</span><span class="o">*</span><span class="n">Rational</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">q</span><span class="p">)))</span>
+
+        <span class="c1"># update c_powers and get ready to continue with powsimp</span>
+        <span class="n">c_powers</span> <span class="o">=</span> <span class="n">done</span>
+        <span class="c1"># there may be terms still in common_b that were bases that were</span>
+        <span class="c1"># identified as needing processing, so remove those, too</span>
+        <span class="k">for</span> <span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">q</span><span class="p">),</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">common_b</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">b</span><span class="o">.</span><span class="n">is_Pow</span> <span class="ow">or</span> <span class="n">b</span><span class="o">.</span><span class="n">func</span> <span class="ow">is</span> <span class="n">exp</span><span class="p">)</span> <span class="ow">and</span> \
+                    <span class="n">q</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">b</span><span class="o">.</span><span class="n">exp</span><span class="o">.</span><span class="n">is_Rational</span><span class="p">:</span>
+                <span class="n">b</span><span class="p">,</span> <span class="n">be</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">as_base_exp</span><span class="p">()</span>
+                <span class="n">b</span> <span class="o">=</span> <span class="n">b</span><span class="o">**</span><span class="p">(</span><span class="n">be</span><span class="o">/</span><span class="n">q</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">b</span> <span class="o">=</span> <span class="n">root</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">q</span><span class="p">)</span>
+            <span class="n">c_powers</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">b</span><span class="p">,</span> <span class="n">e</span><span class="p">))</span>
+        <span class="n">check</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">c_powers</span><span class="p">)</span>
+        <span class="n">c_powers</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">c_powers</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">c_powers</span><span class="p">)</span> <span class="o">==</span> <span class="n">check</span>  <span class="c1"># there should have been no duplicates</span>
+        <span class="c1"># ==============================================================</span>
+
+        <span class="c1"># rebuild the expression</span>
+        <span class="n">newexpr</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="n">newexpr</span> <span class="o">+</span> <span class="p">[</span><span class="n">Pow</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span> <span class="k">for</span> <span class="n">b</span><span class="p">,</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">c_powers</span><span class="o">.</span><span class="n">items</span><span class="p">()]))</span>
+        <span class="k">if</span> <span class="n">combine</span> <span class="o">==</span> <span class="s1">&#39;exp&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">newexpr</span><span class="p">,</span> <span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">nc_part</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">recurse</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">nc_part</span><span class="p">),</span> <span class="n">combine</span><span class="o">=</span><span class="s1">&#39;base&#39;</span><span class="p">)</span> <span class="o">*</span> \
+                <span class="n">recurse</span><span class="p">(</span><span class="n">newexpr</span><span class="p">,</span> <span class="n">combine</span><span class="o">=</span><span class="s1">&#39;base&#39;</span><span class="p">)</span>
+
+    <span class="k">elif</span> <span class="n">combine</span> <span class="o">==</span> <span class="s1">&#39;base&#39;</span><span class="p">:</span>
+
+        <span class="c1"># Build c_powers and nc_part.  These must both be lists not</span>
+        <span class="c1"># dicts because exp&#39;s are not combined.</span>
+        <span class="n">c_powers</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">nc_part</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">term</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">term</span><span class="o">.</span><span class="n">is_commutative</span><span class="p">:</span>
+                <span class="n">c_powers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">term</span><span class="o">.</span><span class="n">as_base_exp</span><span class="p">()))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># This is the logic that combines bases that are</span>
+                <span class="c1"># different and non-commutative, but with equal and</span>
+                <span class="c1"># commutative exponents: A**x*B**x == (A*B)**x.</span>
+                <span class="k">if</span> <span class="n">nc_part</span><span class="p">:</span>
+                    <span class="n">b1</span><span class="p">,</span> <span class="n">e1</span> <span class="o">=</span> <span class="n">nc_part</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">as_base_exp</span><span class="p">()</span>
+                    <span class="n">b2</span><span class="p">,</span> <span class="n">e2</span> <span class="o">=</span> <span class="n">term</span><span class="o">.</span><span class="n">as_base_exp</span><span class="p">()</span>
+                    <span class="k">if</span> <span class="p">(</span><span class="n">e1</span> <span class="o">==</span> <span class="n">e2</span> <span class="ow">and</span> <span class="n">e2</span><span class="o">.</span><span class="n">is_commutative</span><span class="p">):</span>
+                        <span class="n">nc_part</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">Pow</span><span class="p">(</span><span class="n">b1</span><span class="o">*</span><span class="n">b2</span><span class="p">,</span> <span class="n">e1</span><span class="p">)</span>
+                        <span class="k">continue</span>
+                <span class="n">nc_part</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">term</span><span class="p">)</span>
+
+        <span class="c1"># Pull out numerical coefficients from exponent if assumptions allow</span>
+        <span class="c1"># e.g., 2**(2*x) =&gt; 4**x</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">c_powers</span><span class="p">)):</span>
+            <span class="n">b</span><span class="p">,</span> <span class="n">e</span> <span class="o">=</span> <span class="n">c_powers</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="nb">all</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">is_nonnegative</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">b</span><span class="o">.</span><span class="n">as_numer_denom</span><span class="p">())</span> <span class="ow">or</span> <span class="n">e</span><span class="o">.</span><span class="n">is_integer</span> <span class="ow">or</span> <span class="n">force</span> <span class="ow">or</span> <span class="n">b</span><span class="o">.</span><span class="n">is_polar</span><span class="p">):</span>
+                <span class="k">continue</span>
+            <span class="n">exp_c</span><span class="p">,</span> <span class="n">exp_t</span> <span class="o">=</span> <span class="n">e</span><span class="o">.</span><span class="n">as_coeff_Mul</span><span class="p">(</span><span class="n">rational</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">exp_c</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span> <span class="ow">and</span> <span class="n">exp_t</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">:</span>
+                <span class="n">c_powers</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">Pow</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">exp_c</span><span class="p">),</span> <span class="n">exp_t</span><span class="p">]</span>
+
+        <span class="c1"># Combine bases whenever they have the same exponent and</span>
+        <span class="c1"># assumptions allow</span>
+        <span class="c1"># first gather the potential bases under the common exponent</span>
+        <span class="n">c_exp</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">b</span><span class="p">,</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">c_powers</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">deep</span><span class="p">:</span>
+                <span class="n">e</span> <span class="o">=</span> <span class="n">recurse</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+            <span class="n">c_exp</span><span class="p">[</span><span class="n">e</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">b</span><span class="p">)</span>
+        <span class="k">del</span> <span class="n">c_powers</span>
+
+        <span class="c1"># Merge back in the results of the above to form a new product</span>
+        <span class="n">c_powers</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">c_exp</span><span class="p">:</span>
+            <span class="n">bases</span> <span class="o">=</span> <span class="n">c_exp</span><span class="p">[</span><span class="n">e</span><span class="p">]</span>
+
+            <span class="c1"># calculate the new base for e</span>
+
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">bases</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">new_base</span> <span class="o">=</span> <span class="n">bases</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">elif</span> <span class="n">e</span><span class="o">.</span><span class="n">is_integer</span> <span class="ow">or</span> <span class="n">force</span><span class="p">:</span>
+                <span class="n">new_base</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">bases</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># see which ones can be joined</span>
+                <span class="n">unk</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="n">nonneg</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="n">neg</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="k">for</span> <span class="n">bi</span> <span class="ow">in</span> <span class="n">bases</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">bi</span><span class="o">.</span><span class="n">is_negative</span><span class="p">:</span>
+                        <span class="n">neg</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">bi</span><span class="p">)</span>
+                    <span class="k">elif</span> <span class="n">bi</span><span class="o">.</span><span class="n">is_nonnegative</span><span class="p">:</span>
+                        <span class="n">nonneg</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">bi</span><span class="p">)</span>
+                    <span class="k">elif</span> <span class="n">bi</span><span class="o">.</span><span class="n">is_polar</span><span class="p">:</span>
+                        <span class="n">nonneg</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                            <span class="n">bi</span><span class="p">)</span>  <span class="c1"># polar can be treated like non-negative</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">unk</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">bi</span><span class="p">)</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">unk</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">neg</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="n">neg</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">unk</span><span class="p">:</span>
+                    <span class="c1"># a single neg or a single unk can join the rest</span>
+                    <span class="n">nonneg</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">unk</span> <span class="o">+</span> <span class="n">neg</span><span class="p">)</span>
+                    <span class="n">unk</span> <span class="o">=</span> <span class="n">neg</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="k">elif</span> <span class="n">neg</span><span class="p">:</span>
+                    <span class="c1"># their negative signs cancel in groups of 2*q if we know</span>
+                    <span class="c1"># that e = p/q else we have to treat them as unknown</span>
+                    <span class="n">israt</span> <span class="o">=</span> <span class="bp">False</span>
+                    <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">is_Rational</span><span class="p">:</span>
+                        <span class="n">israt</span> <span class="o">=</span> <span class="bp">True</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">p</span><span class="p">,</span> <span class="n">d</span> <span class="o">=</span> <span class="n">e</span><span class="o">.</span><span class="n">as_numer_denom</span><span class="p">()</span>
+                        <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">is_integer</span> <span class="ow">and</span> <span class="n">d</span><span class="o">.</span><span class="n">is_integer</span><span class="p">:</span>
+                            <span class="n">israt</span> <span class="o">=</span> <span class="bp">True</span>
+                    <span class="k">if</span> <span class="n">israt</span><span class="p">:</span>
+                        <span class="n">neg</span> <span class="o">=</span> <span class="p">[</span><span class="o">-</span><span class="n">w</span> <span class="k">for</span> <span class="n">w</span> <span class="ow">in</span> <span class="n">neg</span><span class="p">]</span>
+                        <span class="n">unk</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">S</span><span class="o">.</span><span class="n">NegativeOne</span><span class="p">]</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">neg</span><span class="p">))</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">unk</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">neg</span><span class="p">)</span>
+                        <span class="n">neg</span> <span class="o">=</span> <span class="p">[]</span>
+                    <span class="k">del</span> <span class="n">israt</span>
+
+                <span class="c1"># these shouldn&#39;t be joined</span>
+                <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">unk</span><span class="p">:</span>
+                    <span class="n">c_powers</span><span class="p">[</span><span class="n">b</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+                <span class="c1"># here is a new joined base</span>
+                <span class="n">new_base</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="n">nonneg</span> <span class="o">+</span> <span class="n">neg</span><span class="p">))</span>
+                <span class="c1"># if there are positive parts they will just get separated</span>
+                <span class="c1"># again unless some change is made</span>
+
+                <span class="k">def</span> <span class="nf">_terms</span><span class="p">(</span><span class="n">e</span><span class="p">):</span>
+                    <span class="c1"># return the number of terms of this expression</span>
+                    <span class="c1"># when multiplied out -- assuming no joining of terms</span>
+                    <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">is_Add</span><span class="p">:</span>
+                        <span class="k">return</span> <span class="nb">sum</span><span class="p">([</span><span class="n">_terms</span><span class="p">(</span><span class="n">ai</span><span class="p">)</span> <span class="k">for</span> <span class="n">ai</span> <span class="ow">in</span> <span class="n">e</span><span class="o">.</span><span class="n">args</span><span class="p">])</span>
+                    <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">is_Mul</span><span class="p">:</span>
+                        <span class="k">return</span> <span class="n">prod</span><span class="p">([</span><span class="n">_terms</span><span class="p">(</span><span class="n">mi</span><span class="p">)</span> <span class="k">for</span> <span class="n">mi</span> <span class="ow">in</span> <span class="n">e</span><span class="o">.</span><span class="n">args</span><span class="p">])</span>
+                    <span class="k">return</span> <span class="mi">1</span>
+                <span class="n">xnew_base</span> <span class="o">=</span> <span class="n">expand_mul</span><span class="p">(</span><span class="n">new_base</span><span class="p">,</span> <span class="n">deep</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">Add</span><span class="o">.</span><span class="n">make_args</span><span class="p">(</span><span class="n">xnew_base</span><span class="p">))</span> <span class="o">&lt;</span> <span class="n">_terms</span><span class="p">(</span><span class="n">new_base</span><span class="p">):</span>
+                    <span class="n">new_base</span> <span class="o">=</span> <span class="n">factor_terms</span><span class="p">(</span><span class="n">xnew_base</span><span class="p">)</span>
+
+            <span class="n">c_powers</span><span class="p">[</span><span class="n">new_base</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+
+        <span class="c1"># break out the powers from c_powers now</span>
+        <span class="n">c_part</span> <span class="o">=</span> <span class="p">[</span><span class="n">Pow</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">ei</span><span class="p">)</span> <span class="k">for</span> <span class="n">b</span><span class="p">,</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">c_powers</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">for</span> <span class="n">ei</span> <span class="ow">in</span> <span class="n">e</span><span class="p">]</span>
+
+        <span class="c1"># we&#39;re done</span>
+        <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="n">c_part</span> <span class="o">+</span> <span class="n">nc_part</span><span class="p">))</span>
+
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;combine must be one of (&#39;all&#39;, &#39;exp&#39;, &#39;base&#39;).&quot;</span><span class="p">)</span>
+
+</div>
+<div class="viewcode-block" id="powdenest"><a class="viewcode-back" href="../../../modules/simplify/simplify.html#sympy.simplify.powsimp.powdenest">[docs]</a><span class="k">def</span> <span class="nf">powdenest</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">force</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">polar</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+    <span class="sd">r&quot;&quot;&quot;</span>
+<span class="sd">    Collect exponents on powers as assumptions allow.</span>
+
+<span class="sd">    Given ``(bb**be)**e``, this can be simplified as follows:</span>
+<span class="sd">        * if ``bb`` is positive, or</span>
+<span class="sd">        * ``e`` is an integer, or</span>
+<span class="sd">        * ``|be| &lt; 1`` then this simplifies to ``bb**(be*e)``</span>
+
+<span class="sd">    Given a product of powers raised to a power, ``(bb1**be1 *</span>
+<span class="sd">    bb2**be2...)**e``, simplification can be done as follows:</span>
+
+<span class="sd">    - if e is positive, the gcd of all bei can be joined with e;</span>
+<span class="sd">    - all non-negative bb can be separated from those that are negative</span>
+<span class="sd">      and their gcd can be joined with e; autosimplification already</span>
+<span class="sd">      handles this separation.</span>
+<span class="sd">    - integer factors from powers that have integers in the denominator</span>
+<span class="sd">      of the exponent can be removed from any term and the gcd of such</span>
+<span class="sd">      integers can be joined with e</span>
+
+<span class="sd">    Setting ``force`` to True will make symbols that are not explicitly</span>
+<span class="sd">    negative behave as though they are positive, resulting in more</span>
+<span class="sd">    denesting.</span>
+
+<span class="sd">    Setting ``polar`` to True will do simplifications on the Riemann surface of</span>
+<span class="sd">    the logarithm, also resulting in more denestings.</span>
+
+<span class="sd">    When there are sums of logs in exp() then a product of powers may be</span>
+<span class="sd">    obtained e.g. ``exp(3*(log(a) + 2*log(b)))`` - &gt; ``a**3*b**6``.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.abc import a, b, x, y, z</span>
+<span class="sd">    &gt;&gt;&gt; from sympy import Symbol, exp, log, sqrt, symbols, powdenest</span>
+
+<span class="sd">    &gt;&gt;&gt; powdenest((x**(2*a/3))**(3*x))</span>
+<span class="sd">    (x**(2*a/3))**(3*x)</span>
+<span class="sd">    &gt;&gt;&gt; powdenest(exp(3*x*log(2)))</span>
+<span class="sd">    2**(3*x)</span>
+
+<span class="sd">    Assumptions may prevent expansion:</span>
+
+<span class="sd">    &gt;&gt;&gt; powdenest(sqrt(x**2))</span>
+<span class="sd">    sqrt(x**2)</span>
+
+<span class="sd">    &gt;&gt;&gt; p = symbols(&#39;p&#39;, positive=True)</span>
+<span class="sd">    &gt;&gt;&gt; powdenest(sqrt(p**2))</span>
+<span class="sd">    p</span>
+
+<span class="sd">    No other expansion is done.</span>
+
+<span class="sd">    &gt;&gt;&gt; i, j = symbols(&#39;i,j&#39;, integer=True)</span>
+<span class="sd">    &gt;&gt;&gt; powdenest((x**x)**(i + j)) # -X-&gt; (x**x)**i*(x**x)**j</span>
+<span class="sd">    x**(x*(i + j))</span>
+
+<span class="sd">    But exp() will be denested by moving all non-log terms outside of</span>
+<span class="sd">    the function; this may result in the collapsing of the exp to a power</span>
+<span class="sd">    with a different base:</span>
+
+<span class="sd">    &gt;&gt;&gt; powdenest(exp(3*y*log(x)))</span>
+<span class="sd">    x**(3*y)</span>
+<span class="sd">    &gt;&gt;&gt; powdenest(exp(y*(log(a) + log(b))))</span>
+<span class="sd">    (a*b)**y</span>
+<span class="sd">    &gt;&gt;&gt; powdenest(exp(3*(log(a) + log(b))))</span>
+<span class="sd">    a**3*b**3</span>
+
+<span class="sd">    If assumptions allow, symbols can also be moved to the outermost exponent:</span>
+
+<span class="sd">    &gt;&gt;&gt; i = Symbol(&#39;i&#39;, integer=True)</span>
+<span class="sd">    &gt;&gt;&gt; powdenest(((x**(2*i))**(3*y))**x)</span>
+<span class="sd">    ((x**(2*i))**(3*y))**x</span>
+<span class="sd">    &gt;&gt;&gt; powdenest(((x**(2*i))**(3*y))**x, force=True)</span>
+<span class="sd">    x**(6*i*x*y)</span>
+
+<span class="sd">    &gt;&gt;&gt; powdenest(((x**(2*a/3))**(3*y/i))**x)</span>
+<span class="sd">    ((x**(2*a/3))**(3*y/i))**x</span>
+<span class="sd">    &gt;&gt;&gt; powdenest((x**(2*i)*y**(4*i))**z, force=True)</span>
+<span class="sd">    (x*y**2)**(2*i*z)</span>
+
+<span class="sd">    &gt;&gt;&gt; n = Symbol(&#39;n&#39;, negative=True)</span>
+
+<span class="sd">    &gt;&gt;&gt; powdenest((x**i)**y, force=True)</span>
+<span class="sd">    x**(i*y)</span>
+<span class="sd">    &gt;&gt;&gt; powdenest((n**i)**x, force=True)</span>
+<span class="sd">    (n**i)**x</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">sympy.simplify.simplify</span> <span class="kn">import</span> <span class="n">posify</span>
+
+    <span class="k">if</span> <span class="n">force</span><span class="p">:</span>
+        <span class="n">eq</span><span class="p">,</span> <span class="n">rep</span> <span class="o">=</span> <span class="n">posify</span><span class="p">(</span><span class="n">eq</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">powdenest</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">force</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">rep</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">polar</span><span class="p">:</span>
+        <span class="n">eq</span><span class="p">,</span> <span class="n">rep</span> <span class="o">=</span> <span class="n">polarify</span><span class="p">(</span><span class="n">eq</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">unpolarify</span><span class="p">(</span><span class="n">powdenest</span><span class="p">(</span><span class="n">unpolarify</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">exponents_only</span><span class="o">=</span><span class="bp">True</span><span class="p">)),</span> <span class="n">rep</span><span class="p">)</span>
+
+    <span class="n">new</span> <span class="o">=</span> <span class="n">powsimp</span><span class="p">(</span><span class="n">sympify</span><span class="p">(</span><span class="n">eq</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">new</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">Transform</span><span class="p">(</span>
+        <span class="n">_denest_pow</span><span class="p">,</span> <span class="nb">filter</span><span class="o">=</span><span class="k">lambda</span> <span class="n">m</span><span class="p">:</span> <span class="n">m</span><span class="o">.</span><span class="n">is_Pow</span> <span class="ow">or</span> <span class="n">m</span><span class="o">.</span><span class="n">func</span> <span class="ow">is</span> <span class="n">exp</span><span class="p">))</span>
+</div>
+<span class="n">_y</span> <span class="o">=</span> <span class="n">Dummy</span><span class="p">(</span><span class="s1">&#39;y&#39;</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_denest_pow</span><span class="p">(</span><span class="n">eq</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Denest powers.</span>
+
+<span class="sd">    This is a helper function for powdenest that performs the actual</span>
+<span class="sd">    transformation.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">sympy.simplify.simplify</span> <span class="kn">import</span> <span class="n">logcombine</span>
+
+    <span class="n">b</span><span class="p">,</span> <span class="n">e</span> <span class="o">=</span> <span class="n">eq</span><span class="o">.</span><span class="n">as_base_exp</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">b</span><span class="o">.</span><span class="n">is_Pow</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">b</span><span class="o">.</span><span class="n">func</span><span class="p">,</span> <span class="n">exp</span><span class="p">)</span> <span class="ow">and</span> <span class="n">e</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">new</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">_eval_power</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">new</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">eq</span> <span class="o">=</span> <span class="n">new</span>
+            <span class="n">b</span><span class="p">,</span> <span class="n">e</span> <span class="o">=</span> <span class="n">new</span><span class="o">.</span><span class="n">as_base_exp</span><span class="p">()</span>
+
+    <span class="c1"># denest exp with log terms in exponent</span>
+    <span class="k">if</span> <span class="n">b</span> <span class="ow">is</span> <span class="n">S</span><span class="o">.</span><span class="n">Exp1</span> <span class="ow">and</span> <span class="n">e</span><span class="o">.</span><span class="n">is_Mul</span><span class="p">:</span>
+        <span class="n">logs</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">other</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">ei</span> <span class="ow">in</span> <span class="n">e</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">ai</span><span class="o">.</span><span class="n">func</span> <span class="ow">is</span> <span class="n">log</span> <span class="k">for</span> <span class="n">ai</span> <span class="ow">in</span> <span class="n">Add</span><span class="o">.</span><span class="n">make_args</span><span class="p">(</span><span class="n">ei</span><span class="p">)):</span>
+                <span class="n">logs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ei</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">other</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ei</span><span class="p">)</span>
+        <span class="n">logs</span> <span class="o">=</span> <span class="n">logcombine</span><span class="p">(</span><span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">logs</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">Pow</span><span class="p">(</span><span class="n">exp</span><span class="p">(</span><span class="n">logs</span><span class="p">),</span> <span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">other</span><span class="p">))</span>
+
+    <span class="n">_</span><span class="p">,</span> <span class="n">be</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">as_base_exp</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">be</span> <span class="ow">is</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span> <span class="ow">and</span> <span class="ow">not</span> <span class="p">(</span><span class="n">b</span><span class="o">.</span><span class="n">is_Mul</span> <span class="ow">or</span>
+                            <span class="n">b</span><span class="o">.</span><span class="n">is_Rational</span> <span class="ow">and</span> <span class="n">b</span><span class="o">.</span><span class="n">q</span> <span class="o">!=</span> <span class="mi">1</span> <span class="ow">or</span>
+                            <span class="n">b</span><span class="o">.</span><span class="n">is_positive</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">eq</span>
+
+    <span class="c1"># denest eq which is either pos**e or Pow**e or Mul**e or</span>
+    <span class="c1"># Mul(b1**e1, b2**e2)</span>
+
+    <span class="c1"># handle polar numbers specially</span>
+    <span class="n">polars</span><span class="p">,</span> <span class="n">nonpolars</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">bb</span> <span class="ow">in</span> <span class="n">Mul</span><span class="o">.</span><span class="n">make_args</span><span class="p">(</span><span class="n">b</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">bb</span><span class="o">.</span><span class="n">is_polar</span><span class="p">:</span>
+            <span class="n">polars</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">bb</span><span class="o">.</span><span class="n">as_base_exp</span><span class="p">())</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">nonpolars</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">bb</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">polars</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">polars</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">is_Mul</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">Pow</span><span class="p">(</span><span class="n">polars</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">polars</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">e</span><span class="p">)</span><span class="o">*</span><span class="n">powdenest</span><span class="p">(</span><span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">nonpolars</span><span class="p">)</span><span class="o">**</span><span class="n">e</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">polars</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">powdenest</span><span class="p">(</span><span class="n">bb</span><span class="o">**</span><span class="p">(</span><span class="n">ee</span><span class="o">*</span><span class="n">e</span><span class="p">))</span> <span class="k">for</span> <span class="p">(</span><span class="n">bb</span><span class="p">,</span> <span class="n">ee</span><span class="p">)</span> <span class="ow">in</span> <span class="n">polars</span><span class="p">])</span> \
+            <span class="o">*</span><span class="n">powdenest</span><span class="p">(</span><span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">nonpolars</span><span class="p">)</span><span class="o">**</span><span class="n">e</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">b</span><span class="o">.</span><span class="n">is_Integer</span><span class="p">:</span>
+        <span class="c1"># use log to see if there is a power here</span>
+        <span class="n">logb</span> <span class="o">=</span> <span class="n">expand_log</span><span class="p">(</span><span class="n">log</span><span class="p">(</span><span class="n">b</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">logb</span><span class="o">.</span><span class="n">is_Mul</span><span class="p">:</span>
+            <span class="n">c</span><span class="p">,</span> <span class="n">logb</span> <span class="o">=</span> <span class="n">logb</span><span class="o">.</span><span class="n">args</span>
+            <span class="n">e</span> <span class="o">*=</span> <span class="n">c</span>
+            <span class="n">base</span> <span class="o">=</span> <span class="n">logb</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">return</span> <span class="n">Pow</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
+
+    <span class="c1"># if b is not a Mul or any factor is an atom then there is nothing to do</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">b</span><span class="o">.</span><span class="n">is_Mul</span> <span class="ow">or</span> <span class="nb">any</span><span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">is_Atom</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">Mul</span><span class="o">.</span><span class="n">make_args</span><span class="p">(</span><span class="n">b</span><span class="p">)):</span>
+        <span class="k">return</span> <span class="n">eq</span>
+
+    <span class="c1"># let log handle the case of the base of the argument being a Mul, e.g.</span>
+    <span class="c1"># sqrt(x**(2*i)*y**(6*i)) -&gt; x**i*y**(3**i) if x and y are positive; we</span>
+    <span class="c1"># will take the log, expand it, and then factor out the common powers that</span>
+    <span class="c1"># now appear as coefficient. We do this manually since terms_gcd pulls out</span>
+    <span class="c1"># fractions, terms_gcd(x+x*y/2) -&gt; x*(y + 2)/2 and we don&#39;t want the 1/2;</span>
+    <span class="c1"># gcd won&#39;t pull out numerators from a fraction: gcd(3*x, 9*x/2) -&gt; x but</span>
+    <span class="c1"># we want 3*x. Neither work with noncommutatives.</span>
+
+    <span class="k">def</span> <span class="nf">nc_gcd</span><span class="p">(</span><span class="n">aa</span><span class="p">,</span> <span class="n">bb</span><span class="p">):</span>
+        <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">as_coeff_Mul</span><span class="p">()</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">[</span><span class="n">aa</span><span class="p">,</span> <span class="n">bb</span><span class="p">]]</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="n">gcd</span><span class="p">(</span><span class="n">a</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">b</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">.</span><span class="n">as_numer_denom</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">g</span> <span class="o">=</span> <span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="n">a</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">args_cnc</span><span class="p">(</span><span class="n">cset</span><span class="o">=</span><span class="bp">True</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&amp;</span> <span class="n">b</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">args_cnc</span><span class="p">(</span><span class="n">cset</span><span class="o">=</span><span class="bp">True</span><span class="p">)[</span><span class="mi">0</span><span class="p">]))</span>
+        <span class="k">return</span> <span class="n">_keep_coeff</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">g</span><span class="p">)</span>
+
+    <span class="n">glogb</span> <span class="o">=</span> <span class="n">expand_log</span><span class="p">(</span><span class="n">log</span><span class="p">(</span><span class="n">b</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">glogb</span><span class="o">.</span><span class="n">is_Add</span><span class="p">:</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="n">glogb</span><span class="o">.</span><span class="n">args</span>
+        <span class="n">g</span> <span class="o">=</span> <span class="nb">reduce</span><span class="p">(</span><span class="n">nc_gcd</span><span class="p">,</span> <span class="n">args</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">g</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">cg</span><span class="p">,</span> <span class="n">rg</span> <span class="o">=</span> <span class="n">g</span><span class="o">.</span><span class="n">as_coeff_Mul</span><span class="p">()</span>
+            <span class="n">glogb</span> <span class="o">=</span> <span class="n">_keep_coeff</span><span class="p">(</span><span class="n">cg</span><span class="p">,</span> <span class="n">rg</span><span class="o">*</span><span class="n">Add</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">a</span><span class="o">/</span><span class="n">g</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">args</span><span class="p">]))</span>
+
+    <span class="c1"># now put the log back together again</span>
+    <span class="k">if</span> <span class="n">glogb</span><span class="o">.</span><span class="n">func</span> <span class="ow">is</span> <span class="n">log</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">glogb</span><span class="o">.</span><span class="n">is_Mul</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">glogb</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">is_Pow</span> <span class="ow">or</span> <span class="n">glogb</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">func</span> <span class="ow">is</span> <span class="n">exp</span><span class="p">:</span>
+            <span class="n">glogb</span> <span class="o">=</span> <span class="n">_denest_pow</span><span class="p">(</span><span class="n">glogb</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="k">if</span> <span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">glogb</span><span class="o">.</span><span class="n">exp</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">)</span> <span class="o">==</span> <span class="bp">True</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">Pow</span><span class="p">(</span><span class="n">glogb</span><span class="o">.</span><span class="n">base</span><span class="p">,</span> <span class="n">glogb</span><span class="o">.</span><span class="n">exp</span><span class="o">*</span><span class="n">e</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">eq</span>
+
+    <span class="c1"># the log(b) was a Mul so join any adds with logcombine</span>
+    <span class="n">add</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">other</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">glogb</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">a</span><span class="o">.</span><span class="n">is_Add</span><span class="p">:</span>
+            <span class="n">add</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">other</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">Pow</span><span class="p">(</span><span class="n">exp</span><span class="p">(</span><span class="n">logcombine</span><span class="p">(</span><span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">add</span><span class="p">))),</span> <span class="n">e</span><span class="o">*</span><span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">other</span><span class="p">))</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../../index.html">
+              <img class="logo" src="../../../_static/sympylogo.png" alt="Logo"/>
+            </a></p>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">SymPy 1.0 documentation</a> &raquo;</li>
+          <li><a href="../../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2015 SymPy Development Team.
+      Last updated on Mar 08, 2016.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+  </body>
+</html>
