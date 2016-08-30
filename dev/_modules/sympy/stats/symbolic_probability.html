@@ -1,0 +1,515 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>sympy.stats.symbolic_probability &mdash; SymPy 1.0.1.dev documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="http://live.sympy.org/static/live-core.css" type="text/css" />
+    <link rel="stylesheet" href="http://live.sympy.org/static/live-autocomplete.css" type="text/css" />
+    <link rel="stylesheet" href="http://live.sympy.org/static/live-sphinx.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '1.0.1.dev',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/utilities.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/external/classy.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/live-core.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/live-autocomplete.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/live-sphinx.js"></script>
+    <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_HTML-full"></script>
+    <link rel="shortcut icon" href="../../../_static/sympy-notailtext-favicon.ico"/>
+    <link rel="top" title="SymPy 1.0.1.dev documentation" href="../../../index.html" />
+    <link rel="up" title="Module code" href="../../index.html" />
+   
+  <link rel="stylesheet" href="../../../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for sympy.stats.symbolic_probability</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">itertools</span>
+
+<span class="kn">from</span> <span class="nn">sympy.core.sympify</span> <span class="kn">import</span> <span class="n">_sympify</span>
+
+<span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="kn">import</span> <span class="n">default_sort_key</span>
+
+<span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">Expr</span><span class="p">,</span> <span class="n">Add</span><span class="p">,</span> <span class="n">Mul</span><span class="p">,</span> <span class="n">S</span><span class="p">,</span> <span class="n">Integral</span><span class="p">,</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">Sum</span><span class="p">,</span> <span class="n">Symbol</span><span class="p">,</span> <span class="n">Dummy</span><span class="p">,</span> <span class="n">Basic</span>
+<span class="kn">from</span> <span class="nn">sympy.core.evaluate</span> <span class="kn">import</span> <span class="n">global_evaluate</span>
+<span class="kn">from</span> <span class="nn">sympy.stats</span> <span class="kn">import</span> <span class="n">variance</span><span class="p">,</span> <span class="n">covariance</span>
+<span class="kn">from</span> <span class="nn">sympy.stats.rv</span> <span class="kn">import</span> <span class="n">RandomSymbol</span><span class="p">,</span> <span class="n">probability</span><span class="p">,</span> <span class="n">expectation</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Probability&#39;</span><span class="p">,</span> <span class="s1">&#39;Expectation&#39;</span><span class="p">,</span> <span class="s1">&#39;Variance&#39;</span><span class="p">,</span> <span class="s1">&#39;Covariance&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="Probability"><a class="viewcode-back" href="../../../modules/stats.html#sympy.stats.Probability">[docs]</a><span class="k">class</span> <span class="nc">Probability</span><span class="p">(</span><span class="n">Expr</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Symbolic expression for the probability.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.stats import Probability, Normal</span>
+<span class="sd">    &gt;&gt;&gt; from sympy import Integral</span>
+<span class="sd">    &gt;&gt;&gt; X = Normal(&quot;X&quot;, 0, 1)</span>
+<span class="sd">    &gt;&gt;&gt; prob = Probability(X &gt; 1)</span>
+<span class="sd">    &gt;&gt;&gt; prob</span>
+<span class="sd">    Probability(X &gt; 1)</span>
+
+<span class="sd">    Integral representation:</span>
+
+<span class="sd">    &gt;&gt;&gt; prob.rewrite(Integral)</span>
+<span class="sd">    Integral(sqrt(2)*exp(-_z**2/2)/(2*sqrt(pi)), (_z, 1, oo))</span>
+
+<span class="sd">    Evaluation of the integral:</span>
+
+<span class="sd">    &gt;&gt;&gt; prob.evaluate_integral()</span>
+<span class="sd">    sqrt(2)*(-sqrt(2)*sqrt(pi)*erf(sqrt(2)/2) + sqrt(2)*sqrt(pi))/(4*sqrt(pi))</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">prob</span><span class="p">,</span> <span class="n">condition</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">prob</span> <span class="o">=</span> <span class="n">_sympify</span><span class="p">(</span><span class="n">prob</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">condition</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">obj</span> <span class="o">=</span> <span class="n">Expr</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">prob</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">condition</span> <span class="o">=</span> <span class="n">_sympify</span><span class="p">(</span><span class="n">condition</span><span class="p">)</span>
+            <span class="n">obj</span> <span class="o">=</span> <span class="n">Expr</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">prob</span><span class="p">,</span> <span class="n">condition</span><span class="p">)</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">_condition</span> <span class="o">=</span> <span class="n">condition</span>
+        <span class="k">return</span> <span class="n">obj</span>
+
+    <span class="k">def</span> <span class="nf">_eval_rewrite_as_Integral</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">arg</span><span class="p">,</span> <span class="n">condition</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">probability</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">condition</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_eval_rewrite_as_Sum</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">arg</span><span class="p">,</span> <span class="n">condition</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">rewrite</span><span class="p">(</span><span class="n">Integral</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">evaluate_integral</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">rewrite</span><span class="p">(</span><span class="n">Integral</span><span class="p">)</span><span class="o">.</span><span class="n">doit</span><span class="p">()</span>
+
+</div>
+<div class="viewcode-block" id="Expectation"><a class="viewcode-back" href="../../../modules/stats.html#sympy.stats.Expectation">[docs]</a><span class="k">class</span> <span class="nc">Expectation</span><span class="p">(</span><span class="n">Expr</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Symbolic expression for the expectation.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.stats import Expectation, Normal, Probability</span>
+<span class="sd">    &gt;&gt;&gt; from sympy import symbols, Integral</span>
+<span class="sd">    &gt;&gt;&gt; mu = symbols(&quot;mu&quot;)</span>
+<span class="sd">    &gt;&gt;&gt; sigma = symbols(&quot;sigma&quot;, positive=True)</span>
+<span class="sd">    &gt;&gt;&gt; X = Normal(&quot;X&quot;, mu, sigma)</span>
+<span class="sd">    &gt;&gt;&gt; Expectation(X)</span>
+<span class="sd">    Expectation(X)</span>
+<span class="sd">    &gt;&gt;&gt; Expectation(X).evaluate_integral().simplify()</span>
+<span class="sd">    mu</span>
+
+<span class="sd">    To get the integral expression of the expectation:</span>
+
+<span class="sd">    &gt;&gt;&gt; Expectation(X).rewrite(Integral)</span>
+<span class="sd">    Integral(sqrt(2)*X*exp(-(X - mu)**2/(2*sigma**2))/(2*sqrt(pi)*sigma), (X, -oo, oo))</span>
+
+<span class="sd">    The same integral expression, in more abstract terms:</span>
+
+<span class="sd">    &gt;&gt;&gt; Expectation(X).rewrite(Probability)</span>
+<span class="sd">    Integral(x*Probability(Eq(X, x)), (x, -oo, oo))</span>
+
+<span class="sd">    This class is aware of some properties of the expectation:</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.abc import a</span>
+<span class="sd">    &gt;&gt;&gt; Expectation(a*X)</span>
+<span class="sd">    Expectation(a*X)</span>
+<span class="sd">    &gt;&gt;&gt; Y = Normal(&quot;Y&quot;, 0, 1)</span>
+<span class="sd">    &gt;&gt;&gt; Expectation(X + Y)</span>
+<span class="sd">    Expectation(X + Y)</span>
+
+<span class="sd">    To expand the ``Expectation`` into its expression, use ``doit()``:</span>
+
+<span class="sd">    &gt;&gt;&gt; Expectation(X + Y).doit()</span>
+<span class="sd">    Expectation(X) + Expectation(Y)</span>
+<span class="sd">    &gt;&gt;&gt; Expectation(a*X + Y).doit()</span>
+<span class="sd">    a*Expectation(X) + Expectation(Y)</span>
+<span class="sd">    &gt;&gt;&gt; Expectation(a*X + Y)</span>
+<span class="sd">    Expectation(a*X + Y)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">condition</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">expr</span> <span class="o">=</span> <span class="n">_sympify</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">condition</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">expr</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">RandomSymbol</span><span class="p">):</span>
+                <span class="k">return</span> <span class="n">expr</span>
+            <span class="n">obj</span> <span class="o">=</span> <span class="n">Expr</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">expr</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">condition</span> <span class="o">=</span> <span class="n">_sympify</span><span class="p">(</span><span class="n">condition</span><span class="p">)</span>
+            <span class="n">obj</span> <span class="o">=</span> <span class="n">Expr</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">condition</span><span class="p">)</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">_condition</span> <span class="o">=</span> <span class="n">condition</span>
+        <span class="k">return</span> <span class="n">obj</span>
+
+    <span class="k">def</span> <span class="nf">doit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">hints</span><span class="p">):</span>
+        <span class="n">expr</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">condition</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_condition</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">expr</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">RandomSymbol</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">expr</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">Add</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">Add</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">Expectation</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">condition</span><span class="o">=</span><span class="n">condition</span><span class="p">)</span><span class="o">.</span><span class="n">doit</span><span class="p">()</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">])</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">Mul</span><span class="p">):</span>
+            <span class="n">rv</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">nonrv</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">RandomSymbol</span><span class="p">)</span> <span class="ow">or</span> <span class="n">a</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">RandomSymbol</span><span class="p">):</span>
+                    <span class="n">rv</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">nonrv</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">nonrv</span><span class="p">)</span><span class="o">*</span><span class="n">Expectation</span><span class="p">(</span><span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">rv</span><span class="p">),</span> <span class="n">condition</span><span class="o">=</span><span class="n">condition</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="k">def</span> <span class="nf">_eval_rewrite_as_Probability</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">arg</span><span class="p">,</span> <span class="n">condition</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="n">rvs</span> <span class="o">=</span> <span class="n">arg</span><span class="o">.</span><span class="n">atoms</span><span class="p">(</span><span class="n">RandomSymbol</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">rvs</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">rvs</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">arg</span>
+
+        <span class="n">rv</span> <span class="o">=</span> <span class="n">rvs</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">rv</span><span class="o">.</span><span class="n">pspace</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Probability space not known&quot;</span><span class="p">)</span>
+
+        <span class="n">symbol</span> <span class="o">=</span> <span class="n">rv</span><span class="o">.</span><span class="n">symbol</span>
+        <span class="k">if</span> <span class="n">symbol</span><span class="o">.</span><span class="n">name</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">isupper</span><span class="p">():</span>
+            <span class="n">symbol</span> <span class="o">=</span> <span class="n">Symbol</span><span class="p">(</span><span class="n">symbol</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">lower</span><span class="p">())</span>
+        <span class="k">else</span> <span class="p">:</span>
+            <span class="n">symbol</span> <span class="o">=</span> <span class="n">Symbol</span><span class="p">(</span><span class="n">symbol</span><span class="o">.</span><span class="n">name</span> <span class="o">+</span> <span class="s2">&quot;_1&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">rv</span><span class="o">.</span><span class="n">pspace</span><span class="o">.</span><span class="n">is_Continuous</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">Integral</span><span class="p">(</span><span class="n">arg</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">rv</span><span class="p">,</span> <span class="n">symbol</span><span class="p">)</span><span class="o">*</span><span class="n">Probability</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="n">rv</span><span class="p">,</span> <span class="n">symbol</span><span class="p">),</span> <span class="n">condition</span><span class="p">),</span> <span class="p">(</span><span class="n">symbol</span><span class="p">,</span> <span class="n">rv</span><span class="o">.</span><span class="n">pspace</span><span class="o">.</span><span class="n">domain</span><span class="o">.</span><span class="n">set</span><span class="o">.</span><span class="n">inf</span><span class="p">,</span> <span class="n">rv</span><span class="o">.</span><span class="n">pspace</span><span class="o">.</span><span class="n">domain</span><span class="o">.</span><span class="n">set</span><span class="o">.</span><span class="n">sup</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">rv</span><span class="o">.</span><span class="n">pspace</span><span class="o">.</span><span class="n">is_Finite</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="bp">NotImplemented</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">Sum</span><span class="p">(</span><span class="n">arg</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">rv</span><span class="p">,</span> <span class="n">symbol</span><span class="p">)</span><span class="o">*</span><span class="n">Probability</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="n">rv</span><span class="p">,</span> <span class="n">symbol</span><span class="p">),</span> <span class="n">condition</span><span class="p">),</span> <span class="p">(</span><span class="n">symbol</span><span class="p">,</span> <span class="n">rv</span><span class="o">.</span><span class="n">pspace</span><span class="o">.</span><span class="n">domain</span><span class="o">.</span><span class="n">set</span><span class="o">.</span><span class="n">inf</span><span class="p">,</span> <span class="n">rv</span><span class="o">.</span><span class="n">pspace</span><span class="o">.</span><span class="n">set</span><span class="o">.</span><span class="n">sup</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">_eval_rewrite_as_Integral</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">arg</span><span class="p">,</span> <span class="n">condition</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">expectation</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">condition</span><span class="o">=</span><span class="n">condition</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_eval_rewrite_as_Sum</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">arg</span><span class="p">,</span> <span class="n">condition</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">rewrite</span><span class="p">(</span><span class="n">Integral</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">evaluate_integral</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">rewrite</span><span class="p">(</span><span class="n">Integral</span><span class="p">)</span><span class="o">.</span><span class="n">doit</span><span class="p">()</span>
+
+</div>
+<div class="viewcode-block" id="Variance"><a class="viewcode-back" href="../../../modules/stats.html#sympy.stats.Variance">[docs]</a><span class="k">class</span> <span class="nc">Variance</span><span class="p">(</span><span class="n">Expr</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Symbolic expression for the variance.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy import symbols, Integral</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.stats import Normal, Expectation, Variance, Probability</span>
+<span class="sd">    &gt;&gt;&gt; mu = symbols(&quot;mu&quot;, positive=True)</span>
+<span class="sd">    &gt;&gt;&gt; sigma = symbols(&quot;sigma&quot;, positive=True)</span>
+<span class="sd">    &gt;&gt;&gt; X = Normal(&quot;X&quot;, mu, sigma)</span>
+<span class="sd">    &gt;&gt;&gt; Variance(X)</span>
+<span class="sd">    Variance(X)</span>
+<span class="sd">    &gt;&gt;&gt; Variance(X).evaluate_integral()</span>
+<span class="sd">    sigma**2</span>
+
+<span class="sd">    Integral representation of the underlying calculations:</span>
+
+<span class="sd">    &gt;&gt;&gt; Variance(X).rewrite(Integral)</span>
+<span class="sd">    Integral(sqrt(2)*(X - Integral(sqrt(2)*X*exp(-(X - mu)**2/(2*sigma**2))/(2*sqrt(pi)*sigma), (X, -oo, oo)))**2*exp(-(X - mu)**2/(2*sigma**2))/(2*sqrt(pi)*sigma), (X, -oo, oo))</span>
+
+<span class="sd">    Integral representation, without expanding the PDF:</span>
+
+<span class="sd">    &gt;&gt;&gt; Variance(X).rewrite(Probability)</span>
+<span class="sd">    -Integral(x*Probability(Eq(X, x)), (x, -oo, oo))**2 + Integral(x**2*Probability(Eq(X, x)), (x, -oo, oo))</span>
+
+<span class="sd">    Rewrite the variance in terms of the expectation</span>
+
+<span class="sd">    &gt;&gt;&gt; Variance(X).rewrite(Expectation)</span>
+<span class="sd">    -Expectation(X)**2 + Expectation(X**2)</span>
+
+<span class="sd">    Some transformations based on the properties of the variance may happen:</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.abc import a</span>
+<span class="sd">    &gt;&gt;&gt; Y = Normal(&quot;Y&quot;, 0, 1)</span>
+<span class="sd">    &gt;&gt;&gt; Variance(a*X)</span>
+<span class="sd">    Variance(a*X)</span>
+
+<span class="sd">    To expand the variance in its expression, use ``doit()``:</span>
+
+<span class="sd">    &gt;&gt;&gt; Variance(a*X).doit()</span>
+<span class="sd">    a**2*Variance(X)</span>
+<span class="sd">    &gt;&gt;&gt; Variance(X + Y)</span>
+<span class="sd">    Variance(X + Y)</span>
+<span class="sd">    &gt;&gt;&gt; Variance(X + Y).doit()</span>
+<span class="sd">    2*Covariance(X, Y) + Variance(X) + Variance(Y)</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">arg</span><span class="p">,</span> <span class="n">condition</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">arg</span> <span class="o">=</span> <span class="n">_sympify</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">condition</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">obj</span> <span class="o">=</span> <span class="n">Expr</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">arg</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">condition</span> <span class="o">=</span> <span class="n">_sympify</span><span class="p">(</span><span class="n">condition</span><span class="p">)</span>
+            <span class="n">obj</span> <span class="o">=</span> <span class="n">Expr</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">arg</span><span class="p">,</span> <span class="n">condition</span><span class="p">)</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">_condition</span> <span class="o">=</span> <span class="n">condition</span>
+        <span class="k">return</span> <span class="n">obj</span>
+
+    <span class="k">def</span> <span class="nf">doit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">hints</span><span class="p">):</span>
+        <span class="n">arg</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">condition</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_condition</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">arg</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">RandomSymbol</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">RandomSymbol</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">self</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">Add</span><span class="p">):</span>
+            <span class="n">rv</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">arg</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">a</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">RandomSymbol</span><span class="p">):</span>
+                    <span class="n">rv</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+            <span class="n">variances</span> <span class="o">=</span> <span class="n">Add</span><span class="p">(</span><span class="o">*</span><span class="nb">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">xv</span><span class="p">:</span> <span class="n">Variance</span><span class="p">(</span><span class="n">xv</span><span class="p">,</span> <span class="n">condition</span><span class="p">)</span><span class="o">.</span><span class="n">doit</span><span class="p">(),</span> <span class="n">rv</span><span class="p">))</span>
+            <span class="n">map_to_covar</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="mi">2</span><span class="o">*</span><span class="n">Covariance</span><span class="p">(</span><span class="o">*</span><span class="n">x</span><span class="p">,</span> <span class="n">condition</span><span class="o">=</span><span class="n">condition</span><span class="p">)</span><span class="o">.</span><span class="n">doit</span><span class="p">()</span>
+            <span class="n">covariances</span> <span class="o">=</span> <span class="n">Add</span><span class="p">(</span><span class="o">*</span><span class="nb">map</span><span class="p">(</span><span class="n">map_to_covar</span><span class="p">,</span> <span class="n">itertools</span><span class="o">.</span><span class="n">combinations</span><span class="p">(</span><span class="n">rv</span><span class="p">,</span> <span class="mi">2</span><span class="p">)))</span>
+            <span class="k">return</span> <span class="n">variances</span> <span class="o">+</span> <span class="n">covariances</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">Mul</span><span class="p">):</span>
+            <span class="n">nonrv</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">rv</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">arg</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">a</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">RandomSymbol</span><span class="p">):</span>
+                    <span class="n">rv</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">nonrv</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">a</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">rv</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span>
+            <span class="k">return</span> <span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">nonrv</span><span class="p">)</span><span class="o">*</span><span class="n">Variance</span><span class="p">(</span><span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">rv</span><span class="p">),</span> <span class="n">condition</span><span class="p">)</span>
+
+        <span class="c1"># this expression contains a RandomSymbol somehow:</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="k">def</span> <span class="nf">_eval_rewrite_as_Expectation</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">arg</span><span class="p">,</span> <span class="n">condition</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+            <span class="n">e1</span> <span class="o">=</span> <span class="n">Expectation</span><span class="p">(</span><span class="n">arg</span><span class="o">**</span><span class="mi">2</span><span class="p">,</span> <span class="n">condition</span><span class="p">)</span>
+            <span class="n">e2</span> <span class="o">=</span> <span class="n">Expectation</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">condition</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span>
+            <span class="k">return</span> <span class="n">e1</span> <span class="o">-</span> <span class="n">e2</span>
+
+    <span class="k">def</span> <span class="nf">_eval_rewrite_as_Probability</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">arg</span><span class="p">,</span> <span class="n">condition</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">rewrite</span><span class="p">(</span><span class="n">Expectation</span><span class="p">)</span><span class="o">.</span><span class="n">rewrite</span><span class="p">(</span><span class="n">Probability</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_eval_rewrite_as_Integral</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">arg</span><span class="p">,</span> <span class="n">condition</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">variance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">_condition</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_eval_rewrite_as_Sum</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">arg</span><span class="p">,</span> <span class="n">condition</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">rewrite</span><span class="p">(</span><span class="n">Integral</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">evaluate_integral</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">rewrite</span><span class="p">(</span><span class="n">Integral</span><span class="p">)</span><span class="o">.</span><span class="n">doit</span><span class="p">()</span>
+
+</div>
+<div class="viewcode-block" id="Covariance"><a class="viewcode-back" href="../../../modules/stats.html#sympy.stats.Covariance">[docs]</a><span class="k">class</span> <span class="nc">Covariance</span><span class="p">(</span><span class="n">Expr</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Symbolic expression for the covariance.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.stats import Covariance</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.stats import Normal</span>
+<span class="sd">    &gt;&gt;&gt; X = Normal(&quot;X&quot;, 3, 2)</span>
+<span class="sd">    &gt;&gt;&gt; Y = Normal(&quot;Y&quot;, 0, 1)</span>
+<span class="sd">    &gt;&gt;&gt; Z = Normal(&quot;Z&quot;, 0, 1)</span>
+<span class="sd">    &gt;&gt;&gt; W = Normal(&quot;W&quot;, 0, 1)</span>
+<span class="sd">    &gt;&gt;&gt; cexpr = Covariance(X, Y)</span>
+<span class="sd">    &gt;&gt;&gt; cexpr</span>
+<span class="sd">    Covariance(X, Y)</span>
+
+<span class="sd">    Evaluate the covariance, `X` and `Y` are independent,</span>
+<span class="sd">    therefore zero is the result:</span>
+
+<span class="sd">    &gt;&gt;&gt; cexpr.evaluate_integral()</span>
+<span class="sd">    0</span>
+
+<span class="sd">    Rewrite the covariance expression in terms of expectations:</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.stats import Expectation</span>
+<span class="sd">    &gt;&gt;&gt; cexpr.rewrite(Expectation)</span>
+<span class="sd">    Expectation(X*Y) - Expectation(X)*Expectation(Y)</span>
+
+<span class="sd">    In order to expand the argument, use ``doit()``:</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.abc import a, b, c, d</span>
+<span class="sd">    &gt;&gt;&gt; Covariance(a*X + b*Y, c*Z + d*W)</span>
+<span class="sd">    Covariance(a*X + b*Y, c*Z + d*W)</span>
+<span class="sd">    &gt;&gt;&gt; Covariance(a*X + b*Y, c*Z + d*W).doit()</span>
+<span class="sd">    a*c*Covariance(X, Z) + a*d*Covariance(W, X) + b*c*Covariance(Y, Z) + b*d*Covariance(W, Y)</span>
+
+<span class="sd">    This class is aware of some properties of the covariance:</span>
+
+<span class="sd">    &gt;&gt;&gt; Covariance(X, X).doit()</span>
+<span class="sd">    Variance(X)</span>
+<span class="sd">    &gt;&gt;&gt; Covariance(a*X, b*Y).doit()</span>
+<span class="sd">    a*b*Covariance(X, Y)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">arg1</span><span class="p">,</span> <span class="n">arg2</span><span class="p">,</span> <span class="n">condition</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">arg1</span> <span class="o">=</span> <span class="n">_sympify</span><span class="p">(</span><span class="n">arg1</span><span class="p">)</span>
+        <span class="n">arg2</span> <span class="o">=</span> <span class="n">_sympify</span><span class="p">(</span><span class="n">arg2</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;evaluate&#39;</span><span class="p">,</span> <span class="n">global_evaluate</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+            <span class="n">arg1</span><span class="p">,</span> <span class="n">arg2</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">([</span><span class="n">arg1</span><span class="p">,</span> <span class="n">arg2</span><span class="p">],</span> <span class="n">key</span><span class="o">=</span><span class="n">default_sort_key</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">condition</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">obj</span> <span class="o">=</span> <span class="n">Expr</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">arg1</span><span class="p">,</span> <span class="n">arg2</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">condition</span> <span class="o">=</span> <span class="n">_sympify</span><span class="p">(</span><span class="n">condition</span><span class="p">)</span>
+            <span class="n">obj</span> <span class="o">=</span> <span class="n">Expr</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">arg1</span><span class="p">,</span> <span class="n">arg2</span><span class="p">,</span> <span class="n">condition</span><span class="p">)</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">_condition</span> <span class="o">=</span> <span class="n">condition</span>
+        <span class="k">return</span> <span class="n">obj</span>
+
+    <span class="k">def</span> <span class="nf">doit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">hints</span><span class="p">):</span>
+        <span class="n">arg1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">arg2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">condition</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_condition</span>
+
+        <span class="k">if</span> <span class="n">arg1</span> <span class="o">==</span> <span class="n">arg2</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">Variance</span><span class="p">(</span><span class="n">arg1</span><span class="p">,</span> <span class="n">condition</span><span class="p">)</span><span class="o">.</span><span class="n">doit</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">arg1</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">RandomSymbol</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">arg2</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">RandomSymbol</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span>
+
+        <span class="n">arg1</span><span class="p">,</span> <span class="n">arg2</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">([</span><span class="n">arg1</span><span class="p">,</span> <span class="n">arg2</span><span class="p">],</span> <span class="n">key</span><span class="o">=</span><span class="n">default_sort_key</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg1</span><span class="p">,</span> <span class="n">RandomSymbol</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg2</span><span class="p">,</span> <span class="n">RandomSymbol</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">Covariance</span><span class="p">(</span><span class="n">arg1</span><span class="p">,</span> <span class="n">arg2</span><span class="p">,</span> <span class="n">condition</span><span class="p">)</span>
+
+        <span class="n">coeff_rv_list1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_expand_single_argument</span><span class="p">(</span><span class="n">arg1</span><span class="o">.</span><span class="n">expand</span><span class="p">())</span>
+        <span class="n">coeff_rv_list2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_expand_single_argument</span><span class="p">(</span><span class="n">arg2</span><span class="o">.</span><span class="n">expand</span><span class="p">())</span>
+
+        <span class="n">addends</span> <span class="o">=</span> <span class="p">[</span><span class="n">a</span><span class="o">*</span><span class="n">b</span><span class="o">*</span><span class="n">Covariance</span><span class="p">(</span><span class="o">*</span><span class="nb">sorted</span><span class="p">([</span><span class="n">r1</span><span class="p">,</span> <span class="n">r2</span><span class="p">],</span> <span class="n">key</span><span class="o">=</span><span class="n">default_sort_key</span><span class="p">),</span> <span class="n">condition</span><span class="o">=</span><span class="n">condition</span><span class="p">)</span>
+                   <span class="k">for</span> <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">r1</span><span class="p">)</span> <span class="ow">in</span> <span class="n">coeff_rv_list1</span> <span class="k">for</span> <span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">r2</span><span class="p">)</span> <span class="ow">in</span> <span class="n">coeff_rv_list2</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">Add</span><span class="p">(</span><span class="o">*</span><span class="n">addends</span><span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_expand_single_argument</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
+        <span class="c1"># return (coefficient, random_symbol) pairs:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">RandomSymbol</span><span class="p">):</span>
+            <span class="k">return</span> <span class="p">[(</span><span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">,</span> <span class="n">expr</span><span class="p">)]</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">Add</span><span class="p">):</span>
+            <span class="n">outval</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">Mul</span><span class="p">):</span>
+                    <span class="n">outval</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cls</span><span class="o">.</span><span class="n">_get_mul_nonrv_rv_tuple</span><span class="p">(</span><span class="n">a</span><span class="p">))</span>
+                <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">RandomSymbol</span><span class="p">):</span>
+                    <span class="n">outval</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">,</span> <span class="n">a</span><span class="p">))</span>
+
+            <span class="k">return</span> <span class="n">outval</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">Mul</span><span class="p">):</span>
+            <span class="k">return</span> <span class="p">[</span><span class="n">cls</span><span class="o">.</span><span class="n">_get_mul_nonrv_rv_tuple</span><span class="p">(</span><span class="n">expr</span><span class="p">)]</span>
+        <span class="k">elif</span> <span class="n">expr</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">RandomSymbol</span><span class="p">):</span>
+            <span class="k">return</span> <span class="p">[(</span><span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">,</span> <span class="n">expr</span><span class="p">)]</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_get_mul_nonrv_rv_tuple</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">m</span><span class="p">):</span>
+        <span class="n">rv</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">nonrv</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">m</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">a</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">RandomSymbol</span><span class="p">):</span>
+                <span class="n">rv</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">nonrv</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">nonrv</span><span class="p">),</span> <span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">rv</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">_eval_rewrite_as_Expectation</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">arg1</span><span class="p">,</span> <span class="n">arg2</span><span class="p">,</span> <span class="n">condition</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="n">e1</span> <span class="o">=</span> <span class="n">Expectation</span><span class="p">(</span><span class="n">arg1</span><span class="o">*</span><span class="n">arg2</span><span class="p">,</span> <span class="n">condition</span><span class="p">)</span>
+        <span class="n">e2</span> <span class="o">=</span> <span class="n">Expectation</span><span class="p">(</span><span class="n">arg1</span><span class="p">,</span> <span class="n">condition</span><span class="p">)</span><span class="o">*</span><span class="n">Expectation</span><span class="p">(</span><span class="n">arg2</span><span class="p">,</span> <span class="n">condition</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">e1</span> <span class="o">-</span> <span class="n">e2</span>
+
+    <span class="k">def</span> <span class="nf">_eval_rewrite_as_Probability</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">arg1</span><span class="p">,</span> <span class="n">arg2</span><span class="p">,</span> <span class="n">condition</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">rewrite</span><span class="p">(</span><span class="n">Expectation</span><span class="p">)</span><span class="o">.</span><span class="n">rewrite</span><span class="p">(</span><span class="n">Probability</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_eval_rewrite_as_Integral</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">arg1</span><span class="p">,</span> <span class="n">arg2</span><span class="p">,</span> <span class="n">condition</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">covariance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">_condition</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_eval_rewrite_as_Sum</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">arg1</span><span class="p">,</span> <span class="n">arg2</span><span class="p">,</span> <span class="n">condition</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">rewrite</span><span class="p">(</span><span class="n">Integral</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">evaluate_integral</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">rewrite</span><span class="p">(</span><span class="n">Integral</span><span class="p">)</span><span class="o">.</span><span class="n">doit</span><span class="p">()</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../../index.html">
+              <img class="logo" src="../../../_static/sympylogo.png" alt="Logo"/>
+            </a></p><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2016 SymPy Development Team.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3.1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.9</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>
