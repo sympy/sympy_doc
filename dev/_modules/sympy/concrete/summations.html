@@ -318,9 +318,41 @@
 
         <span class="k">return</span> <span class="n">Sum</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">upper</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">new_upper</span><span class="p">))</span><span class="o">.</span><span class="n">doit</span><span class="p">()</span>
 
-    <span class="k">def</span> <span class="nf">_eval_simplify</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ratio</span><span class="p">,</span> <span class="n">measure</span><span class="p">):</span>
-        <span class="kn">from</span> <span class="nn">sympy.simplify.simplify</span> <span class="kn">import</span> <span class="n">sum_simplify</span>
-        <span class="k">return</span> <span class="n">sum_simplify</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">_eval_simplify</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ratio</span><span class="o">=</span><span class="mf">1.7</span><span class="p">,</span> <span class="n">measure</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">sympy.simplify.simplify</span> <span class="kn">import</span> <span class="n">factor_sum</span><span class="p">,</span> <span class="n">sum_combine</span>
+        <span class="kn">from</span> <span class="nn">sympy.core.function</span> <span class="kn">import</span> <span class="n">expand</span>
+        <span class="kn">from</span> <span class="nn">sympy.core.mul</span> <span class="kn">import</span> <span class="n">Mul</span>
+
+        <span class="c1">#split the function into adds</span>
+        <span class="n">terms</span> <span class="o">=</span> <span class="n">Add</span><span class="o">.</span><span class="n">make_args</span><span class="p">(</span><span class="n">expand</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="p">))</span>
+        <span class="n">s_t</span> <span class="o">=</span> <span class="p">[]</span> <span class="c1"># Sum Terms</span>
+        <span class="n">o_t</span> <span class="o">=</span> <span class="p">[]</span> <span class="c1"># Other Terms</span>
+
+        <span class="k">for</span> <span class="n">term</span> <span class="ow">in</span> <span class="n">terms</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">term</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">Sum</span><span class="p">):</span>
+                <span class="c1">#if there is an embedded sum here</span>
+                <span class="c1">#it is of the form x * (Sum(whatever))</span>
+                <span class="c1">#hence we make a Mul out of it, and simplify all interior sum terms</span>
+                <span class="n">subterms</span> <span class="o">=</span> <span class="n">Mul</span><span class="o">.</span><span class="n">make_args</span><span class="p">(</span><span class="n">expand</span><span class="p">(</span><span class="n">term</span><span class="p">))</span>
+                <span class="n">out_terms</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="k">for</span> <span class="n">subterm</span> <span class="ow">in</span> <span class="n">subterms</span><span class="p">:</span>
+                    <span class="c1">#go through each term</span>
+                    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">subterm</span><span class="p">,</span> <span class="n">Sum</span><span class="p">):</span>
+                        <span class="c1">#if it&#39;s a sum, simpify it</span>
+                        <span class="n">out_terms</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">subterm</span><span class="o">.</span><span class="n">_eval_simplify</span><span class="p">())</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="c1">#otherwise, add it as is</span>
+                        <span class="n">out_terms</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">subterm</span><span class="p">)</span>
+
+                <span class="c1">#turn it back into a Mul</span>
+                <span class="n">s_t</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">out_terms</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">o_t</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">term</span><span class="p">)</span>
+
+        <span class="c1">#next try to combine any interior sums for further simplification</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">Add</span><span class="p">(</span><span class="n">sum_combine</span><span class="p">(</span><span class="n">s_t</span><span class="p">),</span> <span class="o">*</span><span class="n">o_t</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">factor_sum</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">limits</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">limits</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">_eval_summation</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">None</span>
