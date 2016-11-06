@@ -57,6 +57,8 @@
 
 <span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">division</span>
 
+<span class="kn">import</span> <span class="nn">itertools</span>
+
 <span class="kn">from</span> <span class="nn">sympy.core</span> <span class="kn">import</span> <span class="n">S</span><span class="p">,</span> <span class="n">Add</span><span class="p">,</span> <span class="n">Symbol</span><span class="p">,</span> <span class="n">Mod</span>
 <span class="kn">from</span> <span class="nn">sympy.core.function</span> <span class="kn">import</span> <span class="n">_coeff_isneg</span>
 <span class="kn">from</span> <span class="nn">sympy.core.sympify</span> <span class="kn">import</span> <span class="n">SympifyError</span>
@@ -1476,6 +1478,57 @@
 
     <span class="k">def</span> <span class="nf">_print_Identity</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">I</span><span class="p">):</span>
         <span class="k">return</span> <span class="s2">r&quot;\mathbb{I}&quot;</span>
+
+    <span class="k">def</span> <span class="nf">_print_NDimArray</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
+
+        <span class="n">mat_str</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_settings</span><span class="p">[</span><span class="s1">&#39;mat_str&#39;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">mat_str</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_settings</span><span class="p">[</span><span class="s1">&#39;mode&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;inline&#39;</span><span class="p">:</span>
+                <span class="n">mat_str</span> <span class="o">=</span> <span class="s1">&#39;smallmatrix&#39;</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">rank</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="mi">10</span><span class="p">):</span>
+                    <span class="n">mat_str</span> <span class="o">=</span> <span class="s1">&#39;matrix&#39;</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">mat_str</span> <span class="o">=</span> <span class="s1">&#39;array&#39;</span>
+        <span class="n">block_str</span> <span class="o">=</span> <span class="s1">r&#39;\begin{%MATSTR%}</span><span class="si">%s</span><span class="s1">\end{%MATSTR%}&#39;</span>
+        <span class="n">block_str</span> <span class="o">=</span> <span class="n">block_str</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;%MATSTR%&#39;</span><span class="p">,</span> <span class="n">mat_str</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_settings</span><span class="p">[</span><span class="s1">&#39;mat_delim&#39;</span><span class="p">]:</span>
+            <span class="n">left_delim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_settings</span><span class="p">[</span><span class="s1">&#39;mat_delim&#39;</span><span class="p">]</span>
+            <span class="n">right_delim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_delim_dict</span><span class="p">[</span><span class="n">left_delim</span><span class="p">]</span>
+            <span class="n">block_str</span> <span class="o">=</span> <span class="s1">r&#39;\left&#39;</span> <span class="o">+</span> <span class="n">left_delim</span> <span class="o">+</span> <span class="n">block_str</span> <span class="o">+</span> \
+                      <span class="s1">r&#39;\right&#39;</span> <span class="o">+</span> <span class="n">right_delim</span>
+
+        <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">rank</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">block_str</span> <span class="o">%</span> <span class="s2">&quot;&quot;</span>
+
+        <span class="n">level_str</span> <span class="o">=</span> <span class="p">[[]]</span> <span class="o">+</span> <span class="p">[[]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">rank</span><span class="p">())]</span>
+        <span class="n">shape_ranges</span> <span class="o">=</span> <span class="p">[</span><span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">i</span><span class="p">))</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">shape</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">outer_i</span> <span class="ow">in</span> <span class="n">itertools</span><span class="o">.</span><span class="n">product</span><span class="p">(</span><span class="o">*</span><span class="n">shape_ranges</span><span class="p">):</span>
+            <span class="n">level_str</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">expr</span><span class="p">[</span><span class="n">outer_i</span><span class="p">]))</span>
+            <span class="n">even</span> <span class="o">=</span> <span class="bp">True</span>
+            <span class="k">for</span> <span class="n">back_outer_i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">rank</span><span class="p">()</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">level_str</span><span class="p">[</span><span class="n">back_outer_i</span><span class="o">+</span><span class="mi">1</span><span class="p">])</span> <span class="o">&lt;</span> <span class="n">expr</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="n">back_outer_i</span><span class="p">]:</span>
+                    <span class="k">break</span>
+                <span class="k">if</span> <span class="n">even</span><span class="p">:</span>
+                    <span class="n">level_str</span><span class="p">[</span><span class="n">back_outer_i</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">r&quot; &amp; &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">level_str</span><span class="p">[</span><span class="n">back_outer_i</span><span class="o">+</span><span class="mi">1</span><span class="p">]))</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">level_str</span><span class="p">[</span><span class="n">back_outer_i</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">block_str</span> <span class="o">%</span> <span class="p">(</span><span class="s2">r&quot;</span><span class="se">\\</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">level_str</span><span class="p">[</span><span class="n">back_outer_i</span><span class="o">+</span><span class="mi">1</span><span class="p">])))</span>
+                    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">level_str</span><span class="p">[</span><span class="n">back_outer_i</span><span class="o">+</span><span class="mi">1</span><span class="p">])</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                        <span class="n">level_str</span><span class="p">[</span><span class="n">back_outer_i</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="s2">r&quot;\left[&quot;</span> <span class="o">+</span> <span class="n">level_str</span><span class="p">[</span><span class="n">back_outer_i</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="s2">r&quot;\right]&quot;</span>
+                <span class="n">even</span> <span class="o">=</span> <span class="ow">not</span> <span class="n">even</span>
+                <span class="n">level_str</span><span class="p">[</span><span class="n">back_outer_i</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="n">out_str</span> <span class="o">=</span> <span class="n">level_str</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">rank</span><span class="p">()</span> <span class="o">%</span> <span class="mi">2</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">out_str</span> <span class="o">=</span> <span class="n">block_str</span> <span class="o">%</span> <span class="n">out_str</span>
+
+        <span class="k">return</span> <span class="n">out_str</span>
+
+    <span class="n">_print_ImmutableDenseNDimArray</span> <span class="o">=</span> <span class="n">_print_NDimArray</span>
+    <span class="n">_print_ImmutableSparseNDimArray</span> <span class="o">=</span> <span class="n">_print_NDimArray</span>
+    <span class="n">_print_MutableDenseNDimArray</span> <span class="o">=</span> <span class="n">_print_NDimArray</span>
+    <span class="n">_print_MutableSparseNDimArray</span> <span class="o">=</span> <span class="n">_print_NDimArray</span>
 
     <span class="k">def</span> <span class="nf">_print_tuple</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
         <span class="k">return</span> <span class="s2">r&quot;\left ( </span><span class="si">%s</span><span class="s2">\right )&quot;</span> <span class="o">%</span> \
