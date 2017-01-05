@@ -69,7 +69,7 @@
 <span class="kn">from</span> <span class="nn">sympy.core.symbol</span> <span class="kn">import</span> <span class="n">Dummy</span><span class="p">,</span> <span class="n">Symbol</span>
 <span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="kn">import</span> <span class="n">is_sequence</span>
 <span class="kn">from</span> <span class="nn">sympy.core.containers</span> <span class="kn">import</span> <span class="n">Tuple</span>
-<span class="kn">from</span> <span class="nn">sympy.functions.elementary.trigonometric</span> <span class="kn">import</span> <span class="n">sin</span><span class="p">,</span> <span class="n">cos</span>
+<span class="kn">from</span> <span class="nn">sympy.functions.elementary.trigonometric</span> <span class="kn">import</span> <span class="n">sin</span><span class="p">,</span> <span class="n">cos</span><span class="p">,</span> <span class="n">sinc</span>
 <span class="kn">from</span> <span class="nn">sympy.sets.sets</span> <span class="kn">import</span> <span class="n">Interval</span>
 <span class="kn">from</span> <span class="nn">sympy.series.series_class</span> <span class="kn">import</span> <span class="n">SeriesBase</span>
 <span class="kn">from</span> <span class="nn">sympy.series.sequences</span> <span class="kn">import</span> <span class="n">SeqFormula</span>
@@ -213,9 +213,34 @@
             <span class="k">return</span> <span class="bp">self</span>
 
 <div class="viewcode-block" id="FourierSeries.truncate"><a class="viewcode-back" href="../../../modules/series/fourier.html#sympy.series.fourier.FourierSeries.truncate">[docs]</a>    <span class="k">def</span> <span class="nf">truncate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">3</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Returns the first n (non-zero)terms of the series.</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return the first n nonzero terms of the series.</span>
 
-<span class="sd">        If n is ``None`` returns an iterator.</span>
+<span class="sd">        If n is None return an iterator.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ==========</span>
+<span class="sd">        n : int or None</span>
+<span class="sd">            Amount of non-zero terms in approximation or None.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        =======</span>
+<span class="sd">        Expr or iterator</span>
+<span class="sd">            Approximation of function expanded into Fourier series.</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        ========</span>
+
+<span class="sd">        &gt;&gt;&gt; from sympy import fourier_series, pi</span>
+<span class="sd">        &gt;&gt;&gt; from sympy.abc import x</span>
+<span class="sd">        &gt;&gt;&gt; s = fourier_series(x, (x, -pi, pi))</span>
+<span class="sd">        &gt;&gt;&gt; s.truncate(4)</span>
+<span class="sd">        2*sin(x) - sin(2*x) + 2*sin(3*x)/3 - sin(4*x)/2</span>
+
+<span class="sd">        See Also</span>
+<span class="sd">        ========</span>
+
+<span class="sd">        sympy.series.fourier.FourierSeries.sigma_approximation</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="n">n</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
             <span class="k">return</span> <span class="nb">iter</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
@@ -227,6 +252,71 @@
             <span class="k">if</span> <span class="n">t</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span><span class="p">:</span>
                 <span class="n">terms</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
 
+        <span class="k">return</span> <span class="n">Add</span><span class="p">(</span><span class="o">*</span><span class="n">terms</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="FourierSeries.sigma_approximation"><a class="viewcode-back" href="../../../modules/series/fourier.html#sympy.series.fourier.FourierSeries.sigma_approximation">[docs]</a>    <span class="k">def</span> <span class="nf">sigma_approximation</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">3</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return :math:`\sigma`-approximation of Fourier series with respect</span>
+<span class="sd">        to order n.</span>
+
+<span class="sd">        Sigma approximation adjusts a Fourier summation to eliminate the Gibbs</span>
+<span class="sd">        phenomenon which would otherwise occur at discontinuities.</span>
+<span class="sd">        A sigma-approximated summation for a Fourier series of a T-periodical</span>
+<span class="sd">        function can be written as</span>
+
+<span class="sd">        .. math::</span>
+<span class="sd">            s(\\theta) = \\frac{1}{2} a_0 + \\sum _{k=1}^{m-1}</span>
+<span class="sd">            \\operatorname{sinc} \\Bigl( \\frac{k}{m} \\Bigr) \\cdot</span>
+<span class="sd">            \\left[ a_k \\cos \\Bigl( \\frac{2\\pi k}{T} \\theta \\Bigr)</span>
+<span class="sd">            + b_k \\sin \\Bigl( \\frac{2\\pi k}{T} \\theta \\Bigr) \\right],</span>
+
+<span class="sd">        where :math:`a_0, a_k, b_k, k=1,\ldots,{m-1}` are standard Fourier</span>
+<span class="sd">        series coefficients and</span>
+<span class="sd">        :math:`\\operatorname{sinc} \\Bigl( \\frac{k}{m} \\Bigr)` is a Lanczos</span>
+<span class="sd">        :math:`\sigma` factor (expressed in terms of normalized</span>
+<span class="sd">        :math:`\operatorname{sinc}` function).</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ==========</span>
+<span class="sd">        n : int</span>
+<span class="sd">            Highest order of the terms taken into account in approximation.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        =======</span>
+<span class="sd">        Expr</span>
+<span class="sd">            Sigma approximation of function expanded into Fourier series.</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        ========</span>
+
+<span class="sd">        &gt;&gt;&gt; from sympy import fourier_series, pi</span>
+<span class="sd">        &gt;&gt;&gt; from sympy.abc import x</span>
+<span class="sd">        &gt;&gt;&gt; s = fourier_series(x, (x, -pi, pi))</span>
+<span class="sd">        &gt;&gt;&gt; s.sigma_approximation(4)</span>
+<span class="sd">        2*sin(x)*sinc(pi/4) - 2*sin(2*x)/pi + 2*sin(3*x)*sinc(3*pi/4)/3</span>
+
+<span class="sd">        See Also</span>
+<span class="sd">        ========</span>
+
+<span class="sd">        sympy.series.fourier.FourierSeries.truncate</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        =====</span>
+
+<span class="sd">        The behaviour of</span>
+<span class="sd">        :meth:`~sympy.series.fourier.FourierSeries.sigma_approximation`</span>
+<span class="sd">        is different from :meth:`~sympy.series.fourier.FourierSeries.truncate`</span>
+<span class="sd">        - it takes all nonzero terms of degree smaller than n, rather than</span>
+<span class="sd">        first n nonzero ones.</span>
+
+<span class="sd">        References</span>
+<span class="sd">        ==========</span>
+
+<span class="sd">        .. [1] https://en.wikipedia.org/wiki/Gibbs_phenomenon</span>
+<span class="sd">        .. [2] https://en.wikipedia.org/wiki/Sigma_approximation</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">terms</span> <span class="o">=</span> <span class="p">[</span><span class="n">sinc</span><span class="p">(</span><span class="n">pi</span> <span class="o">*</span> <span class="n">i</span> <span class="o">/</span> <span class="n">n</span><span class="p">)</span> <span class="o">*</span> <span class="n">t</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="p">[:</span><span class="n">n</span><span class="p">])</span>
+                 <span class="k">if</span> <span class="n">t</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span><span class="p">]</span>
         <span class="k">return</span> <span class="n">Add</span><span class="p">(</span><span class="o">*</span><span class="n">terms</span><span class="p">)</span>
 </div>
 <div class="viewcode-block" id="FourierSeries.shift"><a class="viewcode-back" href="../../../modules/series/fourier.html#sympy.series.fourier.FourierSeries.shift">[docs]</a>    <span class="k">def</span> <span class="nf">shift</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">s</span><span class="p">):</span>
@@ -495,7 +585,7 @@
     </div>
     <div class="footer" role="contentinfo">
         &copy; Copyright 2016 SymPy Development Team.
-      Last updated on Jan 04, 2017.
+      Last updated on Jan 05, 2017.
       Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3.1.
     </div>
   </body>
