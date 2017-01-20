@@ -6,7 +6,7 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>sympy.printing.ccode &mdash; SymPy 1.0.1.dev documentation</title>
+    <title>sympy.printing.rcode &mdash; SymPy 1.0.1.dev documentation</title>
     
     <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
@@ -56,16 +56,13 @@
         <div class="bodywrapper">
           <div class="body" role="main">
             
-  <h1>Source code for sympy.printing.ccode</h1><div class="highlight"><pre>
+  <h1>Source code for sympy.printing.rcode</h1><div class="highlight"><pre>
 <span></span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">C code printer</span>
+<span class="sd">R code printer</span>
 
-<span class="sd">The CCodePrinter converts single sympy expressions into single C expressions,</span>
+<span class="sd">The RCodePrinter converts single sympy expressions into single R expressions,</span>
 <span class="sd">using the functions defined in math.h where possible.</span>
 
-<span class="sd">A complete code generator, which uses ccode extensively, can be found in</span>
-<span class="sd">sympy.utilities.codegen. The codegen module can be used to generate complete</span>
-<span class="sd">source code files that are compilable without further modifications.</span>
 
 
 <span class="sd">&quot;&quot;&quot;</span>
@@ -80,10 +77,11 @@
 <span class="kn">from</span> <span class="nn">sympy.sets.fancysets</span> <span class="kn">import</span> <span class="n">Range</span>
 
 <span class="c1"># dictionary mapping sympy function to (argument_conditions, C_function).</span>
-<span class="c1"># Used in CCodePrinter._print_Function(self)</span>
+<span class="c1"># Used in RCodePrinter._print_Function(self)</span>
 <span class="n">known_functions</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s2">&quot;Abs&quot;</span><span class="p">:</span> <span class="p">[(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="ow">not</span> <span class="n">x</span><span class="o">.</span><span class="n">is_integer</span><span class="p">,</span> <span class="s2">&quot;fabs&quot;</span><span class="p">)],</span>
-    <span class="s2">&quot;gamma&quot;</span><span class="p">:</span> <span class="s2">&quot;tgamma&quot;</span><span class="p">,</span>
+    <span class="c1">#&quot;Abs&quot;: [(lambda x: not x.is_integer, &quot;fabs&quot;)],</span>
+    <span class="s2">&quot;Abs&quot;</span><span class="p">:</span> <span class="s2">&quot;abs&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;gamma&quot;</span><span class="p">:</span> <span class="s2">&quot;gamma&quot;</span><span class="p">,</span>
     <span class="s2">&quot;sin&quot;</span><span class="p">:</span> <span class="s2">&quot;sin&quot;</span><span class="p">,</span>
     <span class="s2">&quot;cos&quot;</span><span class="p">:</span> <span class="s2">&quot;cos&quot;</span><span class="p">,</span>
     <span class="s2">&quot;tan&quot;</span><span class="p">:</span> <span class="s2">&quot;tan&quot;</span><span class="p">,</span>
@@ -101,51 +99,39 @@
     <span class="s2">&quot;acosh&quot;</span><span class="p">:</span> <span class="s2">&quot;acosh&quot;</span><span class="p">,</span>
     <span class="s2">&quot;atanh&quot;</span><span class="p">:</span> <span class="s2">&quot;atanh&quot;</span><span class="p">,</span>
     <span class="s2">&quot;floor&quot;</span><span class="p">:</span> <span class="s2">&quot;floor&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;ceiling&quot;</span><span class="p">:</span> <span class="s2">&quot;ceil&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;ceiling&quot;</span><span class="p">:</span> <span class="s2">&quot;ceiling&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;sign&quot;</span><span class="p">:</span> <span class="s2">&quot;sign&quot;</span><span class="p">,</span>
 <span class="p">}</span>
 
-<span class="c1"># These are the core reserved words in the C language. Taken from:</span>
-<span class="c1"># http://crasseux.com/books/ctutorial/Reserved-words-in-C.html</span>
+<span class="c1"># These are the core reserved words in the R language. Taken from:</span>
+<span class="c1"># https://cran.r-project.org/doc/manuals/r-release/R-lang.html#Reserved-words</span>
 
-<span class="n">reserved_words</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;auto&#39;</span><span class="p">,</span>
-                  <span class="s1">&#39;if&#39;</span><span class="p">,</span>
-                  <span class="s1">&#39;break&#39;</span><span class="p">,</span>
-                  <span class="s1">&#39;int&#39;</span><span class="p">,</span>
-                  <span class="s1">&#39;case&#39;</span><span class="p">,</span>
-                  <span class="s1">&#39;long&#39;</span><span class="p">,</span>
-                  <span class="s1">&#39;char&#39;</span><span class="p">,</span>
-                  <span class="s1">&#39;register&#39;</span><span class="p">,</span>
-                  <span class="s1">&#39;continue&#39;</span><span class="p">,</span>
-                  <span class="s1">&#39;return&#39;</span><span class="p">,</span>
-                  <span class="s1">&#39;default&#39;</span><span class="p">,</span>
-                  <span class="s1">&#39;short&#39;</span><span class="p">,</span>
-                  <span class="s1">&#39;do&#39;</span><span class="p">,</span>
-                  <span class="s1">&#39;sizeof&#39;</span><span class="p">,</span>
-                  <span class="s1">&#39;double&#39;</span><span class="p">,</span>
-                  <span class="s1">&#39;static&#39;</span><span class="p">,</span>
+<span class="n">reserved_words</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;if&#39;</span><span class="p">,</span>
                   <span class="s1">&#39;else&#39;</span><span class="p">,</span>
-                  <span class="s1">&#39;struct&#39;</span><span class="p">,</span>
-                  <span class="s1">&#39;entry&#39;</span><span class="p">,</span>
-                  <span class="s1">&#39;switch&#39;</span><span class="p">,</span>
-                  <span class="s1">&#39;extern&#39;</span><span class="p">,</span>
-                  <span class="s1">&#39;typedef&#39;</span><span class="p">,</span>
-                  <span class="s1">&#39;float&#39;</span><span class="p">,</span>
-                  <span class="s1">&#39;union&#39;</span><span class="p">,</span>
-                  <span class="s1">&#39;for&#39;</span><span class="p">,</span>
-                  <span class="s1">&#39;unsigned&#39;</span><span class="p">,</span>
-                  <span class="s1">&#39;goto&#39;</span><span class="p">,</span>
+                  <span class="s1">&#39;repeat&#39;</span><span class="p">,</span>
                   <span class="s1">&#39;while&#39;</span><span class="p">,</span>
-                  <span class="s1">&#39;enum&#39;</span><span class="p">,</span>
-                  <span class="s1">&#39;void&#39;</span><span class="p">,</span>
-                  <span class="s1">&#39;const&#39;</span><span class="p">,</span>
-                  <span class="s1">&#39;signed&#39;</span><span class="p">,</span>
+                  <span class="s1">&#39;function&#39;</span><span class="p">,</span>
+                  <span class="s1">&#39;for&#39;</span><span class="p">,</span>
+                  <span class="s1">&#39;in&#39;</span><span class="p">,</span>
+                  <span class="s1">&#39;next&#39;</span><span class="p">,</span>
+                  <span class="s1">&#39;break&#39;</span><span class="p">,</span>
+                  <span class="s1">&#39;TRUE&#39;</span><span class="p">,</span>
+                  <span class="s1">&#39;FALSE&#39;</span><span class="p">,</span>
+                  <span class="s1">&#39;NULL&#39;</span><span class="p">,</span>
+                  <span class="s1">&#39;Inf&#39;</span><span class="p">,</span>
+                  <span class="s1">&#39;NaN&#39;</span><span class="p">,</span>
+                  <span class="s1">&#39;NA&#39;</span><span class="p">,</span>
+                  <span class="s1">&#39;NA_integer_&#39;</span><span class="p">,</span>
+                  <span class="s1">&#39;NA_real_&#39;</span><span class="p">,</span>
+                  <span class="s1">&#39;NA_complex_&#39;</span><span class="p">,</span>
+                  <span class="s1">&#39;NA_character_&#39;</span><span class="p">,</span>
                   <span class="s1">&#39;volatile&#39;</span><span class="p">]</span>
 
 
-<div class="viewcode-block" id="CCodePrinter"><a class="viewcode-back" href="../../../modules/printing.html#sympy.printing.ccode.CCodePrinter">[docs]</a><span class="k">class</span> <span class="nc">CCodePrinter</span><span class="p">(</span><span class="n">CodePrinter</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;A printer to convert python expressions to strings of c code&quot;&quot;&quot;</span>
-    <span class="n">printmethod</span> <span class="o">=</span> <span class="s2">&quot;_ccode&quot;</span>
-    <span class="n">language</span> <span class="o">=</span> <span class="s2">&quot;C&quot;</span>
+<div class="viewcode-block" id="RCodePrinter"><a class="viewcode-back" href="../../../modules/printing.html#sympy.printing.rcode.RCodePrinter">[docs]</a><span class="k">class</span> <span class="nc">RCodePrinter</span><span class="p">(</span><span class="n">CodePrinter</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A printer to convert python expressions to strings of R code&quot;&quot;&quot;</span>
+    <span class="n">printmethod</span> <span class="o">=</span> <span class="s2">&quot;_rcode&quot;</span>
+    <span class="n">language</span> <span class="o">=</span> <span class="s2">&quot;R&quot;</span>
 
     <span class="n">_default_settings</span> <span class="o">=</span> <span class="p">{</span>
         <span class="s1">&#39;order&#39;</span><span class="p">:</span> <span class="bp">None</span><span class="p">,</span>
@@ -157,6 +143,13 @@
         <span class="s1">&#39;dereference&#39;</span><span class="p">:</span> <span class="nb">set</span><span class="p">(),</span>
         <span class="s1">&#39;error_on_reserved&#39;</span><span class="p">:</span> <span class="bp">False</span><span class="p">,</span>
         <span class="s1">&#39;reserved_word_suffix&#39;</span><span class="p">:</span> <span class="s1">&#39;_&#39;</span><span class="p">,</span>
+    <span class="p">}</span>
+    <span class="n">_operators</span> <span class="o">=</span> <span class="p">{</span>
+       <span class="s1">&#39;and&#39;</span><span class="p">:</span><span class="s1">&#39;&amp;&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;or&#39;</span><span class="p">:</span> <span class="s1">&#39;|&#39;</span><span class="p">,</span>
+    <span class="p">}</span>
+
+    <span class="n">_relationals</span> <span class="o">=</span> <span class="p">{</span>
     <span class="p">}</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">settings</span><span class="o">=</span><span class="p">{}):</span>
@@ -177,7 +170,7 @@
         <span class="k">return</span> <span class="s2">&quot;// {0}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">_declare_number_const</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
-        <span class="k">return</span> <span class="s2">&quot;double const {0} = {1};&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+        <span class="k">return</span> <span class="s2">&quot;{0} = {1};&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">_format_code</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lines</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">indent_code</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span>
@@ -187,14 +180,16 @@
         <span class="k">return</span> <span class="p">((</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">rows</span><span class="p">)</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">cols</span><span class="p">))</span>
 
     <span class="k">def</span> <span class="nf">_get_loop_opening_ending</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">indices</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Returns a tuple (open_lines, close_lines) containing lists of codelines</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">open_lines</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="n">close_lines</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="n">loopstart</span> <span class="o">=</span> <span class="s2">&quot;for (int </span><span class="si">%(var)s</span><span class="s2">=</span><span class="si">%(start)s</span><span class="s2">; </span><span class="si">%(var)s</span><span class="s2">&lt;</span><span class="si">%(end)s</span><span class="s2">; </span><span class="si">%(var)s</span><span class="s2">++){&quot;</span>
+        <span class="n">loopstart</span> <span class="o">=</span> <span class="s2">&quot;for (</span><span class="si">%(var)s</span><span class="s2"> in </span><span class="si">%(start)s</span><span class="s2">:</span><span class="si">%(end)s</span><span class="s2">){&quot;</span>
         <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">indices</span><span class="p">:</span>
-            <span class="c1"># C arrays start at 0 and end at dimension-1</span>
+            <span class="c1"># R arrays start at 1 and end at dimension</span>
             <span class="n">open_lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">loopstart</span> <span class="o">%</span> <span class="p">{</span>
                 <span class="s1">&#39;var&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">label</span><span class="p">),</span>
-                <span class="s1">&#39;start&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">lower</span><span class="p">),</span>
+                <span class="s1">&#39;start&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">lower</span><span class="o">+</span><span class="mi">1</span><span class="p">),</span>
                 <span class="s1">&#39;end&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">upper</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)})</span>
             <span class="n">close_lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;}&quot;</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">open_lines</span><span class="p">,</span> <span class="n">close_lines</span>
@@ -208,69 +203,81 @@
         <span class="k">elif</span> <span class="n">expr</span><span class="o">.</span><span class="n">exp</span> <span class="o">==</span> <span class="mf">0.5</span><span class="p">:</span>
             <span class="k">return</span> <span class="s1">&#39;sqrt(</span><span class="si">%s</span><span class="s1">)&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">base</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="s1">&#39;pow(</span><span class="si">%s</span><span class="s1">, </span><span class="si">%s</span><span class="s1">)&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">base</span><span class="p">),</span>
-                                 <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">exp</span><span class="p">))</span>
+            <span class="k">return</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1">^</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parenthesize</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">base</span><span class="p">,</span> <span class="n">PREC</span><span class="p">),</span>
+                                 <span class="bp">self</span><span class="o">.</span><span class="n">parenthesize</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">exp</span><span class="p">,</span> <span class="n">PREC</span><span class="p">))</span>
+
 
     <span class="k">def</span> <span class="nf">_print_Rational</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
         <span class="n">p</span><span class="p">,</span> <span class="n">q</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">p</span><span class="p">),</span> <span class="nb">int</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">q</span><span class="p">)</span>
-        <span class="k">return</span> <span class="s1">&#39;</span><span class="si">%d</span><span class="s1">.0L/</span><span class="si">%d</span><span class="s1">.0L&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">q</span><span class="p">)</span>
+        <span class="k">return</span> <span class="s1">&#39;</span><span class="si">%d</span><span class="s1">.0/</span><span class="si">%d</span><span class="s1">.0&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">q</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">_print_Indexed</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
-        <span class="c1"># calculate index for 1d array</span>
-        <span class="n">dims</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">shape</span>
-        <span class="n">elem</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span>
-        <span class="n">offset</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span>
-        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">rank</span><span class="p">)):</span>
-            <span class="n">elem</span> <span class="o">+=</span> <span class="n">expr</span><span class="o">.</span><span class="n">indices</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">*</span><span class="n">offset</span>
-            <span class="n">offset</span> <span class="o">*=</span> <span class="n">dims</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
-        <span class="k">return</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">[</span><span class="si">%s</span><span class="s2">]&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">label</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">elem</span><span class="p">))</span>
+        <span class="n">inds</span> <span class="o">=</span> <span class="p">[</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">indices</span> <span class="p">]</span>
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">[</span><span class="si">%s</span><span class="s2">]&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">label</span><span class="p">),</span> <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">inds</span><span class="p">))</span>
 
     <span class="k">def</span> <span class="nf">_print_Idx</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">label</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">_print_Exp1</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
-        <span class="k">return</span> <span class="s2">&quot;M_E&quot;</span>
+        <span class="k">return</span> <span class="s2">&quot;exp(1)&quot;</span>
 
     <span class="k">def</span> <span class="nf">_print_Pi</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
-        <span class="k">return</span> <span class="s1">&#39;M_PI&#39;</span>
+        <span class="k">return</span> <span class="s1">&#39;pi&#39;</span>
 
     <span class="k">def</span> <span class="nf">_print_Infinity</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
-        <span class="k">return</span> <span class="s1">&#39;HUGE_VAL&#39;</span>
+        <span class="k">return</span> <span class="s1">&#39;Inf&#39;</span>
 
     <span class="k">def</span> <span class="nf">_print_NegativeInfinity</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
-        <span class="k">return</span> <span class="s1">&#39;-HUGE_VAL&#39;</span>
+        <span class="k">return</span> <span class="s1">&#39;-Inf&#39;</span>
+
+    <span class="k">def</span> <span class="nf">_print_Assignment</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">sympy.functions.elementary.piecewise</span> <span class="kn">import</span> <span class="n">Piecewise</span>
+        <span class="kn">from</span> <span class="nn">sympy.matrices.expressions.matexpr</span> <span class="kn">import</span> <span class="n">MatrixSymbol</span>
+        <span class="kn">from</span> <span class="nn">sympy.tensor.indexed</span> <span class="kn">import</span> <span class="n">IndexedBase</span>
+        <span class="n">lhs</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">lhs</span>
+        <span class="n">rhs</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">rhs</span>
+        <span class="c1"># We special case assignments that take multiple lines</span>
+        <span class="c1">#if isinstance(expr.rhs, Piecewise):</span>
+        <span class="c1">#    # Here we modify Piecewise so each expression is now</span>
+        <span class="c1">#    # an Assignment, and then continue on the print.</span>
+        <span class="c1">#    expressions = []</span>
+        <span class="c1">#    conditions = []</span>
+        <span class="c1">#    for (e, c) in rhs.args:</span>
+        <span class="c1">#        expressions.append(Assignment(lhs, e))</span>
+        <span class="c1">#        conditions.append(c)</span>
+        <span class="c1">#    temp = Piecewise(*zip(expressions, conditions))</span>
+        <span class="c1">#    return self._print(temp)</span>
+        <span class="c1">#elif isinstance(lhs, MatrixSymbol):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">lhs</span><span class="p">,</span> <span class="n">MatrixSymbol</span><span class="p">):</span>
+            <span class="c1"># Here we form an Assignment for each element in the array,</span>
+            <span class="c1"># printing each one.</span>
+            <span class="n">lines</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">)</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_traverse_matrix_indices</span><span class="p">(</span><span class="n">lhs</span><span class="p">):</span>
+                <span class="n">temp</span> <span class="o">=</span> <span class="n">Assignment</span><span class="p">(</span><span class="n">lhs</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">],</span> <span class="n">rhs</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">])</span>
+                <span class="n">code0</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">temp</span><span class="p">)</span>
+                <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">code0</span><span class="p">)</span>
+            <span class="k">return</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">_settings</span><span class="p">[</span><span class="s2">&quot;contract&quot;</span><span class="p">]</span> <span class="ow">and</span> <span class="p">(</span><span class="n">lhs</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">IndexedBase</span><span class="p">)</span> <span class="ow">or</span>
+                <span class="n">rhs</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">IndexedBase</span><span class="p">)):</span>
+            <span class="c1"># Here we check if there is looping to be done, and if so</span>
+            <span class="c1"># print the required loops.</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_doprint_loops</span><span class="p">(</span><span class="n">rhs</span><span class="p">,</span> <span class="n">lhs</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">lhs_code</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">lhs</span><span class="p">)</span>
+            <span class="n">rhs_code</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">rhs</span><span class="p">)</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_statement</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2"> = </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">lhs_code</span><span class="p">,</span> <span class="n">rhs_code</span><span class="p">))</span>
 
     <span class="k">def</span> <span class="nf">_print_Piecewise</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
-        <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">cond</span> <span class="o">!=</span> <span class="bp">True</span><span class="p">:</span>
-            <span class="c1"># We need the last conditional to be a True, otherwise the resulting</span>
-            <span class="c1"># function may not return a result.</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;All Piecewise expressions must contain an &quot;</span>
-                             <span class="s2">&quot;(expr, True) statement to be used as a default &quot;</span>
-                             <span class="s2">&quot;condition. Without one, the generated &quot;</span>
-                             <span class="s2">&quot;expression may not evaluate to anything under &quot;</span>
-                             <span class="s2">&quot;some condition.&quot;</span><span class="p">)</span>
-        <span class="n">lines</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">Assignment</span><span class="p">):</span>
-            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">):</span>
-                <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-                    <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;if (</span><span class="si">%s</span><span class="s2">) {&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">c</span><span class="p">))</span>
-                <span class="k">elif</span> <span class="n">i</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">c</span> <span class="o">==</span> <span class="bp">True</span><span class="p">:</span>
-                    <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;else {&quot;</span><span class="p">)</span>
-                <span class="k">else</span><span class="p">:</span>
-                    <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;else if (</span><span class="si">%s</span><span class="s2">) {&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">c</span><span class="p">))</span>
-                <span class="n">code0</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
-                <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">code0</span><span class="p">)</span>
-                <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;}&quot;</span><span class="p">)</span>
-            <span class="k">return</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span>
+        <span class="c1"># This method is called only for inline if constructs</span>
+        <span class="c1"># Top level piecewise is handled in doprint()</span>
+        <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">cond</span> <span class="o">==</span> <span class="bp">True</span><span class="p">:</span>
+            <span class="n">last_line</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">expr</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="c1"># The piecewise was used in an expression, need to do inline</span>
-            <span class="c1"># operators. This has the downside that inline operators will</span>
-            <span class="c1"># not work for statements that span multiple lines (Matrix or</span>
-            <span class="c1"># Indexed expressions).</span>
-            <span class="n">ecpairs</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;((</span><span class="si">%s</span><span class="s2">) ? (</span><span class="se">\n</span><span class="si">%s</span><span class="se">\n</span><span class="s2">)</span><span class="se">\n</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">c</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">e</span><span class="p">))</span>
-                    <span class="k">for</span> <span class="n">e</span><span class="p">,</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]]</span>
-            <span class="n">last_line</span> <span class="o">=</span> <span class="s2">&quot;: (</span><span class="se">\n</span><span class="si">%s</span><span class="se">\n</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">expr</span><span class="p">)</span>
-            <span class="k">return</span> <span class="s2">&quot;: &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">ecpairs</span><span class="p">)</span> <span class="o">+</span> <span class="n">last_line</span> <span class="o">+</span> <span class="s2">&quot; &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="s2">&quot;)&quot;</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">ecpairs</span><span class="p">)])</span>
+            <span class="n">last_line</span> <span class="o">=</span> <span class="s2">&quot;ifelse(</span><span class="si">%s</span><span class="s2">,</span><span class="si">%s</span><span class="s2">,NA)&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">cond</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">expr</span><span class="p">))</span>
+        <span class="n">code</span><span class="o">=</span><span class="n">last_line</span>
+        <span class="k">for</span> <span class="n">e</span><span class="p">,</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]):</span>
+            <span class="n">code</span><span class="o">=</span> <span class="s2">&quot;ifelse(</span><span class="si">%s</span><span class="s2">,</span><span class="si">%s</span><span class="s2">,&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">c</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">e</span><span class="p">))</span><span class="o">+</span><span class="n">code</span><span class="o">+</span><span class="s2">&quot;)&quot;</span>
+        <span class="k">return</span><span class="p">(</span><span class="n">code</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">_print_ITE</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
         <span class="kn">from</span> <span class="nn">sympy.functions</span> <span class="kn">import</span> <span class="n">Piecewise</span>
@@ -282,9 +289,7 @@
                 <span class="n">expr</span><span class="o">.</span><span class="n">i</span><span class="o">*</span><span class="n">expr</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
 
     <span class="k">def</span> <span class="nf">_print_Symbol</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
-
-        <span class="n">name</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">CCodePrinter</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_print_Symbol</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
-
+        <span class="n">name</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">RCodePrinter</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_print_Symbol</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">expr</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dereference</span><span class="p">:</span>
             <span class="k">return</span> <span class="s1">&#39;(*{0})&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
@@ -321,10 +326,8 @@
                 <span class="s1">&#39;{step}) {{</span><span class="se">\n</span><span class="s1">{body}</span><span class="se">\n</span><span class="s1">}}&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">target</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="n">start</span><span class="p">,</span>
                 <span class="n">stop</span><span class="o">=</span><span class="n">stop</span><span class="p">,</span> <span class="n">step</span><span class="o">=</span><span class="n">step</span><span class="p">,</span> <span class="n">body</span><span class="o">=</span><span class="n">body</span><span class="p">)</span>
 
-    <span class="k">def</span> <span class="nf">_print_sign</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">func</span><span class="p">):</span>
-        <span class="k">return</span> <span class="s1">&#39;((({0}) &gt; 0) - (({0}) &lt; 0))&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">func</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
 
-<div class="viewcode-block" id="CCodePrinter.indent_code"><a class="viewcode-back" href="../../../modules/printing.html#sympy.printing.ccode.CCodePrinter.indent_code">[docs]</a>    <span class="k">def</span> <span class="nf">indent_code</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">code</span><span class="p">):</span>
+<div class="viewcode-block" id="RCodePrinter.indent_code"><a class="viewcode-back" href="../../../modules/printing.html#sympy.printing.rcode.RCodePrinter.indent_code">[docs]</a>    <span class="k">def</span> <span class="nf">indent_code</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">code</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Accepts a string of code or a list of code lines&quot;&quot;&quot;</span>
 
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">code</span><span class="p">,</span> <span class="n">string_types</span><span class="p">):</span>
@@ -353,8 +356,8 @@
         <span class="k">return</span> <span class="n">pretty</span>
 
 </div></div>
-<div class="viewcode-block" id="ccode"><a class="viewcode-back" href="../../../modules/printing.html#sympy.printing.ccode.ccode">[docs]</a><span class="k">def</span> <span class="nf">ccode</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assign_to</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="o">**</span><span class="n">settings</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Converts an expr to a string of c code</span>
+<div class="viewcode-block" id="rcode"><a class="viewcode-back" href="../../../modules/printing.html#sympy.printing.rcode.rcode">[docs]</a><span class="k">def</span> <span class="nf">rcode</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assign_to</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="o">**</span><span class="n">settings</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Converts an expr to a string of r code</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ==========</span>
@@ -371,15 +374,10 @@
 <span class="sd">    user_functions : dict, optional</span>
 <span class="sd">        A dictionary where the keys are string representations of either</span>
 <span class="sd">        ``FunctionClass`` or ``UndefinedFunction`` instances and the values</span>
-<span class="sd">        are their desired C string representations. Alternatively, the</span>
+<span class="sd">        are their desired R string representations. Alternatively, the</span>
 <span class="sd">        dictionary value can be a list of tuples i.e. [(argument_test,</span>
-<span class="sd">        cfunction_string)] or [(argument_test, cfunction_formater)]. See below</span>
+<span class="sd">        rfunction_string)] or [(argument_test, rfunction_formater)]. See below</span>
 <span class="sd">        for examples.</span>
-<span class="sd">    dereference : iterable, optional</span>
-<span class="sd">        An iterable of symbols that should be dereferenced in the printed code</span>
-<span class="sd">        expression. These would be values passed by address to the function.</span>
-<span class="sd">        For example, if ``dereference=[a]``, the resulting code would print</span>
-<span class="sd">        ``(*a)`` instead of ``a``.</span>
 <span class="sd">    human : bool, optional</span>
 <span class="sd">        If True, the result is a single string that may contain some constant</span>
 <span class="sd">        declarations for the number symbols. If False, the same information is</span>
@@ -395,11 +393,11 @@
 <span class="sd">    Examples</span>
 <span class="sd">    ========</span>
 
-<span class="sd">    &gt;&gt;&gt; from sympy import ccode, symbols, Rational, sin, ceiling, Abs, Function</span>
+<span class="sd">    &gt;&gt;&gt; from sympy import rcode, symbols, Rational, sin, ceiling, Abs, Function</span>
 <span class="sd">    &gt;&gt;&gt; x, tau = symbols(&quot;x, tau&quot;)</span>
-<span class="sd">    &gt;&gt;&gt; ccode((2*tau)**Rational(7, 2))</span>
-<span class="sd">    &#39;8*sqrt(2)*pow(tau, 7.0L/2.0L)&#39;</span>
-<span class="sd">    &gt;&gt;&gt; ccode(sin(x), assign_to=&quot;s&quot;)</span>
+<span class="sd">    &gt;&gt;&gt; rcode((2*tau)**Rational(7, 2))</span>
+<span class="sd">    &#39;8*sqrt(2)*tau^(7.0/2.0)&#39;</span>
+<span class="sd">    &gt;&gt;&gt; rcode(sin(x), assign_to=&quot;s&quot;)</span>
 <span class="sd">    &#39;s = sin(x);&#39;</span>
 
 <span class="sd">    Simple custom printing can be defined for certain types by passing a</span>
@@ -414,12 +412,12 @@
 <span class="sd">    ...   &quot;func&quot;: &quot;f&quot;</span>
 <span class="sd">    ... }</span>
 <span class="sd">    &gt;&gt;&gt; func = Function(&#39;func&#39;)</span>
-<span class="sd">    &gt;&gt;&gt; ccode(func(Abs(x) + ceiling(x)), user_functions=custom_functions)</span>
+<span class="sd">    &gt;&gt;&gt; rcode(func(Abs(x) + ceiling(x)), user_functions=custom_functions)</span>
 <span class="sd">    &#39;f(fabs(x) + CEIL(x))&#39;</span>
 
-<span class="sd">    or if the C-function takes a subset of the original arguments:</span>
+<span class="sd">    or if the R-function takes a subset of the original arguments:</span>
 
-<span class="sd">    &gt;&gt;&gt; ccode(2**x + 3**x, user_functions={&#39;Pow&#39;: [</span>
+<span class="sd">    &gt;&gt;&gt; rcode(2**x + 3**x, user_functions={&#39;Pow&#39;: [</span>
 <span class="sd">    ...   (lambda b, e: b == 2, lambda b, e: &#39;exp2(%s)&#39; % e),</span>
 <span class="sd">    ...   (lambda b, e: b != 2, &#39;pow&#39;)]})</span>
 <span class="sd">    &#39;exp2(x) + pow(3, x)&#39;</span>
@@ -433,13 +431,8 @@
 
 <span class="sd">    &gt;&gt;&gt; from sympy import Piecewise</span>
 <span class="sd">    &gt;&gt;&gt; expr = Piecewise((x + 1, x &gt; 0), (x, True))</span>
-<span class="sd">    &gt;&gt;&gt; print(ccode(expr, tau))</span>
-<span class="sd">    if (x &gt; 0) {</span>
-<span class="sd">    tau = x + 1;</span>
-<span class="sd">    }</span>
-<span class="sd">    else {</span>
-<span class="sd">    tau = x;</span>
-<span class="sd">    }</span>
+<span class="sd">    &gt;&gt;&gt; print(rcode(expr, assign_to=tau))</span>
+<span class="sd">    tau = ifelse(x &gt; 0,x + 1,x);</span>
 
 <span class="sd">    Support for loops is provided through ``Indexed`` types. With</span>
 <span class="sd">    ``contract=True`` these expressions will be turned into loops, whereas</span>
@@ -453,7 +446,7 @@
 <span class="sd">    &gt;&gt;&gt; Dy = IndexedBase(&#39;Dy&#39;, shape=(len_y-1,))</span>
 <span class="sd">    &gt;&gt;&gt; i = Idx(&#39;i&#39;, len_y-1)</span>
 <span class="sd">    &gt;&gt;&gt; e=Eq(Dy[i], (y[i+1]-y[i])/(t[i+1]-t[i]))</span>
-<span class="sd">    &gt;&gt;&gt; ccode(e.rhs, assign_to=e.lhs, contract=False)</span>
+<span class="sd">    &gt;&gt;&gt; rcode(e.rhs, assign_to=e.lhs, contract=False)</span>
 <span class="sd">    &#39;Dy[i] = (y[i + 1] - y[i])/(t[i + 1] - t[i]);&#39;</span>
 
 <span class="sd">    Matrices are also supported, but a ``MatrixSymbol`` of the same dimensions</span>
@@ -463,23 +456,19 @@
 <span class="sd">    &gt;&gt;&gt; from sympy import Matrix, MatrixSymbol</span>
 <span class="sd">    &gt;&gt;&gt; mat = Matrix([x**2, Piecewise((x + 1, x &gt; 0), (x, True)), sin(x)])</span>
 <span class="sd">    &gt;&gt;&gt; A = MatrixSymbol(&#39;A&#39;, 3, 1)</span>
-<span class="sd">    &gt;&gt;&gt; print(ccode(mat, A))</span>
-<span class="sd">    A[0] = pow(x, 2);</span>
-<span class="sd">    if (x &gt; 0) {</span>
-<span class="sd">       A[1] = x + 1;</span>
-<span class="sd">    }</span>
-<span class="sd">    else {</span>
-<span class="sd">       A[1] = x;</span>
-<span class="sd">    }</span>
+<span class="sd">    &gt;&gt;&gt; print(rcode(mat, A))</span>
+<span class="sd">    A[0] = x^2;</span>
+<span class="sd">    A[1] = ifelse(x &gt; 0,x + 1,x);</span>
 <span class="sd">    A[2] = sin(x);</span>
+
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">return</span> <span class="n">CCodePrinter</span><span class="p">(</span><span class="n">settings</span><span class="p">)</span><span class="o">.</span><span class="n">doprint</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assign_to</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">RCodePrinter</span><span class="p">(</span><span class="n">settings</span><span class="p">)</span><span class="o">.</span><span class="n">doprint</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assign_to</span><span class="p">)</span>
 
 </div>
-<div class="viewcode-block" id="print_ccode"><a class="viewcode-back" href="../../../modules/printing.html#sympy.printing.ccode.print_ccode">[docs]</a><span class="k">def</span> <span class="nf">print_ccode</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="o">**</span><span class="n">settings</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Prints C representation of the given expression.&quot;&quot;&quot;</span>
-    <span class="k">print</span><span class="p">(</span><span class="n">ccode</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="o">**</span><span class="n">settings</span><span class="p">))</span></div>
+<div class="viewcode-block" id="print_rcode"><a class="viewcode-back" href="../../../modules/printing.html#sympy.printing.rcode.print_rcode">[docs]</a><span class="k">def</span> <span class="nf">print_rcode</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="o">**</span><span class="n">settings</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Prints R representation of the given expression.&quot;&quot;&quot;</span>
+    <span class="k">print</span><span class="p">(</span><span class="n">rcode</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="o">**</span><span class="n">settings</span><span class="p">))</span></div>
 </pre></div>
 
           </div>
