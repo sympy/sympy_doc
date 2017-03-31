@@ -1735,7 +1735,371 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_eval_matrix_mul_elementwise</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
 
 
-<div class="viewcode-block" id="MatrixBase"><a class="viewcode-back" href="../../../modules/matrices/matrices.html#sympy.matrices.matrices.MatrixBase">[docs]</a><span class="k">class</span> <span class="nc">MatrixBase</span><span class="p">(</span><span class="n">MatrixArithmetic</span><span class="p">,</span> <span class="n">MatrixOperations</span><span class="p">,</span> <span class="n">MatrixProperties</span><span class="p">,</span> <span class="n">MatrixShaping</span><span class="p">):</span>
+<span class="k">class</span> <span class="nc">MatrixDeterminant</span><span class="p">(</span><span class="n">MatrixArithmetic</span><span class="p">,</span> <span class="n">MatrixOperations</span><span class="p">,</span> <span class="n">MatrixShaping</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Provides basic matrix determinant operations.</span>
+<span class="sd">    Should not be instantiated directly.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">_eval_berkowitz_toeplitz_matrix</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return (A,T) where T the Toeplitz matrix used in the Berkowitz algorithm</span>
+<span class="sd">        corresponding to `self` and A is the first principal submatrix.&quot;&quot;&quot;</span>
+
+        <span class="c1"># the 0 x 0 case is trivial</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">rows</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">cols</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_new</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span> <span class="p">[</span><span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">])</span>
+
+        <span class="c1">#</span>
+        <span class="c1"># Partition self = [ a_11  R ]</span>
+        <span class="c1">#                  [ C     A ]</span>
+        <span class="c1">#</span>
+
+        <span class="n">a</span><span class="p">,</span> <span class="n">R</span> <span class="o">=</span> <span class="bp">self</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">],</span>   <span class="bp">self</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">:]</span>
+        <span class="n">C</span><span class="p">,</span> <span class="n">A</span> <span class="o">=</span> <span class="bp">self</span><span class="p">[</span><span class="mi">1</span><span class="p">:,</span> <span class="mi">0</span><span class="p">],</span> <span class="bp">self</span><span class="p">[</span><span class="mi">1</span><span class="p">:,</span><span class="mi">1</span><span class="p">:]</span>
+
+        <span class="c1">#</span>
+        <span class="c1"># The Toeplitz matrix looks like</span>
+        <span class="c1">#</span>
+        <span class="c1">#  [ 1                                     ]</span>
+        <span class="c1">#  [ -a         1                          ]</span>
+        <span class="c1">#  [ -RC       -a        1                 ]</span>
+        <span class="c1">#  [ -RAC     -RC       -a       1         ]</span>
+        <span class="c1">#  [ -RA**2C -RAC      -RC      -a       1 ]</span>
+        <span class="c1">#  etc.</span>
+
+        <span class="c1"># Compute the diagonal entries.</span>
+        <span class="c1"># Because multiplying matrix times vector is so much</span>
+        <span class="c1"># more efficient than matrix times matrix, recursively</span>
+        <span class="c1"># compute -R * A**n * C.</span>
+        <span class="n">diags</span> <span class="o">=</span> <span class="p">[</span><span class="n">C</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rows</span> <span class="o">-</span> <span class="mi">2</span><span class="p">):</span>
+            <span class="n">diags</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">A</span> <span class="o">*</span> <span class="n">diags</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+        <span class="n">diags</span> <span class="o">=</span> <span class="p">[(</span><span class="o">-</span><span class="n">R</span><span class="o">*</span><span class="n">d</span><span class="p">)[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">diags</span><span class="p">]</span>
+        <span class="n">diags</span> <span class="o">=</span> <span class="p">[</span><span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">,</span> <span class="o">-</span><span class="n">a</span><span class="p">]</span> <span class="o">+</span> <span class="n">diags</span>
+
+        <span class="k">def</span> <span class="nf">entry</span><span class="p">(</span><span class="n">i</span><span class="p">,</span><span class="n">j</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">j</span> <span class="o">&gt;</span> <span class="n">i</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span>
+            <span class="k">return</span> <span class="n">diags</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="n">j</span><span class="p">]</span>
+
+        <span class="n">toeplitz</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_new</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cols</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">rows</span><span class="p">,</span> <span class="n">entry</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">toeplitz</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_eval_berkowitz_vector</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Run the Berkowitz algorithm and return a vector whose entries</span>
+<span class="sd">            are the coefficients of the characteristic polynomial of `self`.</span>
+
+<span class="sd">            Given N x N matrix, efficiently compute</span>
+<span class="sd">            coefficients of characteristic polynomials of &#39;self&#39;</span>
+<span class="sd">            without division in the ground domain.</span>
+
+<span class="sd">            This method is particularly useful for computing determinant,</span>
+<span class="sd">            principal minors and characteristic polynomial when &#39;self&#39;</span>
+<span class="sd">            has complicated coefficients e.g. polynomials. Semi-direct</span>
+<span class="sd">            usage of this algorithm is also important in computing</span>
+<span class="sd">            efficiently sub-resultant PRS.</span>
+
+<span class="sd">            Assuming that M is a square matrix of dimension N x N and</span>
+<span class="sd">            I is N x N identity matrix, then the Berkowitz vector is</span>
+<span class="sd">            an N x 1 vector whose entries are coefficients of the</span>
+<span class="sd">            polynomial</span>
+
+<span class="sd">                           charpoly(M) = det(t*I - M)</span>
+
+<span class="sd">            As a consequence, all polynomials generated by Berkowitz</span>
+<span class="sd">            algorithm are monic.</span>
+
+<span class="sd">           For more information on the implemented algorithm refer to:</span>
+
+<span class="sd">           [1] S.J. Berkowitz, On computing the determinant in small</span>
+<span class="sd">               parallel time using a small number of processors, ACM,</span>
+<span class="sd">               Information Processing Letters 18, 1984, pp. 147-150</span>
+
+<span class="sd">           [2] M. Keber, Division-Free computation of sub-resultants</span>
+<span class="sd">               using Bezout matrices, Tech. Report MPI-I-2006-1-006,</span>
+<span class="sd">               Saarbrucken, 2006</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># handle the trivial cases</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">rows</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">cols</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_new</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="p">[</span><span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">])</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">rows</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">cols</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_new</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="p">[</span><span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">,</span> <span class="o">-</span><span class="bp">self</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">]])</span>
+
+        <span class="n">submat</span><span class="p">,</span> <span class="n">toeplitz</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_eval_berkowitz_toeplitz_matrix</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">toeplitz</span> <span class="o">*</span> <span class="n">submat</span><span class="o">.</span><span class="n">_eval_berkowitz_vector</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">_eval_det_bareiss</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Compute matrix determinant using Bareiss&#39; fraction-free</span>
+<span class="sd">        algorithm which is an extension of the well known Gaussian</span>
+<span class="sd">        elimination method. This approach is best suited for dense</span>
+<span class="sd">        symbolic matrices and will result in a determinant with</span>
+<span class="sd">        minimal number of fractions. It means that less term</span>
+<span class="sd">        rewriting is needed on resulting formulae.</span>
+
+<span class="sd">        TODO: Implement algorithm for sparse matrices (SFF),</span>
+<span class="sd">        http://www.eecis.udel.edu/~saunders/papers/sffge/it5.ps.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># XXX included as a workaround for issue #12362.  Should use `_find_reasonable_pivot` instead</span>
+        <span class="k">def</span> <span class="nf">_find_pivot</span><span class="p">(</span><span class="n">l</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">pos</span><span class="p">,</span><span class="n">val</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">l</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">val</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="p">(</span><span class="n">pos</span><span class="p">,</span> <span class="n">val</span><span class="p">,</span> <span class="bp">None</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+            <span class="k">return</span> <span class="p">(</span><span class="bp">None</span><span class="p">,</span> <span class="bp">None</span><span class="p">,</span> <span class="bp">None</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+
+
+        <span class="c1"># Recursively implimented Bareiss&#39; algorithm as per Deanna Richelle Leggett&#39;s</span>
+        <span class="c1"># thesis http://www.math.usm.edu/perry/Research/Thesis_DRL.pdf</span>
+        <span class="k">def</span> <span class="nf">bareiss</span><span class="p">(</span><span class="n">mat</span><span class="p">,</span> <span class="n">cumm</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">mat</span><span class="o">.</span><span class="n">rows</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span>
+            <span class="k">elif</span> <span class="n">mat</span><span class="o">.</span><span class="n">rows</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">mat</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+
+            <span class="c1"># find a pivot and extract the remaining matrix</span>
+            <span class="c1"># XXX should use `_find_reasonable_pivot`.  Blocked by issue #12362</span>
+            <span class="n">pivot_pos</span><span class="p">,</span> <span class="n">pivot_val</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">_find_pivot</span><span class="p">(</span><span class="n">mat</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">])</span>
+            <span class="k">if</span> <span class="n">pivot_pos</span> <span class="o">==</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span>
+
+            <span class="c1"># if we have a valid pivot, we&#39;ll do a &quot;row swap&quot;, so keep the</span>
+            <span class="c1"># sign of the det</span>
+            <span class="n">sign</span> <span class="o">=</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="o">**</span> <span class="p">(</span><span class="n">pivot_pos</span> <span class="o">%</span> <span class="mi">2</span><span class="p">)</span>
+
+            <span class="c1"># we want every row but the pivot row and every column</span>
+            <span class="n">rows</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">mat</span><span class="o">.</span><span class="n">rows</span><span class="p">)</span> <span class="k">if</span> <span class="n">i</span> <span class="o">!=</span> <span class="n">pivot_pos</span><span class="p">)</span>
+            <span class="n">cols</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">mat</span><span class="o">.</span><span class="n">cols</span><span class="p">))</span>
+            <span class="n">tmp_mat</span> <span class="o">=</span> <span class="n">mat</span><span class="o">.</span><span class="n">extract</span><span class="p">(</span><span class="n">rows</span><span class="p">,</span> <span class="n">cols</span><span class="p">)</span>
+
+            <span class="k">def</span> <span class="nf">entry</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">):</span>
+                <span class="n">ret</span> <span class="o">=</span> <span class="p">(</span><span class="n">pivot_val</span><span class="o">*</span><span class="n">tmp_mat</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">mat</span><span class="p">[</span><span class="n">pivot_pos</span><span class="p">,</span> <span class="n">j</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">tmp_mat</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span> <span class="o">/</span> <span class="n">cumm</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">ret</span><span class="o">.</span><span class="n">is_Atom</span><span class="p">:</span>
+                    <span class="n">cancel</span><span class="p">(</span><span class="n">ret</span><span class="p">)</span>
+                <span class="k">return</span> <span class="n">ret</span>
+
+            <span class="k">return</span> <span class="n">sign</span><span class="o">*</span><span class="n">bareiss</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_new</span><span class="p">(</span><span class="n">mat</span><span class="o">.</span><span class="n">rows</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">mat</span><span class="o">.</span><span class="n">cols</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">entry</span><span class="p">),</span> <span class="n">pivot_val</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">cancel</span><span class="p">(</span><span class="n">bareiss</span><span class="p">(</span><span class="bp">self</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">_eval_det_berkowitz</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Use the Berkowitz algorithm to compute the determinant.&quot;&quot;&quot;</span>
+        <span class="n">berk_vector</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_eval_berkowitz_vector</span><span class="p">()</span>
+        <span class="k">return</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">**</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">berk_vector</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">berk_vector</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">_eval_det_lu</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Use LU the decomposition to compute the determinant.&quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">l</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">p</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">LUdecomposition</span><span class="p">()</span>
+        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+            <span class="c1"># if there is a value error in the LU decomposition, it means the matrix</span>
+            <span class="c1"># wasn&#39;t invertible</span>
+            <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span>
+
+        <span class="c1"># get the sign of the determinant</span>
+        <span class="n">det</span> <span class="o">=</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="o">**</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="o">%</span> <span class="mi">2</span><span class="p">)</span>
+        <span class="c1"># multiply by the diagonal entries</span>
+        <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rows</span><span class="p">):</span>
+            <span class="n">det</span> <span class="o">*=</span> <span class="n">l</span><span class="p">[</span><span class="n">k</span><span class="p">,</span> <span class="n">k</span><span class="p">]</span> <span class="o">*</span> <span class="n">u</span><span class="p">[</span><span class="n">k</span><span class="p">,</span> <span class="n">k</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">det</span>
+
+    <span class="k">def</span> <span class="nf">adjugate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s2">&quot;berkowitz&quot;</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Returns the adjugate, or classical adjoint, of</span>
+<span class="sd">        a matrix.  That is, the transpose of the matrix of cofactors.</span>
+
+
+<span class="sd">        http://en.wikipedia.org/wiki/Adjugate</span>
+
+<span class="sd">        See Also</span>
+<span class="sd">        ========</span>
+
+<span class="sd">        cofactor_matrix</span>
+<span class="sd">        transpose</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">cofactor_matrix</span><span class="p">(</span><span class="n">method</span><span class="p">)</span><span class="o">.</span><span class="n">transpose</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">charpoly</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="o">=</span><span class="n">Dummy</span><span class="p">(</span><span class="s1">&#39;lambda&#39;</span><span class="p">),</span> <span class="n">simplify</span><span class="o">=</span><span class="n">_simplify</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Computes characteristic polynomial det(x*I - self) where I is</span>
+<span class="sd">        the identity matrix.</span>
+
+<span class="sd">        A PurePoly is returned, so using different variables for ``x`` does</span>
+<span class="sd">        not affect the comparison or the polynomials:</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        ========</span>
+
+<span class="sd">        &gt;&gt;&gt; from sympy import Matrix</span>
+<span class="sd">        &gt;&gt;&gt; from sympy.abc import x, y</span>
+<span class="sd">        &gt;&gt;&gt; A = Matrix([[1, 3], [2, 0]])</span>
+<span class="sd">        &gt;&gt;&gt; A.charpoly(x) == A.charpoly(y)</span>
+<span class="sd">        True</span>
+
+<span class="sd">        Specifying ``x`` is optional; a Dummy with name ``lambda`` is used by</span>
+<span class="sd">        default (which looks good when pretty-printed in unicode):</span>
+
+<span class="sd">        &gt;&gt;&gt; A.charpoly().as_expr()</span>
+<span class="sd">        _lambda**2 - _lambda - 6</span>
+
+<span class="sd">        No test is done to see that ``x`` doesn&#39;t clash with an existing</span>
+<span class="sd">        symbol, so using the default (``lambda``) or your own Dummy symbol is</span>
+<span class="sd">        the safest option:</span>
+
+<span class="sd">        &gt;&gt;&gt; A = Matrix([[1, 2], [x, 0]])</span>
+<span class="sd">        &gt;&gt;&gt; A.charpoly().as_expr()</span>
+<span class="sd">        _lambda**2 - _lambda - 2*x</span>
+<span class="sd">        &gt;&gt;&gt; A.charpoly(x).as_expr()</span>
+<span class="sd">        x**2 - 3*x</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        =====</span>
+
+<span class="sd">        The Samuelson-Berkowitz algorithm is used to compute</span>
+<span class="sd">        the characteristic polynomial efficiently and without any</span>
+<span class="sd">        division operations.  Thus the characteristic polynomial over any</span>
+<span class="sd">        commutative ring without zero divisors can be computed.</span>
+
+<span class="sd">        See Also</span>
+<span class="sd">        ========</span>
+
+<span class="sd">        det</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">berk_vector</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_eval_berkowitz_vector</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">PurePoly</span><span class="p">([</span><span class="n">simplify</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">berk_vector</span><span class="p">],</span> <span class="n">x</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">cofactor</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s2">&quot;berkowitz&quot;</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Calculate the cofactor of an element.</span>
+
+<span class="sd">        See Also</span>
+<span class="sd">        ========</span>
+
+<span class="sd">        cofactor_matrix</span>
+<span class="sd">        minor</span>
+<span class="sd">        minor_submatrix</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">rows</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cols</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">rows</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">NonSquareMatrixError</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">**</span><span class="p">((</span><span class="n">i</span> <span class="o">+</span> <span class="n">j</span><span class="p">)</span> <span class="o">%</span> <span class="mi">2</span><span class="p">)</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">minor</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="n">method</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">cofactor_matrix</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s2">&quot;berkowitz&quot;</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a matrix containing the cofactor of each element.</span>
+
+<span class="sd">        See Also</span>
+<span class="sd">        ========</span>
+
+<span class="sd">        cofactor</span>
+<span class="sd">        minor</span>
+<span class="sd">        minor_submatrix</span>
+<span class="sd">        adjugate</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">rows</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cols</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">rows</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">NonSquareMatrixError</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_new</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rows</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">,</span>
+                         <span class="k">lambda</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">cofactor</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="n">method</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">det</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s2">&quot;bareiss&quot;</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Computes the determinant of a matrix.  If the matrix</span>
+<span class="sd">        is at most 3x3, a hard-coded formula is used.</span>
+<span class="sd">        Otherwise, the determinant using the method `method`.</span>
+
+
+<span class="sd">        Possible values for &quot;method&quot;:</span>
+<span class="sd">          bareis</span>
+<span class="sd">          berkowitz</span>
+<span class="sd">          lu</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># sanitize `method`</span>
+        <span class="n">method</span> <span class="o">=</span> <span class="n">method</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">method</span> <span class="o">==</span> <span class="s2">&quot;bareis&quot;</span><span class="p">:</span>
+            <span class="n">SymPyDeprecationWarning</span><span class="p">(</span>
+                <span class="n">feature</span><span class="o">=</span><span class="s2">&quot;Using &#39;bareis&#39; to compute matrix determinant&quot;</span><span class="p">,</span>
+                <span class="n">useinstead</span><span class="o">=</span><span class="s2">&quot;&#39;bareiss&#39;&quot;</span><span class="p">,</span>
+                <span class="n">issue</span><span class="o">=</span><span class="mi">12363</span><span class="p">,</span> <span class="n">deprecated_since_version</span><span class="o">=</span><span class="s2">&quot;1.1&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">warn</span><span class="p">()</span>
+            <span class="n">method</span> <span class="o">=</span> <span class="s2">&quot;bareiss&quot;</span>
+        <span class="k">if</span> <span class="n">method</span> <span class="o">==</span> <span class="s2">&quot;det_lu&quot;</span><span class="p">:</span>
+            <span class="n">SymPyDeprecationWarning</span><span class="p">(</span>
+                <span class="n">feature</span><span class="o">=</span><span class="s2">&quot;Using &#39;det_lu&#39; to compute matrix determinant&quot;</span><span class="p">,</span>
+                <span class="n">useinstead</span><span class="o">=</span><span class="s2">&quot;&#39;lu&#39;&quot;</span><span class="p">,</span>
+                <span class="n">deprecated_since_version</span><span class="o">=</span><span class="s2">&quot;1.1&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">warn</span><span class="p">()</span>
+            <span class="n">method</span> <span class="o">=</span> <span class="s2">&quot;lu&quot;</span>
+        <span class="k">if</span> <span class="n">method</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;bareiss&quot;</span><span class="p">,</span> <span class="s2">&quot;berkowitz&quot;</span><span class="p">,</span> <span class="s2">&quot;lu&quot;</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Determinant method &#39;</span><span class="si">%s</span><span class="s2">&#39; unrecognized&quot;</span> <span class="o">%</span> <span class="n">method</span><span class="p">)</span>
+
+        <span class="c1"># if methods were made internal and all determinant calculations</span>
+        <span class="c1"># passed through here, then these lines could be factored out of</span>
+        <span class="c1"># the method routines</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">rows</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">NonSquareMatrixError</span><span class="p">()</span>
+
+        <span class="n">n</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rows</span>
+        <span class="k">if</span> <span class="n">n</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span>
+        <span class="k">elif</span> <span class="n">n</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">elif</span> <span class="n">n</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="bp">self</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+        <span class="k">elif</span> <span class="n">n</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="k">return</span>  <span class="p">(</span><span class="bp">self</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span>
+                   <span class="o">+</span> <span class="bp">self</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+                   <span class="o">+</span> <span class="bp">self</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+                   <span class="o">-</span> <span class="bp">self</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+                   <span class="o">-</span> <span class="bp">self</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+                   <span class="o">-</span> <span class="bp">self</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">])</span>
+
+        <span class="k">if</span> <span class="n">method</span> <span class="o">==</span> <span class="s2">&quot;bareiss&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_eval_det_bareiss</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="n">method</span> <span class="o">==</span> <span class="s2">&quot;berkowitz&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_eval_det_berkowitz</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="n">method</span> <span class="o">==</span> <span class="s2">&quot;lu&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_eval_det_lu</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">minor</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s2">&quot;berkowitz&quot;</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the (i,j) minor of `self`.  That is,</span>
+<span class="sd">        return the determinant of the matrix obtained by deleting</span>
+<span class="sd">        the `i`th row and `j`th column from `self`.</span>
+
+<span class="sd">        See Also</span>
+<span class="sd">        ========</span>
+
+<span class="sd">        minor_submatrix</span>
+<span class="sd">        cofactor</span>
+<span class="sd">        det</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">rows</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cols</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">rows</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">NonSquareMatrixError</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">minor_submatrix</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">)</span><span class="o">.</span><span class="n">det</span><span class="p">(</span><span class="n">method</span><span class="o">=</span><span class="n">method</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">minor_submatrix</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the submatrix obtained by removing the `i`th row</span>
+<span class="sd">        and `j`th column from `self`.</span>
+
+<span class="sd">        See Also</span>
+<span class="sd">        ========</span>
+
+<span class="sd">        minor</span>
+<span class="sd">        cofactor</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">i</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rows</span>
+        <span class="k">if</span> <span class="n">j</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">j</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cols</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">rows</span> <span class="ow">or</span> <span class="ow">not</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">j</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;`i` and `j` must satisfy 0 &lt;= i &lt; `self.rows` &quot;</span>
+                             <span class="s2">&quot;(</span><span class="si">%d</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">rows</span> <span class="o">+</span> <span class="s2">&quot;and 0 &lt;= j &lt; `self.cols` (</span><span class="si">%d</span><span class="s2">).&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">)</span>
+
+        <span class="n">rows</span> <span class="o">=</span> <span class="p">[</span><span class="n">a</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rows</span><span class="p">)</span> <span class="k">if</span> <span class="n">a</span> <span class="o">!=</span> <span class="n">i</span><span class="p">]</span>
+        <span class="n">cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">a</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">)</span> <span class="k">if</span> <span class="n">a</span> <span class="o">!=</span> <span class="n">j</span><span class="p">]</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">extract</span><span class="p">(</span><span class="n">rows</span><span class="p">,</span> <span class="n">cols</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="MatrixBase"><a class="viewcode-back" href="../../../modules/matrices/matrices.html#sympy.matrices.matrices.MatrixBase">[docs]</a><span class="k">class</span> <span class="nc">MatrixBase</span><span class="p">(</span><span class="n">MatrixDeterminant</span><span class="p">,</span> <span class="n">MatrixArithmetic</span><span class="p">,</span> <span class="n">MatrixOperations</span><span class="p">,</span> <span class="n">MatrixProperties</span><span class="p">,</span> <span class="n">MatrixShaping</span><span class="p">):</span>
     <span class="c1"># Added just for numpy compatibility</span>
     <span class="n">__array_priority__</span> <span class="o">=</span> <span class="mi">11</span>
 
@@ -2250,23 +2614,6 @@
         <span class="sd">&quot;&quot;&quot;Return self + b &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span> <span class="o">+</span> <span class="n">b</span>
 </div>
-<div class="viewcode-block" id="MatrixBase.adjugate"><a class="viewcode-back" href="../../../modules/matrices/matrices.html#sympy.matrices.matrices.MatrixBase.adjugate">[docs]</a>    <span class="k">def</span> <span class="nf">adjugate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s2">&quot;berkowitz&quot;</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Returns the adjugate matrix.</span>
-
-<span class="sd">        Adjugate matrix is the transpose of the cofactor matrix.</span>
-
-<span class="sd">        http://en.wikipedia.org/wiki/Adjugate</span>
-
-<span class="sd">        See Also</span>
-<span class="sd">        ========</span>
-
-<span class="sd">        cofactorMatrix</span>
-<span class="sd">        transpose</span>
-<span class="sd">        berkowitz</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">cofactorMatrix</span><span class="p">(</span><span class="n">method</span><span class="p">)</span><span class="o">.</span><span class="n">T</span>
-</div>
 <div class="viewcode-block" id="MatrixBase.berkowitz_charpoly"><a class="viewcode-back" href="../../../modules/matrices/matrices.html#sympy.matrices.matrices.MatrixBase.berkowitz_charpoly">[docs]</a>    <span class="k">def</span> <span class="nf">berkowitz_charpoly</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="o">=</span><span class="n">Dummy</span><span class="p">(</span><span class="s1">&#39;lambda&#39;</span><span class="p">),</span> <span class="n">simplify</span><span class="o">=</span><span class="n">_simplify</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Computes characteristic polynomial minors using Berkowitz method.</span>
 
@@ -2513,36 +2860,9 @@
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Matrix must be symmetric.&quot;</span><span class="p">)</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cholesky</span><span class="p">()</span>
 </div>
-<div class="viewcode-block" id="MatrixBase.cofactor"><a class="viewcode-back" href="../../../modules/matrices/matrices.html#sympy.matrices.matrices.MatrixBase.cofactor">[docs]</a>    <span class="k">def</span> <span class="nf">cofactor</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s2">&quot;berkowitz&quot;</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Calculate the cofactor of an element.</span>
+    <span class="k">def</span> <span class="nf">cofactorMatrix</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s2">&quot;berkowitz&quot;</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">cofactor_matrix</span><span class="p">(</span><span class="n">method</span><span class="o">=</span><span class="n">method</span><span class="p">)</span>
 
-<span class="sd">        See Also</span>
-<span class="sd">        ========</span>
-
-<span class="sd">        cofactorMatrix</span>
-<span class="sd">        minorEntry</span>
-<span class="sd">        minorMatrix</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="n">j</span><span class="p">)</span> <span class="o">%</span> <span class="mi">2</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">minorEntry</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="n">method</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="o">-</span><span class="mi">1</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">minorEntry</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="n">method</span><span class="p">)</span>
-</div>
-<div class="viewcode-block" id="MatrixBase.cofactorMatrix"><a class="viewcode-back" href="../../../modules/matrices/matrices.html#sympy.matrices.matrices.MatrixBase.cofactorMatrix">[docs]</a>    <span class="k">def</span> <span class="nf">cofactorMatrix</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s2">&quot;berkowitz&quot;</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Return a matrix containing the cofactor of each element.</span>
-
-<span class="sd">        See Also</span>
-<span class="sd">        ========</span>
-
-<span class="sd">        cofactor</span>
-<span class="sd">        minorEntry</span>
-<span class="sd">        minorMatrix</span>
-<span class="sd">        adjugate</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">out</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_new</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rows</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">:</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">cofactor</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="n">method</span><span class="p">))</span>
-        <span class="k">return</span> <span class="n">out</span>
-</div>
 <div class="viewcode-block" id="MatrixBase.columnspace"><a class="viewcode-back" href="../../../modules/matrices/matrices.html#sympy.matrices.matrices.MatrixBase.columnspace">[docs]</a>    <span class="k">def</span> <span class="nf">columnspace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">simplify</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Returns list of vectors (Matrix objects) that span columnspace of self</span>
 
@@ -2797,44 +3117,6 @@
             <span class="n">prod</span> <span class="o">=</span> <span class="n">prod</span> <span class="o">*</span> <span class="n">u</span><span class="p">[</span><span class="n">k</span><span class="p">,</span> <span class="n">k</span><span class="p">]</span> <span class="o">*</span> <span class="n">l</span><span class="p">[</span><span class="n">k</span><span class="p">,</span> <span class="n">k</span><span class="p">]</span>
 
         <span class="k">return</span> <span class="n">prod</span><span class="o">.</span><span class="n">expand</span><span class="p">()</span>
-</div>
-<div class="viewcode-block" id="MatrixBase.det"><a class="viewcode-back" href="../../../modules/matrices/matrices.html#sympy.matrices.matrices.MatrixBase.det">[docs]</a>    <span class="k">def</span> <span class="nf">det</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s2">&quot;bareiss&quot;</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Computes the matrix determinant using the method &quot;method&quot;.</span>
-
-<span class="sd">        Possible values for &quot;method&quot;:</span>
-<span class="sd">          bareiss ... det_bareiss</span>
-<span class="sd">          berkowitz ... berkowitz_det</span>
-<span class="sd">          det_LU ... det_LU_decomposition</span>
-
-<span class="sd">        See Also</span>
-<span class="sd">        ========</span>
-
-<span class="sd">        det_bareiss</span>
-<span class="sd">        berkowitz_det</span>
-<span class="sd">        det_LU</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-
-        <span class="c1"># if methods were made internal and all determinant calculations</span>
-        <span class="c1"># passed through here, then these lines could be factored out of</span>
-        <span class="c1"># the method routines</span>
-        <span class="k">if</span> <span class="n">method</span> <span class="o">==</span> <span class="s2">&quot;bareis&quot;</span><span class="p">:</span>
-            <span class="n">SymPyDeprecationWarning</span><span class="p">(</span>
-                            <span class="n">feature</span><span class="o">=</span><span class="s2">&quot;Using &#39;bareis&#39; to compute matrix determinant&quot;</span><span class="p">,</span>
-                            <span class="n">useinstead</span><span class="o">=</span><span class="s2">&quot;&#39;bareiss&#39;&quot;</span><span class="p">,</span>
-                            <span class="n">issue</span><span class="o">=</span><span class="mi">12363</span><span class="p">,</span> <span class="n">deprecated_since_version</span><span class="o">=</span><span class="s2">&quot;1.1&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">warn</span><span class="p">()</span>
-            <span class="n">method</span> <span class="o">=</span> <span class="s2">&quot;bareiss&quot;</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_square</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="n">NonSquareMatrixError</span><span class="p">()</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span>
-        <span class="k">if</span> <span class="n">method</span> <span class="o">==</span> <span class="s2">&quot;bareiss&quot;</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">det_bareiss</span><span class="p">()</span>
-        <span class="k">elif</span> <span class="n">method</span> <span class="o">==</span> <span class="s2">&quot;berkowitz&quot;</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">berkowitz_det</span><span class="p">()</span>
-        <span class="k">elif</span> <span class="n">method</span> <span class="o">==</span> <span class="s2">&quot;det_LU&quot;</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">det_LU_decomposition</span><span class="p">()</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Determinant method &#39;</span><span class="si">%s</span><span class="s2">&#39; unrecognized&quot;</span> <span class="o">%</span> <span class="n">method</span><span class="p">)</span>
 </div>
 <div class="viewcode-block" id="MatrixBase.diagonal_solve"><a class="viewcode-back" href="../../../modules/matrices/matrices.html#sympy.matrices.matrices.MatrixBase.diagonal_solve">[docs]</a>    <span class="k">def</span> <span class="nf">diagonal_solve</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rhs</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Solves Ax = B efficiently, where A is a diagonal Matrix,</span>
@@ -4184,39 +4466,12 @@
             <span class="n">b</span><span class="o">.</span><span class="n">row_op</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">,</span> <span class="n">_</span><span class="p">:</span> <span class="n">x</span> <span class="o">/</span> <span class="n">scale</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">rhs</span><span class="o">.</span><span class="vm">__class__</span><span class="p">(</span><span class="n">b</span><span class="p">)</span>
 </div>
-<div class="viewcode-block" id="MatrixBase.minorEntry"><a class="viewcode-back" href="../../../modules/matrices/matrices.html#sympy.matrices.matrices.MatrixBase.minorEntry">[docs]</a>    <span class="k">def</span> <span class="nf">minorEntry</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s2">&quot;berkowitz&quot;</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Calculate the minor of an element.</span>
+    <span class="k">def</span> <span class="nf">minorEntry</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s2">&quot;berkowitz&quot;</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">minor</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="n">method</span><span class="p">)</span>
 
-<span class="sd">        See Also</span>
-<span class="sd">        ========</span>
+    <span class="k">def</span> <span class="nf">minorMatrix</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">minor_submatrix</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">)</span>
 
-<span class="sd">        minorMatrix</span>
-<span class="sd">        cofactor</span>
-<span class="sd">        cofactorMatrix</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">rows</span> <span class="ow">or</span> <span class="ow">not</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">j</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;`i` and `j` must satisfy 0 &lt;= i &lt; `self.rows` &quot;</span> <span class="o">+</span>
-                             <span class="s2">&quot;(</span><span class="si">%d</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">rows</span> <span class="o">+</span> <span class="s2">&quot;and 0 &lt;= j &lt; `self.cols` (</span><span class="si">%d</span><span class="s2">).&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">)</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">minorMatrix</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">)</span><span class="o">.</span><span class="n">det</span><span class="p">(</span><span class="n">method</span><span class="p">)</span>
-</div>
-<div class="viewcode-block" id="MatrixBase.minorMatrix"><a class="viewcode-back" href="../../../modules/matrices/matrices.html#sympy.matrices.matrices.MatrixBase.minorMatrix">[docs]</a>    <span class="k">def</span> <span class="nf">minorMatrix</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Creates the minor matrix of a given element.</span>
-
-<span class="sd">        See Also</span>
-<span class="sd">        ========</span>
-
-<span class="sd">        minorEntry</span>
-<span class="sd">        cofactor</span>
-<span class="sd">        cofactorMatrix</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">rows</span> <span class="ow">or</span> <span class="ow">not</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">j</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;`i` and `j` must satisfy 0 &lt;= i &lt; `self.rows` &quot;</span> <span class="o">+</span>
-                             <span class="s2">&quot;(</span><span class="si">%d</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">rows</span> <span class="o">+</span> <span class="s2">&quot;and 0 &lt;= j &lt; `self.cols` (</span><span class="si">%d</span><span class="s2">).&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">)</span>
-        <span class="n">M</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">as_mutable</span><span class="p">()</span>
-        <span class="n">M</span><span class="o">.</span><span class="n">row_del</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
-        <span class="n">M</span><span class="o">.</span><span class="n">col_del</span><span class="p">(</span><span class="n">j</span><span class="p">)</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_new</span><span class="p">(</span><span class="n">M</span><span class="p">)</span>
-</div>
 <div class="viewcode-block" id="MatrixBase.multiply"><a class="viewcode-back" href="../../../modules/matrices/matrices.html#sympy.matrices.matrices.MatrixBase.multiply">[docs]</a>    <span class="k">def</span> <span class="nf">multiply</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">b</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Returns self*b</span>
 
@@ -5102,10 +5357,8 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">kls</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
         <span class="k">return</span> <span class="nb">reduce</span><span class="p">(</span><span class="n">kls</span><span class="o">.</span><span class="n">col_join</span><span class="p">,</span> <span class="n">args</span><span class="p">)</span>
-</div>
-    <span class="n">charpoly</span> <span class="o">=</span> <span class="n">berkowitz_charpoly</span>
 
-</div>
+</div></div>
 <div class="viewcode-block" id="classof"><a class="viewcode-back" href="../../../modules/matrices/matrices.html#sympy.matrices.matrices.classof">[docs]</a><span class="k">def</span> <span class="nf">classof</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">B</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Get the type of the result when combining matrices of different types.</span>
@@ -5169,7 +5422,7 @@
 <span class="sd">    where pivot_offset is the index of the pivot, pivot_val is</span>
 <span class="sd">    the (possibly simplified) value of the pivot, assumed_nonzero</span>
 <span class="sd">    is True if an assumption that the pivot was non-zero</span>
-<span class="sd">    was made without being probed, and newly_determined are</span>
+<span class="sd">    was made without being proved, and newly_determined are</span>
 <span class="sd">    elements that were simplified during the process of pivot</span>
 <span class="sd">    finding.&quot;&quot;&quot;</span>
 
