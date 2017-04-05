@@ -72,11 +72,12 @@
 <span class="kn">from</span> <span class="nn">sympy.functions.elementary.piecewise</span> <span class="kn">import</span> <span class="n">Piecewise</span>
 <span class="kn">from</span> <span class="nn">sympy.logic.boolalg</span> <span class="kn">import</span> <span class="n">And</span>
 <span class="kn">from</span> <span class="nn">sympy.polys</span> <span class="kn">import</span> <span class="n">apart</span><span class="p">,</span> <span class="n">PolynomialError</span>
-<span class="kn">from</span> <span class="nn">sympy.solvers</span> <span class="kn">import</span> <span class="n">solve</span>
 <span class="kn">from</span> <span class="nn">sympy.series.limits</span> <span class="kn">import</span> <span class="n">limit</span>
 <span class="kn">from</span> <span class="nn">sympy.series.order</span> <span class="kn">import</span> <span class="n">O</span>
+<span class="kn">from</span> <span class="nn">sympy.sets.sets</span> <span class="kn">import</span> <span class="n">FiniteSet</span>
+<span class="kn">from</span> <span class="nn">sympy.solvers</span> <span class="kn">import</span> <span class="n">solve</span>
+<span class="kn">from</span> <span class="nn">sympy.solvers.solveset</span> <span class="kn">import</span> <span class="n">solveset</span>
 <span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="kn">import</span> <span class="nb">range</span>
-<span class="kn">from</span> <span class="nn">sympy.tensor.indexed</span> <span class="kn">import</span> <span class="n">Idx</span>
 
 
 <div class="viewcode-block" id="Sum"><a class="viewcode-back" href="../../../modules/concrete.html#sympy.concrete.summations.Sum">[docs]</a><span class="k">class</span> <span class="nc">Sum</span><span class="p">(</span><span class="n">AddWithLimits</span><span class="p">,</span> <span class="n">ExprWithIntLimits</span><span class="p">):</span>
@@ -542,14 +543,22 @@
             <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">false</span>
 
         <span class="c1">### ------------- integral test -------------- ###</span>
-        <span class="k">if</span> <span class="n">is_decreasing</span><span class="p">(</span><span class="n">sequence_term</span><span class="p">,</span> <span class="n">interval</span><span class="p">):</span>
-            <span class="n">integral_val</span> <span class="o">=</span> <span class="n">Integral</span><span class="p">(</span><span class="n">sequence_term</span><span class="p">,</span> <span class="p">(</span><span class="n">sym</span><span class="p">,</span> <span class="n">lower_limit</span><span class="p">,</span> <span class="n">upper_limit</span><span class="p">))</span>
-            <span class="k">try</span><span class="p">:</span>
-                <span class="n">integral_val_evaluated</span> <span class="o">=</span> <span class="n">integral_val</span><span class="o">.</span><span class="n">doit</span><span class="p">()</span>
-                <span class="k">if</span> <span class="n">integral_val_evaluated</span><span class="o">.</span><span class="n">is_number</span><span class="p">:</span>
-                    <span class="k">return</span> <span class="n">S</span><span class="p">(</span><span class="n">integral_val_evaluated</span><span class="o">.</span><span class="n">is_finite</span><span class="p">)</span>
-            <span class="k">except</span> <span class="ne">NotImplementedError</span><span class="p">:</span>
-                <span class="k">pass</span>
+        <span class="n">maxima</span> <span class="o">=</span> <span class="n">solveset</span><span class="p">(</span><span class="n">sequence_term</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">sym</span><span class="p">),</span> <span class="n">sym</span><span class="p">,</span> <span class="n">interval</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">maxima</span><span class="p">:</span>
+            <span class="n">check_interval</span> <span class="o">=</span> <span class="n">interval</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">maxima</span><span class="p">,</span> <span class="n">FiniteSet</span><span class="p">)</span> <span class="ow">and</span> <span class="n">maxima</span><span class="o">.</span><span class="n">sup</span><span class="o">.</span><span class="n">is_number</span><span class="p">:</span>
+            <span class="n">check_interval</span> <span class="o">=</span> <span class="n">Interval</span><span class="p">(</span><span class="n">maxima</span><span class="o">.</span><span class="n">sup</span><span class="p">,</span> <span class="n">interval</span><span class="o">.</span><span class="n">sup</span><span class="p">)</span>
+            <span class="k">if</span> <span class="p">(</span>
+                    <span class="n">is_decreasing</span><span class="p">(</span><span class="n">sequence_term</span><span class="p">,</span> <span class="n">check_interval</span><span class="p">)</span> <span class="ow">or</span>
+                    <span class="n">is_decreasing</span><span class="p">(</span><span class="o">-</span><span class="n">sequence_term</span><span class="p">,</span> <span class="n">check_interval</span><span class="p">)):</span>
+                <span class="n">integral_val</span> <span class="o">=</span> <span class="n">Integral</span><span class="p">(</span>
+                    <span class="n">sequence_term</span><span class="p">,</span> <span class="p">(</span><span class="n">sym</span><span class="p">,</span> <span class="n">lower_limit</span><span class="p">,</span> <span class="n">upper_limit</span><span class="p">))</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">integral_val_evaluated</span> <span class="o">=</span> <span class="n">integral_val</span><span class="o">.</span><span class="n">doit</span><span class="p">()</span>
+                    <span class="k">if</span> <span class="n">integral_val_evaluated</span><span class="o">.</span><span class="n">is_number</span><span class="p">:</span>
+                        <span class="k">return</span> <span class="n">S</span><span class="p">(</span><span class="n">integral_val_evaluated</span><span class="o">.</span><span class="n">is_finite</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">NotImplementedError</span><span class="p">:</span>
+                    <span class="k">pass</span>
 
         <span class="c1">### -------------- Dirichlet tests -------------- ###</span>
         <span class="k">if</span> <span class="n">order</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">is_Mul</span><span class="p">:</span>
