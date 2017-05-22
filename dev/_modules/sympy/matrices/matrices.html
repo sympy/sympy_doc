@@ -2035,21 +2035,51 @@
         <span class="n">berk_vector</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_eval_berkowitz_vector</span><span class="p">()</span>
         <span class="k">return</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">**</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">berk_vector</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">berk_vector</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
 
-    <span class="k">def</span> <span class="nf">_eval_det_lu</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot; Use LU the decomposition to compute the determinant.&quot;&quot;&quot;</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="n">l</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">p</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">LUdecomposition</span><span class="p">()</span>
-        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
-            <span class="c1"># if there is a value error in the LU decomposition, it means the matrix</span>
-            <span class="c1"># wasn&#39;t invertible</span>
+    <span class="k">def</span> <span class="nf">_eval_det_lu</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">iszerofunc</span><span class="o">=</span><span class="n">_iszero</span><span class="p">,</span> <span class="n">simpfunc</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Computes the determinant of a matrix from its LU decomposition.</span>
+<span class="sd">        This function uses the LU decomposition computed by</span>
+<span class="sd">        LUDecomposition_Simple().</span>
+
+<span class="sd">        The keyword arguments iszerofunc and simpfunc are passed to</span>
+<span class="sd">        LUDecomposition_Simple().</span>
+<span class="sd">        iszerofunc is a callable that returns a boolean indicating if its</span>
+<span class="sd">        input is zero, or None if it cannot make the determination.</span>
+<span class="sd">        simpfunc is a callable that simplifies its input.</span>
+<span class="sd">        The default is simpfunc=None, which indicate that the pivot search</span>
+<span class="sd">        algorithm should not attempt to simplify any candidate pivots.</span>
+<span class="sd">        If simpfunc fails to simplify its input, then it must return its input</span>
+<span class="sd">        instead of a copy.&quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">rows</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span>
+            <span class="c1"># sympy/matrices/tests/test_matrices.py contains a test that</span>
+            <span class="c1"># suggests that the determinant of a 0 x 0 matrix is one, by</span>
+            <span class="c1"># convention.</span>
+
+        <span class="n">lu</span><span class="p">,</span> <span class="n">row_swaps</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">LUdecomposition_Simple</span><span class="p">(</span><span class="n">iszerofunc</span><span class="o">=</span><span class="n">iszerofunc</span><span class="p">,</span> <span class="n">simpfunc</span><span class="o">=</span><span class="bp">None</span><span class="p">)</span>
+        <span class="c1"># P*A = L*U =&gt; det(A) = det(L)*det(U)/det(P) = det(P)*det(U).</span>
+        <span class="c1"># Lower triangular factor L encoded in lu has unit diagonal =&gt; det(L) = 1.</span>
+        <span class="c1"># P is a permutation matrix =&gt; det(P) in {-1, 1} =&gt; 1/det(P) = det(P).</span>
+        <span class="c1"># LUdecomposition_Simple() returns a list of row exchange index pairs, rather</span>
+        <span class="c1"># than a permutation matrix, but det(P) = (-1)**len(row_swaps).</span>
+
+        <span class="c1"># Avoid forming the potentially time consuming  product of U&#39;s diagonal entries</span>
+        <span class="c1"># if the product is zero.</span>
+        <span class="c1"># Bottom right entry of U is 0 =&gt; det(A) = 0.</span>
+        <span class="c1"># It may be impossible to determine if this entry of U is zero when it is symbolic.</span>
+        <span class="k">if</span> <span class="n">iszerofunc</span><span class="p">(</span><span class="n">lu</span><span class="p">[</span><span class="n">lu</span><span class="o">.</span><span class="n">rows</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">lu</span><span class="o">.</span><span class="n">rows</span><span class="o">-</span><span class="mi">1</span><span class="p">]):</span>
             <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span>
 
-        <span class="c1"># get the sign of the determinant</span>
-        <span class="n">det</span> <span class="o">=</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="o">**</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="o">%</span> <span class="mi">2</span><span class="p">)</span>
-        <span class="c1"># multiply by the diagonal entries</span>
-        <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rows</span><span class="p">):</span>
-            <span class="n">det</span> <span class="o">*=</span> <span class="n">l</span><span class="p">[</span><span class="n">k</span><span class="p">,</span> <span class="n">k</span><span class="p">]</span> <span class="o">*</span> <span class="n">u</span><span class="p">[</span><span class="n">k</span><span class="p">,</span> <span class="n">k</span><span class="p">]</span>
+        <span class="c1"># Compute det(P)</span>
+        <span class="n">det</span> <span class="o">=</span> <span class="o">-</span><span class="n">S</span><span class="o">.</span><span class="n">One</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">row_swaps</span><span class="p">)</span><span class="o">%</span><span class="mi">2</span> <span class="k">else</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span>
 
+        <span class="c1"># Compute det(U) by calculating the product of U&#39;s diagonal entries.</span>
+        <span class="c1"># The upper triangular portion of lu is the upper triangular portion of the</span>
+        <span class="c1"># U factor in the LU decomposition.</span>
+        <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">lu</span><span class="o">.</span><span class="n">rows</span><span class="p">):</span>
+            <span class="n">det</span> <span class="o">*=</span> <span class="n">lu</span><span class="p">[</span><span class="n">k</span><span class="p">,</span> <span class="n">k</span><span class="p">]</span>
+
+        <span class="c1"># return det(P)*det(U)</span>
         <span class="k">return</span> <span class="n">det</span>
 
     <span class="k">def</span> <span class="nf">adjugate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s2">&quot;berkowitz&quot;</span><span class="p">):</span>
@@ -6258,7 +6288,7 @@
     </div>
     <div class="footer" role="contentinfo">
         &copy; Copyright 2017 SymPy Development Team.
-      Last updated on May 19, 2017.
+      Last updated on May 22, 2017.
       Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3.1.
     </div>
   </body>
