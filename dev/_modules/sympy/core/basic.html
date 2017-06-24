@@ -59,7 +59,7 @@
   <h1>Source code for sympy.core.basic</h1><div class="highlight"><pre>
 <span></span><span class="sd">&quot;&quot;&quot;Base class for all the objects in SymPy&quot;&quot;&quot;</span>
 <span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">division</span>
-<span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">Mapping</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">Mapping</span><span class="p">,</span> <span class="n">defaultdict</span>
 
 <span class="kn">from</span> <span class="nn">.assumptions</span> <span class="kn">import</span> <span class="n">BasicMeta</span><span class="p">,</span> <span class="n">ManagedProperties</span>
 <span class="kn">from</span> <span class="nn">.cache</span> <span class="kn">import</span> <span class="n">cacheit</span>
@@ -1699,8 +1699,40 @@
                     <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_eval_rewrite</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">pattern</span><span class="p">),</span> <span class="n">rule</span><span class="p">,</span> <span class="o">**</span><span class="n">hints</span><span class="p">)</span>
                 <span class="k">else</span><span class="p">:</span>
                     <span class="k">return</span> <span class="bp">self</span>
+</div>
+    <span class="n">_constructor_postprocessor_mapping</span> <span class="o">=</span> <span class="p">{}</span>
 
-</div></div>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_exec_constructor_postprocessors</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="c1"># WARNING: This API is experimental.</span>
+
+        <span class="c1"># This is an experimental API that introduces constructor</span>
+        <span class="c1"># postprosessors for SymPy Core elements. If an argument of a SymPy</span>
+        <span class="c1"># expression has a `_constructor_postprocessor_mapping` attribute, it will</span>
+        <span class="c1"># be interpreted as a dictionary containing lists of postprocessing</span>
+        <span class="c1"># functions for matching expression node names.</span>
+
+        <span class="n">clsname</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span>
+        <span class="n">postprocessors</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">obj</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">Basic</span><span class="o">.</span><span class="n">_constructor_postprocessor_mapping</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">Basic</span><span class="o">.</span><span class="n">_constructor_postprocessor_mapping</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                        <span class="n">postprocessors</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">j</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">v</span> <span class="k">if</span> <span class="n">j</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">postprocessors</span><span class="p">[</span><span class="n">k</span><span class="p">]])</span>
+                <span class="k">elif</span> <span class="nb">type</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="ow">in</span> <span class="n">Basic</span><span class="o">.</span><span class="n">_constructor_postprocessor_mapping</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">Basic</span><span class="o">.</span><span class="n">_constructor_postprocessor_mapping</span><span class="p">[</span><span class="nb">type</span><span class="p">(</span><span class="n">i</span><span class="p">)]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                        <span class="n">postprocessors</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">j</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">v</span> <span class="k">if</span> <span class="n">j</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">postprocessors</span><span class="p">[</span><span class="n">k</span><span class="p">]])</span>
+            <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+                <span class="k">pass</span>
+
+        <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">postprocessors</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">clsname</span><span class="p">,</span> <span class="p">[]):</span>
+            <span class="n">obj</span> <span class="o">=</span> <span class="n">f</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">postprocessors</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">obj</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">Basic</span><span class="o">.</span><span class="n">_constructor_postprocessor_mapping</span><span class="p">:</span>
+            <span class="n">Basic</span><span class="o">.</span><span class="n">_constructor_postprocessor_mapping</span><span class="p">[</span><span class="n">obj</span><span class="p">]</span> <span class="o">=</span> <span class="n">postprocessors</span>
+
+        <span class="k">return</span> <span class="n">obj</span>
+
+</div>
 <div class="viewcode-block" id="Atom"><a class="viewcode-back" href="../../../modules/core.html#sympy.core.basic.Atom">[docs]</a><span class="k">class</span> <span class="nc">Atom</span><span class="p">(</span><span class="n">Basic</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    A parent class for atomic things. An atom is an expression with no subexpressions.</span>
