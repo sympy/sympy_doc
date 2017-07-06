@@ -1,5 +1,3 @@
-
-
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 
@@ -8,7 +6,7 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>sympy.utilities.runtests &mdash; SymPy 1.0 documentation</title>
+    <title>sympy.utilities.runtests &mdash; SymPy 1.1 documentation</title>
     
     <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
@@ -19,7 +17,7 @@
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../../../',
-        VERSION:     '1.0',
+        VERSION:     '1.1',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -28,18 +26,20 @@
     <script type="text/javascript" src="../../../_static/jquery.js"></script>
     <script type="text/javascript" src="../../../_static/underscore.js"></script>
     <script type="text/javascript" src="../../../_static/doctools.js"></script>
-    <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_HTML-full"></script>
     <script type="text/javascript" src="http://live.sympy.org/static/utilities.js"></script>
     <script type="text/javascript" src="http://live.sympy.org/static/external/classy.js"></script>
     <script type="text/javascript" src="http://live.sympy.org/static/live-core.js"></script>
     <script type="text/javascript" src="http://live.sympy.org/static/live-autocomplete.js"></script>
     <script type="text/javascript" src="http://live.sympy.org/static/live-sphinx.js"></script>
+    <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_HTML-full"></script>
     <link rel="shortcut icon" href="../../../_static/sympy-notailtext-favicon.ico"/>
-    <link rel="top" title="SymPy 1.0 documentation" href="../../../index.html" />
+    <link href="http://docs.sympy.org/latest/_modules/sympy/utilities/runtests.html" rel="canonical" />
+    
+    <link rel="top" title="SymPy 1.1 documentation" href="../../../index.html" />
     <link rel="up" title="Module code" href="../../index.html" /> 
   </head>
-  <body>
-    <div class="related">
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
       <h3>Navigation</h3>
       <ul>
         <li class="right" style="margin-right: 10px">
@@ -48,15 +48,15 @@
         <li class="right" >
           <a href="../../../py-modindex.html" title="Python Module Index"
              >modules</a> |</li>
-        <li><a href="../../../index.html">SymPy 1.0 documentation</a> &raquo;</li>
-          <li><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+        <li class="nav-item nav-item-0"><a href="../../../index.html">SymPy 1.1 documentation</a> &raquo;</li>
+          <li class="nav-item nav-item-1"><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
       </ul>
     </div>  
 
     <div class="document">
       <div class="documentwrapper">
         <div class="bodywrapper">
-          <div class="body">
+          <div class="body" role="main">
             
   <h1>Source code for sympy.utilities.runtests</h1><div class="highlight"><pre>
 <span></span><span class="sd">&quot;&quot;&quot;</span>
@@ -92,7 +92,6 @@
 <span class="kn">import</span> <span class="nn">subprocess</span>
 <span class="kn">import</span> <span class="nn">signal</span>
 <span class="kn">import</span> <span class="nn">stat</span>
-<span class="kn">from</span> <span class="nn">inspect</span> <span class="kn">import</span> <span class="n">isgeneratorfunction</span>
 
 <span class="kn">from</span> <span class="nn">sympy.core.cache</span> <span class="kn">import</span> <span class="n">clear_cache</span>
 <span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="kn">import</span> <span class="n">exec_</span><span class="p">,</span> <span class="n">PY3</span><span class="p">,</span> <span class="n">string_types</span><span class="p">,</span> <span class="nb">range</span>
@@ -102,13 +101,34 @@
 
 <span class="n">IS_WINDOWS</span> <span class="o">=</span> <span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;nt&#39;</span><span class="p">)</span>
 
+<span class="c1"># emperically generated list of the proportion of time spent running</span>
+<span class="c1"># an even split of tests.  This should periodically be regenerated.</span>
+<span class="c1"># A list of [.6, .1, .3] would mean that if the tests are evenly split</span>
+<span class="c1"># into &#39;1/3&#39;, &#39;2/3&#39;, &#39;3/3&#39;, the first split would take 60% of the time,</span>
+<span class="c1"># the second 10% and the third 30%.  These lists are normalized to sum</span>
+<span class="c1"># to 1, so [60, 10, 30] has the same behavoir as [6, 1, 3] or [.6, .1, .3].</span>
+<span class="c1">#</span>
+<span class="c1"># This list can be generated with the code:</span>
+<span class="c1">#     from time import time</span>
+<span class="c1">#     import sympy</span>
+<span class="c1">#</span>
+<span class="c1">#     delays, num_splits = [], 30</span>
+<span class="c1">#     for i in range(1, num_splits + 1):</span>
+<span class="c1">#         tic = time()</span>
+<span class="c1">#         sympy.test(split=&#39;{}/{}&#39;.format(i, num_splits), time_balance=False)</span>
+<span class="c1">#         delays.append(time() - tic)</span>
+<span class="c1">#     tot = sum(delays)</span>
+<span class="c1">#     print([round(x / tot, 4) for x in delays]))</span>
+<span class="n">SPLIT_DENSITY</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.2464</span><span class="p">,</span> <span class="mf">0.0507</span><span class="p">,</span> <span class="mf">0.0328</span><span class="p">,</span> <span class="mf">0.0113</span><span class="p">,</span> <span class="mf">0.0418</span><span class="p">,</span> <span class="mf">0.012</span><span class="p">,</span> <span class="mf">0.0269</span><span class="p">,</span> <span class="mf">0.0095</span><span class="p">,</span> <span class="mf">0.091</span><span class="p">,</span> <span class="mf">0.0215</span><span class="p">,</span> <span class="mf">0.001</span><span class="p">,</span> <span class="mf">0.0023</span><span class="p">,</span> <span class="mf">0.0116</span><span class="p">,</span> <span class="mf">0.0137</span><span class="p">,</span> <span class="mf">0.0041</span><span class="p">,</span> <span class="mf">0.0039</span><span class="p">,</span> <span class="mf">0.0145</span><span class="p">,</span> <span class="mf">0.0172</span><span class="p">,</span> <span class="mf">0.059</span><span class="p">,</span> <span class="mf">0.0017</span><span class="p">,</span> <span class="mf">0.0112</span><span class="p">,</span> <span class="mf">0.0128</span><span class="p">,</span> <span class="mf">0.0012</span><span class="p">,</span> <span class="mf">0.0293</span><span class="p">,</span> <span class="mf">0.0705</span><span class="p">,</span> <span class="mf">0.0284</span><span class="p">,</span> <span class="mf">0.1495</span><span class="p">,</span> <span class="mf">0.0073</span><span class="p">,</span> <span class="mf">0.0052</span><span class="p">,</span> <span class="mf">0.0115</span><span class="p">]</span>
+<span class="n">SPLIT_DENSITY_SLOW</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.3616</span><span class="p">,</span> <span class="mf">0.0003</span><span class="p">,</span> <span class="mf">0.0004</span><span class="p">,</span> <span class="mf">0.0004</span><span class="p">,</span> <span class="mf">0.0255</span><span class="p">,</span> <span class="mf">0.0005</span><span class="p">,</span> <span class="mf">0.0674</span><span class="p">,</span> <span class="mf">0.0337</span><span class="p">,</span> <span class="mf">0.1057</span><span class="p">,</span> <span class="mf">0.0329</span><span class="p">,</span> <span class="mf">0.0002</span><span class="p">,</span> <span class="mf">0.0002</span><span class="p">,</span> <span class="mf">0.0184</span><span class="p">,</span> <span class="mf">0.0028</span><span class="p">,</span> <span class="mf">0.0046</span><span class="p">,</span> <span class="mf">0.0148</span><span class="p">,</span> <span class="mf">0.0046</span><span class="p">,</span> <span class="mf">0.0083</span><span class="p">,</span> <span class="mf">0.0004</span><span class="p">,</span> <span class="mf">0.0002</span><span class="p">,</span> <span class="mf">0.0069</span><span class="p">,</span> <span class="mf">0.0004</span><span class="p">,</span> <span class="mf">0.0004</span><span class="p">,</span> <span class="mf">0.0046</span><span class="p">,</span> <span class="mf">0.0205</span><span class="p">,</span> <span class="mf">0.1378</span><span class="p">,</span> <span class="mf">0.1451</span><span class="p">,</span> <span class="mf">0.0003</span><span class="p">,</span> <span class="mf">0.0006</span><span class="p">,</span> <span class="mf">0.0006</span><span class="p">]</span>
 
 <span class="k">class</span> <span class="nc">Skipped</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
     <span class="k">pass</span>
 
-<span class="kn">import</span> <span class="nn">__future__</span>
+
 <span class="c1"># add more flags ??</span>
-<span class="n">future_flags</span> <span class="o">=</span> <span class="n">__future__</span><span class="o">.</span><span class="n">division</span><span class="o">.</span><span class="n">compiler_flag</span>
+<span class="n">future_flags</span> <span class="o">=</span> <span class="n">division</span><span class="o">.</span><span class="n">compiler_flag</span>
+
 
 <span class="k">def</span> <span class="nf">_indent</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">indent</span><span class="o">=</span><span class="mi">4</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
@@ -124,6 +144,7 @@
     <span class="c1"># This regexp matches the start of non-blank lines:</span>
     <span class="k">return</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="s1">&#39;(?m)^(?!$)&#39;</span><span class="p">,</span> <span class="n">indent</span><span class="o">*</span><span class="s1">&#39; &#39;</span><span class="p">,</span> <span class="n">s</span><span class="p">)</span>
 
+
 <span class="n">pdoctest</span><span class="o">.</span><span class="n">_indent</span> <span class="o">=</span> <span class="n">_indent</span>
 
 <span class="c1"># ovverride reporter to maintain windows and python3</span>
@@ -136,6 +157,7 @@
     <span class="n">s</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_checker</span><span class="o">.</span><span class="n">output_difference</span><span class="p">(</span><span class="n">example</span><span class="p">,</span> <span class="n">got</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">optionflags</span><span class="p">)</span>
     <span class="n">s</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s1">&#39;raw_unicode_escape&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;utf8&#39;</span><span class="p">,</span> <span class="s1">&#39;ignore&#39;</span><span class="p">)</span>
     <span class="n">out</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_failure_header</span><span class="p">(</span><span class="n">test</span><span class="p">,</span> <span class="n">example</span><span class="p">)</span> <span class="o">+</span> <span class="n">s</span><span class="p">)</span>
+
 
 <span class="k">if</span> <span class="n">PY3</span> <span class="ow">and</span> <span class="n">IS_WINDOWS</span><span class="p">:</span>
     <span class="n">DocTestRunner</span><span class="o">.</span><span class="n">report_failure</span> <span class="o">=</span> <span class="n">_report_failure</span>
@@ -167,12 +189,12 @@
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">global</span> <span class="n">sys_case_insensitive</span>
 
-    <span class="n">this_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">__file__</span><span class="p">)</span>
+    <span class="n">this_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span>
     <span class="n">sympy_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">this_file</span><span class="p">),</span> <span class="s2">&quot;..&quot;</span><span class="p">,</span> <span class="s2">&quot;..&quot;</span><span class="p">)</span>
     <span class="n">sympy_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">normpath</span><span class="p">(</span><span class="n">sympy_dir</span><span class="p">)</span>
     <span class="n">sys_case_insensitive</span> <span class="o">=</span> <span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">sympy_dir</span><span class="p">)</span> <span class="ow">and</span>
-                        <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">sympy_dir</span><span class="o">.</span><span class="n">lower</span><span class="p">())</span> <span class="ow">and</span>
-                        <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">sympy_dir</span><span class="o">.</span><span class="n">upper</span><span class="p">()))</span>
+                            <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">sympy_dir</span><span class="o">.</span><span class="n">lower</span><span class="p">())</span> <span class="ow">and</span>
+                            <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">sympy_dir</span><span class="o">.</span><span class="n">upper</span><span class="p">()))</span>
     <span class="k">return</span> <span class="n">sys_normcase</span><span class="p">(</span><span class="n">sympy_dir</span><span class="p">)</span>
 
 </div>
@@ -192,8 +214,9 @@
     <span class="n">init_printing</span><span class="p">(</span><span class="n">pretty_print</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
 
 
-<div class="viewcode-block" id="run_in_subprocess_with_hash_randomization"><a class="viewcode-back" href="../../../modules/utilities/runtests.html#sympy.utilities.runtests.run_in_subprocess_with_hash_randomization">[docs]</a><span class="k">def</span> <span class="nf">run_in_subprocess_with_hash_randomization</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">function_args</span><span class="o">=</span><span class="p">(),</span>
-    <span class="n">function_kwargs</span><span class="o">=</span><span class="p">{},</span> <span class="n">command</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">executable</span><span class="p">,</span>
+<div class="viewcode-block" id="run_in_subprocess_with_hash_randomization"><a class="viewcode-back" href="../../../modules/utilities/runtests.html#sympy.utilities.runtests.run_in_subprocess_with_hash_randomization">[docs]</a><span class="k">def</span> <span class="nf">run_in_subprocess_with_hash_randomization</span><span class="p">(</span>
+        <span class="n">function</span><span class="p">,</span> <span class="n">function_args</span><span class="o">=</span><span class="p">(),</span>
+        <span class="n">function_kwargs</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">command</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">executable</span><span class="p">,</span>
         <span class="n">module</span><span class="o">=</span><span class="s1">&#39;sympy.utilities.runtests&#39;</span><span class="p">,</span> <span class="n">force</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Run a function in a Python subprocess with hash randomization enabled.</span>
@@ -259,10 +282,13 @@
     <span class="k">else</span><span class="p">:</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">force</span><span class="p">:</span>
             <span class="k">return</span> <span class="bp">False</span>
+
+    <span class="n">function_kwargs</span> <span class="o">=</span> <span class="n">function_kwargs</span> <span class="ow">or</span> <span class="p">{}</span>
+
     <span class="c1"># Now run the command</span>
     <span class="n">commandstring</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;import sys; from </span><span class="si">%s</span><span class="s2"> import </span><span class="si">%s</span><span class="s2">;sys.exit(</span><span class="si">%s</span><span class="s2">(*</span><span class="si">%s</span><span class="s2">, **</span><span class="si">%s</span><span class="s2">))&quot;</span> <span class="o">%</span>
                      <span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">function</span><span class="p">,</span> <span class="n">function</span><span class="p">,</span> <span class="nb">repr</span><span class="p">(</span><span class="n">function_args</span><span class="p">),</span>
-                     <span class="nb">repr</span><span class="p">(</span><span class="n">function_kwargs</span><span class="p">)))</span>
+                      <span class="nb">repr</span><span class="p">(</span><span class="n">function_kwargs</span><span class="p">)))</span>
 
     <span class="k">try</span><span class="p">:</span>
         <span class="n">p</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">Popen</span><span class="p">([</span><span class="n">command</span><span class="p">,</span> <span class="s2">&quot;-R&quot;</span><span class="p">,</span> <span class="s2">&quot;-c&quot;</span><span class="p">,</span> <span class="n">commandstring</span><span class="p">])</span>
@@ -279,8 +305,9 @@
         <span class="k">return</span> <span class="n">p</span><span class="o">.</span><span class="n">returncode</span>
 
 </div>
-<div class="viewcode-block" id="run_all_tests"><a class="viewcode-back" href="../../../modules/utilities/runtests.html#sympy.utilities.runtests.run_all_tests">[docs]</a><span class="k">def</span> <span class="nf">run_all_tests</span><span class="p">(</span><span class="n">test_args</span><span class="o">=</span><span class="p">(),</span> <span class="n">test_kwargs</span><span class="o">=</span><span class="p">{},</span> <span class="n">doctest_args</span><span class="o">=</span><span class="p">(),</span>
-                  <span class="n">doctest_kwargs</span><span class="o">=</span><span class="p">{},</span> <span class="n">examples_args</span><span class="o">=</span><span class="p">(),</span> <span class="n">examples_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;quiet&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">}):</span>
+<div class="viewcode-block" id="run_all_tests"><a class="viewcode-back" href="../../../modules/utilities/runtests.html#sympy.utilities.runtests.run_all_tests">[docs]</a><span class="k">def</span> <span class="nf">run_all_tests</span><span class="p">(</span><span class="n">test_args</span><span class="o">=</span><span class="p">(),</span> <span class="n">test_kwargs</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                  <span class="n">doctest_args</span><span class="o">=</span><span class="p">(),</span> <span class="n">doctest_kwargs</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                  <span class="n">examples_args</span><span class="o">=</span><span class="p">(),</span> <span class="n">examples_kwargs</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Run all tests.</span>
 
@@ -302,6 +329,10 @@
 
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">tests_successful</span> <span class="o">=</span> <span class="bp">True</span>
+
+    <span class="n">test_kwargs</span> <span class="o">=</span> <span class="n">test_kwargs</span> <span class="ow">or</span> <span class="p">{}</span>
+    <span class="n">doctest_kwargs</span> <span class="o">=</span> <span class="n">doctest_kwargs</span> <span class="ow">or</span> <span class="p">{}</span>
+    <span class="n">examples_kwargs</span> <span class="o">=</span> <span class="n">examples_kwargs</span> <span class="ow">or</span> <span class="p">{</span><span class="s1">&#39;quiet&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">}</span>
 
     <span class="k">try</span><span class="p">:</span>
         <span class="c1"># Regular tests</span>
@@ -333,7 +364,7 @@
                                <span class="n">stderr</span><span class="o">=</span><span class="n">dev_null</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
                 <span class="k">if</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">call</span><span class="p">(</span><span class="s2">&quot;sage -python bin/test &quot;</span>
                                    <span class="s2">&quot;sympy/external/tests/test_sage.py&quot;</span><span class="p">,</span>
-                    <span class="n">shell</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">cwd</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">__file__</span><span class="p">))))</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">shell</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">cwd</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="vm">__file__</span><span class="p">))))</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
                     <span class="n">tests_successful</span> <span class="o">=</span> <span class="bp">False</span>
 
         <span class="k">if</span> <span class="n">tests_successful</span><span class="p">:</span>
@@ -448,6 +479,13 @@
 
 <span class="sd">    &gt;&gt;&gt; sympy.test(split=&#39;1/2&#39;)  # doctest: +SKIP</span>
 
+<span class="sd">    The ``time_balance`` option can be passed in conjunction with ``split``.</span>
+<span class="sd">    If ``time_balance=True`` (the default for ``sympy.test``), sympy will attempt</span>
+<span class="sd">    to split the tests such that each split takes equal time.  This heuristic</span>
+<span class="sd">    for balancing is based on pre-recorded test data.</span>
+
+<span class="sd">    &gt;&gt;&gt; sympy.test(split=&#39;1/2&#39;, time_balance=True)  # doctest: +SKIP</span>
+
 <span class="sd">    You can disable running the tests in a separate subprocess using</span>
 <span class="sd">    ``subprocess=False``.  This is done to support seeding hash randomization,</span>
 <span class="sd">    which is enabled by default in the Python versions where it is supported.</span>
@@ -536,6 +574,7 @@
     <span class="n">slow</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;slow&quot;</span><span class="p">,</span> <span class="bp">False</span><span class="p">)</span>
     <span class="n">enhance_asserts</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;enhance_asserts&quot;</span><span class="p">,</span> <span class="bp">False</span><span class="p">)</span>
     <span class="n">split</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;split&#39;</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+    <span class="n">time_balance</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;time_balance&#39;</span><span class="p">,</span> <span class="bp">True</span><span class="p">)</span>
     <span class="n">blacklist</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;blacklist&#39;</span><span class="p">,</span> <span class="p">[])</span>
     <span class="n">blacklist</span> <span class="o">=</span> <span class="n">convert_to_native_paths</span><span class="p">(</span><span class="n">blacklist</span><span class="p">)</span>
     <span class="n">fast_threshold</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;fast_threshold&#39;</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
@@ -554,6 +593,7 @@
     <span class="c1"># Show deprecation warnings</span>
     <span class="kn">import</span> <span class="nn">warnings</span>
     <span class="n">warnings</span><span class="o">.</span><span class="n">simplefilter</span><span class="p">(</span><span class="s2">&quot;error&quot;</span><span class="p">,</span> <span class="n">SymPyDeprecationWarning</span><span class="p">)</span>
+    <span class="n">warnings</span><span class="o">.</span><span class="n">filterwarnings</span><span class="p">(</span><span class="s1">&#39;error&#39;</span><span class="p">,</span> <span class="s1">&#39;.*&#39;</span><span class="p">,</span> <span class="ne">DeprecationWarning</span><span class="p">,</span> <span class="n">module</span><span class="o">=</span><span class="s1">&#39;sympy.*&#39;</span><span class="p">)</span>
 
     <span class="n">test_files</span> <span class="o">=</span> <span class="n">t</span><span class="o">.</span><span class="n">get_test_files</span><span class="p">(</span><span class="s1">&#39;sympy&#39;</span><span class="p">)</span>
 
@@ -572,13 +612,15 @@
                     <span class="n">matched</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
                     <span class="k">break</span>
 
-    <span class="k">if</span> <span class="n">slow</span><span class="p">:</span>
-        <span class="c1"># Seed to evenly shuffle slow tests among splits</span>
-        <span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">41992450</span><span class="p">)</span>
-        <span class="n">random</span><span class="o">.</span><span class="n">shuffle</span><span class="p">(</span><span class="n">matched</span><span class="p">)</span>
+    <span class="n">density</span> <span class="o">=</span> <span class="bp">None</span>
+    <span class="k">if</span> <span class="n">time_balance</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">slow</span><span class="p">:</span>
+            <span class="n">density</span> <span class="o">=</span> <span class="n">SPLIT_DENSITY_SLOW</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">density</span> <span class="o">=</span> <span class="n">SPLIT_DENSITY</span>
 
     <span class="k">if</span> <span class="n">split</span><span class="p">:</span>
-        <span class="n">matched</span> <span class="o">=</span> <span class="n">split_list</span><span class="p">(</span><span class="n">matched</span><span class="p">,</span> <span class="n">split</span><span class="p">)</span>
+        <span class="n">matched</span> <span class="o">=</span> <span class="n">split_list</span><span class="p">(</span><span class="n">matched</span><span class="p">,</span> <span class="n">split</span><span class="p">,</span> <span class="n">density</span><span class="o">=</span><span class="n">density</span><span class="p">)</span>
 
     <span class="n">t</span><span class="o">.</span><span class="n">_testfiles</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">matched</span><span class="p">)</span>
 
@@ -587,7 +629,7 @@
 
 
 <div class="viewcode-block" id="doctest"><a class="viewcode-back" href="../../../modules/utilities/runtests.html#sympy.utilities.runtests.doctest">[docs]</a><span class="k">def</span> <span class="nf">doctest</span><span class="p">(</span><span class="o">*</span><span class="n">paths</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Runs doctests in all \*.py files in the sympy directory which match</span>
 <span class="sd">    any of the given strings in ``paths`` or all tests if paths=[].</span>
 
@@ -681,6 +723,10 @@
         <span class="s2">&quot;doc/src/modules/plotting.rst&quot;</span><span class="p">,</span>  <span class="c1"># generates live plots</span>
         <span class="s2">&quot;sympy/physics/gaussopt.py&quot;</span><span class="p">,</span> <span class="c1"># raises deprecation warning</span>
         <span class="s2">&quot;sympy/galgebra.py&quot;</span><span class="p">,</span> <span class="c1"># raises ImportError</span>
+        <span class="s2">&quot;sympy/matrices/densearith.py&quot;</span><span class="p">,</span> <span class="c1"># raises deprecation warning</span>
+        <span class="s2">&quot;sympy/matrices/densesolve.py&quot;</span><span class="p">,</span> <span class="c1"># raises deprecation warning</span>
+        <span class="s2">&quot;sympy/matrices/densetools.py&quot;</span><span class="p">,</span> <span class="c1"># raises deprecation warning</span>
+        <span class="s2">&quot;sympy/physics/unitsystems.py&quot;</span><span class="p">,</span> <span class="c1"># raises deprecation warning</span>
     <span class="p">])</span>
 
     <span class="k">if</span> <span class="n">import_module</span><span class="p">(</span><span class="s1">&#39;numpy&#39;</span><span class="p">)</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
@@ -739,6 +785,7 @@
     <span class="c1"># Show deprecation warnings</span>
     <span class="kn">import</span> <span class="nn">warnings</span>
     <span class="n">warnings</span><span class="o">.</span><span class="n">simplefilter</span><span class="p">(</span><span class="s2">&quot;error&quot;</span><span class="p">,</span> <span class="n">SymPyDeprecationWarning</span><span class="p">)</span>
+    <span class="n">warnings</span><span class="o">.</span><span class="n">filterwarnings</span><span class="p">(</span><span class="s1">&#39;error&#39;</span><span class="p">,</span> <span class="s1">&#39;.*&#39;</span><span class="p">,</span> <span class="ne">DeprecationWarning</span><span class="p">,</span> <span class="n">module</span><span class="o">=</span><span class="s1">&#39;sympy.*&#39;</span><span class="p">)</span>
 
     <span class="n">r</span> <span class="o">=</span> <span class="n">PyTestReporter</span><span class="p">(</span><span class="n">verbose</span><span class="p">,</span> <span class="n">split</span><span class="o">=</span><span class="n">split</span><span class="p">,</span> <span class="n">colors</span><span class="o">=</span><span class="n">colors</span><span class="p">,</span>\
                        <span class="n">force_colors</span><span class="o">=</span><span class="n">force_colors</span><span class="p">)</span>
@@ -853,9 +900,9 @@
 
     <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">failed</span><span class="p">)</span>
 
-<span class="n">sp</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s1">r&#39;([0-9]+)/([1-9][0-9]*)&#39;</span><span class="p">)</span>
+<span class="n">sp</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;([0-9]+)/([1-9][0-9]*)&#39;</span><span class="p">)</span>
 
-<div class="viewcode-block" id="split_list"><a class="viewcode-back" href="../../../modules/utilities/runtests.html#sympy.utilities.runtests.split_list">[docs]</a><span class="k">def</span> <span class="nf">split_list</span><span class="p">(</span><span class="n">l</span><span class="p">,</span> <span class="n">split</span><span class="p">):</span>
+<div class="viewcode-block" id="split_list"><a class="viewcode-back" href="../../../modules/utilities/runtests.html#sympy.utilities.runtests.split_list">[docs]</a><span class="k">def</span> <span class="nf">split_list</span><span class="p">(</span><span class="n">l</span><span class="p">,</span> <span class="n">split</span><span class="p">,</span> <span class="n">density</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Splits a list into part a of b</span>
 
@@ -864,6 +911,10 @@
 
 <span class="sd">    If the length of the list is not divisible by the number of splits, the</span>
 <span class="sd">    last split will have more items.</span>
+
+<span class="sd">    `density` may be specified as a list.  If specified,</span>
+<span class="sd">    tests will be balanced so that each split has as equal-as-possible</span>
+<span class="sd">    amount of mass according to `density`.</span>
 
 <span class="sd">    &gt;&gt;&gt; from sympy.utilities.runtests import split_list</span>
 <span class="sd">    &gt;&gt;&gt; a = list(range(10))</span>
@@ -878,8 +929,35 @@
     <span class="k">if</span> <span class="ow">not</span> <span class="n">m</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;split must be a string of the form a/b where a and b are ints&quot;</span><span class="p">)</span>
     <span class="n">i</span><span class="p">,</span> <span class="n">t</span> <span class="o">=</span> <span class="nb">map</span><span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="n">m</span><span class="o">.</span><span class="n">groups</span><span class="p">())</span>
-    <span class="k">return</span> <span class="n">l</span><span class="p">[(</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">l</span><span class="p">)</span><span class="o">//</span><span class="n">t</span><span class="p">:</span><span class="n">i</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">l</span><span class="p">)</span><span class="o">//</span><span class="n">t</span><span class="p">]</span>
 
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">density</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">l</span><span class="p">[(</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">l</span><span class="p">)</span><span class="o">//</span><span class="n">t</span> <span class="p">:</span> <span class="n">i</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">l</span><span class="p">)</span><span class="o">//</span><span class="n">t</span><span class="p">]</span>
+
+    <span class="c1"># normalize density</span>
+    <span class="n">tot</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">density</span><span class="p">)</span>
+    <span class="n">density</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span> <span class="o">/</span> <span class="n">tot</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">density</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">density_inv</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Interpolate the inverse to the cumulative</span>
+<span class="sd">        distribution function given by density&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">x</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="mi">0</span>
+        <span class="k">if</span> <span class="n">x</span> <span class="o">&gt;=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">density</span><span class="p">):</span>
+            <span class="k">return</span> <span class="mi">1</span>
+
+        <span class="c1"># find the first time the cumulative sum surpasses x</span>
+        <span class="c1"># and linearly interpolate</span>
+        <span class="n">cumm</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">d</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">density</span><span class="p">):</span>
+            <span class="n">cumm</span> <span class="o">+=</span> <span class="n">d</span>
+            <span class="k">if</span> <span class="n">cumm</span> <span class="o">&gt;=</span> <span class="n">x</span><span class="p">:</span>
+                <span class="k">break</span>
+        <span class="n">frac</span> <span class="o">=</span> <span class="p">(</span><span class="n">d</span> <span class="o">-</span> <span class="p">(</span><span class="n">cumm</span> <span class="o">-</span> <span class="n">x</span><span class="p">))</span> <span class="o">/</span> <span class="n">d</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="n">frac</span><span class="p">)</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">density</span><span class="p">)</span>
+
+    <span class="n">lower_frac</span> <span class="o">=</span> <span class="n">density_inv</span><span class="p">((</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="n">t</span><span class="p">)</span>
+    <span class="n">higher_frac</span> <span class="o">=</span> <span class="n">density_inv</span><span class="p">(</span><span class="n">i</span> <span class="o">/</span> <span class="n">t</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">l</span><span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">lower_frac</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">l</span><span class="p">))</span> <span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">higher_frac</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">l</span><span class="p">))]</span>
 </div>
 <span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">namedtuple</span>
 <span class="n">SymPyTestResults</span> <span class="o">=</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s1">&#39;TestResults&#39;</span><span class="p">,</span> <span class="s1">&#39;failed attempted&#39;</span><span class="p">)</span>
@@ -1017,7 +1095,7 @@
 </div>
 <span class="k">class</span> <span class="nc">SymPyTests</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
 
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reporter</span><span class="p">,</span> <span class="n">kw</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">post_mortem</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reporter</span><span class="p">,</span> <span class="n">kw</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">post_mortem</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
                  <span class="n">seed</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">fast_threshold</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">slow_threshold</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_post_mortem</span> <span class="o">=</span> <span class="n">post_mortem</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_kw</span> <span class="o">=</span> <span class="n">kw</span>
@@ -1085,7 +1163,7 @@
                     <span class="n">value</span> <span class="o">=</span> <span class="n">Tuple</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">Load</span><span class="p">())</span>
                     <span class="n">assign</span> <span class="o">=</span> <span class="n">Assign</span><span class="p">([</span><span class="n">target</span><span class="p">],</span> <span class="n">value</span><span class="p">)</span>
                     <span class="n">new_compare</span> <span class="o">=</span> <span class="n">Compare</span><span class="p">(</span><span class="n">names_load</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">compare</span><span class="o">.</span><span class="n">ops</span><span class="p">,</span> <span class="n">names_load</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
-                    <span class="n">msg_format</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="si">%s</span><span class="s2"> &quot;</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="si">%s</span><span class="s2"> &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span> <span class="n">ops</span><span class="p">[</span><span class="n">op</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span><span class="p">]</span> <span class="k">for</span> <span class="n">op</span> <span class="ow">in</span> <span class="n">compare</span><span class="o">.</span><span class="n">ops</span> <span class="p">])</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="si">%s</span><span class="s2">&quot;</span>
+                    <span class="n">msg_format</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="si">%s</span><span class="s2"> &quot;</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="si">%s</span><span class="s2"> &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span> <span class="n">ops</span><span class="p">[</span><span class="n">op</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">]</span> <span class="k">for</span> <span class="n">op</span> <span class="ow">in</span> <span class="n">compare</span><span class="o">.</span><span class="n">ops</span> <span class="p">])</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="si">%s</span><span class="s2">&quot;</span>
                     <span class="n">msg</span> <span class="o">=</span> <span class="n">BinOp</span><span class="p">(</span><span class="n">Str</span><span class="p">(</span><span class="n">msg_format</span><span class="p">),</span> <span class="n">Mod</span><span class="p">(),</span> <span class="n">Tuple</span><span class="p">(</span><span class="n">names_load</span><span class="p">,</span> <span class="n">Load</span><span class="p">()))</span>
                     <span class="n">test</span> <span class="o">=</span> <span class="n">Assert</span><span class="p">(</span><span class="n">new_compare</span><span class="p">,</span> <span class="n">msg</span><span class="p">,</span> <span class="n">lineno</span><span class="o">=</span><span class="n">stmt</span><span class="o">.</span><span class="n">lineno</span><span class="p">,</span> <span class="n">col_offset</span><span class="o">=</span><span class="n">stmt</span><span class="o">.</span><span class="n">col_offset</span><span class="p">)</span>
                     <span class="k">return</span> <span class="p">[</span><span class="n">assign</span><span class="p">,</span> <span class="n">test</span><span class="p">]</span>
@@ -1136,29 +1214,29 @@
             <span class="n">clear_cache</span><span class="p">()</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_count</span> <span class="o">+=</span> <span class="mi">1</span>
             <span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_seed</span><span class="p">)</span>
-            <span class="n">pytestfile</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
-            <span class="k">if</span> <span class="s2">&quot;XFAIL&quot;</span> <span class="ow">in</span> <span class="n">gl</span><span class="p">:</span>
-                <span class="n">pytestfile</span> <span class="o">=</span> <span class="n">inspect</span><span class="o">.</span><span class="n">getsourcefile</span><span class="p">(</span><span class="n">gl</span><span class="p">[</span><span class="s2">&quot;XFAIL&quot;</span><span class="p">])</span>
-            <span class="n">pytestfile2</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
-            <span class="k">if</span> <span class="s2">&quot;slow&quot;</span> <span class="ow">in</span> <span class="n">gl</span><span class="p">:</span>
-                <span class="n">pytestfile2</span> <span class="o">=</span> <span class="n">inspect</span><span class="o">.</span><span class="n">getsourcefile</span><span class="p">(</span><span class="n">gl</span><span class="p">[</span><span class="s2">&quot;slow&quot;</span><span class="p">])</span>
             <span class="n">disabled</span> <span class="o">=</span> <span class="n">gl</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;disabled&quot;</span><span class="p">,</span> <span class="bp">False</span><span class="p">)</span>
             <span class="k">if</span> <span class="ow">not</span> <span class="n">disabled</span><span class="p">:</span>
                 <span class="c1"># we need to filter only those functions that begin with &#39;test_&#39;</span>
-                <span class="c1"># that are defined in the testing file or in the file where</span>
-                <span class="c1"># is defined the XFAIL decorator</span>
-                <span class="n">funcs</span> <span class="o">=</span> <span class="p">[</span><span class="n">gl</span><span class="p">[</span><span class="n">f</span><span class="p">]</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">gl</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span> <span class="k">if</span> <span class="n">f</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;test_&quot;</span><span class="p">)</span> <span class="ow">and</span>
-                    <span class="p">(</span><span class="n">inspect</span><span class="o">.</span><span class="n">isfunction</span><span class="p">(</span><span class="n">gl</span><span class="p">[</span><span class="n">f</span><span class="p">])</span> <span class="ow">or</span> <span class="n">inspect</span><span class="o">.</span><span class="n">ismethod</span><span class="p">(</span><span class="n">gl</span><span class="p">[</span><span class="n">f</span><span class="p">]))</span> <span class="ow">and</span>
-                    <span class="p">(</span><span class="n">inspect</span><span class="o">.</span><span class="n">getsourcefile</span><span class="p">(</span><span class="n">gl</span><span class="p">[</span><span class="n">f</span><span class="p">])</span> <span class="o">==</span> <span class="n">filename</span> <span class="ow">or</span>
-                     <span class="n">inspect</span><span class="o">.</span><span class="n">getsourcefile</span><span class="p">(</span><span class="n">gl</span><span class="p">[</span><span class="n">f</span><span class="p">])</span> <span class="o">==</span> <span class="n">pytestfile</span> <span class="ow">or</span>
-                     <span class="n">inspect</span><span class="o">.</span><span class="n">getsourcefile</span><span class="p">(</span><span class="n">gl</span><span class="p">[</span><span class="n">f</span><span class="p">])</span> <span class="o">==</span> <span class="n">pytestfile2</span><span class="p">)]</span>
+                <span class="c1"># We have to be careful about decorated functions. As long as</span>
+                <span class="c1"># the decorator uses functools.wraps, we can detect it.</span>
+                <span class="n">funcs</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">gl</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;test_&quot;</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="n">inspect</span><span class="o">.</span><span class="n">isfunction</span><span class="p">(</span><span class="n">gl</span><span class="p">[</span><span class="n">f</span><span class="p">])</span>
+                        <span class="ow">or</span> <span class="n">inspect</span><span class="o">.</span><span class="n">ismethod</span><span class="p">(</span><span class="n">gl</span><span class="p">[</span><span class="n">f</span><span class="p">]))):</span>
+                        <span class="n">func</span> <span class="o">=</span> <span class="n">gl</span><span class="p">[</span><span class="n">f</span><span class="p">]</span>
+                        <span class="c1"># Handle multiple decorators</span>
+                        <span class="k">while</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="s1">&#39;__wrapped__&#39;</span><span class="p">):</span>
+                            <span class="n">func</span> <span class="o">=</span> <span class="n">func</span><span class="o">.</span><span class="n">__wrapped__</span>
+
+                        <span class="k">if</span> <span class="n">inspect</span><span class="o">.</span><span class="n">getsourcefile</span><span class="p">(</span><span class="n">func</span><span class="p">)</span> <span class="o">==</span> <span class="n">filename</span><span class="p">:</span>
+                            <span class="n">funcs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">gl</span><span class="p">[</span><span class="n">f</span><span class="p">])</span>
                 <span class="k">if</span> <span class="n">slow</span><span class="p">:</span>
                     <span class="n">funcs</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">funcs</span> <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="s1">&#39;_slow&#39;</span><span class="p">,</span> <span class="bp">False</span><span class="p">)]</span>
                 <span class="c1"># Sorting of XFAILed functions isn&#39;t fixed yet :-(</span>
                 <span class="n">funcs</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">inspect</span><span class="o">.</span><span class="n">getsourcelines</span><span class="p">(</span><span class="n">x</span><span class="p">)[</span><span class="mi">1</span><span class="p">])</span>
                 <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
                 <span class="k">while</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">funcs</span><span class="p">):</span>
-                    <span class="k">if</span> <span class="n">isgeneratorfunction</span><span class="p">(</span><span class="n">funcs</span><span class="p">[</span><span class="n">i</span><span class="p">]):</span>
+                    <span class="k">if</span> <span class="n">inspect</span><span class="o">.</span><span class="n">isgeneratorfunction</span><span class="p">(</span><span class="n">funcs</span><span class="p">[</span><span class="n">i</span><span class="p">]):</span>
                     <span class="c1"># some tests can be generators, that return the actual</span>
                     <span class="c1"># test functions. We unpack it below:</span>
                         <span class="n">f</span> <span class="o">=</span> <span class="n">funcs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
@@ -1207,11 +1285,11 @@
                     <span class="n">reporter</span><span class="o">.</span><span class="n">test_fail</span><span class="p">((</span><span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">tr</span><span class="p">))</span>
                     <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_post_mortem</span><span class="p">:</span>
                         <span class="n">pdb</span><span class="o">.</span><span class="n">post_mortem</span><span class="p">(</span><span class="n">tr</span><span class="p">)</span>
-                <span class="k">elif</span> <span class="n">t</span><span class="o">.</span><span class="n">__name__</span> <span class="o">==</span> <span class="s2">&quot;Skipped&quot;</span><span class="p">:</span>
+                <span class="k">elif</span> <span class="n">t</span><span class="o">.</span><span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;Skipped&quot;</span><span class="p">:</span>
                     <span class="n">reporter</span><span class="o">.</span><span class="n">test_skip</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
-                <span class="k">elif</span> <span class="n">t</span><span class="o">.</span><span class="n">__name__</span> <span class="o">==</span> <span class="s2">&quot;XFail&quot;</span><span class="p">:</span>
+                <span class="k">elif</span> <span class="n">t</span><span class="o">.</span><span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;XFail&quot;</span><span class="p">:</span>
                     <span class="n">reporter</span><span class="o">.</span><span class="n">test_xfail</span><span class="p">()</span>
-                <span class="k">elif</span> <span class="n">t</span><span class="o">.</span><span class="n">__name__</span> <span class="o">==</span> <span class="s2">&quot;XPass&quot;</span><span class="p">:</span>
+                <span class="k">elif</span> <span class="n">t</span><span class="o">.</span><span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;XPass&quot;</span><span class="p">:</span>
                     <span class="n">reporter</span><span class="o">.</span><span class="n">test_xpass</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
                 <span class="k">else</span><span class="p">:</span>
                     <span class="n">reporter</span><span class="o">.</span><span class="n">test_exception</span><span class="p">((</span><span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">tr</span><span class="p">))</span>
@@ -1221,10 +1299,10 @@
                 <span class="n">reporter</span><span class="o">.</span><span class="n">test_pass</span><span class="p">()</span>
             <span class="n">taken</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="n">start</span>
             <span class="k">if</span> <span class="n">taken</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_slow_threshold</span><span class="p">:</span>
-                <span class="n">reporter</span><span class="o">.</span><span class="n">slow_test_functions</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">f</span><span class="o">.</span><span class="n">__name__</span><span class="p">,</span> <span class="n">taken</span><span class="p">))</span>
+                <span class="n">reporter</span><span class="o">.</span><span class="n">slow_test_functions</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">f</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="n">taken</span><span class="p">))</span>
             <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="s1">&#39;_slow&#39;</span><span class="p">,</span> <span class="bp">False</span><span class="p">)</span> <span class="ow">and</span> <span class="n">slow</span><span class="p">:</span>
                 <span class="k">if</span> <span class="n">taken</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fast_threshold</span><span class="p">:</span>
-                    <span class="n">reporter</span><span class="o">.</span><span class="n">fast_test_functions</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">f</span><span class="o">.</span><span class="n">__name__</span><span class="p">,</span> <span class="n">taken</span><span class="p">))</span>
+                    <span class="n">reporter</span><span class="o">.</span><span class="n">fast_test_functions</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">f</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="n">taken</span><span class="p">))</span>
         <span class="n">reporter</span><span class="o">.</span><span class="n">leaving_filename</span><span class="p">()</span>
 
     <span class="k">def</span> <span class="nf">_timeout</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">function</span><span class="p">,</span> <span class="n">timeout</span><span class="p">):</span>
@@ -1245,7 +1323,7 @@
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_kw</span><span class="p">:</span>
             <span class="k">return</span> <span class="bp">True</span>
         <span class="k">for</span> <span class="n">kw</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_kw</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">__name__</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="n">kw</span><span class="p">)</span> <span class="o">!=</span> <span class="o">-</span><span class="mi">1</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="vm">__name__</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="n">kw</span><span class="p">)</span> <span class="o">!=</span> <span class="o">-</span><span class="mi">1</span><span class="p">:</span>
                 <span class="k">return</span> <span class="bp">True</span>
         <span class="k">return</span> <span class="bp">False</span>
 
@@ -1265,7 +1343,7 @@
 
 <span class="k">class</span> <span class="nc">SymPyDocTests</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
 
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reporter</span><span class="p">,</span> <span class="n">normal</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reporter</span><span class="p">,</span> <span class="n">normal</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_count</span> <span class="o">=</span> <span class="mi">0</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_root_dir</span> <span class="o">=</span> <span class="n">sympy_dir</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_reporter</span> <span class="o">=</span> <span class="n">reporter</span>
@@ -1373,7 +1451,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_reporter</span><span class="o">.</span><span class="n">leaving_filename</span><span class="p">()</span>
 
     <span class="k">def</span> <span class="nf">get_test_files</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">dir</span><span class="p">,</span> <span class="n">pat</span><span class="o">=</span><span class="s1">&#39;*.py&#39;</span><span class="p">,</span> <span class="n">init_only</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Returns the list of \*.py files (default) from which docstrings</span>
 <span class="sd">        will be tested which are at or below directory ``dir``. By default,</span>
 <span class="sd">        only those that have an __init__.py in their parent directory</span>
@@ -1471,7 +1549,7 @@
             <span class="c1"># doctesting</span>
             <span class="kn">import</span> <span class="nn">pyglet</span>
             <span class="k">class</span> <span class="nc">DummyWindow</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
-                <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+                <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">has_exit</span><span class="o">=</span><span class="bp">True</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">width</span> <span class="o">=</span> <span class="mi">600</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">height</span> <span class="o">=</span> <span class="mi">400</span>
@@ -1523,7 +1601,7 @@
         <span class="c1"># Make sure we don&#39;t run doctests for classes outside of sympy, such</span>
         <span class="c1"># as in numpy or scipy.</span>
         <span class="k">if</span> <span class="n">inspect</span><span class="o">.</span><span class="n">isclass</span><span class="p">(</span><span class="n">obj</span><span class="p">):</span>
-            <span class="k">if</span> <span class="n">obj</span><span class="o">.</span><span class="n">__module__</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="s1">&#39;sympy&#39;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">obj</span><span class="o">.</span><span class="vm">__module__</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="s1">&#39;sympy&#39;</span><span class="p">:</span>
                 <span class="k">return</span>
 
         <span class="c1"># Find a test for this object, and add it to the list of tests.</span>
@@ -1536,12 +1614,12 @@
 
         <span class="c1"># Look for tests in a module&#39;s contained objects.</span>
         <span class="k">if</span> <span class="n">inspect</span><span class="o">.</span><span class="n">ismodule</span><span class="p">(</span><span class="n">obj</span><span class="p">):</span>
-            <span class="k">for</span> <span class="n">rawname</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">obj</span><span class="o">.</span><span class="n">__dict__</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">for</span> <span class="n">rawname</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">obj</span><span class="o">.</span><span class="vm">__dict__</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
                 <span class="c1"># Recurse to functions &amp; classes.</span>
                 <span class="k">if</span> <span class="n">inspect</span><span class="o">.</span><span class="n">isfunction</span><span class="p">(</span><span class="n">val</span><span class="p">)</span> <span class="ow">or</span> <span class="n">inspect</span><span class="o">.</span><span class="n">isclass</span><span class="p">(</span><span class="n">val</span><span class="p">):</span>
                     <span class="c1"># Make sure we don&#39;t run doctests functions or classes</span>
                     <span class="c1"># from different modules</span>
-                    <span class="k">if</span> <span class="n">val</span><span class="o">.</span><span class="n">__module__</span> <span class="o">!=</span> <span class="n">module</span><span class="o">.</span><span class="n">__name__</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">val</span><span class="o">.</span><span class="vm">__module__</span> <span class="o">!=</span> <span class="n">module</span><span class="o">.</span><span class="vm">__name__</span><span class="p">:</span>
                         <span class="k">continue</span>
 
                     <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">_from_module</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">val</span><span class="p">),</span> \
@@ -1573,12 +1651,12 @@
 
         <span class="c1"># Look for tests in a class&#39;s contained objects.</span>
         <span class="k">if</span> <span class="n">inspect</span><span class="o">.</span><span class="n">isclass</span><span class="p">(</span><span class="n">obj</span><span class="p">):</span>
-            <span class="k">for</span> <span class="n">valname</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">obj</span><span class="o">.</span><span class="n">__dict__</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">for</span> <span class="n">valname</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">obj</span><span class="o">.</span><span class="vm">__dict__</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
                 <span class="c1"># Special handling for staticmethod/classmethod.</span>
                 <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="nb">staticmethod</span><span class="p">):</span>
                     <span class="n">val</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">valname</span><span class="p">)</span>
                 <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="nb">classmethod</span><span class="p">):</span>
-                    <span class="n">val</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">valname</span><span class="p">)</span><span class="o">.</span><span class="n">__func__</span>
+                    <span class="n">val</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">valname</span><span class="p">)</span><span class="o">.</span><span class="vm">__func__</span>
 
                 <span class="c1"># Recurse to methods, properties, and nested classes.</span>
                 <span class="k">if</span> <span class="p">(</span><span class="n">inspect</span><span class="o">.</span><span class="n">isfunction</span><span class="p">(</span><span class="n">val</span><span class="p">)</span> <span class="ow">or</span>
@@ -1588,10 +1666,10 @@
                     <span class="c1"># from different modules</span>
                     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="nb">property</span><span class="p">):</span>
                         <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">val</span><span class="o">.</span><span class="n">fget</span><span class="p">,</span> <span class="s1">&#39;__module__&#39;</span><span class="p">):</span>
-                            <span class="k">if</span> <span class="n">val</span><span class="o">.</span><span class="n">fget</span><span class="o">.</span><span class="n">__module__</span> <span class="o">!=</span> <span class="n">module</span><span class="o">.</span><span class="n">__name__</span><span class="p">:</span>
+                            <span class="k">if</span> <span class="n">val</span><span class="o">.</span><span class="n">fget</span><span class="o">.</span><span class="vm">__module__</span> <span class="o">!=</span> <span class="n">module</span><span class="o">.</span><span class="vm">__name__</span><span class="p">:</span>
                                 <span class="k">continue</span>
                     <span class="k">else</span><span class="p">:</span>
-                        <span class="k">if</span> <span class="n">val</span><span class="o">.</span><span class="n">__module__</span> <span class="o">!=</span> <span class="n">module</span><span class="o">.</span><span class="n">__name__</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="n">val</span><span class="o">.</span><span class="vm">__module__</span> <span class="o">!=</span> <span class="n">module</span><span class="o">.</span><span class="vm">__name__</span><span class="p">:</span>
                             <span class="k">continue</span>
 
                     <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">_from_module</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">val</span><span class="p">),</span> \
@@ -1620,7 +1698,7 @@
 
             <span class="n">docstring</span> <span class="o">=</span> <span class="n">obj</span>
 
-            <span class="n">matches</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="s2">&quot;line \d+&quot;</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+            <span class="n">matches</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;line \d+&quot;</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
             <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">matches</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">,</span> \
                 <span class="s2">&quot;string &#39;</span><span class="si">%s</span><span class="s2">&#39; does not contain lineno &quot;</span> <span class="o">%</span> <span class="n">name</span>
 
@@ -1630,10 +1708,10 @@
 
         <span class="k">else</span><span class="p">:</span>
             <span class="k">try</span><span class="p">:</span>
-                <span class="k">if</span> <span class="n">obj</span><span class="o">.</span><span class="n">__doc__</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">obj</span><span class="o">.</span><span class="vm">__doc__</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
                     <span class="n">docstring</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
                 <span class="k">else</span><span class="p">:</span>
-                    <span class="n">docstring</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">__doc__</span>
+                    <span class="n">docstring</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="vm">__doc__</span>
                     <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">docstring</span><span class="p">,</span> <span class="n">string_types</span><span class="p">):</span>
                         <span class="n">docstring</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">docstring</span><span class="p">)</span>
             <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">AttributeError</span><span class="p">):</span>
@@ -1646,7 +1724,7 @@
         <span class="c1"># check that properties have a docstring because _find_lineno</span>
         <span class="c1"># assumes it</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="nb">property</span><span class="p">):</span>
-            <span class="k">if</span> <span class="n">obj</span><span class="o">.</span><span class="n">fget</span><span class="o">.</span><span class="n">__doc__</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">obj</span><span class="o">.</span><span class="n">fget</span><span class="o">.</span><span class="vm">__doc__</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
                 <span class="k">return</span> <span class="bp">None</span>
 
         <span class="c1"># Find the docstring&#39;s location in the file.</span>
@@ -1668,7 +1746,7 @@
         <span class="k">if</span> <span class="n">module</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
             <span class="n">filename</span> <span class="o">=</span> <span class="bp">None</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">filename</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="s1">&#39;__file__&#39;</span><span class="p">,</span> <span class="n">module</span><span class="o">.</span><span class="n">__name__</span><span class="p">)</span>
+            <span class="n">filename</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="s1">&#39;__file__&#39;</span><span class="p">,</span> <span class="n">module</span><span class="o">.</span><span class="vm">__name__</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">filename</span><span class="p">[</span><span class="o">-</span><span class="mi">4</span><span class="p">:]</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;.pyc&quot;</span><span class="p">,</span> <span class="s2">&quot;.pyo&quot;</span><span class="p">):</span>
                 <span class="n">filename</span> <span class="o">=</span> <span class="n">filename</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
 
@@ -1764,25 +1842,25 @@
 <span class="sd">    doctest examples</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="c1"># NOTE OutputChecker is an old-style class with no __init__ method,</span>
         <span class="c1"># so we can&#39;t call the base class version of __init__ here</span>
 
-        <span class="n">got_floats</span> <span class="o">=</span> <span class="s1">r&#39;(\d+\.\d*|\.\d+)&#39;</span>
+        <span class="n">got_floats</span> <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;(\d+\.\d*|\.\d+)&#39;</span>
 
         <span class="c1"># floats in the &#39;want&#39; string may contain ellipses</span>
-        <span class="n">want_floats</span> <span class="o">=</span> <span class="n">got_floats</span> <span class="o">+</span> <span class="s1">r&#39;(\.{3})?&#39;</span>
+        <span class="n">want_floats</span> <span class="o">=</span> <span class="n">got_floats</span> <span class="o">+</span> <span class="sa">r</span><span class="s1">&#39;(\.{3})?&#39;</span>
 
-        <span class="n">front_sep</span> <span class="o">=</span> <span class="s1">r&#39;\s|\+|\-|\*|,&#39;</span>
-        <span class="n">back_sep</span> <span class="o">=</span> <span class="n">front_sep</span> <span class="o">+</span> <span class="s1">r&#39;|j|e&#39;</span>
+        <span class="n">front_sep</span> <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;\s|\+|\-|\*|,&#39;</span>
+        <span class="n">back_sep</span> <span class="o">=</span> <span class="n">front_sep</span> <span class="o">+</span> <span class="sa">r</span><span class="s1">&#39;|j|e&#39;</span>
 
-        <span class="n">fbeg</span> <span class="o">=</span> <span class="s1">r&#39;^</span><span class="si">%s</span><span class="s1">(?=</span><span class="si">%s</span><span class="s1">|$)&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">got_floats</span><span class="p">,</span> <span class="n">back_sep</span><span class="p">)</span>
-        <span class="n">fmidend</span> <span class="o">=</span> <span class="s1">r&#39;(?&lt;=</span><span class="si">%s</span><span class="s1">)</span><span class="si">%s</span><span class="s1">(?=</span><span class="si">%s</span><span class="s1">|$)&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">front_sep</span><span class="p">,</span> <span class="n">got_floats</span><span class="p">,</span> <span class="n">back_sep</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">num_got_rgx</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s1">r&#39;(</span><span class="si">%s</span><span class="s1">|</span><span class="si">%s</span><span class="s1">)&#39;</span> <span class="o">%</span><span class="p">(</span><span class="n">fbeg</span><span class="p">,</span> <span class="n">fmidend</span><span class="p">))</span>
+        <span class="n">fbeg</span> <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;^</span><span class="si">%s</span><span class="s1">(?=</span><span class="si">%s</span><span class="s1">|$)&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">got_floats</span><span class="p">,</span> <span class="n">back_sep</span><span class="p">)</span>
+        <span class="n">fmidend</span> <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;(?&lt;=</span><span class="si">%s</span><span class="s1">)</span><span class="si">%s</span><span class="s1">(?=</span><span class="si">%s</span><span class="s1">|$)&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">front_sep</span><span class="p">,</span> <span class="n">got_floats</span><span class="p">,</span> <span class="n">back_sep</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_got_rgx</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;(</span><span class="si">%s</span><span class="s1">|</span><span class="si">%s</span><span class="s1">)&#39;</span> <span class="o">%</span><span class="p">(</span><span class="n">fbeg</span><span class="p">,</span> <span class="n">fmidend</span><span class="p">))</span>
 
-        <span class="n">fbeg</span> <span class="o">=</span> <span class="s1">r&#39;^</span><span class="si">%s</span><span class="s1">(?=</span><span class="si">%s</span><span class="s1">|$)&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">want_floats</span><span class="p">,</span> <span class="n">back_sep</span><span class="p">)</span>
-        <span class="n">fmidend</span> <span class="o">=</span> <span class="s1">r&#39;(?&lt;=</span><span class="si">%s</span><span class="s1">)</span><span class="si">%s</span><span class="s1">(?=</span><span class="si">%s</span><span class="s1">|$)&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">front_sep</span><span class="p">,</span> <span class="n">want_floats</span><span class="p">,</span> <span class="n">back_sep</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">num_want_rgx</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s1">r&#39;(</span><span class="si">%s</span><span class="s1">|</span><span class="si">%s</span><span class="s1">)&#39;</span> <span class="o">%</span><span class="p">(</span><span class="n">fbeg</span><span class="p">,</span> <span class="n">fmidend</span><span class="p">))</span>
+        <span class="n">fbeg</span> <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;^</span><span class="si">%s</span><span class="s1">(?=</span><span class="si">%s</span><span class="s1">|$)&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">want_floats</span><span class="p">,</span> <span class="n">back_sep</span><span class="p">)</span>
+        <span class="n">fmidend</span> <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;(?&lt;=</span><span class="si">%s</span><span class="s1">)</span><span class="si">%s</span><span class="s1">(?=</span><span class="si">%s</span><span class="s1">|$)&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">front_sep</span><span class="p">,</span> <span class="n">want_floats</span><span class="p">,</span> <span class="n">back_sep</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_want_rgx</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;(</span><span class="si">%s</span><span class="s1">|</span><span class="si">%s</span><span class="s1">)&#39;</span> <span class="o">%</span><span class="p">(</span><span class="n">fbeg</span><span class="p">,</span> <span class="n">fmidend</span><span class="p">))</span>
 
 <div class="viewcode-block" id="SymPyOutputChecker.check_output"><a class="viewcode-back" href="../../../modules/utilities/runtests.html#sympy.utilities.runtests.SymPyOutputChecker.check_output">[docs]</a>    <span class="k">def</span> <span class="nf">check_output</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">want</span><span class="p">,</span> <span class="n">got</span><span class="p">,</span> <span class="n">optionflags</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
@@ -1821,18 +1899,18 @@
                 <span class="k">if</span> <span class="nb">abs</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">ng</span><span class="p">)</span><span class="o">-</span><span class="nb">float</span><span class="p">(</span><span class="n">nw</span><span class="p">))</span> <span class="o">&gt;</span> <span class="mf">1e-5</span><span class="p">:</span>
                     <span class="k">return</span> <span class="bp">False</span>
 
-            <span class="n">got</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_got_rgx</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="s1">r&#39;</span><span class="si">%s</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">got</span><span class="p">)</span>
+            <span class="n">got</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_got_rgx</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">got</span><span class="p">)</span>
             <span class="n">got</span> <span class="o">=</span> <span class="n">got</span> <span class="o">%</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">nw_</span><span class="p">)</span>
 
         <span class="c1"># &lt;BLANKLINE&gt; can be used as a special sequence to signify a</span>
         <span class="c1"># blank line, unless the DONT_ACCEPT_BLANKLINE flag is used.</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">optionflags</span> <span class="o">&amp;</span> <span class="n">pdoctest</span><span class="o">.</span><span class="n">DONT_ACCEPT_BLANKLINE</span><span class="p">):</span>
             <span class="c1"># Replace &lt;BLANKLINE&gt; in want with a blank line.</span>
-            <span class="n">want</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="s1">&#39;(?m)^</span><span class="si">%s</span><span class="s1">\s*?$&#39;</span> <span class="o">%</span> <span class="n">re</span><span class="o">.</span><span class="n">escape</span><span class="p">(</span><span class="n">pdoctest</span><span class="o">.</span><span class="n">BLANKLINE_MARKER</span><span class="p">),</span>
+            <span class="n">want</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;(?m)^</span><span class="si">%s</span><span class="s1">\s*?$&#39;</span> <span class="o">%</span> <span class="n">re</span><span class="o">.</span><span class="n">escape</span><span class="p">(</span><span class="n">pdoctest</span><span class="o">.</span><span class="n">BLANKLINE_MARKER</span><span class="p">),</span>
                           <span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">want</span><span class="p">)</span>
             <span class="c1"># If a line in got contains only spaces, then remove the</span>
             <span class="c1"># spaces.</span>
-            <span class="n">got</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="s1">&#39;(?m)^\s*?$&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">got</span><span class="p">)</span>
+            <span class="n">got</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;(?m)^\s*?$&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">got</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">got</span> <span class="o">==</span> <span class="n">want</span><span class="p">:</span>
                 <span class="k">return</span> <span class="bp">True</span>
 
@@ -1867,7 +1945,7 @@
 <span class="sd">    Py.test like reporter. Should produce output identical to py.test.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">tb</span><span class="o">=</span><span class="s2">&quot;short&quot;</span><span class="p">,</span> <span class="n">colors</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">tb</span><span class="o">=</span><span class="s2">&quot;short&quot;</span><span class="p">,</span> <span class="n">colors</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
                  <span class="n">force_colors</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">split</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_verbose</span> <span class="o">=</span> <span class="n">verbose</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_tb_style</span> <span class="o">=</span> <span class="n">tb</span>
@@ -1941,9 +2019,9 @@
                 <span class="c1"># 2) OS X    -&gt; 80 columns</span>
                 <span class="c1"># 3) Solaris -&gt; columns = 80</span>
 
-                <span class="n">re_linux</span> <span class="o">=</span> <span class="s2">r&quot;columns\s+(?P&lt;columns&gt;\d+);&quot;</span>
-                <span class="n">re_osx</span> <span class="o">=</span> <span class="s2">r&quot;(?P&lt;columns&gt;\d+)\s*columns;&quot;</span>
-                <span class="n">re_solaris</span> <span class="o">=</span> <span class="s2">r&quot;columns\s+=\s+(?P&lt;columns&gt;\d+);&quot;</span>
+                <span class="n">re_linux</span> <span class="o">=</span> <span class="sa">r</span><span class="s2">&quot;columns\s+(?P&lt;columns&gt;\d+);&quot;</span>
+                <span class="n">re_osx</span> <span class="o">=</span> <span class="sa">r</span><span class="s2">&quot;(?P&lt;columns&gt;\d+)\s*columns;&quot;</span>
+                <span class="n">re_solaris</span> <span class="o">=</span> <span class="sa">r</span><span class="s2">&quot;columns\s+=\s+(?P&lt;columns&gt;\d+);&quot;</span>
 
                 <span class="k">for</span> <span class="n">regex</span> <span class="ow">in</span> <span class="p">(</span><span class="n">re_linux</span><span class="p">,</span> <span class="n">re_osx</span><span class="p">,</span> <span class="n">re_solaris</span><span class="p">):</span>
                     <span class="n">match</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">regex</span><span class="p">,</span> <span class="n">stdout</span><span class="p">)</span>
@@ -2165,7 +2243,7 @@
                 <span class="k">if</span> <span class="n">f</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
                     <span class="n">s</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">filename</span>
                 <span class="k">else</span><span class="p">:</span>
-                    <span class="n">s</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">:</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">f</span><span class="o">.</span><span class="n">__name__</span><span class="p">)</span>
+                    <span class="n">s</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">:</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">f</span><span class="o">.</span><span class="vm">__name__</span><span class="p">)</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">write_center</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="s2">&quot;_&quot;</span><span class="p">)</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">write_exception</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">val</span><span class="p">,</span> <span class="n">tb</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
@@ -2174,7 +2252,7 @@
             <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_failed</span><span class="p">:</span>
                 <span class="n">filename</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">val</span><span class="p">,</span> <span class="n">tb</span><span class="p">)</span> <span class="o">=</span> <span class="n">e</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">write_center</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="s2">&quot;_&quot;</span><span class="p">)</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">write_center</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">:</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">f</span><span class="o">.</span><span class="n">__name__</span><span class="p">),</span> <span class="s2">&quot;_&quot;</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">write_center</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">:</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">f</span><span class="o">.</span><span class="vm">__name__</span><span class="p">),</span> <span class="s2">&quot;_&quot;</span><span class="p">)</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">write_exception</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">val</span><span class="p">,</span> <span class="n">tb</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
 
@@ -2213,7 +2291,7 @@
     <span class="k">def</span> <span class="nf">entering_test</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">f</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_active_f</span> <span class="o">=</span> <span class="n">f</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_verbose</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span> <span class="o">+</span> <span class="n">f</span><span class="o">.</span><span class="n">__name__</span> <span class="o">+</span> <span class="s2">&quot; &quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span> <span class="o">+</span> <span class="n">f</span><span class="o">.</span><span class="vm">__name__</span> <span class="o">+</span> <span class="s2">&quot; &quot;</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">test_xfail</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_xfailed</span> <span class="o">+=</span> <span class="mi">1</span>
@@ -2281,12 +2359,12 @@
           </div>
         </div>
       </div>
-      <div class="sphinxsidebar">
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
         <div class="sphinxsidebarwrapper">
             <p class="logo"><a href="../../../index.html">
               <img class="logo" src="../../../_static/sympylogo.png" alt="Logo"/>
             </a></p>
-<div id="searchbox" style="display: none">
+<div id="searchbox" style="display: none" role="search">
   <h3>Quick search</h3>
     <form class="search" action="../../../search.html" method="get">
       <input type="text" name="q" />
@@ -2303,7 +2381,7 @@
       </div>
       <div class="clearer"></div>
     </div>
-    <div class="related">
+    <div class="related" role="navigation" aria-label="related navigation">
       <h3>Navigation</h3>
       <ul>
         <li class="right" style="margin-right: 10px">
@@ -2312,14 +2390,14 @@
         <li class="right" >
           <a href="../../../py-modindex.html" title="Python Module Index"
              >modules</a> |</li>
-        <li><a href="../../../index.html">SymPy 1.0 documentation</a> &raquo;</li>
-          <li><a href="../../index.html" >Module code</a> &raquo;</li> 
+        <li class="nav-item nav-item-0"><a href="../../../index.html">SymPy 1.1 documentation</a> &raquo;</li>
+          <li class="nav-item nav-item-1"><a href="../../index.html" >Module code</a> &raquo;</li> 
       </ul>
     </div>
-    <div class="footer">
-        &copy; Copyright 2015 SymPy Development Team.
-      Last updated on Mar 08, 2016.
-      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    <div class="footer" role="contentinfo">
+        &copy; Copyright 2017 SymPy Development Team.
+      Last updated on Jul 06, 2017.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3.1.
     </div>
   </body>
 </html>
