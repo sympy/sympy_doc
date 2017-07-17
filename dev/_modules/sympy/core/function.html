@@ -93,7 +93,7 @@
 <span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">division</span>
 
 <span class="kn">from</span> <span class="nn">.add</span> <span class="kn">import</span> <span class="n">Add</span>
-<span class="kn">from</span> <span class="nn">.assumptions</span> <span class="kn">import</span> <span class="n">ManagedProperties</span>
+<span class="kn">from</span> <span class="nn">.assumptions</span> <span class="kn">import</span> <span class="n">ManagedProperties</span><span class="p">,</span> <span class="n">_assume_defined</span>
 <span class="kn">from</span> <span class="nn">.basic</span> <span class="kn">import</span> <span class="n">Basic</span>
 <span class="kn">from</span> <span class="nn">.cache</span> <span class="kn">import</span> <span class="n">cacheit</span>
 <span class="kn">from</span> <span class="nn">.compatibility</span> <span class="kn">import</span> <span class="n">iterable</span><span class="p">,</span> <span class="n">is_sequence</span><span class="p">,</span> <span class="n">as_int</span><span class="p">,</span> <span class="n">ordered</span>
@@ -376,7 +376,8 @@
 
 
 <div class="viewcode-block" id="Function"><a class="viewcode-back" href="../../../modules/functions/index.html#sympy.core.function.Function">[docs]</a><span class="k">class</span> <span class="nc">Function</span><span class="p">(</span><span class="n">Application</span><span class="p">,</span> <span class="n">Expr</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Base class for applied mathematical functions.</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Base class for applied mathematical functions.</span>
 
 <span class="sd">    It also serves as a constructor for undefined function classes.</span>
 
@@ -400,6 +401,16 @@
 <span class="sd">    Derivative(f(x), x)</span>
 <span class="sd">    &gt;&gt;&gt; g.diff(x)</span>
 <span class="sd">    Derivative(g(x), x)</span>
+
+<span class="sd">    Assumptions can be passed to Function.</span>
+
+<span class="sd">    &gt;&gt;&gt; f_real = Function(&#39;f&#39;, real=True)</span>
+<span class="sd">    &gt;&gt;&gt; f_real(x).is_real</span>
+<span class="sd">    True</span>
+
+<span class="sd">    Note that assumptions on a function are unrelated to the assumptions on</span>
+<span class="sd">    the variable it is called on. If you want to add a relationship, subclass</span>
+<span class="sd">    Function and define the appropriate ``_eval_is_assumption`` methods.</span>
 
 <span class="sd">    In the following example Function is used as a base class for</span>
 <span class="sd">    ``my_func`` that represents a mathematical function *my_func*. Suppose</span>
@@ -444,6 +455,7 @@
 <span class="sd">    ...     nargs = (1, 2)</span>
 <span class="sd">    ...</span>
 <span class="sd">    &gt;&gt;&gt;</span>
+
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="nd">@property</span>
@@ -838,7 +850,14 @@
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">def</span> <span class="fm">__new__</span><span class="p">(</span><span class="n">mcl</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">bases</span><span class="o">=</span><span class="p">(</span><span class="n">AppliedUndef</span><span class="p">,),</span> <span class="vm">__dict__</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="vm">__dict__</span> <span class="o">=</span> <span class="vm">__dict__</span> <span class="ow">or</span> <span class="p">{}</span>
+        <span class="c1"># Allow Function(&#39;f&#39;, real=True)</span>
+        <span class="vm">__dict__</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s1">&#39;is_&#39;</span> <span class="o">+</span> <span class="n">arg</span><span class="p">:</span> <span class="n">val</span> <span class="k">for</span> <span class="n">arg</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">_assume_defined</span><span class="p">})</span>
+        <span class="c1"># You can add other attributes, although they do have to be hashable</span>
+        <span class="c1"># (but seriously, if you want to add anything other than assumptions,</span>
+        <span class="c1"># just subclass Function)</span>
         <span class="vm">__dict__</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="c1"># Save these for __eq__</span>
+        <span class="vm">__dict__</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s1">&#39;_extra_kwargs&#39;</span><span class="p">:</span> <span class="n">kwargs</span><span class="p">})</span>
         <span class="vm">__dict__</span><span class="p">[</span><span class="s1">&#39;__module__&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">None</span> <span class="c1"># For pickling</span>
         <span class="n">ret</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">UndefinedFunction</span><span class="p">,</span> <span class="n">mcl</span><span class="p">)</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="n">mcl</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">bases</span><span class="p">,</span> <span class="vm">__dict__</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">ret</span>
@@ -846,8 +865,18 @@
     <span class="k">def</span> <span class="fm">__instancecheck__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">instance</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">cls</span> <span class="ow">in</span> <span class="nb">type</span><span class="p">(</span><span class="n">instance</span><span class="p">)</span><span class="o">.</span><span class="vm">__mro__</span>
 
-<span class="n">UndefinedFunction</span><span class="o">.</span><span class="fm">__eq__</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">s</span><span class="p">,</span> <span class="n">o</span><span class="p">:</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">o</span><span class="p">,</span> <span class="n">s</span><span class="o">.</span><span class="vm">__class__</span><span class="p">)</span> <span class="ow">and</span>
-                                         <span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">class_key</span><span class="p">()</span> <span class="o">==</span> <span class="n">o</span><span class="o">.</span><span class="n">class_key</span><span class="p">()))</span>
+    <span class="n">_extra_kwargs</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="k">def</span> <span class="fm">__hash__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">hash</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">class_key</span><span class="p">(),</span> <span class="nb">frozenset</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_extra_kwargs</span><span class="o">.</span><span class="n">items</span><span class="p">())))</span>
+
+    <span class="k">def</span> <span class="fm">__eq__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="p">)</span> <span class="ow">and</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">class_key</span><span class="p">()</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">class_key</span><span class="p">()</span> <span class="ow">and</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_extra_kwargs</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">_extra_kwargs</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__ne__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">return</span> <span class="ow">not</span> <span class="bp">self</span> <span class="o">==</span> <span class="n">other</span>
 
 <div class="viewcode-block" id="WildFunction"><a class="viewcode-back" href="../../../modules/core.html#sympy.core.function.WildFunction">[docs]</a><span class="k">class</span> <span class="nc">WildFunction</span><span class="p">(</span><span class="n">Function</span><span class="p">,</span> <span class="n">AtomicExpr</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
@@ -2749,7 +2778,7 @@
     </div>
     <div class="footer" role="contentinfo">
         &copy; Copyright 2017 SymPy Development Team.
-      Last updated on Jul 16, 2017.
+      Last updated on Jul 17, 2017.
       Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3.1.
     </div>
   </body>
