@@ -625,29 +625,61 @@
     <span class="k">def</span> <span class="nf">_eval_subs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">):</span>
         <span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">exp</span><span class="p">,</span> <span class="n">log</span><span class="p">,</span> <span class="n">Symbol</span>
         <span class="k">def</span> <span class="nf">_check</span><span class="p">(</span><span class="n">ct1</span><span class="p">,</span> <span class="n">ct2</span><span class="p">,</span> <span class="n">old</span><span class="p">):</span>
-            <span class="sd">&quot;&quot;&quot;Return bool, pow where, if bool is True, then the exponent of</span>
-<span class="sd">            Pow `old` will combine with `pow` so the substitution is valid,</span>
-<span class="sd">            otherwise bool will be False,</span>
+            <span class="sd">&quot;&quot;&quot;Return (bool, pow, remainder_pow) where, if bool is True, then the</span>
+<span class="sd">            exponent of Pow `old` will combine with `pow` so the substitution</span>
+<span class="sd">            is valid, otherwise bool will be False.</span>
+
+<span class="sd">            For noncommutative objects, `pow` will be an integer, and a factor</span>
+<span class="sd">            `Pow(old.base, remainder_pow)` needs to be included. If there is</span>
+<span class="sd">            no such factor, None is returned. For commutative objects,</span>
+<span class="sd">            remainder_pow is always None.</span>
 
 <span class="sd">            cti are the coefficient and terms of an exponent of self or old</span>
 <span class="sd">            In this _eval_subs routine a change like (b**(2*x)).subs(b**x, y)</span>
 <span class="sd">            will give y**2 since (b**x)**2 == b**(2*x); if that equality does</span>
 <span class="sd">            not hold then the substitution should not occur so `bool` will be</span>
 <span class="sd">            False.</span>
+
 <span class="sd">            &quot;&quot;&quot;</span>
             <span class="n">coeff1</span><span class="p">,</span> <span class="n">terms1</span> <span class="o">=</span> <span class="n">ct1</span>
             <span class="n">coeff2</span><span class="p">,</span> <span class="n">terms2</span> <span class="o">=</span> <span class="n">ct2</span>
             <span class="k">if</span> <span class="n">terms1</span> <span class="o">==</span> <span class="n">terms2</span><span class="p">:</span>
-                <span class="nb">pow</span> <span class="o">=</span> <span class="n">coeff1</span><span class="o">/</span><span class="n">coeff2</span>
-                <span class="k">try</span><span class="p">:</span>
-                    <span class="nb">pow</span> <span class="o">=</span> <span class="n">as_int</span><span class="p">(</span><span class="nb">pow</span><span class="p">)</span>
-                    <span class="n">combines</span> <span class="o">=</span> <span class="bp">True</span>
-                <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
-                    <span class="n">combines</span> <span class="o">=</span> <span class="n">Pow</span><span class="o">.</span><span class="n">_eval_power</span><span class="p">(</span>
-                        <span class="n">Pow</span><span class="p">(</span><span class="o">*</span><span class="n">old</span><span class="o">.</span><span class="n">as_base_exp</span><span class="p">(),</span> <span class="n">evaluate</span><span class="o">=</span><span class="bp">False</span><span class="p">),</span>
-                        <span class="nb">pow</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span>
-                <span class="k">return</span> <span class="n">combines</span><span class="p">,</span> <span class="nb">pow</span>
-            <span class="k">return</span> <span class="bp">False</span><span class="p">,</span> <span class="bp">None</span>
+                <span class="k">if</span> <span class="n">old</span><span class="o">.</span><span class="n">is_commutative</span><span class="p">:</span>
+                    <span class="c1"># Allow fractional powers for commutative objects</span>
+                    <span class="nb">pow</span> <span class="o">=</span> <span class="n">coeff1</span><span class="o">/</span><span class="n">coeff2</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="nb">pow</span> <span class="o">=</span> <span class="n">as_int</span><span class="p">(</span><span class="nb">pow</span><span class="p">)</span>
+                        <span class="n">combines</span> <span class="o">=</span> <span class="bp">True</span>
+                    <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+                        <span class="n">combines</span> <span class="o">=</span> <span class="n">Pow</span><span class="o">.</span><span class="n">_eval_power</span><span class="p">(</span>
+                            <span class="n">Pow</span><span class="p">(</span><span class="o">*</span><span class="n">old</span><span class="o">.</span><span class="n">as_base_exp</span><span class="p">(),</span> <span class="n">evaluate</span><span class="o">=</span><span class="bp">False</span><span class="p">),</span>
+                            <span class="nb">pow</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span>
+                    <span class="k">return</span> <span class="n">combines</span><span class="p">,</span> <span class="nb">pow</span><span class="p">,</span> <span class="bp">None</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="c1"># With noncommutative symbols, substitute only integer powers</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">terms1</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>
+                        <span class="n">terms1</span> <span class="o">=</span> <span class="p">(</span><span class="n">terms1</span><span class="p">,)</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">(</span><span class="n">term</span><span class="o">.</span><span class="n">is_integer</span> <span class="k">for</span> <span class="n">term</span> <span class="ow">in</span> <span class="n">terms1</span><span class="p">):</span>
+                        <span class="k">return</span> <span class="bp">False</span><span class="p">,</span> <span class="bp">None</span><span class="p">,</span> <span class="bp">None</span>
+
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="c1"># Round pow toward zero</span>
+                        <span class="nb">pow</span><span class="p">,</span> <span class="n">remainder</span> <span class="o">=</span> <span class="nb">divmod</span><span class="p">(</span><span class="n">as_int</span><span class="p">(</span><span class="n">coeff1</span><span class="p">),</span> <span class="n">as_int</span><span class="p">(</span><span class="n">coeff2</span><span class="p">))</span>
+                        <span class="k">if</span> <span class="nb">pow</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">remainder</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                            <span class="nb">pow</span> <span class="o">+=</span> <span class="mi">1</span>
+                            <span class="n">remainder</span> <span class="o">-=</span> <span class="n">as_int</span><span class="p">(</span><span class="n">coeff2</span><span class="p">)</span>
+
+                        <span class="k">if</span> <span class="n">remainder</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                            <span class="n">remainder_pow</span> <span class="o">=</span> <span class="bp">None</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="n">remainder_pow</span> <span class="o">=</span> <span class="n">Mul</span><span class="p">(</span><span class="n">remainder</span><span class="p">,</span> <span class="o">*</span><span class="n">terms1</span><span class="p">)</span>
+
+                        <span class="k">return</span> <span class="bp">True</span><span class="p">,</span> <span class="nb">pow</span><span class="p">,</span> <span class="n">remainder_pow</span>
+                    <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+                        <span class="c1"># Can&#39;t substitute</span>
+                        <span class="k">pass</span>
+
+            <span class="k">return</span> <span class="bp">False</span><span class="p">,</span> <span class="bp">None</span><span class="p">,</span> <span class="bp">None</span>
 
         <span class="k">if</span> <span class="n">old</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">base</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">new</span><span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">exp</span><span class="o">.</span><span class="n">_subs</span><span class="p">(</span><span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">)</span>
@@ -662,10 +694,13 @@
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">exp</span><span class="o">.</span><span class="n">is_Add</span> <span class="ow">is</span> <span class="bp">False</span><span class="p">:</span>
                 <span class="n">ct1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">exp</span><span class="o">.</span><span class="n">as_independent</span><span class="p">(</span><span class="n">Symbol</span><span class="p">,</span> <span class="n">as_Add</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
                 <span class="n">ct2</span> <span class="o">=</span> <span class="n">old</span><span class="o">.</span><span class="n">exp</span><span class="o">.</span><span class="n">as_independent</span><span class="p">(</span><span class="n">Symbol</span><span class="p">,</span> <span class="n">as_Add</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
-                <span class="n">ok</span><span class="p">,</span> <span class="nb">pow</span> <span class="o">=</span> <span class="n">_check</span><span class="p">(</span><span class="n">ct1</span><span class="p">,</span> <span class="n">ct2</span><span class="p">,</span> <span class="n">old</span><span class="p">)</span>
+                <span class="n">ok</span><span class="p">,</span> <span class="nb">pow</span><span class="p">,</span> <span class="n">remainder_pow</span> <span class="o">=</span> <span class="n">_check</span><span class="p">(</span><span class="n">ct1</span><span class="p">,</span> <span class="n">ct2</span><span class="p">,</span> <span class="n">old</span><span class="p">)</span>
                 <span class="k">if</span> <span class="n">ok</span><span class="p">:</span>
                     <span class="c1"># issue 5180: (x**(6*y)).subs(x**(3*y),z)-&gt;z**2</span>
-                    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">new</span><span class="p">,</span> <span class="nb">pow</span><span class="p">)</span>
+                    <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">new</span><span class="p">,</span> <span class="nb">pow</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">remainder_pow</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                        <span class="n">result</span> <span class="o">=</span> <span class="n">Mul</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">Pow</span><span class="p">(</span><span class="n">old</span><span class="o">.</span><span class="n">base</span><span class="p">,</span> <span class="n">remainder_pow</span><span class="p">))</span>
+                    <span class="k">return</span> <span class="n">result</span>
             <span class="k">else</span><span class="p">:</span>  <span class="c1"># b**(6*x+a).subs(b**(3*x), y) -&gt; y**2 * b**a</span>
                 <span class="c1"># exp(exp(x) + exp(x**2)).subs(exp(exp(x)), w) -&gt; w * exp(exp(x**2))</span>
                 <span class="n">oarg</span> <span class="o">=</span> <span class="n">old</span><span class="o">.</span><span class="n">exp</span>
@@ -675,10 +710,16 @@
                 <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">exp</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
                     <span class="n">newa</span> <span class="o">=</span> <span class="n">a</span><span class="o">.</span><span class="n">_subs</span><span class="p">(</span><span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">)</span>
                     <span class="n">ct1</span> <span class="o">=</span> <span class="n">newa</span><span class="o">.</span><span class="n">as_coeff_mul</span><span class="p">()</span>
-                    <span class="n">ok</span><span class="p">,</span> <span class="nb">pow</span> <span class="o">=</span> <span class="n">_check</span><span class="p">(</span><span class="n">ct1</span><span class="p">,</span> <span class="n">ct2</span><span class="p">,</span> <span class="n">old</span><span class="p">)</span>
+                    <span class="n">ok</span><span class="p">,</span> <span class="nb">pow</span><span class="p">,</span> <span class="n">remainder_pow</span> <span class="o">=</span> <span class="n">_check</span><span class="p">(</span><span class="n">ct1</span><span class="p">,</span> <span class="n">ct2</span><span class="p">,</span> <span class="n">old</span><span class="p">)</span>
                     <span class="k">if</span> <span class="n">ok</span><span class="p">:</span>
                         <span class="n">new_l</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">new</span><span class="o">**</span><span class="nb">pow</span><span class="p">)</span>
+                        <span class="k">if</span> <span class="n">remainder_pow</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                            <span class="n">o_al</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">remainder_pow</span><span class="p">)</span>
                         <span class="k">continue</span>
+                    <span class="k">elif</span> <span class="ow">not</span> <span class="n">old</span><span class="o">.</span><span class="n">is_commutative</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">newa</span><span class="o">.</span><span class="n">is_integer</span><span class="p">:</span>
+                        <span class="c1"># If any term in the exponent is non-integer,</span>
+                        <span class="c1"># we do not do any substitutions in the noncommutative case</span>
+                        <span class="k">return</span>
                     <span class="n">o_al</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">newa</span><span class="p">)</span>
                 <span class="k">if</span> <span class="n">new_l</span><span class="p">:</span>
                     <span class="n">new_l</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Pow</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">base</span><span class="p">,</span> <span class="n">Add</span><span class="p">(</span><span class="o">*</span><span class="n">o_al</span><span class="p">),</span> <span class="n">evaluate</span><span class="o">=</span><span class="bp">False</span><span class="p">))</span>
@@ -688,9 +729,12 @@
             <span class="n">ct1</span> <span class="o">=</span> <span class="n">old</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">as_independent</span><span class="p">(</span><span class="n">Symbol</span><span class="p">,</span> <span class="n">as_Add</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
             <span class="n">ct2</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">exp</span><span class="o">*</span><span class="n">log</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">base</span><span class="p">))</span><span class="o">.</span><span class="n">as_independent</span><span class="p">(</span>
                 <span class="n">Symbol</span><span class="p">,</span> <span class="n">as_Add</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
-            <span class="n">ok</span><span class="p">,</span> <span class="nb">pow</span> <span class="o">=</span> <span class="n">_check</span><span class="p">(</span><span class="n">ct1</span><span class="p">,</span> <span class="n">ct2</span><span class="p">,</span> <span class="n">old</span><span class="p">)</span>
+            <span class="n">ok</span><span class="p">,</span> <span class="nb">pow</span><span class="p">,</span> <span class="n">remainder_pow</span> <span class="o">=</span> <span class="n">_check</span><span class="p">(</span><span class="n">ct1</span><span class="p">,</span> <span class="n">ct2</span><span class="p">,</span> <span class="n">old</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">ok</span><span class="p">:</span>
-                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">new</span><span class="p">,</span> <span class="nb">pow</span><span class="p">)</span>  <span class="c1"># (2**x).subs(exp(x*log(2)), z) -&gt; z</span>
+                <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">new</span><span class="p">,</span> <span class="nb">pow</span><span class="p">)</span>  <span class="c1"># (2**x).subs(exp(x*log(2)), z) -&gt; z</span>
+                <span class="k">if</span> <span class="n">remainder_pow</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                    <span class="n">result</span> <span class="o">=</span> <span class="n">Mul</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">Pow</span><span class="p">(</span><span class="n">old</span><span class="o">.</span><span class="n">base</span><span class="p">,</span> <span class="n">remainder_pow</span><span class="p">))</span>
+                <span class="k">return</span> <span class="n">result</span>
 
 <div class="viewcode-block" id="Pow.as_base_exp"><a class="viewcode-back" href="../../../modules/core.html#sympy.core.power.Pow.as_base_exp">[docs]</a>    <span class="k">def</span> <span class="nf">as_base_exp</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Return base and exp of self.</span>
@@ -1615,7 +1659,7 @@
     </div>
     <div class="footer" role="contentinfo">
         &copy; Copyright 2017 SymPy Development Team.
-      Last updated on Jul 20, 2017.
+      Last updated on Jul 22, 2017.
       Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3.1.
     </div>
   </body>
