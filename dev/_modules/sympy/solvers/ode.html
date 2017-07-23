@@ -494,12 +494,10 @@
 <span class="sd">            :py:meth:`~sympy.solvers.ode.infinitesimals` with the help of various</span>
 <span class="sd">            heuristics.</span>
 
-<span class="sd">        ``ics`` is the set of boundary conditions for the differential equation.</span>
+<span class="sd">        ``ics`` is the set of initial/boundary conditions for the differential equation.</span>
 <span class="sd">          It should be given in the form of ``{f(x0): x1, f(x).diff(x).subs(x, x2):</span>
-<span class="sd">          x3}`` and so on. For now initial conditions are implemented only for</span>
-<span class="sd">          power series solutions of first-order differential equations which should</span>
-<span class="sd">          be given in the form of ``{f(x0): x1}`` (See issue 4720). If nothing is</span>
-<span class="sd">          specified for this case ``f(0)`` is assumed to be ``C0`` and the power</span>
+<span class="sd">          x3}`` and so on.  For power series solutions, if no initial</span>
+<span class="sd">          conditions are specified ``f(0)`` is assumed to be ``C0`` and the power</span>
 <span class="sd">          series solution is calculated about 0.</span>
 
 <span class="sd">        ``x0`` is the point about which the power series solution of a differential</span>
@@ -676,6 +674,10 @@
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">solvefunc</span> <span class="o">=</span> <span class="nb">globals</span><span class="p">()[</span><span class="s1">&#39;sysode_nonlinear_</span><span class="si">%(no_of_equation)s</span><span class="s1">eq_order</span><span class="si">%(order)s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">match</span><span class="p">]</span>
             <span class="n">sols</span> <span class="o">=</span> <span class="n">solvefunc</span><span class="p">(</span><span class="n">match</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">ics</span><span class="p">:</span>
+                <span class="n">constants</span> <span class="o">=</span> <span class="n">Tuple</span><span class="p">(</span><span class="o">*</span><span class="n">sols</span><span class="p">)</span><span class="o">.</span><span class="n">free_symbols</span> <span class="o">-</span> <span class="n">Tuple</span><span class="p">(</span><span class="o">*</span><span class="n">eq</span><span class="p">)</span><span class="o">.</span><span class="n">free_symbols</span>
+                <span class="n">solved_constants</span> <span class="o">=</span> <span class="n">solve_ics</span><span class="p">(</span><span class="n">sols</span><span class="p">,</span> <span class="n">func</span><span class="p">,</span> <span class="n">constants</span><span class="p">,</span> <span class="n">ics</span><span class="p">)</span>
+                <span class="k">return</span> <span class="p">[</span><span class="n">sol</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">solved_constants</span><span class="p">)</span> <span class="k">for</span> <span class="n">sol</span> <span class="ow">in</span> <span class="n">sols</span><span class="p">]</span>
             <span class="k">return</span> <span class="n">sols</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">given_hint</span> <span class="o">=</span> <span class="n">hint</span>  <span class="c1"># hint given by the user</span>
@@ -717,9 +719,9 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="c1"># The key &#39;hint&#39; stores the hint needed to be solved for.</span>
             <span class="n">hint</span> <span class="o">=</span> <span class="n">hints</span><span class="p">[</span><span class="s1">&#39;hint&#39;</span><span class="p">]</span>
-            <span class="k">return</span> <span class="n">_helper_simplify</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">hint</span><span class="p">,</span> <span class="n">hints</span><span class="p">,</span> <span class="n">simplify</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">_helper_simplify</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">hint</span><span class="p">,</span> <span class="n">hints</span><span class="p">,</span> <span class="n">simplify</span><span class="p">,</span> <span class="n">ics</span><span class="o">=</span><span class="n">ics</span><span class="p">)</span>
 </div>
-<span class="k">def</span> <span class="nf">_helper_simplify</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">hint</span><span class="p">,</span> <span class="n">match</span><span class="p">,</span> <span class="n">simplify</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="k">def</span> <span class="nf">_helper_simplify</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">hint</span><span class="p">,</span> <span class="n">match</span><span class="p">,</span> <span class="n">simplify</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">ics</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
     <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Helper function of dsolve that calls the respective</span>
 <span class="sd">    :py:mod:`~sympy.solvers.ode` functions to solve for the ordinary</span>
@@ -735,22 +737,138 @@
     <span class="n">order</span> <span class="o">=</span> <span class="n">r</span><span class="p">[</span><span class="s1">&#39;order&#39;</span><span class="p">]</span>
     <span class="n">match</span> <span class="o">=</span> <span class="n">r</span><span class="p">[</span><span class="n">hint</span><span class="p">]</span>
 
+    <span class="n">free</span> <span class="o">=</span> <span class="n">eq</span><span class="o">.</span><span class="n">free_symbols</span>
+    <span class="n">cons</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">s</span><span class="p">:</span> <span class="n">s</span><span class="o">.</span><span class="n">free_symbols</span><span class="o">.</span><span class="n">difference</span><span class="p">(</span><span class="n">free</span><span class="p">)</span>
+
     <span class="k">if</span> <span class="n">simplify</span><span class="p">:</span>
         <span class="c1"># odesimp() will attempt to integrate, if necessary, apply constantsimp(),</span>
         <span class="c1"># attempt to solve for func, and apply any other hint specific</span>
         <span class="c1"># simplifications</span>
         <span class="n">sols</span> <span class="o">=</span> <span class="n">solvefunc</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">func</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">match</span><span class="p">)</span>
-        <span class="n">free</span> <span class="o">=</span> <span class="n">eq</span><span class="o">.</span><span class="n">free_symbols</span>
-        <span class="n">cons</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">s</span><span class="p">:</span> <span class="n">s</span><span class="o">.</span><span class="n">free_symbols</span><span class="o">.</span><span class="n">difference</span><span class="p">(</span><span class="n">free</span><span class="p">)</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">sols</span><span class="p">,</span> <span class="n">Expr</span><span class="p">):</span>
-            <span class="k">return</span> <span class="n">odesimp</span><span class="p">(</span><span class="n">sols</span><span class="p">,</span> <span class="n">func</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">cons</span><span class="p">(</span><span class="n">sols</span><span class="p">),</span> <span class="n">hint</span><span class="p">)</span>
-        <span class="k">return</span> <span class="p">[</span><span class="n">odesimp</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">func</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">cons</span><span class="p">(</span><span class="n">s</span><span class="p">),</span> <span class="n">hint</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">sols</span><span class="p">]</span>
+            <span class="n">rv</span> <span class="o">=</span>  <span class="n">odesimp</span><span class="p">(</span><span class="n">sols</span><span class="p">,</span> <span class="n">func</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">cons</span><span class="p">(</span><span class="n">sols</span><span class="p">),</span> <span class="n">hint</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">rv</span> <span class="o">=</span> <span class="p">[</span><span class="n">odesimp</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">func</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">cons</span><span class="p">(</span><span class="n">s</span><span class="p">),</span> <span class="n">hint</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">sols</span><span class="p">]</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="c1"># We still want to integrate (you can disable it separately with the hint)</span>
         <span class="n">match</span><span class="p">[</span><span class="s1">&#39;simplify&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">False</span>  <span class="c1"># Some hints can take advantage of this option</span>
         <span class="n">rv</span> <span class="o">=</span> <span class="n">_handle_Integral</span><span class="p">(</span><span class="n">solvefunc</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">func</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">match</span><span class="p">),</span>
             <span class="n">func</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">hint</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">rv</span>
+
+    <span class="k">if</span> <span class="n">ics</span> <span class="ow">and</span> <span class="ow">not</span> <span class="s1">&#39;power_series&#39;</span> <span class="ow">in</span> <span class="n">hint</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">rv</span><span class="p">,</span> <span class="n">Expr</span><span class="p">):</span>
+            <span class="n">solved_constants</span> <span class="o">=</span> <span class="n">solve_ics</span><span class="p">([</span><span class="n">rv</span><span class="p">],</span> <span class="p">[</span><span class="n">r</span><span class="p">[</span><span class="s1">&#39;func&#39;</span><span class="p">]],</span> <span class="n">cons</span><span class="p">(</span><span class="n">rv</span><span class="p">),</span> <span class="n">ics</span><span class="p">)</span>
+            <span class="n">rv</span> <span class="o">=</span> <span class="n">rv</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">solved_constants</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">rv1</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">rv</span><span class="p">:</span>
+                <span class="n">solved_constants</span> <span class="o">=</span> <span class="n">solve_ics</span><span class="p">([</span><span class="n">s</span><span class="p">],</span> <span class="p">[</span><span class="n">r</span><span class="p">[</span><span class="s1">&#39;func&#39;</span><span class="p">]],</span> <span class="n">cons</span><span class="p">(</span><span class="n">s</span><span class="p">),</span> <span class="n">ics</span><span class="p">)</span>
+                <span class="n">rv1</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">solved_constants</span><span class="p">))</span>
+            <span class="n">rv</span> <span class="o">=</span> <span class="n">rv1</span>
+    <span class="k">return</span> <span class="n">rv</span>
+
+<span class="k">def</span> <span class="nf">solve_ics</span><span class="p">(</span><span class="n">sols</span><span class="p">,</span> <span class="n">funcs</span><span class="p">,</span> <span class="n">constants</span><span class="p">,</span> <span class="n">ics</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Solve for the constants given initial conditions</span>
+
+<span class="sd">    ``sols`` is a list of solutions.</span>
+
+<span class="sd">    ``funcs`` is a list of functions.</span>
+
+<span class="sd">    ``constants`` is a list of constants.</span>
+
+<span class="sd">    ``ics`` is the set of initial/boundary conditions for the differential</span>
+<span class="sd">    equation. It should be given in the form of ``{f(x0): x1,</span>
+<span class="sd">    f(x).diff(x).subs(x, x2):  x3}`` and so on.</span>
+
+<span class="sd">    Returns a dictionary mapping constants to values.</span>
+<span class="sd">    ``solution.subs(constants)`` will replace the constants in ``solution``.</span>
+
+<span class="sd">    Example</span>
+<span class="sd">    =======</span>
+<span class="sd">    &gt;&gt;&gt; # From dsolve(f(x).diff(x) - f(x), f(x))</span>
+<span class="sd">    &gt;&gt;&gt; from sympy import symbols, Eq, exp, Function</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.solvers.ode import solve_ics</span>
+<span class="sd">    &gt;&gt;&gt; f = Function(&#39;f&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; x, C1 = symbols(&#39;x C1&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; sols = [Eq(f(x), C1*exp(x))]</span>
+<span class="sd">    &gt;&gt;&gt; funcs = [f(x)]</span>
+<span class="sd">    &gt;&gt;&gt; constants = [C1]</span>
+<span class="sd">    &gt;&gt;&gt; ics = {f(0): 2}</span>
+<span class="sd">    &gt;&gt;&gt; solved_constants = solve_ics(sols, funcs, constants, ics)</span>
+<span class="sd">    &gt;&gt;&gt; solved_constants</span>
+<span class="sd">    {C1: 2}</span>
+<span class="sd">    &gt;&gt;&gt; sols[0].subs(solved_constants)</span>
+<span class="sd">    Eq(f(x), 2*exp(x))</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Assume ics are of the form f(x0): value or Subs(diff(f(x), x, n), (x,</span>
+    <span class="c1"># x0)): value (currently checked by classify_ode). To solve, replace x</span>
+    <span class="c1"># with x0, f(x0) with value, then solve for constants. For f^(n)(x0),</span>
+    <span class="c1"># differentiate the solution n times, so that f^(n)(x) appears.</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">funcs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">diff_sols</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">subs_sols</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">diff_variables</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">funcarg</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">ics</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">funcarg</span><span class="p">,</span> <span class="n">AppliedUndef</span><span class="p">):</span>
+            <span class="n">x0</span> <span class="o">=</span> <span class="n">funcarg</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">matching_func</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">funcs</span> <span class="k">if</span> <span class="n">f</span><span class="o">.</span><span class="n">func</span> <span class="o">==</span> <span class="n">funcarg</span><span class="o">.</span><span class="n">func</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">S</span> <span class="o">=</span> <span class="n">sols</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">funcarg</span><span class="p">,</span> <span class="p">(</span><span class="n">Subs</span><span class="p">,</span> <span class="n">Derivative</span><span class="p">)):</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">funcarg</span><span class="p">,</span> <span class="n">Subs</span><span class="p">):</span>
+                <span class="c1"># Make sure it stays a subs. Otherwise subs below will produce</span>
+                <span class="c1"># a different looking term.</span>
+                <span class="n">funcarg</span> <span class="o">=</span> <span class="n">funcarg</span><span class="o">.</span><span class="n">doit</span><span class="p">()</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">funcarg</span><span class="p">,</span> <span class="n">Subs</span><span class="p">):</span>
+                <span class="n">deriv</span> <span class="o">=</span> <span class="n">funcarg</span><span class="o">.</span><span class="n">expr</span>
+                <span class="n">x0</span> <span class="o">=</span> <span class="n">funcarg</span><span class="o">.</span><span class="n">point</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">variables</span> <span class="o">=</span> <span class="n">funcarg</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">variables</span>
+                <span class="n">matching_func</span> <span class="o">=</span> <span class="n">deriv</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">funcarg</span><span class="p">,</span> <span class="n">Derivative</span><span class="p">):</span>
+                <span class="n">deriv</span> <span class="o">=</span> <span class="n">funcarg</span>
+                <span class="n">x0</span> <span class="o">=</span> <span class="n">funcarg</span><span class="o">.</span><span class="n">variables</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">variables</span> <span class="o">=</span> <span class="p">(</span><span class="n">x</span><span class="p">,)</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">funcarg</span><span class="o">.</span><span class="n">variables</span><span class="p">)</span>
+                <span class="n">matching_func</span> <span class="o">=</span> <span class="n">deriv</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">x0</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">variables</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">diff_variables</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">sol</span> <span class="ow">in</span> <span class="n">sols</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">sol</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">deriv</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="p">):</span>
+                        <span class="n">diff_sols</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="n">sol</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="o">*</span><span class="n">variables</span><span class="p">),</span> <span class="n">sol</span><span class="o">.</span><span class="n">rhs</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="o">*</span><span class="n">variables</span><span class="p">)))</span>
+            <span class="n">diff_variables</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">variables</span><span class="p">)</span>
+            <span class="n">S</span> <span class="o">=</span> <span class="n">diff_sols</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Unrecognized initial condition&quot;</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">sol</span> <span class="ow">in</span> <span class="n">S</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">sol</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">matching_func</span><span class="p">):</span>
+                <span class="n">sol2</span> <span class="o">=</span> <span class="n">sol</span>
+                <span class="n">sol2</span> <span class="o">=</span> <span class="n">sol2</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">x0</span><span class="p">)</span>
+                <span class="n">sol2</span> <span class="o">=</span> <span class="n">sol2</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">funcarg</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+                <span class="n">subs_sols</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">sol2</span><span class="p">)</span>
+
+    <span class="c1"># TODO: Use solveset here</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">solved_constants</span> <span class="o">=</span> <span class="n">solve</span><span class="p">(</span><span class="n">subs_sols</span><span class="p">,</span> <span class="n">constants</span><span class="p">,</span> <span class="nb">dict</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">NotImplementedError</span><span class="p">:</span>
+        <span class="n">solved_constants</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="c1"># XXX: We can&#39;t differentiate between the solution not existing because of</span>
+    <span class="c1"># invalid initial conditions, and not existing because solve is not smart</span>
+    <span class="c1"># enough. If we could use solveset, this might be improvable, but for now,</span>
+    <span class="c1"># we use NotImplementedError in this case.</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">solved_constants</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Couldn&#39;t solve for initial conditions&quot;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">solved_constants</span> <span class="o">==</span> <span class="bp">True</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Initial conditions did not produce any solutions for constants. Perhaps they are degenerate.&quot;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">solved_constants</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Initial conditions produced too many solutions for constants&quot;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">solved_constants</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">constants</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Initial conditions did not produce a solution for all constants. Perhaps they are under-specified.&quot;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">solved_constants</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
 
 <div class="viewcode-block" id="classify_ode"><a class="viewcode-back" href="../../../modules/solvers/ode.html#sympy.solvers.ode.classify_ode">[docs]</a><span class="k">def</span> <span class="nf">classify_ode</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">func</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="nb">dict</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">ics</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
     <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
@@ -872,6 +990,8 @@
 <span class="sd">    &#39;nth_linear_constant_coeff_variation_of_parameters_Integral&#39;)</span>
 
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">ics</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">ics</span><span class="p">)</span>
+
     <span class="n">prep</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;prep&#39;</span><span class="p">,</span> <span class="bp">True</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="n">func</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">func</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
@@ -930,12 +1050,25 @@
     <span class="k">if</span> <span class="n">ics</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
         <span class="k">for</span> <span class="n">funcarg</span> <span class="ow">in</span> <span class="n">ics</span><span class="p">:</span>
             <span class="c1"># Separating derivatives</span>
-            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">funcarg</span><span class="p">,</span> <span class="n">Subs</span><span class="p">):</span>
-                <span class="n">deriv</span> <span class="o">=</span> <span class="n">funcarg</span><span class="o">.</span><span class="n">expr</span>
-                <span class="n">old</span> <span class="o">=</span> <span class="n">funcarg</span><span class="o">.</span><span class="n">variables</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-                <span class="n">new</span> <span class="o">=</span> <span class="n">funcarg</span><span class="o">.</span><span class="n">point</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">deriv</span><span class="p">,</span> <span class="n">Derivative</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">deriv</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
-                    <span class="n">AppliedUndef</span><span class="p">)</span> <span class="ow">and</span> <span class="n">deriv</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">func</span> <span class="o">==</span> <span class="n">f</span> <span class="ow">and</span> <span class="n">old</span> <span class="o">==</span> <span class="n">x</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">new</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">funcarg</span><span class="p">,</span> <span class="p">(</span><span class="n">Subs</span><span class="p">,</span> <span class="n">Derivative</span><span class="p">)):</span>
+                <span class="c1"># f(x).diff(x).subs(x, 0) is a Subs, but f(x).diff(x).subs(x,</span>
+                <span class="c1"># y) is a Derivative</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">funcarg</span><span class="p">,</span> <span class="n">Subs</span><span class="p">):</span>
+                    <span class="n">deriv</span> <span class="o">=</span> <span class="n">funcarg</span><span class="o">.</span><span class="n">expr</span>
+                    <span class="n">old</span> <span class="o">=</span> <span class="n">funcarg</span><span class="o">.</span><span class="n">variables</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                    <span class="n">new</span> <span class="o">=</span> <span class="n">funcarg</span><span class="o">.</span><span class="n">point</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">funcarg</span><span class="p">,</span> <span class="n">Derivative</span><span class="p">):</span>
+                    <span class="n">deriv</span> <span class="o">=</span> <span class="n">funcarg</span>
+                    <span class="c1"># No information on this. Just assume it was x</span>
+                    <span class="n">old</span> <span class="o">=</span> <span class="n">x</span>
+                    <span class="n">new</span> <span class="o">=</span> <span class="n">funcarg</span><span class="o">.</span><span class="n">variables</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+                <span class="k">if</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">deriv</span><span class="p">,</span> <span class="n">Derivative</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">deriv</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+                    <span class="n">AppliedUndef</span><span class="p">)</span> <span class="ow">and</span> <span class="n">deriv</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">func</span> <span class="o">==</span> <span class="n">f</span> <span class="ow">and</span>
+                    <span class="nb">len</span><span class="p">(</span><span class="n">deriv</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">old</span> <span class="o">==</span> <span class="n">x</span> <span class="ow">and</span> <span class="ow">not</span>
+                    <span class="n">new</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">all</span><span class="p">(</span><span class="n">i</span> <span class="o">==</span> <span class="n">deriv</span><span class="o">.</span><span class="n">variables</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span>
+                    <span class="n">deriv</span><span class="o">.</span><span class="n">variables</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">ics</span><span class="p">[</span><span class="n">funcarg</span><span class="p">]</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">f</span><span class="p">)):</span>
+
                     <span class="n">dorder</span> <span class="o">=</span> <span class="n">ode_order</span><span class="p">(</span><span class="n">deriv</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
                     <span class="n">temp</span> <span class="o">=</span> <span class="s1">&#39;f&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">dorder</span><span class="p">)</span>
                     <span class="n">boundary</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">temp</span><span class="p">:</span> <span class="n">new</span><span class="p">,</span> <span class="n">temp</span> <span class="o">+</span> <span class="s1">&#39;val&#39;</span><span class="p">:</span> <span class="n">ics</span><span class="p">[</span><span class="n">funcarg</span><span class="p">]})</span>
@@ -945,16 +1078,14 @@
 
             <span class="c1"># Separating functions</span>
             <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">funcarg</span><span class="p">,</span> <span class="n">AppliedUndef</span><span class="p">):</span>
-                <span class="k">if</span> <span class="n">funcarg</span><span class="o">.</span><span class="n">func</span> <span class="o">==</span> <span class="n">f</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">funcarg</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> \
-                    <span class="ow">not</span> <span class="n">funcarg</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">funcarg</span><span class="o">.</span><span class="n">func</span> <span class="o">==</span> <span class="n">f</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">funcarg</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span>
+                    <span class="ow">not</span> <span class="n">funcarg</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">ics</span><span class="p">[</span><span class="n">funcarg</span><span class="p">]</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">f</span><span class="p">)):</span>
                     <span class="n">boundary</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s1">&#39;f0&#39;</span><span class="p">:</span> <span class="n">funcarg</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s1">&#39;f0val&#39;</span><span class="p">:</span> <span class="n">ics</span><span class="p">[</span><span class="n">funcarg</span><span class="p">]})</span>
                 <span class="k">else</span><span class="p">:</span>
                     <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Enter valid boundary conditions for Function&quot;</span><span class="p">)</span>
 
             <span class="k">else</span><span class="p">:</span>
-                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Enter boundary conditions of the form ics &quot;</span>
-                    <span class="s2">&quot; = {f(point}: value, f(point).diff(point, order).subs(arg, point) &quot;</span>
-                    <span class="s2">&quot;:value&quot;</span><span class="p">)</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Enter boundary conditions of the form ics={f(point}: value, f(x).diff(x, order).subs(x, point): value}&quot;</span><span class="p">)</span>
 
     <span class="c1"># Precondition to try remove f(x) from highest order derivative</span>
     <span class="n">reduced_eq</span> <span class="o">=</span> <span class="bp">None</span>
@@ -8408,7 +8539,7 @@
     </div>
     <div class="footer" role="contentinfo">
         &copy; Copyright 2017 SymPy Development Team.
-      Last updated on Jul 22, 2017.
+      Last updated on Jul 23, 2017.
       Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3.1.
     </div>
   </body>
