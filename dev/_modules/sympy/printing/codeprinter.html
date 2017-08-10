@@ -59,7 +59,9 @@
   <h1>Source code for sympy.printing.codeprinter</h1><div class="highlight"><pre>
 <span></span><span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">division</span>
 
-<span class="kn">from</span> <span class="nn">sympy.core</span> <span class="k">import</span> <span class="n">Add</span><span class="p">,</span> <span class="n">Mul</span><span class="p">,</span> <span class="n">Pow</span><span class="p">,</span> <span class="n">S</span><span class="p">,</span> <span class="n">sympify</span>
+<span class="kn">from</span> <span class="nn">functools</span> <span class="k">import</span> <span class="n">wraps</span>
+
+<span class="kn">from</span> <span class="nn">sympy.core</span> <span class="k">import</span> <span class="n">Add</span><span class="p">,</span> <span class="n">Mul</span><span class="p">,</span> <span class="n">Pow</span><span class="p">,</span> <span class="n">S</span><span class="p">,</span> <span class="n">sympify</span><span class="p">,</span> <span class="n">Float</span>
 <span class="kn">from</span> <span class="nn">sympy.core.basic</span> <span class="k">import</span> <span class="n">Basic</span>
 <span class="kn">from</span> <span class="nn">sympy.core.containers</span> <span class="k">import</span> <span class="n">Tuple</span>
 <span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="k">import</span> <span class="n">default_sort_key</span><span class="p">,</span> <span class="n">string_types</span>
@@ -71,6 +73,19 @@
 
 <span class="c1"># Backwards compatibility</span>
 <span class="kn">from</span> <span class="nn">sympy.codegen.ast</span> <span class="k">import</span> <span class="n">Assignment</span>
+
+
+<span class="k">class</span> <span class="nc">requires</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Decorator for registering requirements on print methods. &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_req</span> <span class="o">=</span> <span class="n">kwargs</span>
+
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">method</span><span class="p">):</span>
+        <span class="k">def</span> <span class="nf">_method_wrapper</span><span class="p">(</span><span class="n">self_</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_req</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="nb">getattr</span><span class="p">(</span><span class="n">self_</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">method</span><span class="p">(</span><span class="n">self_</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">wraps</span><span class="p">(</span><span class="n">method</span><span class="p">)(</span><span class="n">_method_wrapper</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="AssignmentError"><a class="viewcode-back" href="../../../modules/printing.html#sympy.printing.codeprinter.AssignmentError">[docs]</a><span class="k">class</span> <span class="nc">AssignmentError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
@@ -158,8 +173,8 @@
             <span class="n">result</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">lines</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_format_code</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span>
-            <span class="n">result</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_number_symbols</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_not_supported</span><span class="p">,</span>
-                    <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">))</span>
+            <span class="n">num_syms</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([(</span><span class="n">k</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">v</span><span class="p">))</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_number_symbols</span><span class="p">])</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="p">(</span><span class="n">num_syms</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_not_supported</span><span class="p">,</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">))</span>
         <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">_not_supported</span>
         <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">_number_symbols</span>
         <span class="k">return</span> <span class="n">result</span>
@@ -400,12 +415,12 @@
 
     <span class="k">def</span> <span class="nf">_print_NumberSymbol</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_settings</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;inline&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">evalf</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_settings</span><span class="p">[</span><span class="s2">&quot;precision&quot;</span><span class="p">]))</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">Float</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">evalf</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_settings</span><span class="p">[</span><span class="s2">&quot;precision&quot;</span><span class="p">])))</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="c1"># A Number symbol that is not implemented here or with _printmethod</span>
             <span class="c1"># is registered and evaluated</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_number_symbols</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">expr</span><span class="p">,</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">evalf</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_settings</span><span class="p">[</span><span class="s2">&quot;precision&quot;</span><span class="p">]))))</span>
+                <span class="n">Float</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">evalf</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_settings</span><span class="p">[</span><span class="s2">&quot;precision&quot;</span><span class="p">]))))</span>
             <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">_print_Catalan</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>

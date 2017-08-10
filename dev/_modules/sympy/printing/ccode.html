@@ -72,18 +72,25 @@
 
 <span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">division</span>
 
+<span class="kn">from</span> <span class="nn">functools</span> <span class="k">import</span> <span class="n">wraps</span>
+<span class="kn">from</span> <span class="nn">itertools</span> <span class="k">import</span> <span class="n">chain</span>
+
 <span class="kn">from</span> <span class="nn">sympy.core</span> <span class="k">import</span> <span class="n">S</span>
 <span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="k">import</span> <span class="n">string_types</span><span class="p">,</span> <span class="nb">range</span>
 <span class="kn">from</span> <span class="nn">sympy.core.decorators</span> <span class="k">import</span> <span class="n">deprecated</span>
-<span class="kn">from</span> <span class="nn">sympy.codegen.ast</span> <span class="k">import</span> <span class="n">Assignment</span>
-<span class="kn">from</span> <span class="nn">sympy.printing.codeprinter</span> <span class="k">import</span> <span class="n">CodePrinter</span>
+<span class="kn">from</span> <span class="nn">sympy.codegen.ast</span> <span class="k">import</span> <span class="p">(</span>
+    <span class="n">Assignment</span><span class="p">,</span> <span class="n">Pointer</span><span class="p">,</span> <span class="n">Type</span><span class="p">,</span> <span class="n">Variable</span><span class="p">,</span> <span class="n">real</span><span class="p">,</span> <span class="n">complex_</span><span class="p">,</span> <span class="n">integer</span><span class="p">,</span> <span class="n">bool_</span><span class="p">,</span>
+    <span class="n">float32</span><span class="p">,</span> <span class="n">float64</span><span class="p">,</span> <span class="n">float80</span><span class="p">,</span> <span class="n">complex64</span><span class="p">,</span> <span class="n">complex128</span><span class="p">,</span> <span class="n">intc</span><span class="p">,</span> <span class="n">value_const</span><span class="p">,</span>
+    <span class="n">Declaration</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">sympy.printing.codeprinter</span> <span class="k">import</span> <span class="n">CodePrinter</span><span class="p">,</span> <span class="n">requires</span>
 <span class="kn">from</span> <span class="nn">sympy.printing.precedence</span> <span class="k">import</span> <span class="n">precedence</span><span class="p">,</span> <span class="n">PRECEDENCE</span>
 <span class="kn">from</span> <span class="nn">sympy.sets.fancysets</span> <span class="k">import</span> <span class="n">Range</span>
 
 <span class="c1"># dictionary mapping sympy function to (argument_conditions, C_function).</span>
 <span class="c1"># Used in C89CodePrinter._print_Function(self)</span>
 <span class="n">known_functions_C89</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s2">&quot;Abs&quot;</span><span class="p">:</span> <span class="p">[(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="ow">not</span> <span class="n">x</span><span class="o">.</span><span class="n">is_integer</span><span class="p">,</span> <span class="s2">&quot;fabs&quot;</span><span class="p">)],</span>
+    <span class="s2">&quot;Abs&quot;</span><span class="p">:</span> <span class="p">[(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="ow">not</span> <span class="n">x</span><span class="o">.</span><span class="n">is_integer</span><span class="p">,</span> <span class="s2">&quot;fabs&quot;</span><span class="p">),</span> <span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">is_integer</span><span class="p">,</span> <span class="s2">&quot;abs&quot;</span><span class="p">)],</span>
     <span class="s2">&quot;sin&quot;</span><span class="p">:</span> <span class="s2">&quot;sin&quot;</span><span class="p">,</span>
     <span class="s2">&quot;cos&quot;</span><span class="p">:</span> <span class="s2">&quot;cos&quot;</span><span class="p">,</span>
     <span class="s2">&quot;tan&quot;</span><span class="p">:</span> <span class="s2">&quot;tan&quot;</span><span class="p">,</span>
@@ -111,7 +118,19 @@
 <span class="n">known_functions</span> <span class="o">=</span> <span class="n">_known_functions_C9X</span>
 
 <span class="n">known_functions_C99</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">_known_functions_C9X</span><span class="p">,</span> <span class="o">**</span><span class="p">{</span>
-    <span class="s2">&quot;erfc&quot;</span><span class="p">:</span> <span class="s2">&quot;erfc&quot;</span><span class="p">,</span>
+    <span class="s1">&#39;exp2&#39;</span><span class="p">:</span> <span class="s1">&#39;exp2&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;expm1&#39;</span><span class="p">:</span> <span class="s1">&#39;expm1&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;expm1&#39;</span><span class="p">:</span> <span class="s1">&#39;expm1&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;log10&#39;</span><span class="p">:</span> <span class="s1">&#39;log10&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;log2&#39;</span><span class="p">:</span> <span class="s1">&#39;log2&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;log1p&#39;</span><span class="p">:</span> <span class="s1">&#39;log1p&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Cbrt&#39;</span><span class="p">:</span> <span class="s1">&#39;cbrt&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;hypot&#39;</span><span class="p">:</span> <span class="s1">&#39;hypot&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;fma&#39;</span><span class="p">:</span> <span class="s1">&#39;fma&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;loggamma&#39;</span><span class="p">:</span> <span class="s1">&#39;lgamma&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;erfc&#39;</span><span class="p">:</span> <span class="s1">&#39;erfc&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Max&#39;</span><span class="p">:</span> <span class="s1">&#39;fmax&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Min&#39;</span><span class="p">:</span> <span class="s1">&#39;fmin&#39;</span>
 <span class="p">})</span>
 
 <span class="c1"># These are the core reserved words in the C language. Taken from:</span>
@@ -163,6 +182,25 @@
     <span class="p">}</span>
 
 
+<span class="k">def</span> <span class="nf">_as_macro_if_defined</span><span class="p">(</span><span class="n">meth</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Decorator for printer methods</span>
+
+<span class="sd">    When a Printer&#39;s method is decorated using this decorator the expressions printed</span>
+<span class="sd">    will first be looked for in the attribute ``math_macros``, and if present it will</span>
+<span class="sd">    print the macro name in ``math_macros`` followed by a type suffix for the type</span>
+<span class="sd">    ``real``. e.g. printing ``sympy.pi`` would print ``M_PIl`` if real is mapped to float80.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="nd">@wraps</span><span class="p">(</span><span class="n">meth</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">_meth_wrapper</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">expr</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">math_macros</span><span class="p">:</span>
+            <span class="k">return</span> <span class="s1">&#39;</span><span class="si">%s%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">math_macros</span><span class="p">[</span><span class="n">expr</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_math_macro_suffix</span><span class="p">(</span><span class="n">real</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">meth</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">_meth_wrapper</span>
+
+
 <div class="viewcode-block" id="C89CodePrinter"><a class="viewcode-back" href="../../../modules/printing.html#sympy.printing.ccode.C89CodePrinter">[docs]</a><span class="k">class</span> <span class="nc">C89CodePrinter</span><span class="p">(</span><span class="n">CodePrinter</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;A printer to convert python expressions to strings of c code&quot;&quot;&quot;</span>
     <span class="n">printmethod</span> <span class="o">=</span> <span class="s2">&quot;_ccode&quot;</span>
@@ -173,7 +211,7 @@
     <span class="n">_default_settings</span> <span class="o">=</span> <span class="p">{</span>
         <span class="s1">&#39;order&#39;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
         <span class="s1">&#39;full_prec&#39;</span><span class="p">:</span> <span class="s1">&#39;auto&#39;</span><span class="p">,</span>
-        <span class="s1">&#39;precision&#39;</span><span class="p">:</span> <span class="mi">15</span><span class="p">,</span>
+        <span class="s1">&#39;precision&#39;</span><span class="p">:</span> <span class="mi">17</span><span class="p">,</span>
         <span class="s1">&#39;user_functions&#39;</span><span class="p">:</span> <span class="p">{},</span>
         <span class="s1">&#39;human&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
         <span class="s1">&#39;contract&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
@@ -182,12 +220,70 @@
         <span class="s1">&#39;reserved_word_suffix&#39;</span><span class="p">:</span> <span class="s1">&#39;_&#39;</span><span class="p">,</span>
     <span class="p">}</span>
 
+    <span class="n">type_aliases</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="n">real</span><span class="p">:</span> <span class="n">float64</span><span class="p">,</span>
+        <span class="n">complex_</span><span class="p">:</span> <span class="n">complex128</span><span class="p">,</span>
+        <span class="n">integer</span><span class="p">:</span> <span class="n">intc</span>
+    <span class="p">}</span>
+
+    <span class="n">type_mappings</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="n">real</span><span class="p">:</span> <span class="s1">&#39;double&#39;</span><span class="p">,</span>
+        <span class="n">intc</span><span class="p">:</span> <span class="s1">&#39;int&#39;</span><span class="p">,</span>
+        <span class="n">float32</span><span class="p">:</span> <span class="s1">&#39;float&#39;</span><span class="p">,</span>
+        <span class="n">float64</span><span class="p">:</span> <span class="s1">&#39;double&#39;</span><span class="p">,</span>
+        <span class="n">integer</span><span class="p">:</span> <span class="s1">&#39;int&#39;</span><span class="p">,</span>
+        <span class="n">bool_</span><span class="p">:</span> <span class="s1">&#39;bool&#39;</span><span class="p">,</span>
+    <span class="p">}</span>
+
+    <span class="n">type_headers</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="n">bool_</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;stdbool.h&#39;</span><span class="p">}</span>
+    <span class="p">}</span>
+    <span class="n">type_macros</span> <span class="o">=</span> <span class="p">{}</span>  <span class="c1"># Macros needed to be defined when using a Type</span>
+
+    <span class="n">type_func_suffixes</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="n">float32</span><span class="p">:</span> <span class="s1">&#39;f&#39;</span><span class="p">,</span>
+        <span class="n">float64</span><span class="p">:</span> <span class="s1">&#39;&#39;</span><span class="p">,</span>
+        <span class="n">float80</span><span class="p">:</span> <span class="s1">&#39;l&#39;</span>
+    <span class="p">}</span>
+
+    <span class="n">type_literal_suffixes</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="n">float32</span><span class="p">:</span> <span class="s1">&#39;F&#39;</span><span class="p">,</span>
+        <span class="n">float64</span><span class="p">:</span> <span class="s1">&#39;&#39;</span><span class="p">,</span>
+        <span class="n">float80</span><span class="p">:</span> <span class="s1">&#39;L&#39;</span>
+    <span class="p">}</span>
+
+    <span class="n">type_math_macro_suffixes</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="n">float80</span><span class="p">:</span> <span class="s1">&#39;l&#39;</span>
+    <span class="p">}</span>
+
+    <span class="n">math_macros</span> <span class="o">=</span> <span class="kc">None</span>
+
     <span class="n">_ns</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>  <span class="c1"># namespace, C++ uses &#39;std::&#39;</span>
     <span class="n">_kf</span> <span class="o">=</span> <span class="n">known_functions_C89</span>  <span class="c1"># known_functions-dict to copy</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">settings</span><span class="o">=</span><span class="p">{}):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">math_macros</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">math_macros</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;math_macros&#39;</span><span class="p">,</span> <span class="n">get_math_macros</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">type_aliases</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">chain</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">type_aliases</span><span class="o">.</span><span class="n">items</span><span class="p">(),</span>
+                                       <span class="n">settings</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;type_aliases&#39;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">type_mappings</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">chain</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">type_mappings</span><span class="o">.</span><span class="n">items</span><span class="p">(),</span>
+                                        <span class="n">settings</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;type_mappings&#39;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">type_headers</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">chain</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">type_headers</span><span class="o">.</span><span class="n">items</span><span class="p">(),</span>
+                                       <span class="n">settings</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;type_headers&#39;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">type_macros</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">chain</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">type_macros</span><span class="o">.</span><span class="n">items</span><span class="p">(),</span>
+                                       <span class="n">settings</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;type_macros&#39;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">type_func_suffixes</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">chain</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">type_func_suffixes</span><span class="o">.</span><span class="n">items</span><span class="p">(),</span>
+                                        <span class="n">settings</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;type_func_suffixes&#39;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">type_literal_suffixes</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">chain</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">type_literal_suffixes</span><span class="o">.</span><span class="n">items</span><span class="p">(),</span>
+                                        <span class="n">settings</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;type_literal_suffixes&#39;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">type_math_macro_suffixes</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">chain</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">type_math_macro_suffixes</span><span class="o">.</span><span class="n">items</span><span class="p">(),</span>
+                                        <span class="n">settings</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;type_math_macro_suffixes&#39;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()))</span>
         <span class="nb">super</span><span class="p">(</span><span class="n">C89CodePrinter</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">settings</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">known_functions</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_kf</span><span class="p">,</span> <span class="o">**</span><span class="n">settings</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;user_functions&#39;</span><span class="p">,</span> <span class="p">{}))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_dereference</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">settings</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dereference&#39;</span><span class="p">,</span> <span class="p">[]))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">headers</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">libraries</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">macros</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
 
     <span class="k">def</span> <span class="nf">_rate_index_position</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">p</span><span class="o">*</span><span class="mi">5</span>
@@ -199,7 +295,10 @@
         <span class="k">return</span> <span class="s2">&quot;// </span><span class="si">{0}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">_declare_number_const</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
-        <span class="k">return</span> <span class="s2">&quot;double const </span><span class="si">{0}</span><span class="s2"> = </span><span class="si">{1}</span><span class="s2">;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+        <span class="n">type_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">type_aliases</span><span class="p">[</span><span class="n">real</span><span class="p">]</span>
+        <span class="n">var</span> <span class="o">=</span> <span class="n">Variable</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="p">{</span><span class="n">value_const</span><span class="p">},</span> <span class="n">type_</span><span class="p">)</span>
+        <span class="n">decl</span> <span class="o">=</span> <span class="n">Declaration</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">value</span><span class="o">.</span><span class="n">evalf</span><span class="p">(</span><span class="n">type_</span><span class="o">.</span><span class="n">decimal_dig</span><span class="p">))</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_statement</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">decl</span><span class="p">))</span>
 
     <span class="k">def</span> <span class="nf">_format_code</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lines</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">indent_code</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span>
@@ -208,23 +307,30 @@
         <span class="n">rows</span><span class="p">,</span> <span class="n">cols</span> <span class="o">=</span> <span class="n">mat</span><span class="o">.</span><span class="n">shape</span>
         <span class="k">return</span> <span class="p">((</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">rows</span><span class="p">)</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">cols</span><span class="p">))</span>
 
+    <span class="nd">@_as_macro_if_defined</span>
+    <span class="k">def</span> <span class="nf">_print_Mul</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">C89CodePrinter</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_print_Mul</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+
+    <span class="nd">@_as_macro_if_defined</span>
     <span class="k">def</span> <span class="nf">_print_Pow</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
         <span class="k">if</span> <span class="s2">&quot;Pow&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">known_functions</span><span class="p">:</span>
             <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print_Function</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
         <span class="n">PREC</span> <span class="o">=</span> <span class="n">precedence</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+        <span class="n">suffix</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_func_suffix</span><span class="p">(</span><span class="n">real</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">exp</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span><span class="p">:</span>
-            <span class="k">return</span> <span class="s1">&#39;1.0/</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parenthesize</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">base</span><span class="p">,</span> <span class="n">PREC</span><span class="p">))</span>
+            <span class="k">return</span> <span class="s1">&#39;1.0</span><span class="si">%s</span><span class="s1">/</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">suffix</span><span class="o">.</span><span class="n">upper</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">parenthesize</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">base</span><span class="p">,</span> <span class="n">PREC</span><span class="p">))</span>
         <span class="k">elif</span> <span class="n">expr</span><span class="o">.</span><span class="n">exp</span> <span class="o">==</span> <span class="mf">0.5</span><span class="p">:</span>
-            <span class="k">return</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1">sqrt(</span><span class="si">%s</span><span class="s1">)&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_ns</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">base</span><span class="p">))</span>
+            <span class="k">return</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1">sqrt</span><span class="si">%s</span><span class="s1">(</span><span class="si">%s</span><span class="s1">)&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_ns</span><span class="p">,</span> <span class="n">suffix</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">base</span><span class="p">))</span>
         <span class="k">elif</span> <span class="n">expr</span><span class="o">.</span><span class="n">exp</span> <span class="o">==</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="o">/</span><span class="mi">3</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">standard</span> <span class="o">!=</span> <span class="s1">&#39;C89&#39;</span><span class="p">:</span>
-            <span class="k">return</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1">cbrt(</span><span class="si">%s</span><span class="s1">)&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_ns</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">base</span><span class="p">))</span>
+            <span class="k">return</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1">cbrt</span><span class="si">%s</span><span class="s1">(</span><span class="si">%s</span><span class="s1">)&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_ns</span><span class="p">,</span> <span class="n">suffix</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">base</span><span class="p">))</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1">pow(</span><span class="si">%s</span><span class="s1">, </span><span class="si">%s</span><span class="s1">)&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_ns</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">base</span><span class="p">),</span>
+            <span class="k">return</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1">pow</span><span class="si">%s</span><span class="s1">(</span><span class="si">%s</span><span class="s1">, </span><span class="si">%s</span><span class="s1">)&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_ns</span><span class="p">,</span> <span class="n">suffix</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">base</span><span class="p">),</span>
                                    <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">exp</span><span class="p">))</span>
 
     <span class="k">def</span> <span class="nf">_print_Rational</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
         <span class="n">p</span><span class="p">,</span> <span class="n">q</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">p</span><span class="p">),</span> <span class="nb">int</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">q</span><span class="p">)</span>
-        <span class="k">return</span> <span class="s1">&#39;</span><span class="si">%d</span><span class="s1">.0L/</span><span class="si">%d</span><span class="s1">.0L&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">q</span><span class="p">)</span>
+        <span class="n">suffix</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_literal_suffix</span><span class="p">(</span><span class="n">real</span><span class="p">)</span>
+        <span class="k">return</span> <span class="s1">&#39;</span><span class="si">%d</span><span class="s1">.0</span><span class="si">%s</span><span class="s1">/</span><span class="si">%d</span><span class="s1">.0</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">suffix</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="n">suffix</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">_print_Indexed</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
         <span class="c1"># calculate index for 1d array</span>
@@ -232,7 +338,7 @@
         <span class="n">strides</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">base</span><span class="p">,</span> <span class="s1">&#39;strides&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
         <span class="n">indices</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">indices</span>
 
-        <span class="k">if</span> <span class="n">strides</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">strides</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">strides</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">strides</span><span class="p">,</span> <span class="n">string_types</span><span class="p">):</span>
             <span class="n">dims</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">shape</span>
             <span class="n">shift</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span>
             <span class="n">temp</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">()</span>
@@ -252,11 +358,9 @@
     <span class="k">def</span> <span class="nf">_print_Idx</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">label</span><span class="p">)</span>
 
-    <span class="k">def</span> <span class="nf">_print_Exp1</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
-        <span class="k">return</span> <span class="s2">&quot;M_E&quot;</span>
-
-    <span class="k">def</span> <span class="nf">_print_Pi</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
-        <span class="k">return</span> <span class="s1">&#39;M_PI&#39;</span>
+    <span class="nd">@_as_macro_if_defined</span>
+    <span class="k">def</span> <span class="nf">_print_NumberSymbol</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">C89CodePrinter</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_print_NumberSymbol</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">_print_Infinity</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
         <span class="k">return</span> <span class="s1">&#39;HUGE_VAL&#39;</span>
@@ -330,7 +434,8 @@
         <span class="n">lhs_code</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">lhs</span><span class="p">)</span>
         <span class="n">op</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">rel_op</span>
         <span class="n">rhs_code</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">rhs</span><span class="p">)</span>
-        <span class="k">return</span> <span class="s2">&quot;</span><span class="si">{0}</span><span class="s2"> </span><span class="si">{1}</span><span class="s2"> </span><span class="si">{2}</span><span class="s2">;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">lhs_code</span><span class="p">,</span> <span class="n">op</span><span class="p">,</span> <span class="n">rhs_code</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_statement</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">{0}</span><span class="s2"> </span><span class="si">{1}</span><span class="s2"> </span><span class="si">{2}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="o">*</span><span class="nb">map</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">,</span> <span class="p">[</span><span class="n">lhs_code</span><span class="p">,</span> <span class="n">op</span><span class="p">,</span> <span class="n">rhs_code</span><span class="p">])))</span>
 
     <span class="k">def</span> <span class="nf">_print_For</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
         <span class="n">target</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">target</span><span class="p">)</span>
@@ -389,7 +494,74 @@
             <span class="n">level</span> <span class="o">-=</span> <span class="n">decrease</span><span class="p">[</span><span class="n">n</span><span class="p">]</span>
             <span class="n">pretty</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">tab</span><span class="o">*</span><span class="n">level</span><span class="p">,</span> <span class="n">line</span><span class="p">))</span>
             <span class="n">level</span> <span class="o">+=</span> <span class="n">increase</span><span class="p">[</span><span class="n">n</span><span class="p">]</span>
-        <span class="k">return</span> <span class="n">pretty</span></div></div>
+        <span class="k">return</span> <span class="n">pretty</span></div>
+
+    <span class="k">def</span> <span class="nf">_get_func_suffix</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">type_</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">type_func_suffixes</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">type_aliases</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">type_</span><span class="p">,</span> <span class="n">type_</span><span class="p">)]</span>
+
+    <span class="k">def</span> <span class="nf">_get_literal_suffix</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">type_</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">type_literal_suffixes</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">type_aliases</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">type_</span><span class="p">,</span> <span class="n">type_</span><span class="p">)]</span>
+
+    <span class="k">def</span> <span class="nf">_get_math_macro_suffix</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">type_</span><span class="p">):</span>
+        <span class="n">alias</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">type_aliases</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">type_</span><span class="p">,</span> <span class="n">type_</span><span class="p">)</span>
+        <span class="n">dflt</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">type_math_macro_suffixes</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">alias</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">type_math_macro_suffixes</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">type_</span><span class="p">,</span> <span class="n">dflt</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_print_Type</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">type_</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">headers</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">type_headers</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">type_</span><span class="p">,</span> <span class="nb">set</span><span class="p">()))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">macros</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">type_macros</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">type_</span><span class="p">,</span> <span class="nb">set</span><span class="p">()))</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">type_mappings</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">type_</span><span class="p">,</span> <span class="n">type_</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_print_Declaration</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">sympy.codegen.cfunctions</span> <span class="k">import</span> <span class="n">restrict</span>
+        <span class="n">var</span><span class="p">,</span> <span class="n">val</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">variable</span><span class="p">,</span> <span class="n">expr</span><span class="o">.</span><span class="n">value</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">Pointer</span><span class="p">):</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">{vc}{t}</span><span class="s1"> *</span><span class="si">{pc}</span><span class="s1"> </span><span class="si">{r}{s}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="n">vc</span><span class="o">=</span><span class="s1">&#39;const &#39;</span> <span class="k">if</span> <span class="n">var</span><span class="o">.</span><span class="n">value_const</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span><span class="p">,</span>
+                <span class="n">t</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">var</span><span class="o">.</span><span class="n">type</span><span class="p">),</span>
+                <span class="n">pc</span><span class="o">=</span><span class="s1">&#39; const&#39;</span> <span class="k">if</span> <span class="n">var</span><span class="o">.</span><span class="n">pointer_const</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span><span class="p">,</span>
+                <span class="n">r</span><span class="o">=</span><span class="s1">&#39;restrict &#39;</span> <span class="k">if</span> <span class="n">var</span><span class="o">.</span><span class="n">attributes</span><span class="o">.</span><span class="n">contains</span><span class="p">(</span><span class="n">restrict</span><span class="p">)</span> <span class="o">==</span> <span class="kc">True</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span><span class="p">,</span>
+                <span class="n">s</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">var</span><span class="o">.</span><span class="n">symbol</span><span class="p">)</span>
+            <span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">Variable</span><span class="p">):</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">{vc}{t}</span><span class="s1"> </span><span class="si">{s}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="n">vc</span><span class="o">=</span><span class="s1">&#39;const &#39;</span> <span class="k">if</span> <span class="n">var</span><span class="o">.</span><span class="n">value_const</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span><span class="p">,</span>
+                <span class="n">t</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">var</span><span class="o">.</span><span class="n">type</span><span class="p">),</span>
+                <span class="n">s</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">var</span><span class="o">.</span><span class="n">symbol</span><span class="p">)</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Unknown type of var: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="nb">type</span><span class="p">(</span><span class="n">var</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">val</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">result</span> <span class="o">+=</span> <span class="s1">&#39; = </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">result</span>
+
+    <span class="k">def</span> <span class="nf">_print_Variable</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">symbol</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_print_Pointer</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">symbol</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_print_Float</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">flt</span><span class="p">):</span>
+        <span class="n">type_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">type_aliases</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">real</span><span class="p">,</span> <span class="n">real</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">macros</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">type_macros</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">type_</span><span class="p">,</span> <span class="nb">set</span><span class="p">()))</span>
+        <span class="n">suffix</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_literal_suffix</span><span class="p">(</span><span class="n">type_</span><span class="p">)</span>
+        <span class="n">num</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">flt</span><span class="o">.</span><span class="n">evalf</span><span class="p">(</span><span class="n">type_</span><span class="o">.</span><span class="n">decimal_dig</span><span class="p">))</span>
+        <span class="k">if</span> <span class="s1">&#39;e&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">num</span> <span class="ow">and</span> <span class="s1">&#39;.&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">num</span><span class="p">:</span>
+            <span class="n">num</span> <span class="o">+=</span> <span class="s1">&#39;.0&#39;</span>
+        <span class="n">num_parts</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;e&#39;</span><span class="p">)</span>
+        <span class="n">num_parts</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">num_parts</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s1">&#39;0&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">num_parts</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">):</span>
+            <span class="n">num_parts</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+=</span> <span class="s1">&#39;0&#39;</span>
+        <span class="k">return</span> <span class="s1">&#39;e&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">num_parts</span><span class="p">)</span> <span class="o">+</span> <span class="n">suffix</span>
+
+    <span class="nd">@requires</span><span class="p">(</span><span class="n">headers</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;stdbool.h&#39;</span><span class="p">})</span>
+    <span class="k">def</span> <span class="nf">_print_BooleanTrue</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s1">&#39;true&#39;</span>
+
+    <span class="nd">@requires</span><span class="p">(</span><span class="n">headers</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;stdbool.h&#39;</span><span class="p">})</span>
+    <span class="k">def</span> <span class="nf">_print_BooleanFalse</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s1">&#39;false&#39;</span></div>
+
 
 
 <span class="k">class</span> <span class="nc">_C9XCodePrinter</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
@@ -425,23 +597,22 @@
 <div class="viewcode-block" id="C99CodePrinter"><a class="viewcode-back" href="../../../modules/printing.html#sympy.printing.ccode.C99CodePrinter">[docs]</a><span class="k">class</span> <span class="nc">C99CodePrinter</span><span class="p">(</span><span class="n">_C9XCodePrinter</span><span class="p">,</span> <span class="n">C89CodePrinter</span><span class="p">):</span>
     <span class="n">standard</span> <span class="o">=</span> <span class="s1">&#39;C99&#39;</span>
     <span class="n">reserved_words</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">reserved_words</span> <span class="o">+</span> <span class="n">reserved_words_c99</span><span class="p">)</span>
+    <span class="n">type_mappings</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span><span class="n">chain</span><span class="p">(</span><span class="n">C89CodePrinter</span><span class="o">.</span><span class="n">type_mappings</span><span class="o">.</span><span class="n">items</span><span class="p">(),</span> <span class="p">{</span>
+        <span class="n">complex64</span><span class="p">:</span> <span class="s1">&#39;float complex&#39;</span><span class="p">,</span>
+        <span class="n">complex128</span><span class="p">:</span> <span class="s1">&#39;double complex&#39;</span><span class="p">,</span>
+    <span class="p">}</span><span class="o">.</span><span class="n">items</span><span class="p">()))</span>
+    <span class="n">type_headers</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">chain</span><span class="p">(</span><span class="n">C89CodePrinter</span><span class="o">.</span><span class="n">type_headers</span><span class="o">.</span><span class="n">items</span><span class="p">(),</span> <span class="p">{</span>
+        <span class="n">complex64</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;complex.h&#39;</span><span class="p">},</span>
+        <span class="n">complex128</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;complex.h&#39;</span><span class="p">}</span>
+    <span class="p">}</span><span class="o">.</span><span class="n">items</span><span class="p">()))</span>
     <span class="n">_kf</span> <span class="o">=</span> <span class="n">known_functions_C99</span>  <span class="c1"># known_functions-dict to copy</span>
 
-    <span class="k">def</span> <span class="nf">_print_Max</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
-        <span class="k">if</span> <span class="s2">&quot;Max&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">known_functions</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print_Function</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
-        <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Max</span>
-        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
-        <span class="k">return</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">fmax(</span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_ns</span><span class="p">,</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">Max</span><span class="p">(</span><span class="o">*</span><span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">:])))</span>
-
-    <span class="k">def</span> <span class="nf">_print_Min</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
-        <span class="k">if</span> <span class="s2">&quot;Min&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">known_functions</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print_Function</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
-        <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Min</span>
-        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
-        <span class="k">return</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">fmin(</span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_ns</span><span class="p">,</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">Min</span><span class="p">(</span><span class="o">*</span><span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">:])))</span>
+    <span class="c1"># functions with versions with &#39;f&#39; and &#39;l&#39; suffixes:</span>
+    <span class="n">_prec_funcs</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;fabs fmod remainder remquo fma fmax fmin fdim nan exp exp2&#39;</span>
+                   <span class="s1">&#39; expm1 log log10 log2 log1p pow sqrt cbrt hypot sin cos tan&#39;</span>
+                   <span class="s1">&#39; asin acos atan atan2 sinh cosh tanh asinh acosh atanh erf&#39;</span>
+                   <span class="s1">&#39; erfc tgamma lgamma ceil floor trunc round nearbyint rint&#39;</span>
+                   <span class="s1">&#39; frexp ldexp modf scalbn ilogb logb nextafter copysign&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
 
     <span class="k">def</span> <span class="nf">_print_Infinity</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
         <span class="k">return</span> <span class="s1">&#39;INFINITY&#39;</span>
@@ -452,38 +623,44 @@
     <span class="k">def</span> <span class="nf">_print_NaN</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
         <span class="k">return</span> <span class="s1">&#39;NAN&#39;</span>
 
-    <span class="k">def</span> <span class="nf">_print_fma</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>  <span class="c1"># fused mutiply-add</span>
-        <span class="k">return</span> <span class="s1">&#39;</span><span class="si">{0}</span><span class="s1">fma(</span><span class="si">{1}</span><span class="s1">, </span><span class="si">{2}</span><span class="s1">, </span><span class="si">{3}</span><span class="s1">)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_ns</span><span class="p">,</span> <span class="o">*</span><span class="nb">map</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">,</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">))</span>
-
-    <span class="k">def</span> <span class="nf">_print_log10</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>  <span class="c1"># log10 in C89, but type-generic macro in C99</span>
-        <span class="k">return</span> <span class="s1">&#39;</span><span class="si">{0}</span><span class="s1">log10(</span><span class="si">{1}</span><span class="s1">)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_ns</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
-
-    <span class="k">def</span> <span class="nf">_print_Sqrt</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
-        <span class="k">return</span> <span class="s1">&#39;</span><span class="si">{0}</span><span class="s1">sqrt(</span><span class="si">{1}</span><span class="s1">)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_ns</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
-
-    <span class="k">def</span> <span class="nf">_print_Cbrt</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
-        <span class="k">return</span> <span class="s1">&#39;</span><span class="si">{0}</span><span class="s1">cbrt(</span><span class="si">{1}</span><span class="s1">)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_ns</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
-
-    <span class="k">def</span> <span class="nf">_print_hypot</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
-        <span class="k">return</span> <span class="s1">&#39;</span><span class="si">{0}</span><span class="s1">hypot(</span><span class="si">{1}</span><span class="s1">, </span><span class="si">{2}</span><span class="s1">)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_ns</span><span class="p">,</span> <span class="o">*</span><span class="nb">map</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">,</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">))</span>
-
-    <span class="k">def</span> <span class="nf">_print_expm1</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
-        <span class="k">return</span> <span class="s1">&#39;</span><span class="si">{0}</span><span class="s1">expm1(</span><span class="si">{1}</span><span class="s1">)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_ns</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
-
-    <span class="k">def</span> <span class="nf">_print_log1p</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
-        <span class="k">return</span> <span class="s1">&#39;</span><span class="si">{0}</span><span class="s1">log1p(</span><span class="si">{1}</span><span class="s1">)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_ns</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
-
-    <span class="k">def</span> <span class="nf">_print_exp2</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
-        <span class="k">return</span> <span class="s1">&#39;</span><span class="si">{0}</span><span class="s1">exp2(</span><span class="si">{1}</span><span class="s1">)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_ns</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
-
-    <span class="k">def</span> <span class="nf">_print_log2</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
-        <span class="k">return</span> <span class="s1">&#39;</span><span class="si">{0}</span><span class="s1">log2(</span><span class="si">{1}</span><span class="s1">)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_ns</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
-
-    <span class="k">def</span> <span class="nf">_print_loggamma</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
-        <span class="k">return</span> <span class="s1">&#39;</span><span class="si">{0}</span><span class="s1">lgamma(</span><span class="si">{1}</span><span class="s1">)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_ns</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span></div>
-
     <span class="c1"># tgamma was already covered by &#39;known_functions&#39; dict</span>
 
+    <span class="nd">@requires</span><span class="p">(</span><span class="n">headers</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;math.h&#39;</span><span class="p">},</span> <span class="n">libraries</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;m&#39;</span><span class="p">})</span>
+    <span class="nd">@_as_macro_if_defined</span>
+    <span class="k">def</span> <span class="nf">_print_math_func</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">nest</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="n">known</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">known_functions</span><span class="p">[</span><span class="n">expr</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">]</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">known</span><span class="p">,</span> <span class="n">string_types</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">cb</span><span class="p">,</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">known</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">cb</span><span class="p">(</span><span class="o">*</span><span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">):</span>
+                    <span class="n">known</span> <span class="o">=</span> <span class="n">name</span>
+                    <span class="k">break</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;No matching printer&quot;</span><span class="p">)</span>
+        <span class="n">suffix</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_func_suffix</span><span class="p">(</span><span class="n">real</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ns</span> <span class="o">+</span> <span class="n">known</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_prec_funcs</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span>
+        <span class="k">if</span> <span class="n">nest</span><span class="p">:</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">args</span> <span class="o">+=</span> <span class="s1">&#39;, </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">:]))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">,</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">))</span>
+        <span class="k">return</span> <span class="s1">&#39;</span><span class="si">{ns}{name}{suffix}</span><span class="s1">(</span><span class="si">{args}</span><span class="s1">)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="n">ns</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_ns</span><span class="p">,</span>
+            <span class="n">name</span><span class="o">=</span><span class="n">known</span><span class="p">,</span>
+            <span class="n">suffix</span><span class="o">=</span><span class="n">suffix</span><span class="p">,</span>
+            <span class="n">args</span><span class="o">=</span><span class="n">args</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_print_Max</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print_math_func</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">nest</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_print_Min</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print_math_func</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">nest</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></div>
+
+
+<span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;Abs Sqrt exp exp2 expm1 log log10 log2 log1p Cbrt hypot fma &#39;</span>
+          <span class="s1">&#39; loggamma sin cos tan asin acos atan atan2 sinh cosh tanh asinh acosh &#39;</span>
+          <span class="s1">&#39;atanh erf erfc loggamma gamma ceiling floor&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">():</span>
+    <span class="nb">setattr</span><span class="p">(</span><span class="n">C99CodePrinter</span><span class="p">,</span> <span class="s1">&#39;_print_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">k</span><span class="p">,</span> <span class="n">C99CodePrinter</span><span class="o">.</span><span class="n">_print_math_func</span><span class="p">)</span>
 
 <span class="n">c_code_printers</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s1">&#39;c89&#39;</span><span class="p">:</span> <span class="n">C89CodePrinter</span><span class="p">,</span>
@@ -509,7 +686,7 @@
 <span class="sd">        standard you may set this to &#39;c99&#39; to allow the printer to use more math</span>
 <span class="sd">        functions. [default=&#39;c89&#39;].</span>
 <span class="sd">    precision : integer, optional</span>
-<span class="sd">        The precision for numbers such as pi [default=15].</span>
+<span class="sd">        The precision for numbers such as pi [default=17].</span>
 <span class="sd">    user_functions : dict, optional</span>
 <span class="sd">        A dictionary where the keys are string representations of either</span>
 <span class="sd">        ``FunctionClass`` or ``UndefinedFunction`` instances and the values</span>
@@ -539,10 +716,16 @@
 
 <span class="sd">    &gt;&gt;&gt; from sympy import ccode, symbols, Rational, sin, ceiling, Abs, Function</span>
 <span class="sd">    &gt;&gt;&gt; x, tau = symbols(&quot;x, tau&quot;)</span>
-<span class="sd">    &gt;&gt;&gt; ccode((2*tau)**Rational(7, 2), standard=&#39;C89&#39;)</span>
-<span class="sd">    &#39;8*sqrt(2)*pow(tau, 7.0L/2.0L)&#39;</span>
-<span class="sd">    &gt;&gt;&gt; ccode(sin(x), assign_to=&quot;s&quot;, standard=&#39;C89&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; expr = (2*tau)**Rational(7, 2)</span>
+<span class="sd">    &gt;&gt;&gt; ccode(expr)</span>
+<span class="sd">    &#39;8*M_SQRT2*pow(tau, 7.0/2.0)&#39;</span>
+<span class="sd">    &gt;&gt;&gt; ccode(expr, math_macros={})</span>
+<span class="sd">    &#39;8*sqrt(2)*pow(tau, 7.0/2.0)&#39;</span>
+<span class="sd">    &gt;&gt;&gt; ccode(sin(x), assign_to=&quot;s&quot;)</span>
 <span class="sd">    &#39;s = sin(x);&#39;</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.codegen.ast import real, float80</span>
+<span class="sd">    &gt;&gt;&gt; ccode(expr, type_aliases={real: float80})</span>
+<span class="sd">    &#39;8*M_SQRT2l*powl(tau, 7.0L/2.0L)&#39;</span>
 
 <span class="sd">    Simple custom printing can be defined for certain types by passing a</span>
 <span class="sd">    dictionary of {&quot;type&quot; : &quot;function&quot;} to the ``user_functions`` kwarg.</span>

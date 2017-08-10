@@ -146,10 +146,11 @@ example that shows the use of <code class="docutils literal"><span class="pre">A
 <span class="go">-Z⋅e ⋅k</span>
 <span class="go">────────</span>
 <span class="go">  2⋅r</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">ccode</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">standard</span><span class="o">=</span><span class="s1">&#39;C99&#39;</span><span class="p">)</span>
-<span class="go">-1.0L/2.0L*Z*pow(e, 2)*k/r</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">ccode</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assign_to</span><span class="o">=</span><span class="s2">&quot;E&quot;</span><span class="p">,</span> <span class="n">standard</span><span class="o">=</span><span class="s1">&#39;C99&#39;</span><span class="p">)</span>
-<span class="go">E = -1.0L/2.0L*Z*pow(e, 2)*k/r;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">ccode</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+<span class="go">-1.0/2.0*Z*pow(e, 2)*k/r</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.codegen.ast</span> <span class="k">import</span> <span class="n">real</span><span class="p">,</span> <span class="n">float80</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">ccode</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assign_to</span><span class="o">=</span><span class="s2">&quot;E&quot;</span><span class="p">,</span> <span class="n">type_aliases</span><span class="o">=</span><span class="p">{</span><span class="n">real</span><span class="p">:</span> <span class="n">float80</span><span class="p">})</span>
+<span class="go">E = -1.0L/2.0L*Z*powl(e, 2)*k/r;</span>
 </pre></div>
 </div>
 <p>To generate code with some math functions provided by e.g. the C99 standard we need
@@ -912,6 +913,701 @@ as a SymPy function for symbolic manipulation.</p>
 </dd></dl>
 
 </div>
+<div class="section" id="module-sympy.codegen.ast">
+<span id="classes-for-abstract-syntax-trees-sympy-codegen-ast"></span><h2>Classes for abstract syntax trees (sympy.codegen.ast)<a class="headerlink" href="#module-sympy.codegen.ast" title="Permalink to this headline">¶</a></h2>
+<p>Types used to represent a full function/module as an Abstract Syntax Tree.</p>
+<p>Most types are small, and are merely used as tokens in the AST. A tree diagram
+has been included below to illustrate the relationships between the AST types.</p>
+<div class="section" id="ast-type-tree">
+<h3>AST Type Tree<a class="headerlink" href="#ast-type-tree" title="Permalink to this headline">¶</a></h3>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="o">*</span><span class="n">Basic</span><span class="o">*</span>
+     <span class="o">|---&gt;</span><span class="n">Assignment</span>
+     <span class="o">|</span>             <span class="o">|---&gt;</span><span class="n">AugmentedAssignment</span>
+     <span class="o">|</span>                                    <span class="o">|---&gt;</span><span class="n">AddAugmentedAssignment</span>
+     <span class="o">|</span>                                    <span class="o">|---&gt;</span><span class="n">SubAugmentedAssignment</span>
+     <span class="o">|</span>                                    <span class="o">|---&gt;</span><span class="n">MulAugmentedAssignment</span>
+     <span class="o">|</span>                                    <span class="o">|---&gt;</span><span class="n">DivAugmentedAssignment</span>
+     <span class="o">|</span>                                    <span class="o">|---&gt;</span><span class="n">ModAugmentedAssignment</span>
+     <span class="o">|</span>
+     <span class="o">|---&gt;</span><span class="n">CodeBlock</span>
+     <span class="o">|</span>
+     <span class="o">|---&gt;</span><span class="n">For</span>
+     <span class="o">|</span>
+     <span class="o">|---&gt;</span><span class="n">Token</span>
+     <span class="o">|</span>        <span class="o">|---&gt;</span><span class="n">Attribute</span>
+     <span class="o">|</span>        <span class="o">|---&gt;</span><span class="n">Type</span>
+     <span class="o">|</span>                <span class="o">|---&gt;</span><span class="n">IntBaseType</span>
+     <span class="o">|</span>                <span class="o">|</span>              <span class="o">|---&gt;</span><span class="n">_SizedIntType</span>
+     <span class="o">|</span>                <span class="o">|</span>                               <span class="o">|---&gt;</span><span class="n">SignedIntType</span>
+     <span class="o">|</span>                <span class="o">|</span>                               <span class="o">|---&gt;</span><span class="n">UnsignedIntType</span>
+     <span class="o">|</span>                <span class="o">|---&gt;</span><span class="n">FloatType</span>
+     <span class="o">|</span>                             <span class="o">|---&gt;</span><span class="n">ComplexType</span>
+     <span class="o">|</span>
+     <span class="o">|---&gt;</span><span class="n">Variable</span>
+     <span class="o">|</span>           <span class="o">|---&gt;</span> <span class="n">Pointer</span>
+     <span class="o">|</span>
+     <span class="o">|---&gt;</span><span class="n">Declaration</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="predefined-types">
+<h3>Predefined types<a class="headerlink" href="#predefined-types" title="Permalink to this headline">¶</a></h3>
+<p>A number of <code class="docutils literal"><span class="pre">Type</span></code> instances are provided in the <code class="docutils literal"><span class="pre">sympy.codegen.ast</span></code> module
+for convenience. Perhaps the two most common ones for code-generation (of numeric
+codes) are <code class="docutils literal"><span class="pre">float32</span></code> and <code class="docutils literal"><span class="pre">float64</span></code> (known as single and double precision respectively).
+There are also precision generic versions of Types (for which the codeprinters selects the
+underlying data type at time of printing): <code class="docutils literal"><span class="pre">real</span></code>, <code class="docutils literal"><span class="pre">integer</span></code>, <code class="docutils literal"><span class="pre">complex_</span></code>, <code class="docutils literal"><span class="pre">bool_</span></code>.</p>
+<p>The other <code class="docutils literal"><span class="pre">Type</span></code> instances defined are:</p>
+<ul class="simple">
+<li><code class="docutils literal"><span class="pre">intc</span></code>: Integer type used by C’s “int”.</li>
+<li><code class="docutils literal"><span class="pre">intp</span></code>: Integer type used by C’s “unsigned”.</li>
+<li><code class="docutils literal"><span class="pre">int8</span></code>, <code class="docutils literal"><span class="pre">int16</span></code>, <code class="docutils literal"><span class="pre">int32</span></code>, <code class="docutils literal"><span class="pre">int64</span></code>: n-bit integers.</li>
+<li><code class="docutils literal"><span class="pre">uint8</span></code>, <code class="docutils literal"><span class="pre">uint16</span></code>, <code class="docutils literal"><span class="pre">uint32</span></code>, <code class="docutils literal"><span class="pre">uint64</span></code>: n-bit unsigned integers.</li>
+<li><code class="docutils literal"><span class="pre">float80</span></code>: known as “extended precision” on modern x86/amd64 hardware.</li>
+<li><code class="docutils literal"><span class="pre">complex64</span></code>: Complex number represented by two <code class="docutils literal"><span class="pre">float32</span></code> numbers</li>
+<li><code class="docutils literal"><span class="pre">complex128</span></code>: Complex number represented by two <code class="docutils literal"><span class="pre">float64</span></code> numbers</li>
+</ul>
+<dl class="class">
+<dt id="sympy.codegen.ast.Assignment">
+<em class="property">class </em><code class="descclassname">sympy.codegen.ast.</code><code class="descname">Assignment</code><a class="reference internal" href="../_modules/sympy/codegen/ast.html#Assignment"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.codegen.ast.Assignment" title="Permalink to this definition">¶</a></dt>
+<dd><p>Represents variable assignment for code generation.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>lhs</strong> : Expr</p>
+<blockquote>
+<div><p>Sympy object representing the lhs of the expression. These should be
+singular objects, such as one would use in writing code. Notable types
+include Symbol, MatrixSymbol, MatrixElement, and Indexed. Types that
+subclass these types are also supported.</p>
+</div></blockquote>
+<p><strong>rhs</strong> : Expr</p>
+<blockquote class="last">
+<div><p>Sympy object representing the rhs of the expression. This can be any
+type, provided its shape corresponds to that of the lhs. For example,
+a Matrix type can be assigned to MatrixSymbol, but not to Symbol, as
+the dimensions will not align.</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Examples</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">symbols</span><span class="p">,</span> <span class="n">MatrixSymbol</span><span class="p">,</span> <span class="n">Matrix</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.codegen.ast</span> <span class="k">import</span> <span class="n">Assignment</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span> <span class="o">=</span> <span class="n">symbols</span><span class="p">(</span><span class="s1">&#39;x, y, z&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">Assignment</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+<span class="go">Assignment(x, y)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">Assignment</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+<span class="go">Assignment(x, 0)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">A</span> <span class="o">=</span> <span class="n">MatrixSymbol</span><span class="p">(</span><span class="s1">&#39;A&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">mat</span> <span class="o">=</span> <span class="n">Matrix</span><span class="p">([</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">])</span><span class="o">.</span><span class="n">T</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">Assignment</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">mat</span><span class="p">)</span>
+<span class="go">Assignment(A, Matrix([[x, y, z]]))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">Assignment</span><span class="p">(</span><span class="n">A</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">x</span><span class="p">)</span>
+<span class="go">Assignment(A[0, 1], x)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="class">
+<dt id="sympy.codegen.ast.Attribute">
+<em class="property">class </em><code class="descclassname">sympy.codegen.ast.</code><code class="descname">Attribute</code><a class="reference internal" href="../_modules/sympy/codegen/ast.html#Attribute"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.codegen.ast.Attribute" title="Permalink to this definition">¶</a></dt>
+<dd><p>Variable attribute</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="sympy.codegen.ast.AugmentedAssignment">
+<em class="property">class </em><code class="descclassname">sympy.codegen.ast.</code><code class="descname">AugmentedAssignment</code><a class="reference internal" href="../_modules/sympy/codegen/ast.html#AugmentedAssignment"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.codegen.ast.AugmentedAssignment" title="Permalink to this definition">¶</a></dt>
+<dd><p>Base class for augmented assignments</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="sympy.codegen.ast.CodeBlock">
+<em class="property">class </em><code class="descclassname">sympy.codegen.ast.</code><code class="descname">CodeBlock</code><a class="reference internal" href="../_modules/sympy/codegen/ast.html#CodeBlock"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.codegen.ast.CodeBlock" title="Permalink to this definition">¶</a></dt>
+<dd><p>Represents a block of code</p>
+<p>For now only assignments are supported. This restriction will be lifted in
+the future.</p>
+<p>Useful methods on this object are</p>
+<dl class="docutils">
+<dt><code class="docutils literal"><span class="pre">left_hand_sides</span></code>:</dt>
+<dd>Tuple of left-hand sides of assignments, in order.</dd>
+<dt><code class="docutils literal"><span class="pre">left_hand_sides</span></code>:</dt>
+<dd>Tuple of right-hand sides of assignments, in order.</dd>
+<dt><code class="docutils literal"><span class="pre">topological_sort</span></code>:</dt>
+<dd>Class method. Return a CodeBlock with assignments
+sorted so that variables are assigned before they
+are used.</dd>
+<dt><code class="docutils literal"><span class="pre">cse</span></code>:</dt>
+<dd>Return a new CodeBlock with common subexpressions eliminated and
+pulled out as assignments.</dd>
+</dl>
+<p class="rubric">Example</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">symbols</span><span class="p">,</span> <span class="n">ccode</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.codegen.ast</span> <span class="k">import</span> <span class="n">CodeBlock</span><span class="p">,</span> <span class="n">Assignment</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">symbols</span><span class="p">(</span><span class="s1">&#39;x y&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">c</span> <span class="o">=</span> <span class="n">CodeBlock</span><span class="p">(</span><span class="n">Assignment</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">Assignment</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">x</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="n">ccode</span><span class="p">(</span><span class="n">c</span><span class="p">))</span>
+<span class="go">x = 1;</span>
+<span class="go">y = x + 1;</span>
+</pre></div>
+</div>
+<dl class="method">
+<dt id="sympy.codegen.ast.CodeBlock.cse">
+<code class="descname">cse</code><span class="sig-paren">(</span><em>symbols=None</em>, <em>optimizations=None</em>, <em>postprocess=None</em>, <em>order='canonical'</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/sympy/codegen/ast.html#CodeBlock.cse"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.codegen.ast.CodeBlock.cse" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a new code block with common subexpressions eliminated</p>
+<p>See the docstring of <a class="reference internal" href="simplify/simplify.html#sympy.simplify.cse_main.cse" title="sympy.simplify.cse_main.cse"><code class="xref py py-func docutils literal"><span class="pre">sympy.simplify.cse_main.cse()</span></code></a> for more
+information.</p>
+<p class="rubric">Examples</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">symbols</span><span class="p">,</span> <span class="n">sin</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.codegen.ast</span> <span class="k">import</span> <span class="n">CodeBlock</span><span class="p">,</span> <span class="n">Assignment</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span> <span class="o">=</span> <span class="n">symbols</span><span class="p">(</span><span class="s1">&#39;x y z&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">c</span> <span class="o">=</span> <span class="n">CodeBlock</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">Assignment</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span>
+<span class="gp">... </span>    <span class="n">Assignment</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">sin</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">),</span>
+<span class="gp">... </span>    <span class="n">Assignment</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="n">sin</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">),</span>
+<span class="gp">... </span><span class="p">)</span>
+<span class="gp">...</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">c</span><span class="o">.</span><span class="n">cse</span><span class="p">()</span>
+<span class="go">CodeBlock(Assignment(x, 1), Assignment(x0, sin(x)), Assignment(y, x0 + 1), Assignment(z, x0 - 1))</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="classmethod">
+<dt id="sympy.codegen.ast.CodeBlock.topological_sort">
+<em class="property">classmethod </em><code class="descname">topological_sort</code><span class="sig-paren">(</span><em>assignments</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/sympy/codegen/ast.html#CodeBlock.topological_sort"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.codegen.ast.CodeBlock.topological_sort" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a CodeBlock with topologically sorted assignments so that
+variables are assigned before they are used.</p>
+<p>The existing order of assignments is preserved as much as possible.</p>
+<p>This function assumes that variables are assigned to only once.</p>
+<p>This is a class constructor so that the default constructor for
+CodeBlock can error when variables are used before they are assigned.</p>
+<p class="rubric">Example</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">symbols</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.codegen.ast</span> <span class="k">import</span> <span class="n">CodeBlock</span><span class="p">,</span> <span class="n">Assignment</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span> <span class="o">=</span> <span class="n">symbols</span><span class="p">(</span><span class="s1">&#39;x y z&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">assignments</span> <span class="o">=</span> <span class="p">[</span>
+<span class="gp">... </span>    <span class="n">Assignment</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">+</span> <span class="n">z</span><span class="p">),</span>
+<span class="gp">... </span>    <span class="n">Assignment</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">z</span> <span class="o">+</span> <span class="mi">1</span><span class="p">),</span>
+<span class="gp">... </span>    <span class="n">Assignment</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span>
+<span class="gp">... </span><span class="p">]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">CodeBlock</span><span class="o">.</span><span class="n">topological_sort</span><span class="p">(</span><span class="n">assignments</span><span class="p">)</span>
+<span class="go">CodeBlock(Assignment(z, 2), Assignment(y, z + 1), Assignment(x, y + z))</span>
+</pre></div>
+</div>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="sympy.codegen.ast.ComplexType">
+<em class="property">class </em><code class="descclassname">sympy.codegen.ast.</code><code class="descname">ComplexType</code><a class="reference internal" href="../_modules/sympy/codegen/ast.html#ComplexType"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.codegen.ast.ComplexType" title="Permalink to this definition">¶</a></dt>
+<dd><p>Represents a complex floating point number.</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="sympy.codegen.ast.Declaration">
+<em class="property">class </em><code class="descclassname">sympy.codegen.ast.</code><code class="descname">Declaration</code><a class="reference internal" href="../_modules/sympy/codegen/ast.html#Declaration"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.codegen.ast.Declaration" title="Permalink to this definition">¶</a></dt>
+<dd><p>Represents a variable declaration</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>var</strong> : Variable, Pointer or IndexedBase</p>
+<p><strong>val</strong> : Value (optional)</p>
+<blockquote>
+<div><p>Value to be assigned upon declaration.</p>
+</div></blockquote>
+<p><strong>cast</strong> : bool</p>
+<blockquote class="last">
+<div><p>If val is not <code class="docutils literal"><span class="pre">None</span></code> val will be casted using
+<code class="docutils literal"><span class="pre">var.Type.cast_check()</span></code>.</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Examples</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Symbol</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.codegen.ast</span> <span class="k">import</span> <span class="n">Declaration</span><span class="p">,</span> <span class="n">Type</span><span class="p">,</span> <span class="n">Variable</span><span class="p">,</span> <span class="n">integer</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span> <span class="o">=</span> <span class="n">Symbol</span><span class="p">(</span><span class="s1">&#39;x&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">xvar</span> <span class="o">=</span> <span class="n">Variable</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">decl</span> <span class="o">=</span> <span class="n">Declaration</span><span class="o">.</span><span class="n">deduced</span><span class="p">(</span><span class="n">xvar</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">decl</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">type</span> <span class="o">==</span> <span class="n">integer</span>
+<span class="go">True</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">k</span> <span class="o">=</span> <span class="n">Symbol</span><span class="p">(</span><span class="s1">&#39;k&#39;</span><span class="p">,</span> <span class="n">integer</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">k_decl</span> <span class="o">=</span> <span class="n">Declaration</span><span class="o">.</span><span class="n">deduced</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">k_decl</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">type</span> <span class="o">==</span> <span class="n">integer</span>
+<span class="go">True</span>
+</pre></div>
+</div>
+<dl class="classmethod">
+<dt id="sympy.codegen.ast.Declaration.deduced">
+<em class="property">classmethod </em><code class="descname">deduced</code><span class="sig-paren">(</span><em>symbol</em>, <em>value=None</em>, <em>attrs=EmptySet()</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/sympy/codegen/ast.html#Declaration.deduced"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.codegen.ast.Declaration.deduced" title="Permalink to this definition">¶</a></dt>
+<dd><p>Deduces type primarily from <code class="docutils literal"><span class="pre">symbol</span></code>, secondarily from <code class="docutils literal"><span class="pre">value</span></code>.</p>
+<p class="rubric">Examples</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Symbol</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.codegen.ast</span> <span class="k">import</span> <span class="n">Declaration</span><span class="p">,</span> <span class="n">real</span><span class="p">,</span> <span class="n">integer</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span> <span class="o">=</span> <span class="n">Symbol</span><span class="p">(</span><span class="s1">&#39;x&#39;</span><span class="p">,</span> <span class="n">real</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">decl</span> <span class="o">=</span> <span class="n">Declaration</span><span class="o">.</span><span class="n">deduced</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">decl</span><span class="o">.</span><span class="n">variable</span><span class="o">.</span><span class="n">type</span> <span class="o">==</span> <span class="n">real</span>
+<span class="go">True</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">decl</span><span class="o">.</span><span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span>
+<span class="go">True</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">n</span> <span class="o">=</span> <span class="n">Symbol</span><span class="p">(</span><span class="s1">&#39;n&#39;</span><span class="p">,</span> <span class="n">integer</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">Declaration</span><span class="o">.</span><span class="n">deduced</span><span class="p">(</span><span class="n">n</span><span class="p">)</span><span class="o">.</span><span class="n">variable</span>
+<span class="go">Variable(n, EmptySet(), IntBaseType(name=&#39;integer&#39;))</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="sympy.codegen.ast.Declaration.value">
+<code class="descname">value</code><a class="headerlink" href="#sympy.codegen.ast.Declaration.value" title="Permalink to this definition">¶</a></dt>
+<dd><p>Initialization value of the declaration</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="sympy.codegen.ast.Declaration.variable">
+<code class="descname">variable</code><a class="headerlink" href="#sympy.codegen.ast.Declaration.variable" title="Permalink to this definition">¶</a></dt>
+<dd><p>Variable of the declaration</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="sympy.codegen.ast.FloatType">
+<em class="property">class </em><code class="descclassname">sympy.codegen.ast.</code><code class="descname">FloatType</code><a class="reference internal" href="../_modules/sympy/codegen/ast.html#FloatType"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.codegen.ast.FloatType" title="Permalink to this definition">¶</a></dt>
+<dd><p>Represents a floating point value.</p>
+<p>Base 2 &amp; one sign bit is assumed.</p>
+<p class="rubric">Examples</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">S</span><span class="p">,</span> <span class="n">Float</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.codegen.ast</span> <span class="k">import</span> <span class="n">FloatType</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">half_precision</span> <span class="o">=</span> <span class="n">FloatType</span><span class="p">(</span><span class="s1">&#39;f16&#39;</span><span class="p">,</span> <span class="n">nbits</span><span class="o">=</span><span class="mi">16</span><span class="p">,</span> <span class="n">nmant</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">nexp</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">half_precision</span><span class="o">.</span><span class="n">max</span>
+<span class="go">65504</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">half_precision</span><span class="o">.</span><span class="n">tiny</span> <span class="o">==</span> <span class="n">S</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">**-</span><span class="mi">14</span>
+<span class="go">True</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">half_precision</span><span class="o">.</span><span class="n">eps</span> <span class="o">==</span> <span class="n">S</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">**-</span><span class="mi">10</span>
+<span class="go">True</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">half_precision</span><span class="o">.</span><span class="n">dig</span> <span class="o">==</span> <span class="mi">3</span>
+<span class="go">True</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">half_precision</span><span class="o">.</span><span class="n">decimal_dig</span> <span class="o">==</span> <span class="mi">5</span>
+<span class="go">True</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">half_precision</span><span class="o">.</span><span class="n">cast_check</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span>
+<span class="go">1.0</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">half_precision</span><span class="o">.</span><span class="n">cast_check</span><span class="p">(</span><span class="mf">1e5</span><span class="p">)</span>  
+<span class="gt">Traceback (most recent call last):</span>
+  <span class="c">...</span>
+<span class="gr">ValueError</span>: <span class="n">Maximum value for data type smaller than new value.</span>
+</pre></div>
+</div>
+<p class="rubric">Arguments</p>
+<dl class="docutils">
+<dt>name <span class="classifier-delimiter">:</span> <span class="classifier">str</span></dt>
+<dd>Name of the type.</dd>
+<dt>nbits <span class="classifier-delimiter">:</span> <span class="classifier">integer</span></dt>
+<dd>Number of bits used (storage).</dd>
+<dt>nmant <span class="classifier-delimiter">:</span> <span class="classifier">integer</span></dt>
+<dd>Number of bits used to represent the mantissa.</dd>
+<dt>nexp <span class="classifier-delimiter">:</span> <span class="classifier">integer</span></dt>
+<dd>Number of bits used to represent the mantissa.</dd>
+</dl>
+<dl class="attribute">
+<dt id="sympy.codegen.ast.FloatType.decimal_dig">
+<code class="descname">decimal_dig</code><a class="headerlink" href="#sympy.codegen.ast.FloatType.decimal_dig" title="Permalink to this definition">¶</a></dt>
+<dd><p>Number of digits needed to store &amp; load without loss.</p>
+<p>Number of decimal digits needed to guarantee that two consecutive conversions
+(float -&gt; text -&gt; float) to be idempotent. This is useful when one do not want
+to loose precision due to rounding errors when storing a floating point value
+as text.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="sympy.codegen.ast.FloatType.dig">
+<code class="descname">dig</code><a class="headerlink" href="#sympy.codegen.ast.FloatType.dig" title="Permalink to this definition">¶</a></dt>
+<dd><p>Number of decimal digits that are guaranteed to be preserved in text.</p>
+<p>When converting text -&gt; float -&gt; text, you are guaranteed that at least <code class="docutils literal"><span class="pre">dig</span></code>
+number of digits are preserved with respect to rounding or overflow.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="sympy.codegen.ast.FloatType.eps">
+<code class="descname">eps</code><a class="headerlink" href="#sympy.codegen.ast.FloatType.eps" title="Permalink to this definition">¶</a></dt>
+<dd><p>Difference between 1.0 and the next representable value.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="sympy.codegen.ast.FloatType.max">
+<code class="descname">max</code><a class="headerlink" href="#sympy.codegen.ast.FloatType.max" title="Permalink to this definition">¶</a></dt>
+<dd><p>Maximum value representable.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="sympy.codegen.ast.FloatType.max_exponent">
+<code class="descname">max_exponent</code><a class="headerlink" href="#sympy.codegen.ast.FloatType.max_exponent" title="Permalink to this definition">¶</a></dt>
+<dd><p>The largest positive number n, such that 2**(n - 1) is a representable finite value.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="sympy.codegen.ast.FloatType.min_exponent">
+<code class="descname">min_exponent</code><a class="headerlink" href="#sympy.codegen.ast.FloatType.min_exponent" title="Permalink to this definition">¶</a></dt>
+<dd><p>The lowest negative number n, such that 2**(n - 1) is a valid normalized number.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="sympy.codegen.ast.FloatType.tiny">
+<code class="descname">tiny</code><a class="headerlink" href="#sympy.codegen.ast.FloatType.tiny" title="Permalink to this definition">¶</a></dt>
+<dd><p>The minimum positive normalized value.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="sympy.codegen.ast.For">
+<em class="property">class </em><code class="descclassname">sympy.codegen.ast.</code><code class="descname">For</code><a class="reference internal" href="../_modules/sympy/codegen/ast.html#For"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.codegen.ast.For" title="Permalink to this definition">¶</a></dt>
+<dd><p>Represents a ‘for-loop’ in the code.</p>
+<dl class="docutils">
+<dt>Expressions are of the form:</dt>
+<dd><dl class="first last docutils">
+<dt>“for target in iter:</dt>
+<dd>body…”</dd>
+</dl>
+</dd>
+</dl>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>target</strong> : symbol</p>
+<p><strong>iter</strong> : iterable</p>
+<p class="last"><strong>body</strong> : sympy expr</p>
+</td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Examples</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">symbols</span><span class="p">,</span> <span class="n">Range</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.codegen.ast</span> <span class="k">import</span> <span class="n">aug_assign</span><span class="p">,</span> <span class="n">For</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span><span class="p">,</span> <span class="n">n</span> <span class="o">=</span> <span class="n">symbols</span><span class="p">(</span><span class="s1">&#39;x n&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">For</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">Range</span><span class="p">(</span><span class="mi">10</span><span class="p">),</span> <span class="p">[</span><span class="n">aug_assign</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="s1">&#39;+&#39;</span><span class="p">,</span> <span class="n">n</span><span class="p">)])</span>
+<span class="go">For(n, Range(0, 10, 1), CodeBlock(AddAugmentedAssignment(x, n)))</span>
+</pre></div>
+</div>
+<dl class="attribute">
+<dt id="sympy.codegen.ast.For.body">
+<code class="descname">body</code><a class="headerlink" href="#sympy.codegen.ast.For.body" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the sympy expression (body) from the for-loop representation.
+This is run for each value of target.
+Must be an iterable object or CodeBlock.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="sympy.codegen.ast.For.iterable">
+<code class="descname">iterable</code><a class="headerlink" href="#sympy.codegen.ast.For.iterable" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the iterable from the for-loop representation.
+This is the object that target takes values from.
+Must be an iterable object.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="sympy.codegen.ast.For.target">
+<code class="descname">target</code><a class="headerlink" href="#sympy.codegen.ast.For.target" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the symbol (target) from the for-loop representation.
+This object changes each iteration.
+Target must be a symbol.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="sympy.codegen.ast.IntBaseType">
+<em class="property">class </em><code class="descclassname">sympy.codegen.ast.</code><code class="descname">IntBaseType</code><a class="reference internal" href="../_modules/sympy/codegen/ast.html#IntBaseType"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.codegen.ast.IntBaseType" title="Permalink to this definition">¶</a></dt>
+<dd><p>Integer base type, contains no size information.</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="sympy.codegen.ast.Pointer">
+<em class="property">class </em><code class="descclassname">sympy.codegen.ast.</code><code class="descname">Pointer</code><a class="reference internal" href="../_modules/sympy/codegen/ast.html#Pointer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.codegen.ast.Pointer" title="Permalink to this definition">¶</a></dt>
+<dd><p>Represents a pointer</p>
+<dl class="attribute">
+<dt id="sympy.codegen.ast.Pointer.pointer_const">
+<code class="descname">pointer_const</code><a class="headerlink" href="#sympy.codegen.ast.Pointer.pointer_const" title="Permalink to this definition">¶</a></dt>
+<dd><p>Boolean value describing whether the pointer address is constant.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="sympy.codegen.ast.Token">
+<em class="property">class </em><code class="descclassname">sympy.codegen.ast.</code><code class="descname">Token</code><a class="reference internal" href="../_modules/sympy/codegen/ast.html#Token"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.codegen.ast.Token" title="Permalink to this definition">¶</a></dt>
+<dd><p>Similar to Symbol, but takes no assumptions.</p>
+<p>Defining fields are set in __slots__.</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="sympy.codegen.ast.Type">
+<em class="property">class </em><code class="descclassname">sympy.codegen.ast.</code><code class="descname">Type</code><a class="reference internal" href="../_modules/sympy/codegen/ast.html#Type"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.codegen.ast.Type" title="Permalink to this definition">¶</a></dt>
+<dd><p>Represents a type.</p>
+<p>The naming is a super-set of NumPy naming, see <a class="reference internal" href="#r25" id="id2">[R25]</a>. Type has a classmethod
+<code class="docutils literal"><span class="pre">from_expr</span></code> which offer type deduction. It also has a method
+<code class="docutils literal"><span class="pre">cast_check</span></code> which casts the argument to its type, possibly raising an
+exception if rounding error is not within tolerances, or if the value is not
+representable by the underlying data type (e.g. unsigned integers).</p>
+<p class="rubric">References</p>
+<table class="docutils citation" frame="void" id="r25" rules="none">
+<colgroup><col class="label" /><col /></colgroup>
+<tbody valign="top">
+<tr><td class="label">[R25]</td><td><em>(<a class="fn-backref" href="#id2">1</a>, <a class="fn-backref" href="#id3">2</a>)</em> Numpy types
+<a class="reference external" href="https://docs.scipy.org/doc/numpy/user/basics.types.html">https://docs.scipy.org/doc/numpy/user/basics.types.html</a></td></tr>
+</tbody>
+</table>
+<p class="rubric">Examples</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.codegen.ast</span> <span class="k">import</span> <span class="n">Type</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">Type</span><span class="o">.</span><span class="n">from_expr</span><span class="p">(</span><span class="mi">42</span><span class="p">)</span><span class="o">.</span><span class="n">name</span>
+<span class="go">&#39;integer&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.codegen.ast</span> <span class="k">import</span> <span class="n">uint8</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">uint8</span><span class="o">.</span><span class="n">cast_check</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>   
+<span class="gt">Traceback (most recent call last):</span>
+  <span class="c">...</span>
+<span class="gr">ValueError</span>: <span class="n">Minimum value for data type bigger than new value.</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.codegen.ast</span> <span class="k">import</span> <span class="n">float32</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">v6</span> <span class="o">=</span> <span class="mf">0.123456</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">float32</span><span class="o">.</span><span class="n">cast_check</span><span class="p">(</span><span class="n">v6</span><span class="p">)</span>
+<span class="go">0.123456</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">v10</span> <span class="o">=</span> <span class="mf">12345.67894</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">float32</span><span class="o">.</span><span class="n">cast_check</span><span class="p">(</span><span class="n">v10</span><span class="p">)</span>  
+<span class="gt">Traceback (most recent call last):</span>
+  <span class="c">...</span>
+<span class="gr">ValueError</span>: <span class="n">Casting gives a significantly different value.</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">boost_mp50</span> <span class="o">=</span> <span class="n">Type</span><span class="p">(</span><span class="s1">&#39;boost::multiprecision::cpp_dec_float_50&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Symbol</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.printing.cxxcode</span> <span class="k">import</span> <span class="n">cxxcode</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.codegen.ast</span> <span class="k">import</span> <span class="n">Declaration</span><span class="p">,</span> <span class="n">Variable</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">cxxcode</span><span class="p">(</span><span class="n">Declaration</span><span class="p">(</span><span class="n">Variable</span><span class="p">(</span><span class="n">Symbol</span><span class="p">(</span><span class="s1">&#39;x&#39;</span><span class="p">),</span> <span class="n">type_</span><span class="o">=</span><span class="n">boost_mp50</span><span class="p">)))</span>
+<span class="go">&#39;boost::multiprecision::cpp_dec_float_50 x&#39;</span>
+</pre></div>
+</div>
+<p class="rubric">Arguments</p>
+<dl class="docutils">
+<dt>name <span class="classifier-delimiter">:</span> <span class="classifier">str</span></dt>
+<dd>Name of the type, e.g. <code class="docutils literal"><span class="pre">object</span></code>, <code class="docutils literal"><span class="pre">int16</span></code>, <code class="docutils literal"><span class="pre">float16</span></code> (where the latter two
+would use the <code class="docutils literal"><span class="pre">Type</span></code> sub-classes <code class="docutils literal"><span class="pre">IntType</span></code> and <code class="docutils literal"><span class="pre">FloatType</span></code> respectively).
+If a <code class="docutils literal"><span class="pre">Type</span></code> instance is given, the said instance is returned.</dd>
+</dl>
+<dl class="method">
+<dt id="sympy.codegen.ast.Type.cast_check">
+<code class="descname">cast_check</code><span class="sig-paren">(</span><em>value</em>, <em>rtol=None</em>, <em>atol=0</em>, <em>limits=None</em>, <em>precision_targets=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/sympy/codegen/ast.html#Type.cast_check"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.codegen.ast.Type.cast_check" title="Permalink to this definition">¶</a></dt>
+<dd><p>Casts a value to the data type of the instance.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>value</strong> : number</p>
+<p><strong>rtol</strong> : floating point number</p>
+<blockquote>
+<div><p>Relative tolerance. (will be deduced if not given).</p>
+</div></blockquote>
+<p><strong>atol</strong> : floating point number</p>
+<blockquote>
+<div><p>Absolute tolerance (in addition to <code class="docutils literal"><span class="pre">rtol</span></code>).</p>
+</div></blockquote>
+<p><strong>limits</strong> : dict</p>
+<blockquote>
+<div><p>Values given by <code class="docutils literal"><span class="pre">limits.h</span></code>, x86/IEEE754 defaults if not given.
+Default: <code class="xref py py-attr docutils literal"><span class="pre">default_limits</span></code>.</p>
+</div></blockquote>
+<p><strong>type_aliases</strong> : dict</p>
+<blockquote class="last">
+<div><p>Maps substitutions for Type, e.g. {integer: int64, real: float32}</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Examples</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.codegen.ast</span> <span class="k">import</span> <span class="n">Type</span><span class="p">,</span> <span class="n">integer</span><span class="p">,</span> <span class="n">float32</span><span class="p">,</span> <span class="n">int8</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">integer</span><span class="o">.</span><span class="n">cast_check</span><span class="p">(</span><span class="mf">3.0</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span>
+<span class="go">True</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">float32</span><span class="o">.</span><span class="n">cast_check</span><span class="p">(</span><span class="mf">1e-40</span><span class="p">)</span>  
+<span class="gt">Traceback (most recent call last):</span>
+  <span class="c">...</span>
+<span class="gr">ValueError</span>: <span class="n">Minimum value for data type bigger than new value.</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">int8</span><span class="o">.</span><span class="n">cast_check</span><span class="p">(</span><span class="mi">256</span><span class="p">)</span>  
+<span class="gt">Traceback (most recent call last):</span>
+  <span class="c">...</span>
+<span class="gr">ValueError</span>: <span class="n">Maximum value for data type smaller than new value.</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">v10</span> <span class="o">=</span> <span class="mf">12345.67894</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">float32</span><span class="o">.</span><span class="n">cast_check</span><span class="p">(</span><span class="n">v10</span><span class="p">)</span>  
+<span class="gt">Traceback (most recent call last):</span>
+  <span class="c">...</span>
+<span class="gr">ValueError</span>: <span class="n">Casting gives a significantly different value.</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.codegen.ast</span> <span class="k">import</span> <span class="n">float64</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">float64</span><span class="o">.</span><span class="n">cast_check</span><span class="p">(</span><span class="n">v10</span><span class="p">)</span>
+<span class="go">12345.67894</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Float</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">v18</span> <span class="o">=</span> <span class="n">Float</span><span class="p">(</span><span class="s1">&#39;0.123456789012345646&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">float64</span><span class="o">.</span><span class="n">cast_check</span><span class="p">(</span><span class="n">v18</span><span class="p">)</span>
+<span class="gt">Traceback (most recent call last):</span>
+  <span class="c">...</span>
+<span class="gr">ValueError</span>: <span class="n">Casting gives a significantly different value.</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.codegen.ast</span> <span class="k">import</span> <span class="n">float80</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">float80</span><span class="o">.</span><span class="n">cast_check</span><span class="p">(</span><span class="n">v18</span><span class="p">)</span>
+<span class="go">0.123456789012345649</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="classmethod">
+<dt id="sympy.codegen.ast.Type.from_expr">
+<em class="property">classmethod </em><code class="descname">from_expr</code><span class="sig-paren">(</span><em>expr</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/sympy/codegen/ast.html#Type.from_expr"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.codegen.ast.Type.from_expr" title="Permalink to this definition">¶</a></dt>
+<dd><p>Deduces type from an expression or a <code class="docutils literal"><span class="pre">Symbol</span></code>.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>expr</strong> : number or SymPy object</p>
+<blockquote>
+<div><p>The type will be deduced from type or properties.</p>
+</div></blockquote>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raises:</th><td class="field-body"><p class="first last"><strong>ValueError when type deduction fails.</strong></p>
+</td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Examples</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.codegen.ast</span> <span class="k">import</span> <span class="n">Type</span><span class="p">,</span> <span class="n">integer</span><span class="p">,</span> <span class="n">complex_</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">Type</span><span class="o">.</span><span class="n">from_expr</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span> <span class="o">==</span> <span class="n">integer</span>
+<span class="go">True</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Symbol</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">Type</span><span class="o">.</span><span class="n">from_expr</span><span class="p">(</span><span class="n">Symbol</span><span class="p">(</span><span class="s1">&#39;z&#39;</span><span class="p">,</span> <span class="nb">complex</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span> <span class="o">==</span> <span class="n">complex_</span>
+<span class="go">True</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">Type</span><span class="o">.</span><span class="n">from_expr</span><span class="p">(</span><span class="nb">sum</span><span class="p">)</span>  
+<span class="gt">Traceback (most recent call last):</span>
+  <span class="c">...</span>
+<span class="gr">ValueError</span>: <span class="n">Could not deduce type from expr.</span>
+</pre></div>
+</div>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="sympy.codegen.ast.Variable">
+<em class="property">class </em><code class="descclassname">sympy.codegen.ast.</code><code class="descname">Variable</code><a class="reference internal" href="../_modules/sympy/codegen/ast.html#Variable"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.codegen.ast.Variable" title="Permalink to this definition">¶</a></dt>
+<dd><p>Represents a variable</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>symbol</strong> : Symbol</p>
+<p><strong>attrs</strong> : iterable of Attribute instances</p>
+<blockquote>
+<div><p>Will be stored as a FiniteSet.</p>
+</div></blockquote>
+<p><strong>type_</strong> : Type (optional)</p>
+<blockquote class="last">
+<div><p>Type of the variable.</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Examples</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Symbol</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.codegen.ast</span> <span class="k">import</span> <span class="n">Variable</span><span class="p">,</span> <span class="n">float32</span><span class="p">,</span> <span class="n">integer</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span> <span class="o">=</span> <span class="n">Symbol</span><span class="p">(</span><span class="s1">&#39;x&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">v</span> <span class="o">=</span> <span class="n">Variable</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">type_</span><span class="o">=</span><span class="n">float32</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>One may also construct a <code class="docutils literal"><span class="pre">Variable</span></code> instance with the type deduced from
+assumptions about the symbol using the <code class="docutils literal"><span class="pre">deduced</span></code> classmethod::
+&gt;&gt;&gt; i = Symbol(‘i’, integer=True)
+&gt;&gt;&gt; v = Variable.deduced(i)
+&gt;&gt;&gt; v.type == integer
+True</p>
+<dl class="classmethod">
+<dt id="sympy.codegen.ast.Variable.deduced">
+<em class="property">classmethod </em><code class="descname">deduced</code><span class="sig-paren">(</span><em>symbol</em>, <em>attrs=EmptySet()</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/sympy/codegen/ast.html#Variable.deduced"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.codegen.ast.Variable.deduced" title="Permalink to this definition">¶</a></dt>
+<dd><p>Alt. constructor with type deduction from <code class="docutils literal"><span class="pre">Type.from_expr</span></code>.</p>
+<p class="rubric">Examples</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Symbol</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.codegen.ast</span> <span class="k">import</span> <span class="n">Variable</span><span class="p">,</span> <span class="n">complex_</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">n</span> <span class="o">=</span> <span class="n">Symbol</span><span class="p">(</span><span class="s1">&#39;n&#39;</span><span class="p">,</span> <span class="n">integer</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">str</span><span class="p">(</span><span class="n">Variable</span><span class="o">.</span><span class="n">deduced</span><span class="p">(</span><span class="n">n</span><span class="p">)</span><span class="o">.</span><span class="n">type</span><span class="p">)</span>
+<span class="go">&#39;integer&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span> <span class="o">=</span> <span class="n">Symbol</span><span class="p">(</span><span class="s1">&#39;x&#39;</span><span class="p">,</span> <span class="n">real</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">v</span> <span class="o">=</span> <span class="n">Variable</span><span class="o">.</span><span class="n">deduced</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">v</span><span class="o">.</span><span class="n">type</span>
+<span class="go">Type(name=&#39;real&#39;)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">z</span> <span class="o">=</span> <span class="n">Symbol</span><span class="p">(</span><span class="s1">&#39;z&#39;</span><span class="p">,</span> <span class="nb">complex</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">Variable</span><span class="o">.</span><span class="n">deduced</span><span class="p">(</span><span class="n">z</span><span class="p">)</span><span class="o">.</span><span class="n">type</span> <span class="o">==</span> <span class="n">complex_</span>
+<span class="go">True</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="sympy.codegen.ast.Variable.value_const">
+<code class="descname">value_const</code><a class="headerlink" href="#sympy.codegen.ast.Variable.value_const" title="Permalink to this definition">¶</a></dt>
+<dd><p>Boolean value describing whether the value is constant.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.codegen.ast.aug_assign">
+<code class="descclassname">sympy.codegen.ast.</code><code class="descname">aug_assign</code><span class="sig-paren">(</span><em>lhs</em>, <em>op</em>, <em>rhs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/sympy/codegen/ast.html#aug_assign"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.codegen.ast.aug_assign" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create ‘lhs op= rhs’.</p>
+<p>Represents augmented variable assignment for code generation. This is a
+convenience function. You can also use the AugmentedAssignment classes
+directly, like AddAugmentedAssignment(x, y).</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>lhs</strong> : Expr</p>
+<blockquote>
+<div><p>Sympy object representing the lhs of the expression. These should be
+singular objects, such as one would use in writing code. Notable types
+include Symbol, MatrixSymbol, MatrixElement, and Indexed. Types that
+subclass these types are also supported.</p>
+</div></blockquote>
+<p><strong>op</strong> : str</p>
+<blockquote>
+<div><p>Operator (+, -, /, *, %).</p>
+</div></blockquote>
+<p><strong>rhs</strong> : Expr</p>
+<blockquote class="last">
+<div><p>Sympy object representing the rhs of the expression. This can be any
+type, provided its shape corresponds to that of the lhs. For example,
+a Matrix type can be assigned to MatrixSymbol, but not to Symbol, as
+the dimensions will not align.</p>
+</div></blockquote>
+</td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Examples</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">symbols</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.codegen.ast</span> <span class="k">import</span> <span class="n">aug_assign</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">symbols</span><span class="p">(</span><span class="s1">&#39;x, y&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">aug_assign</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="s1">&#39;+&#39;</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+<span class="go">AddAugmentedAssignment(x, y)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+</div>
+</div>
 </div>
 
 
@@ -932,6 +1628,11 @@ as a SymPy function for symbolic manipulation.</p>
 <li><a class="reference internal" href="#autowrap">Autowrap</a></li>
 <li><a class="reference internal" href="#module-sympy.codegen.cfunctions">Special (finite precision arithmetic) math functions</a></li>
 <li><a class="reference internal" href="#module-sympy.codegen.ffunctions">Fortran specific functions</a></li>
+<li><a class="reference internal" href="#module-sympy.codegen.ast">Classes for abstract syntax trees (sympy.codegen.ast)</a><ul>
+<li><a class="reference internal" href="#ast-type-tree">AST Type Tree</a></li>
+<li><a class="reference internal" href="#predefined-types">Predefined types</a></li>
+</ul>
+</li>
 </ul>
 </li>
 </ul>
