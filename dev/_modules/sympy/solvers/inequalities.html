@@ -63,8 +63,9 @@
 
 <span class="kn">from</span> <span class="nn">sympy.core</span> <span class="k">import</span> <span class="n">Symbol</span><span class="p">,</span> <span class="n">Dummy</span><span class="p">,</span> <span class="n">sympify</span>
 <span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="k">import</span> <span class="n">iterable</span>
+<span class="kn">from</span> <span class="nn">sympy.core.exprtools</span> <span class="k">import</span> <span class="n">factor_terms</span>
+<span class="kn">from</span> <span class="nn">sympy.core.relational</span> <span class="k">import</span> <span class="n">Relational</span><span class="p">,</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">Ge</span><span class="p">,</span> <span class="n">Lt</span><span class="p">,</span> <span class="n">Ne</span>
 <span class="kn">from</span> <span class="nn">sympy.sets</span> <span class="k">import</span> <span class="n">Interval</span>
-<span class="kn">from</span> <span class="nn">sympy.core.relational</span> <span class="k">import</span> <span class="n">Relational</span><span class="p">,</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">Ge</span><span class="p">,</span> <span class="n">Lt</span>
 <span class="kn">from</span> <span class="nn">sympy.sets.sets</span> <span class="k">import</span> <span class="n">FiniteSet</span><span class="p">,</span> <span class="n">Union</span>
 <span class="kn">from</span> <span class="nn">sympy.sets.fancysets</span> <span class="k">import</span> <span class="n">ImageSet</span>
 <span class="kn">from</span> <span class="nn">sympy.core.singleton</span> <span class="k">import</span> <span class="n">S</span>
@@ -699,26 +700,136 @@
     <span class="k">return</span> <span class="n">pt</span>
 
 
-<span class="k">def</span> <span class="nf">_solve_inequality</span><span class="p">(</span><span class="n">ie</span><span class="p">,</span> <span class="n">s</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot; A hacky replacement for solve, since the latter only works for</span>
-<span class="sd">        univariate inequalities. &quot;&quot;&quot;</span>
+<span class="k">def</span> <span class="nf">_solve_inequality</span><span class="p">(</span><span class="n">ie</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">linear</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Return the inequality with s isolated on the left, if possible.</span>
+<span class="sd">    If the relationship is non-linear, a solution involving And or Or</span>
+<span class="sd">    may be returned. False or True are returned if the relationship</span>
+<span class="sd">    is never True or always True, respectively.</span>
+
+<span class="sd">    If `linear` is True (default is False) an `s`-dependent expression</span>
+<span class="sd">    will be isoloated on the left, if possible</span>
+<span class="sd">    but it will not be solved for `s` unless the expression is linear</span>
+<span class="sd">    in `s`. Furthermore, only &quot;safe&quot; operations which don&#39;t change the</span>
+<span class="sd">    sense of the relationship are applied: no division by an unsigned</span>
+<span class="sd">    value is attempted unless the relationship involves Eq or Ne and</span>
+<span class="sd">    no division by a value not known to be nonzero is ever attempted.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy import Eq, Symbol</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.solvers.inequalities import _solve_inequality as f</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.abc import x, y</span>
+
+<span class="sd">    For linear expressions, the symbol can be isolated:</span>
+
+<span class="sd">    &gt;&gt;&gt; f(x - 2 &lt; 0, x)</span>
+<span class="sd">    x &lt; 2</span>
+<span class="sd">    &gt;&gt;&gt; f(-x - 6 &lt; x, x)</span>
+<span class="sd">    x &gt; -3</span>
+
+<span class="sd">    Sometimes nonlinear relationships will be False</span>
+
+<span class="sd">    &gt;&gt;&gt; f(x**2 + 4 &lt; 0, x)</span>
+<span class="sd">    False</span>
+
+<span class="sd">    Or they may involve more than one region of values:</span>
+
+<span class="sd">    &gt;&gt;&gt; f(x**2 - 4 &lt; 0, x)</span>
+<span class="sd">    (-2 &lt; x) &amp; (x &lt; 2)</span>
+
+<span class="sd">    To restrict the solution to a relational, set linear=True</span>
+<span class="sd">    and only the x-dependent portion will be isolated on the left:</span>
+
+<span class="sd">    &gt;&gt;&gt; f(x**2 - 4 &lt; 0, x, linear=True)</span>
+<span class="sd">    x**2 &lt; 4</span>
+
+<span class="sd">    Division of only nonzero quantities is allowed, so x cannot</span>
+<span class="sd">    be isolated by dividing by y:</span>
+
+<span class="sd">    &gt;&gt;&gt; y.is_nonzero is None  # it is unknown whether it is 0 or not</span>
+<span class="sd">    True</span>
+<span class="sd">    &gt;&gt;&gt; f(x*y &lt; 1, x)</span>
+<span class="sd">    x*y &lt; 1</span>
+
+<span class="sd">    And while an equality (or unequality) still holds after dividing by a</span>
+<span class="sd">    non-zero quantity</span>
+
+<span class="sd">    &gt;&gt;&gt; nz = Symbol(&#39;nz&#39;, nonzero=True)</span>
+<span class="sd">    &gt;&gt;&gt; f(Eq(x*nz, 1), x)</span>
+<span class="sd">    Eq(x, 1/nz)</span>
+
+<span class="sd">    the sign must be known for other inequalities involving &gt; or &lt;:</span>
+
+<span class="sd">    &gt;&gt;&gt; f(x*nz &lt;= 1, x)</span>
+<span class="sd">    nz*x &lt;= 1</span>
+<span class="sd">    &gt;&gt;&gt; p = Symbol(&#39;p&#39;, positive=True)</span>
+<span class="sd">    &gt;&gt;&gt; f(x*p &lt;= 1, x)</span>
+<span class="sd">    x &lt;= 1/p</span>
+
+<span class="sd">    When there are denominators in the original expression that</span>
+<span class="sd">    are removed by expansion, conditions for them will be returned</span>
+<span class="sd">    as part of the result:</span>
+
+<span class="sd">    &gt;&gt;&gt; f(x &lt; x*(2/x - 1), x)</span>
+<span class="sd">    (x &lt; 1) &amp; Ne(x, 0)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">sympy.solvers.solvers</span> <span class="k">import</span> <span class="n">denoms</span>
+    <span class="k">if</span> <span class="n">s</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">ie</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">ie</span>
+    <span class="k">if</span> <span class="n">ie</span><span class="o">.</span><span class="n">rhs</span> <span class="o">==</span> <span class="n">s</span><span class="p">:</span>
+        <span class="n">ie</span> <span class="o">=</span> <span class="n">ie</span><span class="o">.</span><span class="n">reversed</span>
+    <span class="k">if</span> <span class="n">ie</span><span class="o">.</span><span class="n">lhs</span> <span class="o">==</span> <span class="n">s</span> <span class="ow">and</span> <span class="n">s</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">ie</span><span class="o">.</span><span class="n">rhs</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">ie</span>
     <span class="n">expr</span> <span class="o">=</span> <span class="n">ie</span><span class="o">.</span><span class="n">lhs</span> <span class="o">-</span> <span class="n">ie</span><span class="o">.</span><span class="n">rhs</span>
+    <span class="n">rv</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="n">p</span> <span class="o">=</span> <span class="n">Poly</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">s</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">degree</span><span class="p">()</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">degree</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">rv</span> <span class="o">=</span> <span class="n">ie</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">as_expr</span><span class="p">(),</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="ow">not</span> <span class="n">linear</span> <span class="ow">and</span> <span class="n">p</span><span class="o">.</span><span class="n">degree</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="c1"># handle in except clause</span>
             <span class="k">raise</span> <span class="ne">NotImplementedError</span>
     <span class="k">except</span> <span class="p">(</span><span class="n">PolynomialError</span><span class="p">,</span> <span class="ne">NotImplementedError</span><span class="p">):</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">reduce_rational_inequalities</span><span class="p">([[</span><span class="n">ie</span><span class="p">]],</span> <span class="n">s</span><span class="p">)</span>
-        <span class="k">except</span> <span class="n">PolynomialError</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">solve_univariate_inequality</span><span class="p">(</span><span class="n">ie</span><span class="p">,</span> <span class="n">s</span><span class="p">)</span>
-    <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="n">p</span><span class="o">.</span><span class="n">all_coeffs</span><span class="p">()</span>
-    <span class="k">if</span> <span class="n">a</span><span class="o">.</span><span class="n">is_positive</span> <span class="ow">or</span> <span class="n">ie</span><span class="o">.</span><span class="n">rel_op</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;!=&#39;</span><span class="p">,</span> <span class="s1">&#39;==&#39;</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">ie</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="o">-</span><span class="n">b</span><span class="o">/</span><span class="n">a</span><span class="p">)</span>
-    <span class="k">elif</span> <span class="n">a</span><span class="o">.</span><span class="n">is_negative</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">ie</span><span class="o">.</span><span class="n">reversed</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="o">-</span><span class="n">b</span><span class="o">/</span><span class="n">a</span><span class="p">)</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">NotImplementedError</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">linear</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">reduce_rational_inequalities</span><span class="p">([[</span><span class="n">ie</span><span class="p">]],</span> <span class="n">s</span><span class="p">)</span>
+            <span class="k">except</span> <span class="n">PolynomialError</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">solve_univariate_inequality</span><span class="p">(</span><span class="n">ie</span><span class="p">,</span> <span class="n">s</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">p</span> <span class="o">=</span> <span class="n">Poly</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+
+    <span class="n">e</span> <span class="o">=</span> <span class="n">expanded</span> <span class="o">=</span> <span class="n">p</span><span class="o">.</span><span class="n">as_expr</span><span class="p">()</span>  <span class="c1"># this is in exanded form</span>
+    <span class="k">if</span> <span class="n">rv</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># Do a safe inversion of e, moving non-s terms</span>
+        <span class="c1"># to the rhs and dividing by a nonzero factor if</span>
+        <span class="c1"># the relational is Eq/Ne; for other relationals</span>
+        <span class="c1"># the sign must also be positive or negative</span>
+        <span class="n">rhs</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">b</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">e</span><span class="o">.</span><span class="n">as_independent</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">as_Add</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">e</span> <span class="o">-=</span> <span class="n">b</span>
+        <span class="n">rhs</span> <span class="o">-=</span> <span class="n">b</span>
+        <span class="n">ef</span> <span class="o">=</span> <span class="n">factor_terms</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+        <span class="n">a</span><span class="p">,</span> <span class="n">e</span> <span class="o">=</span> <span class="n">ef</span><span class="o">.</span><span class="n">as_independent</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">as_Add</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">is_zero</span> <span class="o">!=</span> <span class="kc">False</span> <span class="ow">or</span>  <span class="c1"># don&#39;t divide by potential 0</span>
+                <span class="n">a</span><span class="o">.</span><span class="n">is_negative</span> <span class="o">==</span>
+                <span class="n">a</span><span class="o">.</span><span class="n">is_positive</span> <span class="o">==</span> <span class="kc">None</span> <span class="ow">and</span>  <span class="c1"># if sign is not known then</span>
+                <span class="n">ie</span><span class="o">.</span><span class="n">rel_op</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;!=&#39;</span><span class="p">,</span> <span class="s1">&#39;==&#39;</span><span class="p">)):</span> <span class="c1"># reject if not Eq/Ne</span>
+            <span class="n">e</span> <span class="o">=</span> <span class="n">ef</span>
+            <span class="n">a</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span>
+        <span class="n">rhs</span> <span class="o">/=</span> <span class="n">a</span>
+        <span class="k">if</span> <span class="n">a</span><span class="o">.</span><span class="n">is_positive</span><span class="p">:</span>
+            <span class="n">rv</span> <span class="o">=</span> <span class="n">ie</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">rhs</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">rv</span> <span class="o">=</span> <span class="n">ie</span><span class="o">.</span><span class="n">reversed</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">rhs</span><span class="p">)</span>
+    <span class="c1"># return conditions under which the value is</span>
+    <span class="c1"># valid, too.</span>
+    <span class="n">conds</span> <span class="o">=</span> <span class="p">[</span><span class="n">rv</span><span class="p">]</span>
+    <span class="n">beginning_denoms</span> <span class="o">=</span> <span class="n">denoms</span><span class="p">(</span><span class="n">ie</span><span class="o">.</span><span class="n">lhs</span><span class="p">)</span> <span class="o">|</span> <span class="n">denoms</span><span class="p">(</span><span class="n">ie</span><span class="o">.</span><span class="n">rhs</span><span class="p">)</span>
+    <span class="n">current_denoms</span> <span class="o">=</span> <span class="n">denoms</span><span class="p">(</span><span class="n">expanded</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">beginning_denoms</span> <span class="o">-</span> <span class="n">current_denoms</span><span class="p">:</span>
+        <span class="n">conds</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">_solve_inequality</span><span class="p">(</span><span class="n">Ne</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">s</span><span class="p">,</span> <span class="n">linear</span><span class="o">=</span><span class="n">linear</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">And</span><span class="p">(</span><span class="o">*</span><span class="n">conds</span><span class="p">)</span>
 
 
 <span class="k">def</span> <span class="nf">_reduce_inequalities</span><span class="p">(</span><span class="n">inequalities</span><span class="p">,</span> <span class="n">symbols</span><span class="p">):</span>
