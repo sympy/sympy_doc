@@ -60,6 +60,7 @@
 <span></span><span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">division</span>
 
 <span class="kn">from</span> <span class="nn">sympy.core</span> <span class="k">import</span> <span class="n">S</span><span class="p">,</span> <span class="n">sympify</span><span class="p">,</span> <span class="n">cacheit</span>
+<span class="kn">from</span> <span class="nn">sympy.core.add</span> <span class="k">import</span> <span class="n">Add</span>
 <span class="kn">from</span> <span class="nn">sympy.core.function</span> <span class="k">import</span> <span class="n">Function</span><span class="p">,</span> <span class="n">ArgumentIndexError</span><span class="p">,</span> <span class="n">_coeff_isneg</span>
 
 <span class="kn">from</span> <span class="nn">sympy.functions.elementary.miscellaneous</span> <span class="k">import</span> <span class="n">sqrt</span>
@@ -90,6 +91,39 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">unbranched</span> <span class="o">=</span> <span class="kc">True</span></div>
+
+
+<span class="k">def</span> <span class="nf">_peeloff_ipi</span><span class="p">(</span><span class="n">arg</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Split ARG into two parts, a &quot;rest&quot; and a multiple of I*pi/2.</span>
+<span class="sd">    This assumes ARG to be an Add.</span>
+<span class="sd">    The multiple of I*pi returned in the second position is always a Rational.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.functions.elementary.hyperbolic import _peeloff_ipi as peel</span>
+<span class="sd">    &gt;&gt;&gt; from sympy import pi, I</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.abc import x, y</span>
+<span class="sd">    &gt;&gt;&gt; peel(x + I*pi/2)</span>
+<span class="sd">    (x, I*pi/2)</span>
+<span class="sd">    &gt;&gt;&gt; peel(x + I*2*pi/3 + I*pi*y)</span>
+<span class="sd">    (x + I*pi*y + I*pi/6, I*pi/2)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">Add</span><span class="o">.</span><span class="n">make_args</span><span class="p">(</span><span class="n">arg</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">a</span> <span class="o">==</span> <span class="n">S</span><span class="o">.</span><span class="n">Pi</span><span class="o">*</span><span class="n">S</span><span class="o">.</span><span class="n">ImaginaryUnit</span><span class="p">:</span>
+            <span class="n">K</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span>
+            <span class="k">break</span>
+        <span class="k">elif</span> <span class="n">a</span><span class="o">.</span><span class="n">is_Mul</span><span class="p">:</span>
+            <span class="n">K</span><span class="p">,</span> <span class="n">p</span> <span class="o">=</span> <span class="n">a</span><span class="o">.</span><span class="n">as_two_terms</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">p</span> <span class="o">==</span> <span class="n">S</span><span class="o">.</span><span class="n">Pi</span><span class="o">*</span><span class="n">S</span><span class="o">.</span><span class="n">ImaginaryUnit</span> <span class="ow">and</span> <span class="n">K</span><span class="o">.</span><span class="n">is_Rational</span><span class="p">:</span>
+                <span class="k">break</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">arg</span><span class="p">,</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span>
+
+    <span class="n">m1</span> <span class="o">=</span> <span class="p">(</span><span class="n">K</span> <span class="o">%</span> <span class="n">S</span><span class="o">.</span><span class="n">Half</span><span class="p">)</span><span class="o">*</span><span class="n">S</span><span class="o">.</span><span class="n">Pi</span><span class="o">*</span><span class="n">S</span><span class="o">.</span><span class="n">ImaginaryUnit</span>
+    <span class="n">m2</span> <span class="o">=</span> <span class="n">K</span><span class="o">*</span><span class="n">S</span><span class="o">.</span><span class="n">Pi</span><span class="o">*</span><span class="n">S</span><span class="o">.</span><span class="n">ImaginaryUnit</span> <span class="o">-</span> <span class="n">m1</span>
+    <span class="k">return</span> <span class="n">arg</span> <span class="o">-</span> <span class="n">m2</span><span class="p">,</span> <span class="n">m2</span>
 
 
 <div class="viewcode-block" id="sinh"><a class="viewcode-back" href="../../../../modules/functions/elementary.html#sympy.functions.elementary.hyperbolic.sinh">[docs]</a><span class="k">class</span> <span class="nc">sinh</span><span class="p">(</span><span class="n">HyperbolicFunction</span><span class="p">):</span>
@@ -147,6 +181,11 @@
             <span class="k">else</span><span class="p">:</span>
                 <span class="k">if</span> <span class="n">_coeff_isneg</span><span class="p">(</span><span class="n">arg</span><span class="p">):</span>
                     <span class="k">return</span> <span class="o">-</span><span class="bp">cls</span><span class="p">(</span><span class="o">-</span><span class="n">arg</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">arg</span><span class="o">.</span><span class="n">is_Add</span><span class="p">:</span>
+                <span class="n">x</span><span class="p">,</span> <span class="n">m</span> <span class="o">=</span> <span class="n">_peeloff_ipi</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">m</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">sinh</span><span class="p">(</span><span class="n">m</span><span class="p">)</span><span class="o">*</span><span class="n">cosh</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">+</span> <span class="n">cosh</span><span class="p">(</span><span class="n">m</span><span class="p">)</span><span class="o">*</span><span class="n">sinh</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
 
             <span class="k">if</span> <span class="n">arg</span><span class="o">.</span><span class="n">func</span> <span class="o">==</span> <span class="n">asinh</span><span class="p">:</span>
                 <span class="k">return</span> <span class="n">arg</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
@@ -301,6 +340,11 @@
             <span class="k">else</span><span class="p">:</span>
                 <span class="k">if</span> <span class="n">_coeff_isneg</span><span class="p">(</span><span class="n">arg</span><span class="p">):</span>
                     <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="o">-</span><span class="n">arg</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">arg</span><span class="o">.</span><span class="n">is_Add</span><span class="p">:</span>
+                <span class="n">x</span><span class="p">,</span> <span class="n">m</span> <span class="o">=</span> <span class="n">_peeloff_ipi</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">m</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">cosh</span><span class="p">(</span><span class="n">m</span><span class="p">)</span><span class="o">*</span><span class="n">cosh</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">+</span> <span class="n">sinh</span><span class="p">(</span><span class="n">m</span><span class="p">)</span><span class="o">*</span><span class="n">sinh</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
 
             <span class="k">if</span> <span class="n">arg</span><span class="o">.</span><span class="n">func</span> <span class="o">==</span> <span class="n">asinh</span><span class="p">:</span>
                 <span class="k">return</span> <span class="n">sqrt</span><span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">arg</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
@@ -457,6 +501,15 @@
                 <span class="k">if</span> <span class="n">_coeff_isneg</span><span class="p">(</span><span class="n">arg</span><span class="p">):</span>
                     <span class="k">return</span> <span class="o">-</span><span class="bp">cls</span><span class="p">(</span><span class="o">-</span><span class="n">arg</span><span class="p">)</span>
 
+            <span class="k">if</span> <span class="n">arg</span><span class="o">.</span><span class="n">is_Add</span><span class="p">:</span>
+                <span class="n">x</span><span class="p">,</span> <span class="n">m</span> <span class="o">=</span> <span class="n">_peeloff_ipi</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">m</span><span class="p">:</span>
+                    <span class="n">tanhm</span> <span class="o">=</span> <span class="n">tanh</span><span class="p">(</span><span class="n">m</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">tanhm</span> <span class="ow">is</span> <span class="n">S</span><span class="o">.</span><span class="n">ComplexInfinity</span><span class="p">:</span>
+                        <span class="k">return</span> <span class="n">coth</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span> <span class="c1"># tanhm == 0</span>
+                        <span class="k">return</span> <span class="n">tanh</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+
             <span class="k">if</span> <span class="n">arg</span><span class="o">.</span><span class="n">func</span> <span class="o">==</span> <span class="n">asinh</span><span class="p">:</span>
                 <span class="n">x</span> <span class="o">=</span> <span class="n">arg</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
                 <span class="k">return</span> <span class="n">x</span><span class="o">/</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">x</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
@@ -588,6 +641,15 @@
             <span class="k">else</span><span class="p">:</span>
                 <span class="k">if</span> <span class="n">_coeff_isneg</span><span class="p">(</span><span class="n">arg</span><span class="p">):</span>
                     <span class="k">return</span> <span class="o">-</span><span class="bp">cls</span><span class="p">(</span><span class="o">-</span><span class="n">arg</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">arg</span><span class="o">.</span><span class="n">is_Add</span><span class="p">:</span>
+                <span class="n">x</span><span class="p">,</span> <span class="n">m</span> <span class="o">=</span> <span class="n">_peeloff_ipi</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">m</span><span class="p">:</span>
+                    <span class="n">cothm</span> <span class="o">=</span> <span class="n">coth</span><span class="p">(</span><span class="n">m</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">cotm</span> <span class="ow">is</span> <span class="n">S</span><span class="o">.</span><span class="n">ComplexInfinity</span><span class="p">:</span>
+                        <span class="k">return</span> <span class="n">coth</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span> <span class="c1"># cothm == 0</span>
+                        <span class="k">return</span> <span class="n">tanh</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
 
             <span class="k">if</span> <span class="n">arg</span><span class="o">.</span><span class="n">func</span> <span class="o">==</span> <span class="n">asinh</span><span class="p">:</span>
                 <span class="n">x</span> <span class="o">=</span> <span class="n">arg</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
