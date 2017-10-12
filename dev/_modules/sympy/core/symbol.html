@@ -60,7 +60,7 @@
 <span></span><span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">division</span>
 
 <span class="kn">from</span> <span class="nn">sympy.core.assumptions</span> <span class="k">import</span> <span class="n">StdFactKB</span>
-<span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="k">import</span> <span class="n">string_types</span><span class="p">,</span> <span class="nb">range</span>
+<span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="k">import</span> <span class="n">string_types</span><span class="p">,</span> <span class="nb">range</span><span class="p">,</span> <span class="n">is_sequence</span>
 <span class="kn">from</span> <span class="nn">.basic</span> <span class="k">import</span> <span class="n">Basic</span>
 <span class="kn">from</span> <span class="nn">.sympify</span> <span class="k">import</span> <span class="n">sympify</span>
 <span class="kn">from</span> <span class="nn">.singleton</span> <span class="k">import</span> <span class="n">S</span>
@@ -74,6 +74,115 @@
 <span class="kn">import</span> <span class="nn">string</span>
 <span class="kn">import</span> <span class="nn">re</span> <span class="k">as</span> <span class="nn">_re</span>
 <span class="kn">import</span> <span class="nn">random</span>
+
+
+<span class="k">def</span> <span class="nf">_symbol</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">matching_symbol</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">assumptions</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Return s if s is a Symbol, else if s is a string, return either</span>
+<span class="sd">    the matching_symbol if the names are the same or else a new symbol</span>
+<span class="sd">    with the same assumptions as the matching symbol (or the</span>
+<span class="sd">    assumptions as provided).</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy import Symbol, Dummy</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.core.symbol import _symbol</span>
+<span class="sd">    &gt;&gt;&gt; _symbol(&#39;y&#39;)</span>
+<span class="sd">    y</span>
+<span class="sd">    &gt;&gt;&gt; _.is_real is None</span>
+<span class="sd">    True</span>
+<span class="sd">    &gt;&gt;&gt; _symbol(&#39;y&#39;, real=True).is_real</span>
+<span class="sd">    True</span>
+
+<span class="sd">    &gt;&gt;&gt; x = Symbol(&#39;x&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; _symbol(x, real=True)</span>
+<span class="sd">    x</span>
+<span class="sd">    &gt;&gt;&gt; _.is_real is None  # ignore attribute if s is a Symbol</span>
+<span class="sd">    True</span>
+
+<span class="sd">    Below, the variable sym has the name &#39;foo&#39;:</span>
+
+<span class="sd">    &gt;&gt;&gt; sym = Symbol(&#39;foo&#39;, real=True)</span>
+
+<span class="sd">    Since &#39;x&#39; is not the same as sym&#39;s name, a new symbol is created:</span>
+
+<span class="sd">    &gt;&gt;&gt; _symbol(&#39;x&#39;, sym).name</span>
+<span class="sd">    &#39;x&#39;</span>
+
+<span class="sd">    It will acquire any assumptions give:</span>
+
+<span class="sd">    &gt;&gt;&gt; _symbol(&#39;x&#39;, sym, real=False).is_real</span>
+<span class="sd">    False</span>
+
+<span class="sd">    Since &#39;foo&#39; is the same as sym&#39;s name, sym is returned</span>
+
+<span class="sd">    &gt;&gt;&gt; _symbol(&#39;foo&#39;, sym)</span>
+<span class="sd">    foo</span>
+
+<span class="sd">    Any assumptions given are ignored:</span>
+
+<span class="sd">    &gt;&gt;&gt; _symbol(&#39;foo&#39;, sym, real=False).is_real</span>
+<span class="sd">    True</span>
+
+<span class="sd">    NB: the symbol here may not be the same as a symbol with the same</span>
+<span class="sd">    name defined elsewhere as a result of different assumptions.</span>
+
+<span class="sd">    See Also</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    sympy.core.symbol.Symbol</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">string_types</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">matching_symbol</span> <span class="ow">and</span> <span class="n">matching_symbol</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="n">s</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">matching_symbol</span>
+        <span class="k">return</span> <span class="n">Symbol</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="o">**</span><span class="n">assumptions</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">Symbol</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">s</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;symbol must be string for symbol name or Symbol&#39;</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_uniquely_named_symbol</span><span class="p">(</span><span class="n">xname</span><span class="p">,</span> <span class="n">exprs</span><span class="o">=</span><span class="p">(),</span> <span class="n">compare</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">modify</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">assumptions</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Return a symbol which, when printed, will have a name unique</span>
+<span class="sd">    from any other already in the expressions given. The name is made</span>
+<span class="sd">    unique by prepending underscores (default) but this can be</span>
+<span class="sd">    customized with the keyword &#39;modify&#39;.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">        xname : a string or a Symbol (when symbol xname &lt;- str(xname))</span>
+<span class="sd">        compare : a single arg function that takes a symbol and returns</span>
+<span class="sd">            a string to be compared with xname (the default is the str</span>
+<span class="sd">            function which indicates how the name will look when it</span>
+<span class="sd">            is printed, e.g. this includes underscores that appear on</span>
+<span class="sd">            Dummy symbols)</span>
+<span class="sd">        modify : a single arg function that changes its string argument</span>
+<span class="sd">            in some way (the default is to preppend underscores)</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.core.symbol import _uniquely_named_symbol as usym, Dummy</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.abc import x</span>
+<span class="sd">    &gt;&gt;&gt; usym(&#39;x&#39;, x)</span>
+<span class="sd">    _x</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">default</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">is_sequence</span><span class="p">(</span><span class="n">xname</span><span class="p">):</span>
+        <span class="n">xname</span><span class="p">,</span> <span class="n">default</span> <span class="o">=</span> <span class="n">xname</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">xname</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">exprs</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">_symbol</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">default</span><span class="p">,</span> <span class="o">**</span><span class="n">assumptions</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">is_sequence</span><span class="p">(</span><span class="n">exprs</span><span class="p">):</span>
+        <span class="n">exprs</span> <span class="o">=</span> <span class="p">[</span><span class="n">exprs</span><span class="p">]</span>
+    <span class="n">syms</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">e</span><span class="o">.</span><span class="n">free_symbols</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">exprs</span><span class="p">])</span>
+    <span class="k">if</span> <span class="n">modify</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">modify</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">s</span><span class="p">:</span> <span class="s1">&#39;_&#39;</span> <span class="o">+</span> <span class="n">s</span>
+    <span class="k">while</span> <span class="nb">any</span><span class="p">(</span><span class="n">x</span> <span class="o">==</span> <span class="n">compare</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">syms</span><span class="p">):</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">modify</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">_symbol</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">default</span><span class="p">,</span> <span class="o">**</span><span class="n">assumptions</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="Symbol"><a class="viewcode-back" href="../../../modules/core.html#sympy.core.symbol.Symbol">[docs]</a><span class="k">class</span> <span class="nc">Symbol</span><span class="p">(</span><span class="n">AtomicExpr</span><span class="p">,</span> <span class="n">Boolean</span><span class="p">):</span>
@@ -721,7 +830,7 @@
     </div>
     <div class="footer" role="contentinfo">
         &#169; Copyright 2017 SymPy Development Team.
-      Last updated on Oct 11, 2017.
+      Last updated on Oct 12, 2017.
       Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.4.
     </div>
   </body>
