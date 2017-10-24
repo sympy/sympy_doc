@@ -75,21 +75,68 @@
         <span class="n">new_args</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="n">n_intervals</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">b1</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">n_intervals</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">b2</span><span class="o">.</span><span class="n">args</span><span class="p">):</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Args of b1 and b2 are not equal&quot;</span><span class="p">)</span>
-        <span class="n">new_args</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">c</span><span class="o">*</span><span class="n">b1</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">expr</span><span class="p">,</span> <span class="n">b1</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">cond</span><span class="p">))</span>
-        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">n_intervals</span> <span class="o">-</span> <span class="mi">1</span><span class="p">):</span>
-            <span class="n">new_args</span><span class="o">.</span><span class="n">append</span><span class="p">((</span>
-                <span class="n">c</span><span class="o">*</span><span class="n">b1</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">expr</span> <span class="o">+</span> <span class="n">d</span><span class="o">*</span><span class="n">b2</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">expr</span><span class="p">,</span>
-                <span class="n">b1</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">cond</span>
-            <span class="p">))</span>
-        <span class="n">new_args</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">d</span><span class="o">*</span><span class="n">b2</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">expr</span><span class="p">,</span> <span class="n">b2</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">cond</span><span class="p">))</span>
-        <span class="n">new_args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">b2</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+            <span class="c1"># Args of b1 and b2 are not equal. Just combining the Piecewise without any fancy optimisation</span>
+            <span class="n">p1</span> <span class="o">=</span> <span class="n">piecewise_fold</span><span class="p">(</span><span class="n">c</span><span class="o">*</span><span class="n">b1</span><span class="p">)</span>
+            <span class="n">p2</span> <span class="o">=</span> <span class="n">piecewise_fold</span><span class="p">(</span><span class="n">d</span><span class="o">*</span><span class="n">b2</span><span class="p">)</span>
+
+            <span class="c1"># Search all Piecewise arguments except (0, True)</span>
+            <span class="n">p2args</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">p2</span><span class="o">.</span><span class="n">args</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+
+            <span class="c1"># This merging algorithm assume the conditions in p1 and p2 are sorted</span>
+            <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">p1</span><span class="o">.</span><span class="n">args</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span>
+                <span class="c1"># Conditional of Piecewise are And objects</span>
+                <span class="c1"># the args of the And object is a tuple of two Relational objects</span>
+                <span class="c1"># the numerical value is in the .rhs of the Relational object</span>
+                <span class="n">expr</span> <span class="o">=</span> <span class="n">arg</span><span class="o">.</span><span class="n">expr</span>
+                <span class="n">cond</span> <span class="o">=</span> <span class="n">arg</span><span class="o">.</span><span class="n">cond</span>
+
+                <span class="n">lower</span> <span class="o">=</span> <span class="n">cond</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">rhs</span>
+
+                <span class="c1"># Check p2 for matching conditions that can be merged</span>
+                <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">arg2</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">p2args</span><span class="p">):</span>
+                    <span class="n">expr2</span> <span class="o">=</span> <span class="n">arg2</span><span class="o">.</span><span class="n">expr</span>
+                    <span class="n">cond2</span> <span class="o">=</span> <span class="n">arg2</span><span class="o">.</span><span class="n">cond</span>
+
+                    <span class="n">lower_2</span> <span class="o">=</span> <span class="n">cond2</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">rhs</span>
+                    <span class="n">upper_2</span> <span class="o">=</span> <span class="n">cond2</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">rhs</span>
+
+                    <span class="k">if</span> <span class="n">cond2</span> <span class="o">==</span> <span class="n">cond</span><span class="p">:</span>
+                        <span class="c1"># Conditions match, join expressions</span>
+                        <span class="n">expr</span> <span class="o">+=</span> <span class="n">expr2</span>
+                        <span class="c1"># Remove matching element</span>
+                        <span class="k">del</span> <span class="n">p2args</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+                        <span class="c1"># No need to check the rest</span>
+                        <span class="k">break</span>
+                    <span class="k">elif</span> <span class="n">lower_2</span> <span class="o">&lt;</span> <span class="n">lower</span> <span class="ow">and</span> <span class="n">upper_2</span> <span class="o">&lt;=</span> <span class="n">lower</span><span class="p">:</span>
+                        <span class="c1"># Check if arg2 condition smaller than arg1, add to new_args by itself (no match expected in p1)</span>
+                        <span class="n">new_args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">arg2</span><span class="p">)</span>
+                        <span class="k">del</span> <span class="n">p2args</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+                        <span class="k">break</span>
+
+                <span class="c1"># Checked all, add expr and cond</span>
+                <span class="n">new_args</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">expr</span><span class="p">,</span> <span class="n">cond</span><span class="p">))</span>
+
+            <span class="c1"># Add remaining items from p2args</span>
+            <span class="n">new_args</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">p2args</span><span class="p">)</span>
+
+            <span class="c1"># Add final (0, True)</span>
+            <span class="n">new_args</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="kc">True</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">new_args</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">c</span><span class="o">*</span><span class="n">b1</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">expr</span><span class="p">,</span> <span class="n">b1</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">cond</span><span class="p">))</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">n_intervals</span> <span class="o">-</span> <span class="mi">1</span><span class="p">):</span>
+                <span class="n">new_args</span><span class="o">.</span><span class="n">append</span><span class="p">((</span>
+                    <span class="n">c</span><span class="o">*</span><span class="n">b1</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">expr</span> <span class="o">+</span> <span class="n">d</span><span class="o">*</span><span class="n">b2</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">expr</span><span class="p">,</span>
+                    <span class="n">b1</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">cond</span>
+                <span class="p">))</span>
+            <span class="n">new_args</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">d</span><span class="o">*</span><span class="n">b2</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">expr</span><span class="p">,</span> <span class="n">b2</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">cond</span><span class="p">))</span>
+            <span class="n">new_args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">b2</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+
         <span class="n">rv</span> <span class="o">=</span> <span class="n">Piecewise</span><span class="p">(</span><span class="o">*</span><span class="n">new_args</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">rv</span><span class="o">.</span><span class="n">expand</span><span class="p">()</span>
 
 
-<div class="viewcode-block" id="bspline_basis"><a class="viewcode-back" href="../../../../modules/functions/special.html#sympy.functions.special.bsplines.bspline_basis">[docs]</a><span class="k">def</span> <span class="nf">bspline_basis</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">knots</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">close</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<div class="viewcode-block" id="bspline_basis"><a class="viewcode-back" href="../../../../modules/functions/special.html#sympy.functions.special.bsplines.bspline_basis">[docs]</a><span class="k">def</span> <span class="nf">bspline_basis</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">knots</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;The `n`-th B-spline at `x` of degree `d` with knots.</span>
 
 <span class="sd">    B-Splines are piecewise polynomials of degree `d` [1]_.  They are defined on</span>
@@ -110,11 +157,11 @@
 <span class="sd">    Here is an example of a cubic B-spline:</span>
 
 <span class="sd">        &gt;&gt;&gt; bspline_basis(3, range(5), 0, x)</span>
-<span class="sd">        Piecewise((x**3/6, (x &gt;= 0) &amp; (x &lt; 1)),</span>
+<span class="sd">        Piecewise((x**3/6, (x &gt;= 0) &amp; (x &lt;= 1)),</span>
 <span class="sd">                  (-x**3/2 + 2*x**2 - 2*x + 2/3,</span>
-<span class="sd">                  (x &gt;= 1) &amp; (x &lt; 2)),</span>
+<span class="sd">                  (x &gt;= 1) &amp; (x &lt;= 2)),</span>
 <span class="sd">                  (x**3/2 - 4*x**2 + 10*x - 22/3,</span>
-<span class="sd">                  (x &gt;= 2) &amp; (x &lt; 3)),</span>
+<span class="sd">                  (x &gt;= 2) &amp; (x &lt;= 3)),</span>
 <span class="sd">                  (-x**3/6 + 2*x**2 - 8*x + 32/3,</span>
 <span class="sd">                  (x &gt;= 3) &amp; (x &lt;= 4)),</span>
 <span class="sd">                  (0, True))</span>
@@ -158,23 +205,21 @@
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;n + d + 1 must not exceed len(knots) - 1&#39;</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">d</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
         <span class="n">result</span> <span class="o">=</span> <span class="n">Piecewise</span><span class="p">(</span>
-            <span class="p">(</span><span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">,</span> <span class="n">Interval</span><span class="p">(</span><span class="n">knots</span><span class="p">[</span><span class="n">n</span><span class="p">],</span> <span class="n">knots</span><span class="p">[</span><span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">],</span> <span class="kc">False</span><span class="p">,</span>
-             <span class="ow">not</span> <span class="n">close</span><span class="p">)</span><span class="o">.</span><span class="n">contains</span><span class="p">(</span><span class="n">x</span><span class="p">)),</span>
+            <span class="p">(</span><span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">,</span> <span class="n">Interval</span><span class="p">(</span><span class="n">knots</span><span class="p">[</span><span class="n">n</span><span class="p">],</span> <span class="n">knots</span><span class="p">[</span><span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">])</span><span class="o">.</span><span class="n">contains</span><span class="p">(</span><span class="n">x</span><span class="p">)),</span>
             <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
         <span class="p">)</span>
     <span class="k">elif</span> <span class="n">d</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
         <span class="n">denom</span> <span class="o">=</span> <span class="n">knots</span><span class="p">[</span><span class="n">n</span> <span class="o">+</span> <span class="n">d</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">knots</span><span class="p">[</span><span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span>
         <span class="k">if</span> <span class="n">denom</span> <span class="o">!=</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span><span class="p">:</span>
             <span class="n">B</span> <span class="o">=</span> <span class="p">(</span><span class="n">knots</span><span class="p">[</span><span class="n">n</span> <span class="o">+</span> <span class="n">d</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">x</span><span class="p">)</span><span class="o">/</span><span class="n">denom</span>
-            <span class="n">b2</span> <span class="o">=</span> <span class="n">bspline_basis</span><span class="p">(</span><span class="n">d</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">knots</span><span class="p">,</span> <span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">close</span><span class="p">)</span>
+            <span class="n">b2</span> <span class="o">=</span> <span class="n">bspline_basis</span><span class="p">(</span><span class="n">d</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">knots</span><span class="p">,</span> <span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">b2</span> <span class="o">=</span> <span class="n">B</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span>
 
         <span class="n">denom</span> <span class="o">=</span> <span class="n">knots</span><span class="p">[</span><span class="n">n</span> <span class="o">+</span> <span class="n">d</span><span class="p">]</span> <span class="o">-</span> <span class="n">knots</span><span class="p">[</span><span class="n">n</span><span class="p">]</span>
         <span class="k">if</span> <span class="n">denom</span> <span class="o">!=</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span><span class="p">:</span>
             <span class="n">A</span> <span class="o">=</span> <span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="n">knots</span><span class="p">[</span><span class="n">n</span><span class="p">])</span><span class="o">/</span><span class="n">denom</span>
-            <span class="n">b1</span> <span class="o">=</span> <span class="n">bspline_basis</span><span class="p">(</span>
-                <span class="n">d</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">knots</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">close</span> <span class="ow">and</span> <span class="p">(</span><span class="n">B</span> <span class="o">==</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span> <span class="ow">or</span> <span class="n">b2</span> <span class="o">==</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span><span class="p">))</span>
+            <span class="n">b1</span> <span class="o">=</span> <span class="n">bspline_basis</span><span class="p">(</span><span class="n">d</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">knots</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">b1</span> <span class="o">=</span> <span class="n">A</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span>
 
@@ -200,12 +245,12 @@
 <span class="sd">    &gt;&gt;&gt; knots = range(5)</span>
 <span class="sd">    &gt;&gt;&gt; splines = bspline_basis_set(d, knots, x)</span>
 <span class="sd">    &gt;&gt;&gt; splines</span>
-<span class="sd">    [Piecewise((x**2/2, (x &gt;= 0) &amp; (x &lt; 1)),</span>
-<span class="sd">               (-x**2 + 3*x - 3/2, (x &gt;= 1) &amp; (x &lt; 2)),</span>
+<span class="sd">    [Piecewise((x**2/2, (x &gt;= 0) &amp; (x &lt;= 1)),</span>
+<span class="sd">               (-x**2 + 3*x - 3/2, (x &gt;= 1) &amp; (x &lt;= 2)),</span>
 <span class="sd">               (x**2/2 - 3*x + 9/2, (x &gt;= 2) &amp; (x &lt;= 3)),</span>
 <span class="sd">               (0, True)),</span>
-<span class="sd">    Piecewise((x**2/2 - x + 1/2, (x &gt;= 1) &amp; (x &lt; 2)),</span>
-<span class="sd">              (-x**2 + 5*x - 11/2, (x &gt;= 2) &amp; (x &lt; 3)),</span>
+<span class="sd">    Piecewise((x**2/2 - x + 1/2, (x &gt;= 1) &amp; (x &lt;= 2)),</span>
+<span class="sd">              (-x**2 + 5*x - 11/2, (x &gt;= 2) &amp; (x &lt;= 3)),</span>
 <span class="sd">              (x**2/2 - 4*x + 8, (x &gt;= 3) &amp; (x &lt;= 4)),</span>
 <span class="sd">              (0, True))]</span>
 
