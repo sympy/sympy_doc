@@ -59,7 +59,7 @@
   <h1>Source code for sympy.parsing.mathematica</h1><div class="highlight"><pre>
 <span></span><span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">division</span>
 
-<span class="kn">from</span> <span class="nn">re</span> <span class="k">import</span> <span class="n">match</span>
+<span class="kn">import</span> <span class="nn">re</span>
 <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">sympify</span>
 
 
@@ -67,63 +67,129 @@
     <span class="k">return</span> <span class="n">sympify</span><span class="p">(</span><span class="n">parse</span><span class="p">(</span><span class="n">s</span><span class="p">))</span></div>
 
 
-<span class="k">def</span> <span class="nf">parse</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
-    <span class="n">s</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+<span class="k">class</span> <span class="nc">_Parse</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;An instance of this class converts basic Mathematica expression to</span>
+<span class="sd">    Python.&#39;&#39;&#39;</span>
 
-    <span class="c1"># Begin rules</span>
-    <span class="n">rules</span> <span class="o">=</span> <span class="p">(</span>
-        <span class="c1"># Arithmetic operation between a constant and a function</span>
-        <span class="p">(</span><span class="sa">r</span><span class="s2">&quot;\A(\d+)([*/+-^])(\w+\[[^\]]+[^\[]*\])\Z&quot;</span><span class="p">,</span>
-        <span class="k">lambda</span> <span class="n">m</span><span class="p">:</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span>
-            <span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="n">translateFunction</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">2</span><span class="p">))</span> <span class="o">+</span> <span class="n">parse</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">3</span><span class="p">))),</span>
+    <span class="n">replaces1</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="p">(</span><span class="s1">&#39; &#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">),</span>
+        <span class="p">(</span><span class="s1">&#39;^&#39;</span><span class="p">,</span> <span class="s1">&#39;**&#39;</span><span class="p">),</span>
+    <span class="p">)</span>
 
-        <span class="c1"># Arithmetic operation between two functions</span>
-        <span class="p">(</span><span class="sa">r</span><span class="s2">&quot;\A(\w+\[[^\]]+[^\[]*\])([*/+-^])(\w+\[[^\]]+[^\[]*\])\Z&quot;</span><span class="p">,</span>
-        <span class="k">lambda</span> <span class="n">m</span><span class="p">:</span> <span class="n">parse</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span> <span class="o">+</span> <span class="n">translateFunction</span><span class="p">(</span>
-            <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">2</span><span class="p">))</span> <span class="o">+</span> <span class="n">parse</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">3</span><span class="p">))),</span>
+    <span class="n">replaces2</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="p">(</span><span class="s1">&#39;[&#39;</span><span class="p">,</span> <span class="s1">&#39;(&#39;</span><span class="p">),</span>
+        <span class="p">(</span><span class="s1">&#39;]&#39;</span><span class="p">,</span> <span class="s1">&#39;)&#39;</span><span class="p">),</span>
+    <span class="p">)</span>
 
-        <span class="p">(</span><span class="sa">r</span><span class="s2">&quot;\A([+-]?)(\w+)\[([^\]]+[^\[]*)\]\Z&quot;</span><span class="p">,</span>  <span class="c1"># Function call</span>
-        <span class="k">lambda</span> <span class="n">m</span><span class="p">:</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="n">translateFunction</span><span class="p">(</span>
-            <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">2</span><span class="p">))</span> <span class="o">+</span> <span class="s2">&quot;(&quot;</span> <span class="o">+</span> <span class="n">parse</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">3</span><span class="p">))</span> <span class="o">+</span> <span class="s2">&quot;)&quot;</span><span class="p">),</span>
+    <span class="n">rules1</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="c1"># &#39;Arc&#39; to &#39;a&#39;</span>
+        <span class="p">(</span><span class="sa">r</span><span class="s1">&#39;&#39;&#39;</span>
+<span class="s1">                (               # group1</span>
+<span class="s1">                .*              # any characters</span>
+<span class="s1">                [^a-zA-Z]       # a single character except alphabet</span>
+<span class="s1">                )</span>
+<span class="s1">                Arc             # detect &#39;Arc&#39;</span>
+<span class="s1">                (               # group2</span>
+<span class="s1">                [a-zA-Z]        # a single alphabet</span>
+<span class="s1">                .*              # any characters</span>
+<span class="s1">                )</span>
+<span class="s1">                &#39;&#39;&#39;</span><span class="p">,</span>
+         <span class="k">lambda</span> <span class="n">m</span><span class="p">:</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;a&#39;</span> <span class="o">+</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">2</span><span class="p">)),</span>
 
-        <span class="p">(</span><span class="sa">r</span><span class="s2">&quot;\((.+)\)\((.+)\)&quot;</span><span class="p">,</span>  <span class="c1"># Parenthesized implied multiplication</span>
-        <span class="k">lambda</span> <span class="n">m</span><span class="p">:</span> <span class="s2">&quot;(&quot;</span> <span class="o">+</span> <span class="n">parse</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span> <span class="o">+</span> <span class="s2">&quot;)*(&quot;</span> <span class="o">+</span> <span class="n">parse</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">2</span><span class="p">))</span> <span class="o">+</span> <span class="s2">&quot;)&quot;</span><span class="p">),</span>
+        <span class="c1"># &#39;Arc&#39; (at the top) to &#39;a&#39;</span>
+        <span class="p">(</span><span class="sa">r</span><span class="s1">&#39;&#39;&#39;</span>
+<span class="s1">                \AArc           # detect &#39;Arc&#39; at the top of the string</span>
+<span class="s1">                (               # group1</span>
+<span class="s1">                [a-zA-Z]        # a single alphabet</span>
+<span class="s1">                .*              # any characters</span>
+<span class="s1">                )</span>
+<span class="s1">                &#39;&#39;&#39;</span><span class="p">,</span>
+         <span class="k">lambda</span> <span class="n">m</span><span class="p">:</span> <span class="s1">&#39;a&#39;</span> <span class="o">+</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)),</span>
 
-        <span class="p">(</span><span class="sa">r</span><span class="s2">&quot;\A\((.+)\)\Z&quot;</span><span class="p">,</span>  <span class="c1"># Parenthesized expression</span>
-        <span class="k">lambda</span> <span class="n">m</span><span class="p">:</span> <span class="s2">&quot;(&quot;</span> <span class="o">+</span> <span class="n">parse</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span> <span class="o">+</span> <span class="s2">&quot;)&quot;</span><span class="p">),</span>
+        <span class="c1"># Add omitted &#39;*&#39; character</span>
+        <span class="p">(</span><span class="sa">r</span><span class="s1">&#39;&#39;&#39;</span>
+<span class="s1">                (               # group1</span>
+<span class="s1">                .*              # any characters</span>
+<span class="s1">                [])\d]          # ], ) or a single number</span>
+<span class="s1">                )</span>
+<span class="s1">                (               # group2</span>
+<span class="s1">                [(a-zA-Z]       # ( or a single alphabet</span>
+<span class="s1">                .*              # any characters</span>
+<span class="s1">                )</span>
+<span class="s1">                &#39;&#39;&#39;</span><span class="p">,</span>
+         <span class="k">lambda</span> <span class="n">m</span><span class="p">:</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;*&#39;</span> <span class="o">+</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">2</span><span class="p">)),</span>
 
-        <span class="p">(</span><span class="sa">r</span><span class="s2">&quot;\A(.*[\w\.])\((.+)\)\Z&quot;</span><span class="p">,</span>  <span class="c1"># Implied multiplication - a(b)</span>
-        <span class="k">lambda</span> <span class="n">m</span><span class="p">:</span> <span class="n">parse</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span> <span class="o">+</span> <span class="s2">&quot;*(&quot;</span> <span class="o">+</span> <span class="n">parse</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">2</span><span class="p">))</span> <span class="o">+</span> <span class="s2">&quot;)&quot;</span><span class="p">),</span>
+        <span class="c1"># Add omitted &#39;*&#39; character (variable letter preceding)</span>
+        <span class="p">(</span><span class="sa">r</span><span class="s1">&#39;&#39;&#39;</span>
+<span class="s1">                (               # group1</span>
+<span class="s1">                .*              # any characters</span>
+<span class="s1">                [a-zA-Z]        # a single alphabet</span>
+<span class="s1">                )</span>
+<span class="s1">                \(              # ( as a character</span>
+<span class="s1">                (.*)            # group2, any characters</span>
+<span class="s1">                &#39;&#39;&#39;</span><span class="p">,</span>
+         <span class="k">lambda</span> <span class="n">m</span><span class="p">:</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;*(&#39;</span> <span class="o">+</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">2</span><span class="p">)),</span>
+    <span class="p">)</span>
 
-        <span class="p">(</span><span class="sa">r</span><span class="s2">&quot;\A\((.+)\)([\w\.].*)\Z&quot;</span><span class="p">,</span>  <span class="c1"># Implied multiplication - (a)b</span>
-        <span class="k">lambda</span> <span class="n">m</span><span class="p">:</span> <span class="s2">&quot;(&quot;</span> <span class="o">+</span> <span class="n">parse</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span> <span class="o">+</span> <span class="s2">&quot;)*&quot;</span> <span class="o">+</span> <span class="n">parse</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">2</span><span class="p">))),</span>
+    <span class="n">rules2</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="c1"># &#39;mod&#39; to &#39;Mod&#39;</span>
+        <span class="p">(</span><span class="sa">r</span><span class="s1">&#39;&#39;&#39;</span>
+<span class="s1">                (               # group1</span>
+<span class="s1">                .*              # any characters</span>
+<span class="s1">                [^a-zA-Z]       # a single character except alphabet</span>
+<span class="s1">                )</span>
+<span class="s1">                mod             # detect &#39;mod&#39;</span>
+<span class="s1">                (.*)            # group2, any characters</span>
+<span class="s1">                &#39;&#39;&#39;</span><span class="p">,</span>
+         <span class="k">lambda</span> <span class="n">m</span><span class="p">:</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;Mod&#39;</span> <span class="o">+</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">2</span><span class="p">)),</span>
 
-        <span class="p">(</span><span class="sa">r</span><span class="s2">&quot;\A(-? *[\d\.]+)([a-zA-Z].*)\Z&quot;</span><span class="p">,</span>  <span class="c1"># Implied multiplication - 2a</span>
-        <span class="k">lambda</span> <span class="n">m</span><span class="p">:</span> <span class="n">parse</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span> <span class="o">+</span> <span class="s2">&quot;*&quot;</span> <span class="o">+</span> <span class="n">parse</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">2</span><span class="p">))),</span>
+        <span class="c1"># &#39;mod&#39; (at the top) to &#39;Mod&#39;</span>
+        <span class="p">(</span><span class="sa">r</span><span class="s1">&#39;&#39;&#39;</span>
+<span class="s1">                \Amod           # detect &#39;mod&#39; at the top of the string</span>
+<span class="s1">                (.*)            # group1, any characters</span>
+<span class="s1">                &#39;&#39;&#39;</span><span class="p">,</span>
+         <span class="k">lambda</span> <span class="n">m</span><span class="p">:</span> <span class="s1">&#39;Mod&#39;</span> <span class="o">+</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)),</span>
+    <span class="p">)</span>
 
-        <span class="p">(</span><span class="sa">r</span><span class="s2">&quot;\A([^=]+)([\^\-\*/\+=]=?)(.+)\Z&quot;</span><span class="p">,</span>  <span class="c1"># Infix operator</span>
-        <span class="k">lambda</span> <span class="n">m</span><span class="p">:</span> <span class="n">parse</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span> <span class="o">+</span> <span class="n">translateOperator</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">2</span><span class="p">))</span> <span class="o">+</span> <span class="n">parse</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">3</span><span class="p">))))</span>
-    <span class="c1"># End rules</span>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_replace</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">replaces</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">bef</span><span class="p">,</span> <span class="n">aft</span> <span class="ow">in</span> <span class="n">replaces</span><span class="p">:</span>
+            <span class="n">s</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">bef</span><span class="p">,</span> <span class="n">aft</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">s</span>
 
-    <span class="k">for</span> <span class="n">rule</span><span class="p">,</span> <span class="n">action</span> <span class="ow">in</span> <span class="n">rules</span><span class="p">:</span>
-        <span class="n">m</span> <span class="o">=</span> <span class="n">match</span><span class="p">(</span><span class="n">rule</span><span class="p">,</span> <span class="n">s</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">m</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">action</span><span class="p">(</span><span class="n">m</span><span class="p">)</span>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_apply_rules</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">rules</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">rule</span><span class="p">,</span> <span class="n">action</span> <span class="ow">in</span> <span class="n">rules</span><span class="p">:</span>
+            <span class="n">pat</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">rule</span><span class="p">,</span> <span class="n">re</span><span class="o">.</span><span class="n">VERBOSE</span><span class="p">)</span>  <span class="c1"># VERBOSE: for readable code</span>
+            <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+                <span class="n">m</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">pat</span><span class="p">,</span> <span class="n">s</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">m</span><span class="p">:</span>
+                    <span class="n">s</span> <span class="o">=</span> <span class="n">action</span><span class="p">(</span><span class="n">m</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">break</span>
+        <span class="k">return</span> <span class="n">s</span>
 
-    <span class="k">return</span> <span class="n">s</span>
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">s</span><span class="p">):</span>
+        <span class="c1"># &#39;^&#39; to &#39;**&#39; and remove Whitespace(s)</span>
+        <span class="n">s</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_replace</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">replaces1</span><span class="p">)</span>
+
+        <span class="c1"># &#39;Arc&#39; to &#39;a&#39; and add omitted &#39;*&#39; character</span>
+        <span class="n">s</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_apply_rules</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">rules1</span><span class="p">)</span>
+
+        <span class="c1"># convert to lower letters</span>
+        <span class="n">s</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+
+        <span class="c1"># &#39;mod&#39; to &#39;Mod&#39;</span>
+        <span class="n">s</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_apply_rules</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">rules2</span><span class="p">)</span>
+
+        <span class="c1"># &#39;[&#39;, &#39;]&#39; to &#39;(&#39;, &#39;)&#39;, respectively</span>
+        <span class="n">s</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_replace</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">replaces2</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">s</span>
 
 
-<span class="k">def</span> <span class="nf">translateFunction</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
-    <span class="k">if</span> <span class="n">s</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;Arc&quot;</span><span class="p">):</span>
-        <span class="k">return</span> <span class="s2">&quot;a&quot;</span> <span class="o">+</span> <span class="n">s</span><span class="p">[</span><span class="mi">3</span><span class="p">:]</span>
-    <span class="k">return</span> <span class="n">s</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
-
-
-<span class="k">def</span> <span class="nf">translateOperator</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
-    <span class="n">dictionary</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;^&#39;</span><span class="p">:</span> <span class="s1">&#39;**&#39;</span><span class="p">}</span>
-    <span class="k">if</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">dictionary</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">dictionary</span><span class="p">[</span><span class="n">s</span><span class="p">]</span>
-    <span class="k">return</span> <span class="n">s</span>
+<span class="c1"># instantiate _Parse</span>
+<span class="n">parse</span> <span class="o">=</span> <span class="n">_Parse</span><span class="p">()</span>
 </pre></div>
 
           </div>
