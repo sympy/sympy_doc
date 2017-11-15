@@ -63,7 +63,8 @@
 <span class="kn">from</span> <span class="nn">sympy.core.add</span> <span class="k">import</span> <span class="n">Add</span>
 <span class="kn">from</span> <span class="nn">sympy.core.containers</span> <span class="k">import</span> <span class="n">Tuple</span>
 <span class="kn">from</span> <span class="nn">sympy.core.operations</span> <span class="k">import</span> <span class="n">LatticeOp</span><span class="p">,</span> <span class="n">ShortCircuit</span>
-<span class="kn">from</span> <span class="nn">sympy.core.function</span> <span class="k">import</span> <span class="n">Application</span><span class="p">,</span> <span class="n">Lambda</span><span class="p">,</span> <span class="n">ArgumentIndexError</span>
+<span class="kn">from</span> <span class="nn">sympy.core.function</span> <span class="k">import</span> <span class="p">(</span><span class="n">Application</span><span class="p">,</span> <span class="n">Lambda</span><span class="p">,</span>
+    <span class="n">ArgumentIndexError</span><span class="p">,</span> <span class="n">AppliedUndef</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">sympy.core.expr</span> <span class="k">import</span> <span class="n">Expr</span>
 <span class="kn">from</span> <span class="nn">sympy.core.mul</span> <span class="k">import</span> <span class="n">Mul</span>
 <span class="kn">from</span> <span class="nn">sympy.core.numbers</span> <span class="k">import</span> <span class="n">Rational</span>
@@ -402,54 +403,163 @@
         <span class="c1"># first standard filter, for cls.zero and cls.identity</span>
         <span class="c1"># also reshape Max(a, Max(b, c)) to Max(a, b, c)</span>
         <span class="k">try</span><span class="p">:</span>
-            <span class="n">_args</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span><span class="bp">cls</span><span class="o">.</span><span class="n">_new_args_filter</span><span class="p">(</span><span class="n">args</span><span class="p">))</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span><span class="bp">cls</span><span class="o">.</span><span class="n">_new_args_filter</span><span class="p">(</span><span class="n">args</span><span class="p">))</span>
         <span class="k">except</span> <span class="n">ShortCircuit</span><span class="p">:</span>
             <span class="k">return</span> <span class="bp">cls</span><span class="o">.</span><span class="n">zero</span>
 
-        <span class="c1"># second filter</span>
-        <span class="c1"># variant I: remove ones which can be removed</span>
-        <span class="c1"># args = cls._collapse_arguments(set(_args), **assumptions)</span>
+        <span class="k">if</span> <span class="n">assumptions</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;evaluate&#39;</span><span class="p">,</span> <span class="kc">True</span><span class="p">):</span>
+            <span class="c1"># remove redundant args that are easily identified</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_collapse_arguments</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">assumptions</span><span class="p">)</span>
 
-        <span class="c1"># variant II: find local zeros</span>
-        <span class="n">args</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_find_localzeros</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">_args</span><span class="p">),</span> <span class="o">**</span><span class="n">assumptions</span><span class="p">)</span>
+        <span class="c1"># find local zeros</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_find_localzeros</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">assumptions</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="ow">not</span> <span class="n">args</span><span class="p">:</span>
             <span class="k">return</span> <span class="bp">cls</span><span class="o">.</span><span class="n">identity</span>
-        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">args</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="c1"># base creation</span>
-            <span class="c1"># XXX should _args be made canonical with sorting?</span>
-            <span class="n">_args</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
-            <span class="n">obj</span> <span class="o">=</span> <span class="n">Expr</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">_args</span><span class="p">,</span> <span class="o">**</span><span class="n">assumptions</span><span class="p">)</span>
-            <span class="n">obj</span><span class="o">.</span><span class="n">_argset</span> <span class="o">=</span> <span class="n">_args</span>
-            <span class="k">return</span> <span class="n">obj</span>
 
-    <span class="k">def</span> <span class="nf">_eval_simplify</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ratio</span><span class="p">,</span> <span class="n">measure</span><span class="p">):</span>
-        <span class="c1"># simplify Min(foo, y, Max(foo, x)) to Min(foo, y)</span>
-        <span class="c1"># Like And/Or, anything in common between the two</span>
-        <span class="c1"># is cause to eliminate the opposite arg.</span>
-        <span class="bp">cls</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">func</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="n">args</span><span class="p">)</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+
+        <span class="c1"># base creation</span>
+        <span class="n">_args</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="n">Expr</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">_args</span><span class="p">,</span> <span class="o">**</span><span class="n">assumptions</span><span class="p">)</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">_argset</span> <span class="o">=</span> <span class="n">_args</span>
+        <span class="k">return</span> <span class="n">obj</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_collapse_arguments</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">assumptions</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Remove redundant args.</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        ========</span>
+
+<span class="sd">        &gt;&gt;&gt; from sympy import Min, Max</span>
+<span class="sd">        &gt;&gt;&gt; from sympy.abc import a, b, c, d, e</span>
+
+<span class="sd">        Any arg in parent that appears in any</span>
+<span class="sd">        parent-like function in any of the flat args</span>
+<span class="sd">        of parent can be removed from that sub-arg:</span>
+
+<span class="sd">        &gt;&gt;&gt; Min(a, Max(b, Min(a, c, d)))</span>
+<span class="sd">        Min(a, Max(b, Min(c, d)))</span>
+
+<span class="sd">        If the arg of parent appears in an opposite-than parent</span>
+<span class="sd">        function in any of the flat args of parent that function</span>
+<span class="sd">        can be replaced with the arg:</span>
+
+<span class="sd">        &gt;&gt;&gt; Min(a, Max(b, Min(c, d, Max(a, e))))</span>
+<span class="sd">        Min(a, Max(b, Min(a, c, d)))</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">sympy.utilities.iterables</span> <span class="k">import</span> <span class="n">ordered</span>
+        <span class="kn">from</span> <span class="nn">sympy.utilities.iterables</span> <span class="k">import</span> <span class="n">sift</span>
+        <span class="kn">from</span> <span class="nn">sympy.simplify.simplify</span> <span class="k">import</span> <span class="n">walk</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">args</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">args</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">ordered</span><span class="p">(</span><span class="n">args</span><span class="p">))</span>
         <span class="k">if</span> <span class="bp">cls</span> <span class="o">==</span> <span class="n">Min</span><span class="p">:</span>
-            <span class="n">op</span> <span class="o">=</span> <span class="n">Max</span>
-        <span class="k">elif</span> <span class="bp">cls</span> <span class="o">==</span> <span class="n">Max</span><span class="p">:</span>
-            <span class="n">op</span> <span class="o">=</span> <span class="n">Min</span>
+            <span class="n">other</span> <span class="o">=</span> <span class="n">Max</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">op</span> <span class="o">=</span> <span class="kc">None</span>
-        <span class="k">if</span> <span class="n">op</span><span class="p">:</span>
-            <span class="n">unnested</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
-            <span class="n">nested</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">other</span> <span class="o">=</span> <span class="n">Min</span>
+
+        <span class="c1"># find global comparable max of Max and min of Min if a new</span>
+        <span class="c1"># value is being introduced in these args at position 0 of</span>
+        <span class="c1"># the ordered args</span>
+        <span class="k">if</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">is_number</span><span class="p">:</span>
+            <span class="n">sifted</span> <span class="o">=</span> <span class="n">mins</span><span class="p">,</span> <span class="n">maxs</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">args</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">walk</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">Min</span><span class="p">,</span> <span class="n">Max</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="n">v</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">is_comparable</span><span class="p">:</span>
+                        <span class="n">sifted</span><span class="p">[</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">Max</span><span class="p">)]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+            <span class="n">small</span> <span class="o">=</span> <span class="n">Min</span><span class="o">.</span><span class="n">identity</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">mins</span><span class="p">:</span>
+                <span class="n">v</span> <span class="o">=</span> <span class="n">i</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">v</span><span class="o">.</span><span class="n">is_number</span> <span class="ow">and</span> <span class="p">(</span><span class="n">v</span> <span class="o">&lt;</span> <span class="n">small</span><span class="p">)</span> <span class="o">==</span> <span class="kc">True</span><span class="p">:</span>
+                    <span class="n">small</span> <span class="o">=</span> <span class="n">v</span>
+            <span class="n">big</span> <span class="o">=</span> <span class="n">Max</span><span class="o">.</span><span class="n">identity</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">maxs</span><span class="p">:</span>
+                <span class="n">v</span> <span class="o">=</span> <span class="n">i</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">v</span><span class="o">.</span><span class="n">is_number</span> <span class="ow">and</span> <span class="p">(</span><span class="n">v</span> <span class="o">&gt;</span> <span class="n">big</span><span class="p">)</span> <span class="o">==</span> <span class="kc">True</span><span class="p">:</span>
+                    <span class="n">big</span> <span class="o">=</span> <span class="n">v</span>
+            <span class="c1"># at the point when this function is called from __new__,</span>
+            <span class="c1"># there may be more than one numeric arg present since</span>
+            <span class="c1"># local zeros have not been handled yet, so look through</span>
+            <span class="c1"># more than the first arg</span>
+            <span class="k">if</span> <span class="bp">cls</span> <span class="o">==</span> <span class="n">Min</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)):</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">args</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">is_number</span><span class="p">:</span>
+                        <span class="k">break</span>
+                    <span class="k">if</span> <span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">small</span><span class="p">)</span> <span class="o">==</span> <span class="kc">True</span><span class="p">:</span>
+                        <span class="n">small</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="k">elif</span> <span class="bp">cls</span> <span class="o">==</span> <span class="n">Max</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)):</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">args</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">is_number</span><span class="p">:</span>
+                        <span class="k">break</span>
+                    <span class="k">if</span> <span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">big</span><span class="p">)</span> <span class="o">==</span> <span class="kc">True</span><span class="p">:</span>
+                        <span class="n">big</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="n">T</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="k">if</span> <span class="bp">cls</span> <span class="o">==</span> <span class="n">Min</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">small</span> <span class="o">!=</span> <span class="n">Min</span><span class="o">.</span><span class="n">identity</span><span class="p">:</span>
+                    <span class="n">other</span> <span class="o">=</span> <span class="n">Max</span>
+                    <span class="n">T</span> <span class="o">=</span> <span class="n">small</span>
+            <span class="k">elif</span> <span class="n">big</span> <span class="o">!=</span> <span class="n">Max</span><span class="o">.</span><span class="n">identity</span><span class="p">:</span>
+                <span class="n">other</span> <span class="o">=</span> <span class="n">Min</span>
+                <span class="n">T</span> <span class="o">=</span> <span class="n">big</span>
+            <span class="k">if</span> <span class="n">T</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="c1"># remove numerical redundancy</span>
+                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)):</span>
+                    <span class="n">a</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+                    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+                        <span class="n">a0</span> <span class="o">=</span> <span class="n">a</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                        <span class="k">if</span> <span class="p">((</span><span class="n">a0</span> <span class="o">&gt;</span> <span class="n">T</span><span class="p">)</span> <span class="k">if</span> <span class="n">other</span> <span class="o">==</span> <span class="n">Max</span> <span class="k">else</span> <span class="p">(</span><span class="n">a0</span> <span class="o">&lt;</span> <span class="n">T</span><span class="p">))</span> <span class="o">==</span> <span class="kc">True</span><span class="p">:</span>
+                            <span class="n">args</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">identity</span>
+
+        <span class="c1"># remove redundant symbolic args</span>
+        <span class="k">def</span> <span class="nf">do</span><span class="p">(</span><span class="n">ai</span><span class="p">,</span> <span class="n">a</span><span class="p">):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ai</span><span class="p">,</span> <span class="p">(</span><span class="n">Min</span><span class="p">,</span> <span class="n">Max</span><span class="p">)):</span>
+                <span class="k">return</span> <span class="n">ai</span>
+            <span class="n">cond</span> <span class="o">=</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">ai</span><span class="o">.</span><span class="n">args</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">cond</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">ai</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">do</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">a</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">ai</span><span class="o">.</span><span class="n">args</span><span class="p">],</span>
+                    <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ai</span><span class="p">,</span> <span class="bp">cls</span><span class="p">):</span>
+                <span class="k">return</span> <span class="n">ai</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">do</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">a</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">ai</span><span class="o">.</span><span class="n">args</span> <span class="k">if</span> <span class="n">i</span> <span class="o">!=</span> <span class="n">a</span><span class="p">],</span>
+                    <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">a</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">a</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">args</span><span class="p">):</span>
+            <span class="n">args</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:]</span> <span class="o">=</span> <span class="p">[</span><span class="n">do</span><span class="p">(</span><span class="n">ai</span><span class="p">,</span> <span class="n">a</span><span class="p">)</span> <span class="k">for</span> <span class="n">ai</span> <span class="ow">in</span> <span class="n">args</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:]]</span>
+
+        <span class="c1"># factor out common elements as for</span>
+        <span class="c1"># Min(Max(x, y), Max(x, z)) -&gt; Max(x, Min(y, z))</span>
+        <span class="c1"># and vice versa when swapping Min/Max -- do this only for the</span>
+        <span class="c1"># easy case where all functions contain something in common;</span>
+        <span class="c1"># trying to find some optimal subset of args to modify takes</span>
+        <span class="c1"># too long</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">common</span> <span class="o">=</span> <span class="kc">None</span>
             <span class="n">remove</span> <span class="o">=</span> <span class="p">[]</span>
-            <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
-                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">op</span><span class="p">):</span>
-                    <span class="n">nested</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
-                <span class="k">else</span><span class="p">:</span>
-                    <span class="n">unnested</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
-            <span class="n">N</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">nested</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
-            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">n</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">reversed</span><span class="p">(</span><span class="n">nested</span><span class="p">)):</span>
-                <span class="k">if</span> <span class="nb">set</span><span class="p">(</span><span class="n">n</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="o">&amp;</span> <span class="n">unnested</span><span class="p">:</span>
-                    <span class="n">nested</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">N</span> <span class="o">-</span> <span class="n">i</span><span class="p">)</span>
-            <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">unnested</span><span class="p">)</span> <span class="o">+</span> <span class="n">nested</span><span class="p">))</span>
+            <span class="n">sets</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)):</span>
+                <span class="n">a</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+                    <span class="k">continue</span>
+                <span class="n">s</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
+                <span class="n">common</span> <span class="o">=</span> <span class="n">s</span> <span class="k">if</span> <span class="n">common</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="p">(</span><span class="n">common</span> <span class="o">&amp;</span> <span class="n">s</span><span class="p">)</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">common</span><span class="p">:</span>
+                    <span class="k">break</span>
+                <span class="n">sets</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+                <span class="n">remove</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">common</span><span class="p">:</span>
+                <span class="n">sets</span> <span class="o">=</span> <span class="nb">filter</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="p">[</span><span class="n">s</span> <span class="o">-</span> <span class="n">common</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">sets</span><span class="p">])</span>
+                <span class="n">sets</span> <span class="o">=</span> <span class="p">[</span><span class="n">other</span><span class="p">(</span><span class="o">*</span><span class="n">s</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">sets</span><span class="p">]</span>
+                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="n">remove</span><span class="p">):</span>
+                    <span class="n">args</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+                <span class="n">oargs</span> <span class="o">=</span> <span class="p">[</span><span class="bp">cls</span><span class="p">(</span><span class="o">*</span><span class="n">sets</span><span class="p">)]</span> <span class="k">if</span> <span class="n">sets</span> <span class="k">else</span> <span class="p">[]</span>
+                <span class="n">oargs</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">common</span><span class="p">)</span>
+                <span class="n">args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">other</span><span class="p">(</span><span class="o">*</span><span class="n">oargs</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">args</span>
 
     <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">_new_args_filter</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">arg_sequence</span><span class="p">):</span>
@@ -463,7 +573,10 @@
         <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">arg_sequence</span><span class="p">:</span>
 
             <span class="c1"># pre-filter, checking comparability of arguments</span>
-            <span class="k">if</span> <span class="p">(</span><span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">Expr</span><span class="p">))</span> <span class="ow">or</span> <span class="p">(</span><span class="n">arg</span><span class="o">.</span><span class="n">is_real</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="n">arg</span> <span class="ow">is</span> <span class="n">S</span><span class="o">.</span><span class="n">ComplexInfinity</span><span class="p">):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">Expr</span><span class="p">)</span> <span class="ow">or</span> <span class="n">arg</span><span class="o">.</span><span class="n">is_real</span> <span class="ow">is</span> <span class="kc">False</span> <span class="ow">or</span> <span class="p">(</span>
+                    <span class="n">arg</span><span class="o">.</span><span class="n">is_number</span> <span class="ow">and</span>
+                    <span class="ow">not</span> <span class="n">arg</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">AppliedUndef</span><span class="p">)</span> <span class="ow">and</span>
+                    <span class="ow">not</span> <span class="n">arg</span><span class="o">.</span><span class="n">is_comparable</span><span class="p">):</span>
                 <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;The argument &#39;</span><span class="si">%s</span><span class="s2">&#39; is not comparable.&quot;</span> <span class="o">%</span> <span class="n">arg</span><span class="p">)</span>
 
             <span class="k">if</span> <span class="n">arg</span> <span class="o">==</span> <span class="bp">cls</span><span class="o">.</span><span class="n">zero</span><span class="p">:</span>
