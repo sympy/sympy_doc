@@ -418,27 +418,53 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">is_number</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Returns True if ``self`` has no free symbols.</span>
-<span class="sd">        It will be faster than ``if not self.free_symbols``, however, since</span>
-<span class="sd">        ``is_number`` will fail as soon as it hits a free symbol.</span>
+        <span class="sd">&quot;&quot;&quot;Returns True if ``self`` has no free symbols and no</span>
+<span class="sd">        undefined functions (AppliedUndef, to be precise). It will be</span>
+<span class="sd">        faster than ``if not self.free_symbols``, however, since</span>
+<span class="sd">        ``is_number`` will fail as soon as it hits a free symbol</span>
+<span class="sd">        or undefined function.</span>
 
 <span class="sd">        Examples</span>
 <span class="sd">        ========</span>
 
-<span class="sd">        &gt;&gt;&gt; from sympy import log, Integral</span>
+<span class="sd">        &gt;&gt;&gt; from sympy import log, Integral, cos, sin, pi</span>
+<span class="sd">        &gt;&gt;&gt; from sympy.core.function import Function</span>
 <span class="sd">        &gt;&gt;&gt; from sympy.abc import x</span>
+<span class="sd">        &gt;&gt;&gt; f = Function(&#39;f&#39;)</span>
 
 <span class="sd">        &gt;&gt;&gt; x.is_number</span>
 <span class="sd">        False</span>
+<span class="sd">        &gt;&gt;&gt; f(1).is_number</span>
+<span class="sd">        False</span>
 <span class="sd">        &gt;&gt;&gt; (2*x).is_number</span>
 <span class="sd">        False</span>
-<span class="sd">        &gt;&gt;&gt; (2 + log(2)).is_number</span>
-<span class="sd">        True</span>
 <span class="sd">        &gt;&gt;&gt; (2 + Integral(2, x)).is_number</span>
 <span class="sd">        False</span>
 <span class="sd">        &gt;&gt;&gt; (2 + Integral(2, (x, 1, 2))).is_number</span>
 <span class="sd">        True</span>
 
+<span class="sd">        Not all numbers are Numbers in the SymPy sense:</span>
+
+<span class="sd">        &gt;&gt;&gt; pi.is_number, pi.is_Number</span>
+<span class="sd">        (True, False)</span>
+
+<span class="sd">        If something is a number it should evaluate to a number with</span>
+<span class="sd">        real and imaginary parts that are Numbers; the result may not</span>
+<span class="sd">        be comparable, however, since the real and/or imaginary part</span>
+<span class="sd">        of the result may not have precision.</span>
+
+<span class="sd">        &gt;&gt;&gt; cos(1).is_number and cos(1).is_comparable</span>
+<span class="sd">        True</span>
+
+<span class="sd">        &gt;&gt;&gt; z = cos(1)**2 + sin(1)**2 - 1</span>
+<span class="sd">        &gt;&gt;&gt; z.is_number</span>
+<span class="sd">        True</span>
+<span class="sd">        &gt;&gt;&gt; z.is_comparable</span>
+<span class="sd">        False</span>
+
+<span class="sd">        See Also</span>
+<span class="sd">        ========</span>
+<span class="sd">        sympy.core.basic.is_comparable</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="nb">all</span><span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">is_number</span> <span class="k">for</span> <span class="n">obj</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
 
@@ -590,20 +616,11 @@
 
         <span class="n">simplify</span> <span class="o">=</span> <span class="n">flags</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;simplify&#39;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
 
-        <span class="c1"># Except for expressions that contain units, only one of these should</span>
-        <span class="c1"># be necessary since if something is</span>
-        <span class="c1"># known to be a number it should also know that there are no</span>
-        <span class="c1"># free symbols. But is_number quits as soon as it hits a non-number</span>
-        <span class="c1"># whereas free_symbols goes until all free symbols have been collected,</span>
-        <span class="c1"># thus is_number should be faster. But a double check on free symbols</span>
-        <span class="c1"># is made just in case there is a discrepancy between the two.</span>
-        <span class="n">free</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">free_symbols</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_number</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">free</span><span class="p">:</span>
-            <span class="c1"># if the following assertion fails then that object&#39;s free_symbols</span>
-            <span class="c1"># method needs attention: if an expression is a number it cannot</span>
-            <span class="c1"># have free symbols</span>
-            <span class="k">assert</span> <span class="ow">not</span> <span class="n">free</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_number</span><span class="p">:</span>
             <span class="k">return</span> <span class="kc">True</span>
+        <span class="n">free</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">free_symbols</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">free</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">True</span>  <span class="c1"># assume f(1) is some constant</span>
 
         <span class="c1"># if we are only interested in some symbols and they are not in the</span>
         <span class="c1"># free symbols then this expression is constant wrt those symbols</span>
@@ -3470,12 +3487,10 @@
 
 
 <span class="k">def</span> <span class="nf">_n2</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Return (a - b).evalf(2) if it, a and b are comparable, else None.</span>
+    <span class="sd">&quot;&quot;&quot;Return (a - b).evalf(2) if a and b are comparable, else None.</span>
 <span class="sd">    This should only be used when a and b are already sympified.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">is_number</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)):</span>
-        <span class="k">return</span>
-    <span class="c1"># /!\ if is very important (see issue 8245) not to</span>
+    <span class="c1"># /!\ it is very important (see issue 8245) not to</span>
     <span class="c1"># use a re-evaluated number in the calculation of dif</span>
     <span class="k">if</span> <span class="n">a</span><span class="o">.</span><span class="n">is_comparable</span> <span class="ow">and</span> <span class="n">b</span><span class="o">.</span><span class="n">is_comparable</span><span class="p">:</span>
         <span class="n">dif</span> <span class="o">=</span> <span class="p">(</span><span class="n">a</span> <span class="o">-</span> <span class="n">b</span><span class="p">)</span><span class="o">.</span><span class="n">evalf</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
