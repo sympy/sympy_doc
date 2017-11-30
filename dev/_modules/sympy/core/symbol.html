@@ -60,7 +60,8 @@
 <span></span><span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">division</span>
 
 <span class="kn">from</span> <span class="nn">sympy.core.assumptions</span> <span class="k">import</span> <span class="n">StdFactKB</span>
-<span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="k">import</span> <span class="n">string_types</span><span class="p">,</span> <span class="nb">range</span><span class="p">,</span> <span class="n">is_sequence</span>
+<span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="k">import</span> <span class="p">(</span><span class="n">string_types</span><span class="p">,</span> <span class="nb">range</span><span class="p">,</span> <span class="n">is_sequence</span><span class="p">,</span>
+    <span class="n">ordered</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">.basic</span> <span class="k">import</span> <span class="n">Basic</span>
 <span class="kn">from</span> <span class="nn">.sympify</span> <span class="k">import</span> <span class="n">sympify</span>
 <span class="kn">from</span> <span class="nn">.singleton</span> <span class="k">import</span> <span class="n">S</span>
@@ -70,6 +71,7 @@
 <span class="kn">from</span> <span class="nn">sympy.core.logic</span> <span class="k">import</span> <span class="n">fuzzy_bool</span>
 <span class="kn">from</span> <span class="nn">sympy.logic.boolalg</span> <span class="k">import</span> <span class="n">Boolean</span>
 <span class="kn">from</span> <span class="nn">sympy.utilities.iterables</span> <span class="k">import</span> <span class="n">cartes</span>
+<span class="kn">from</span> <span class="nn">sympy.core.containers</span> <span class="k">import</span> <span class="n">Tuple</span>
 
 <span class="kn">import</span> <span class="nn">string</span>
 <span class="kn">import</span> <span class="nn">re</span> <span class="k">as</span> <span class="nn">_re</span>
@@ -796,6 +798,71 @@
         <span class="k">del</span> <span class="n">frame</span>  <span class="c1"># break cyclic dependencies as stated in inspect docs</span>
 
     <span class="k">return</span> <span class="n">syms</span></div>
+
+<span class="k">def</span> <span class="nf">disambiguate</span><span class="p">(</span><span class="o">*</span><span class="nb">iter</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return a Tuple containing the passed expressions with symbols</span>
+<span class="sd">    that appear the same when printed replaced with numerically</span>
+<span class="sd">    subscripted symbols, and all Dummy symbols replaced with Symbols.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    iter: list of symbols or expressions.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.core.symbol import disambiguate</span>
+<span class="sd">    &gt;&gt;&gt; from sympy import Dummy, Symbol, Tuple</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.abc import y</span>
+
+<span class="sd">    &gt;&gt;&gt; tup = Symbol(&#39;_x&#39;), Dummy(&#39;x&#39;), Dummy(&#39;x&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; disambiguate(*tup)</span>
+<span class="sd">    (x_2, x, x_1)</span>
+
+<span class="sd">    &gt;&gt;&gt; eqs = Tuple(Symbol(&#39;x&#39;)/y, Dummy(&#39;x&#39;)/y)</span>
+<span class="sd">    &gt;&gt;&gt; disambiguate(*eqs)</span>
+<span class="sd">    (x_1/y, x/y)</span>
+
+<span class="sd">    &gt;&gt;&gt; ix = Symbol(&#39;x&#39;, integer=True)</span>
+<span class="sd">    &gt;&gt;&gt; vx = Symbol(&#39;x&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; disambiguate(vx + ix)</span>
+<span class="sd">    (x + x_1,)</span>
+
+<span class="sd">    To make your own mapping of symbols to use, pass only the free symbols</span>
+<span class="sd">    of the expressions and create a dictionary:</span>
+
+<span class="sd">    &gt;&gt;&gt; free = eqs.free_symbols</span>
+<span class="sd">    &gt;&gt;&gt; mapping = dict(zip(free, disambiguate(*free)))</span>
+<span class="sd">    &gt;&gt;&gt; eqs.xreplace(mapping)</span>
+<span class="sd">    (x_1/y, x/y)</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">new_iter</span> <span class="o">=</span> <span class="n">Tuple</span><span class="p">(</span><span class="o">*</span><span class="nb">iter</span><span class="p">)</span>
+    <span class="n">key</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span><span class="nb">tuple</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">assumptions0</span><span class="o">.</span><span class="n">items</span><span class="p">()))</span>
+    <span class="n">syms</span> <span class="o">=</span> <span class="n">ordered</span><span class="p">(</span><span class="n">new_iter</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">,</span> <span class="n">keys</span><span class="o">=</span><span class="n">key</span><span class="p">)</span>
+    <span class="n">mapping</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">syms</span><span class="p">:</span>
+        <span class="n">mapping</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">s</span><span class="p">)</span><span class="o">.</span><span class="n">lstrip</span><span class="p">(</span><span class="s1">&#39;_&#39;</span><span class="p">),</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+    <span class="n">reps</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">mapping</span><span class="p">:</span>
+        <span class="c1"># the first or only symbol doesn&#39;t get subscripted but make</span>
+        <span class="c1"># sure that it&#39;s a Symbol, not a Dummy</span>
+        <span class="n">k0</span> <span class="o">=</span> <span class="n">Symbol</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">),</span> <span class="o">**</span><span class="n">mapping</span><span class="p">[</span><span class="n">k</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">assumptions0</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">k</span> <span class="o">!=</span> <span class="n">k0</span><span class="p">:</span>
+            <span class="n">reps</span><span class="p">[</span><span class="n">mapping</span><span class="p">[</span><span class="n">k</span><span class="p">][</span><span class="mi">0</span><span class="p">]]</span> <span class="o">=</span> <span class="n">k0</span>
+        <span class="c1"># the others get subscripts (and are made into Symbols)</span>
+        <span class="n">skip</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">mapping</span><span class="p">[</span><span class="n">k</span><span class="p">])):</span>
+            <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+                <span class="n">name</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">_</span><span class="si">%i</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">i</span> <span class="o">+</span> <span class="n">skip</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">mapping</span><span class="p">:</span>
+                    <span class="k">break</span>
+                <span class="n">skip</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="n">ki</span> <span class="o">=</span> <span class="n">mapping</span><span class="p">[</span><span class="n">k</span><span class="p">][</span><span class="n">i</span><span class="p">]</span>
+            <span class="n">reps</span><span class="p">[</span><span class="n">ki</span><span class="p">]</span> <span class="o">=</span> <span class="n">Symbol</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="o">**</span><span class="n">ki</span><span class="o">.</span><span class="n">assumptions0</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">new_iter</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">reps</span><span class="p">)</span>
 </pre></div>
 
           </div>
@@ -835,7 +902,7 @@
     </div>
     <div class="footer" role="contentinfo">
         &#169; Copyright 2017 SymPy Development Team.
-      Last updated on Nov 29, 2017.
+      Last updated on Nov 30, 2017.
       Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.5.
     </div>
   </body>
