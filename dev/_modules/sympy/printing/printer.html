@@ -63,14 +63,26 @@
 <span class="sd">passed to a designated Printer who then is responsible to return an</span>
 <span class="sd">adequate representation of that expression.</span>
 
-<span class="sd">The basic concept is the following:</span>
+<span class="sd">**The basic concept is the following:**</span>
 <span class="sd">  1. Let the object print itself if it knows how.</span>
 <span class="sd">  2. Take the best fitting method defined in the printer.</span>
 <span class="sd">  3. As fall-back use the emptyPrinter method for the printer.</span>
 
-<span class="sd">Some more information how the single concepts work and who should use which:</span>
+<span class="sd">Which Method is Responsible for Printing?</span>
+<span class="sd">^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^</span>
 
-<span class="sd">1. The object prints itself</span>
+<span class="sd">The whole printing process is started by calling ``.doprint(expr)`` on the printer</span>
+<span class="sd">which you want to use. This method looks for an appropriate method which can</span>
+<span class="sd">print the given expression in the given style that the printer defines.</span>
+<span class="sd">While looking for the method, it follows these steps:</span>
+
+<span class="sd">1. **Let the object print itself if it knows how.**</span>
+
+<span class="sd">    The printer looks for a specific method in every object. The name of that method</span>
+<span class="sd">    depends on the specific printer and is defined under ``Printer.printmethod``.</span>
+<span class="sd">    For example, StrPrinter calls ``_sympystr`` and LatexPrinter calls ``_latex``.</span>
+<span class="sd">    Look at the documentation of the printer that you want to use.</span>
+<span class="sd">    The name of the method is specified there.</span>
 
 <span class="sd">    This was the original way of doing printing in sympy. Every class had</span>
 <span class="sd">    its own latex, mathml, str and repr methods, but it turned out that it</span>
@@ -80,16 +92,10 @@
 <span class="sd">    good for user defined classes where it is inconvenient to patch the</span>
 <span class="sd">    printers.</span>
 
-<span class="sd">    Nevertheless, to get a fitting representation, the printers look for a</span>
-<span class="sd">    specific method in every object, that will be called if it&#39;s available</span>
-<span class="sd">    and is then responsible for the representation. The name of that method</span>
-<span class="sd">    depends on the specific printer and is defined under</span>
-<span class="sd">    Printer.printmethod.</span>
-
-<span class="sd">2. Take the best fitting method defined in the printer.</span>
+<span class="sd">2. **Take the best fitting method defined in the printer.**</span>
 
 <span class="sd">    The printer loops through expr classes (class + its bases), and tries</span>
-<span class="sd">    to dispatch the work to _print_&lt;EXPR_CLASS&gt;</span>
+<span class="sd">    to dispatch the work to ``_print_&lt;EXPR_CLASS&gt;``</span>
 
 <span class="sd">    e.g., suppose we have the following class hierarchy::</span>
 
@@ -101,8 +107,8 @@
 <span class="sd">            |</span>
 <span class="sd">        Rational</span>
 
-<span class="sd">    then, for expr=Rational(...), in order to dispatch, we will try</span>
-<span class="sd">    calling printer methods as shown in the figure below::</span>
+<span class="sd">    then, for ``expr=Rational(...)``, the Printer will try</span>
+<span class="sd">    to call printer methods in the order as shown in the figure below::</span>
 
 <span class="sd">        p._print(expr)</span>
 <span class="sd">        |</span>
@@ -114,16 +120,113 @@
 <span class="sd">        |</span>
 <span class="sd">        `-- p._print_Basic(expr)</span>
 
-<span class="sd">    if ._print_Rational method exists in the printer, then it is called,</span>
-<span class="sd">    and the result is returned back.</span>
+<span class="sd">    if ``._print_Rational`` method exists in the printer, then it is called,</span>
+<span class="sd">    and the result is returned back. Otherwise, the printer tries to call</span>
+<span class="sd">    ``._print_Number`` and so on.</span>
 
-<span class="sd">    otherwise, we proceed with trying Rational bases in the inheritance</span>
-<span class="sd">    order.</span>
+<span class="sd">3. **As a fall-back use the emptyPrinter method for the printer.**</span>
 
-<span class="sd">3. As fall-back use the emptyPrinter method for the printer.</span>
+<span class="sd">    As fall-back ``self.emptyPrinter`` will be called with the expression. If</span>
+<span class="sd">    not defined in the Printer subclass this will be the same as ``str(expr)``.</span>
 
-<span class="sd">    As fall-back self.emptyPrinter will be called with the expression. If</span>
-<span class="sd">    not defined in the Printer subclass this will be the same as str(expr).</span>
+<span class="sd">Example of Custom Printer</span>
+<span class="sd">^^^^^^^^^^^^^^^^^^^^^^^^^</span>
+
+<span class="sd">.. _printer_example:</span>
+
+<span class="sd">In the example below, we have a printer which prints the derivative of a function</span>
+<span class="sd">in a shorter form.</span>
+
+<span class="sd">.. code-block:: python</span>
+
+<span class="sd">    from sympy import Symbol</span>
+<span class="sd">    from sympy.printing.latex import LatexPrinter, print_latex</span>
+<span class="sd">    from sympy.core.function import UndefinedFunction, Function</span>
+
+
+<span class="sd">    class MyLatexPrinter(LatexPrinter):</span>
+<span class="sd">        \&quot;\&quot;\&quot;Print derivative of a function of symbols in a shorter form.</span>
+<span class="sd">        \&quot;\&quot;\&quot;</span>
+<span class="sd">        def _print_Derivative(self, expr):</span>
+<span class="sd">            function, *vars = expr.args</span>
+<span class="sd">            if not isinstance(type(function), UndefinedFunction) or \\</span>
+<span class="sd">               not all(isinstance(i, Symbol) for i in vars):</span>
+<span class="sd">                return super()._print_Derivative(expr)</span>
+
+<span class="sd">            # If you want the printer to work correctly for nested</span>
+<span class="sd">            # expressions then use self._print() instead of str() or latex().</span>
+<span class="sd">            # See the example of nested modulo below in the custom printing</span>
+<span class="sd">            # method section.</span>
+<span class="sd">            return &quot;{}_{{{}}}&quot;.format(</span>
+<span class="sd">                self._print(Symbol(function.func.__name__)),</span>
+<span class="sd">                            &#39;&#39;.join(self._print(i) for i in vars))</span>
+
+
+<span class="sd">    def print_my_latex(expr):</span>
+<span class="sd">        \&quot;\&quot;\&quot; Most of the printers define their own wrappers for print().</span>
+<span class="sd">        These wrappers usually take printer settings. Our printer does not have</span>
+<span class="sd">        any settings.</span>
+<span class="sd">        \&quot;\&quot;\&quot;</span>
+<span class="sd">        print(MyLatexPrinter().doprint(expr))</span>
+
+
+<span class="sd">    y = Symbol(&quot;y&quot;)</span>
+<span class="sd">    x = Symbol(&quot;x&quot;)</span>
+<span class="sd">    f = Function(&quot;f&quot;)</span>
+<span class="sd">    expr = f(x, y).diff(x, y)</span>
+
+<span class="sd">    # Print the expression using the normal latex printer and our custom</span>
+<span class="sd">    # printer.</span>
+<span class="sd">    print_latex(expr)</span>
+<span class="sd">    print_my_latex(expr)</span>
+
+<span class="sd">The output of the code above is::</span>
+
+<span class="sd">    \\frac{\\partial^{2}}{\\partial x\\partial y}  f{\\left (x,y \\right )}</span>
+<span class="sd">    f_{xy}</span>
+
+<span class="sd">Example of Custom Printing Method</span>
+<span class="sd">^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^</span>
+
+<span class="sd">In the example below, the latex printing of the modulo operator is modified.</span>
+<span class="sd">This is done by overriding the method ``_latex`` of ``Mod``.</span>
+
+<span class="sd">.. code-block:: python</span>
+
+<span class="sd">    from sympy import Symbol, Mod, Integer</span>
+<span class="sd">    from sympy.printing.latex import print_latex</span>
+
+
+<span class="sd">    class ModOp(Mod):</span>
+<span class="sd">        def _latex(self, printer=None):</span>
+<span class="sd">            # Always use printer.doprint() otherwise nested expressions won&#39;t</span>
+<span class="sd">            # work. See the example of ModOpWrong.</span>
+<span class="sd">            a, b = [printer.doprint(i) for i in self.args]</span>
+<span class="sd">            return r&quot;\\operatorname{Mod}{\\left( %s,%s \\right)}&quot; % (a,b)</span>
+
+
+<span class="sd">    class ModOpWrong(Mod):</span>
+<span class="sd">        def _latex(self, printer=None):</span>
+<span class="sd">            a, b = [str(i) for i in self.args]</span>
+<span class="sd">            return r&quot;\\operatorname{Mod}{\\left( %s,%s \\right)}&quot; % (a,b)</span>
+
+
+<span class="sd">    x = Symbol(&#39;x&#39;)</span>
+<span class="sd">    m = Symbol(&#39;m&#39;)</span>
+
+<span class="sd">    print_latex(ModOp(x, m))</span>
+<span class="sd">    print_latex(Mod(x, m))</span>
+
+<span class="sd">    # Nested modulo.</span>
+<span class="sd">    print_latex(ModOp(ModOp(x, m), Integer(7)))</span>
+<span class="sd">    print_latex(ModOpWrong(ModOpWrong(x, m), Integer(7)))</span>
+
+<span class="sd">The output of the code above is::</span>
+
+<span class="sd">    \\operatorname{Mod}{\\left( x,m \\right)}</span>
+<span class="sd">    x\\bmod{m}</span>
+<span class="sd">    \\operatorname{Mod}{\\left( \\operatorname{Mod}{\\left( x,m \\right)},7 \\right)}</span>
+<span class="sd">    \\operatorname{Mod}{\\left( ModOpWrong(x, m),7 \\right)}</span>
 <span class="sd">&quot;&quot;&quot;</span>
 
 <span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">division</span>
@@ -136,113 +239,12 @@
 
 
 <div class="viewcode-block" id="Printer"><a class="viewcode-back" href="../../../modules/printing.html#sympy.printing.printer.Printer">[docs]</a><span class="k">class</span> <span class="nc">Printer</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Generic printer</span>
+    <span class="sd">&quot;&quot;&quot; Generic printer</span>
 
 <span class="sd">    Its job is to provide infrastructure for implementing new printers easily.</span>
 
-<span class="sd">    Basically, if you want to implement a printer, all you have to do is:</span>
-
-<span class="sd">    1. Subclass Printer.</span>
-
-<span class="sd">    2. Define Printer.printmethod in your subclass.</span>
-<span class="sd">       If a object has a method with that name, this method will be used</span>
-<span class="sd">       for printing.</span>
-
-<span class="sd">    3. In your subclass, define ``_print_&lt;CLASS&gt;`` methods</span>
-
-<span class="sd">       For each class you want to provide printing to, define an appropriate</span>
-<span class="sd">       method how to do it. For example if you want a class FOO to be printed in</span>
-<span class="sd">       its own way, define _print_FOO::</span>
-
-<span class="sd">           def _print_FOO(self, e):</span>
-<span class="sd">               ...</span>
-
-<span class="sd">       this should return how FOO instance e is printed</span>
-
-<span class="sd">       Also, if ``BAR`` is a subclass of ``FOO``, ``_print_FOO(bar)`` will</span>
-<span class="sd">       be called for instance of ``BAR``, if no ``_print_BAR`` is provided.</span>
-<span class="sd">       Thus, usually, we don&#39;t need to provide printing routines for every</span>
-<span class="sd">       class we want to support -- only generic routine has to be provided</span>
-<span class="sd">       for a set of classes.</span>
-
-<span class="sd">       A good example for this are functions - for example ``PrettyPrinter``</span>
-<span class="sd">       only defines ``_print_Function``, and there is no ``_print_sin``,</span>
-<span class="sd">       ``_print_tan``, etc...</span>
-
-<span class="sd">       On the other hand, a good printer will probably have to define</span>
-<span class="sd">       separate routines for ``Symbol``, ``Atom``, ``Number``, ``Integral``,</span>
-<span class="sd">       ``Limit``, etc...</span>
-
-<span class="sd">    4. If convenient, override ``self.emptyPrinter``</span>
-
-<span class="sd">       This callable will be called to obtain printing result as a last resort,</span>
-<span class="sd">       that is when no appropriate print method was found for an expression.</span>
-
-<span class="sd">    Examples of overloading StrPrinter::</span>
-
-<span class="sd">        from sympy import Basic, Function, Symbol</span>
-<span class="sd">        from sympy.printing.str import StrPrinter</span>
-
-<span class="sd">        class CustomStrPrinter(StrPrinter):</span>
-<span class="sd">            \&quot;\&quot;\&quot;</span>
-<span class="sd">            Examples of how to customize the StrPrinter for both a SymPy class and a</span>
-<span class="sd">            user defined class subclassed from the SymPy Basic class.</span>
-<span class="sd">            \&quot;\&quot;\&quot;</span>
-
-<span class="sd">            def _print_Derivative(self, expr):</span>
-<span class="sd">                \&quot;\&quot;\&quot;</span>
-<span class="sd">                Custom printing of the SymPy Derivative class.</span>
-
-<span class="sd">                Instead of:</span>
-
-<span class="sd">                D(x(t), t) or D(x(t), t, t)</span>
-
-<span class="sd">                We will print:</span>
-
-<span class="sd">                x&#39;     or     x&#39;&#39;</span>
-
-<span class="sd">                In this example, expr.args == (x(t), t), and expr.args[0] == x(t), and</span>
-<span class="sd">                expr.args[0].func == x</span>
-<span class="sd">                \&quot;\&quot;\&quot;</span>
-<span class="sd">                return str(expr.args[0].func) + &quot;&#39;&quot;*len(expr.args[1:])</span>
-
-<span class="sd">            def _print_MyClass(self, expr):</span>
-<span class="sd">                \&quot;\&quot;\&quot;</span>
-<span class="sd">                Print the characters of MyClass.s alternatively lower case and upper</span>
-<span class="sd">                case</span>
-<span class="sd">                \&quot;\&quot;\&quot;</span>
-<span class="sd">                s = &quot;&quot;</span>
-<span class="sd">                i = 0</span>
-<span class="sd">                for char in expr.s:</span>
-<span class="sd">                    if i % 2 == 0:</span>
-<span class="sd">                        s += char.lower()</span>
-<span class="sd">                    else:</span>
-<span class="sd">                        s += char.upper()</span>
-<span class="sd">                    i += 1</span>
-<span class="sd">                return s</span>
-
-<span class="sd">        # Override the __str__ method of to use CustromStrPrinter</span>
-<span class="sd">        Basic.__str__ = lambda self: CustomStrPrinter().doprint(self)</span>
-<span class="sd">        # Demonstration of CustomStrPrinter:</span>
-<span class="sd">        t = Symbol(&#39;t&#39;)</span>
-<span class="sd">        x = Function(&#39;x&#39;)(t)</span>
-<span class="sd">        dxdt = x.diff(t)            # dxdt is a Derivative instance</span>
-<span class="sd">        d2xdt2 = dxdt.diff(t)       # dxdt2 is a Derivative instance</span>
-<span class="sd">        ex = MyClass(&#39;I like both lowercase and upper case&#39;)</span>
-
-<span class="sd">        print dxdt</span>
-<span class="sd">        print d2xdt2</span>
-<span class="sd">        print ex</span>
-
-<span class="sd">    The output of the above code is::</span>
-
-<span class="sd">        x&#39;</span>
-<span class="sd">        x&#39;&#39;</span>
-<span class="sd">        i lIkE BoTh lOwErCaSe aNd uPpEr cAsE</span>
-
-<span class="sd">    By overriding Basic.__str__, we can customize the printing of anything that</span>
-<span class="sd">    is subclassed from Basic.</span>
-
+<span class="sd">    If you want to define your custom Printer or your custom printing method</span>
+<span class="sd">    for your custom class then see the example above: printer_example_ .</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">_global_settings</span> <span class="o">=</span> <span class="p">{}</span>
