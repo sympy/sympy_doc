@@ -89,6 +89,7 @@
 <span class="kn">from</span> <span class="nn">sympy.utilities.iterables</span> <span class="k">import</span> <span class="n">uniq</span>
 <span class="kn">from</span> <span class="nn">sympy.utilities.randtest</span> <span class="k">import</span> <span class="n">_randrange</span>
 
+
 <div class="viewcode-block" id="AZ"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.AZ">[docs]</a><span class="k">def</span> <span class="nf">AZ</span><span class="p">(</span><span class="n">s</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Return the letters of ``s`` in uppercase. In case more than</span>
 <span class="sd">    one string is passed, each of them will be processed and a list</span>
@@ -2104,6 +2105,206 @@
 <span class="s1">            than prime </span><span class="si">%s</span><span class="s1">.&#39;&#39;&#39;</span> <span class="o">%</span> <span class="n">p</span><span class="p">))</span>
 
     <span class="k">return</span> <span class="nb">pow</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">p</span><span class="p">)</span></div>
+
+
+<span class="c1">################ Goldwasser-Micali Encryption  #########################</span>
+
+
+<span class="k">def</span> <span class="nf">_legendre</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">p</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns the legendre symbol of a and p</span>
+<span class="sd">    assuming that p is a prime</span>
+
+<span class="sd">    i.e. 1 if a is a quadratic residue mod p</span>
+<span class="sd">        -1 if a is not a quadratic residue mod p</span>
+<span class="sd">         0 if a is divisible by p</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    a : int the number to test</span>
+<span class="sd">    p : the prime to test a against</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    =======</span>
+
+<span class="sd">    legendre symbol (a / p) (int)</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">sig</span> <span class="o">=</span> <span class="nb">pow</span><span class="p">(</span><span class="n">a</span><span class="o">%</span><span class="n">p</span><span class="p">,</span> <span class="p">(</span><span class="n">p</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span><span class="o">//</span><span class="mi">2</span><span class="p">)</span> <span class="o">%</span> <span class="n">p</span>
+    <span class="k">if</span> <span class="n">sig</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">1</span>
+    <span class="k">elif</span> <span class="n">sig</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">0</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="o">-</span><span class="mi">1</span>
+
+
+<span class="k">def</span> <span class="nf">_random_coprime_stream</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="n">randrange</span> <span class="o">=</span> <span class="n">_randrange</span><span class="p">(</span><span class="n">seed</span><span class="p">)</span>
+    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="n">randrange</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">gcd</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">n</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">yield</span> <span class="n">y</span>
+
+
+<div class="viewcode-block" id="gm_private_key"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.gm_private_key">[docs]</a><span class="k">def</span> <span class="nf">gm_private_key</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="n">a</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Check if p and q can be used as private keys for</span>
+<span class="sd">    the Goldwasser-Micali encryption. The method works</span>
+<span class="sd">    roughly as follows.</span>
+
+<span class="sd">    Pick two large primes p ands q. Call their product N.</span>
+<span class="sd">    Given a message as an integer i, write i in its</span>
+<span class="sd">    bit representation b_0,...,b_n. For each k,</span>
+
+<span class="sd">     if b_k = 0:</span>
+<span class="sd">        let a_k be a random square</span>
+<span class="sd">        (quadratic residue) modulo p * q</span>
+<span class="sd">        such that jacobi_symbol(a, p * q) = 1</span>
+<span class="sd">     if b_k = 1:</span>
+<span class="sd">        let a_k be a random non-square</span>
+<span class="sd">        (non-quadratic residue) modulo p * q</span>
+<span class="sd">        such that jacobi_symbol(a, p * q) = 1</span>
+
+<span class="sd">    return [a_1, a_2,...]</span>
+
+<span class="sd">    b_k can be recovered by checking whether or not</span>
+<span class="sd">    a_k is a residue. And from the b_k&#39;s, the message</span>
+<span class="sd">    can be reconstructed.</span>
+
+<span class="sd">    The idea is that, while jacobi_symbol(a, p * q)</span>
+<span class="sd">    can be easily computed (and when it is equal to -1 will</span>
+<span class="sd">    tell you that a is not a square mod p * q), quadratic</span>
+<span class="sd">    residuosity modulo a composite number is hard to compute</span>
+<span class="sd">    without knowing its factorization.</span>
+
+<span class="sd">    Moreover, approximately half the numbers coprime to p * q have</span>
+<span class="sd">    jacobi_symbol equal to 1. And among those, approximately half</span>
+<span class="sd">    are residues and approximately half are not. This maximizes the</span>
+<span class="sd">    entropy of the code.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    p, q, a : initialization variables</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    =======</span>
+
+<span class="sd">    p, q : the input value p and q</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ======</span>
+
+<span class="sd">    ValueError : if p and q are not distinct odd primes</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">p</span> <span class="o">==</span> <span class="n">q</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;expected distinct primes, &quot;</span>
+                         <span class="s2">&quot;got two copies of </span><span class="si">%i</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">p</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="ow">not</span> <span class="n">isprime</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">isprime</span><span class="p">(</span><span class="n">q</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;first two arguments must be prime, &quot;</span>
+                         <span class="s2">&quot;got </span><span class="si">%i</span><span class="s2"> of </span><span class="si">%i</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">q</span><span class="p">))</span>
+    <span class="k">elif</span> <span class="n">p</span> <span class="o">==</span> <span class="mi">2</span> <span class="ow">or</span> <span class="n">q</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;first two arguments must not be even, &quot;</span>
+                         <span class="s2">&quot;got </span><span class="si">%i</span><span class="s2"> of </span><span class="si">%i</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">q</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">p</span><span class="p">,</span> <span class="n">q</span></div>
+
+
+<div class="viewcode-block" id="gm_public_key"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.gm_public_key">[docs]</a><span class="k">def</span> <span class="nf">gm_public_key</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="n">a</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compute public keys for p and q.</span>
+<span class="sd">    Note that in Goldwasser-Micali Encrpytion,</span>
+<span class="sd">    public keys are randomly selected.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    p, q, a : (int) initialization variables</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    =======</span>
+
+<span class="sd">    (a, N) : tuple[int]</span>
+<span class="sd">        a is the input a if it is not None otherwise</span>
+<span class="sd">        some random integer coprime to p and q.</span>
+
+<span class="sd">        N is the product of p and q</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">p</span><span class="p">,</span> <span class="n">q</span> <span class="o">=</span> <span class="n">gm_private_key</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">q</span><span class="p">)</span>
+    <span class="n">N</span> <span class="o">=</span> <span class="n">p</span> <span class="o">*</span> <span class="n">q</span>
+
+    <span class="k">if</span> <span class="n">a</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">randrange</span> <span class="o">=</span> <span class="n">_randrange</span><span class="p">(</span><span class="n">seed</span><span class="p">)</span>
+        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="n">a</span> <span class="o">=</span> <span class="n">randrange</span><span class="p">(</span><span class="n">N</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">_legendre</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">p</span><span class="p">)</span> <span class="o">==</span> <span class="n">_legendre</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">q</span><span class="p">)</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span><span class="p">:</span>
+                <span class="k">break</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">_legendre</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">p</span><span class="p">)</span> <span class="o">!=</span> <span class="o">-</span><span class="mi">1</span> <span class="ow">or</span> <span class="n">_legendre</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">q</span><span class="p">)</span> <span class="o">!=</span> <span class="o">-</span><span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">N</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="encipher_gm"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.encipher_gm">[docs]</a><span class="k">def</span> <span class="nf">encipher_gm</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Encrypt integer &#39;i&#39; using public_key &#39;key&#39;</span>
+<span class="sd">    Note that gm uses random encrpytion.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    i: (int) the message to encrypt</span>
+<span class="sd">    key: Tuple (a, N) the public key</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    =======</span>
+
+<span class="sd">    List[int] the randomized encrpyted message.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;message must be a non-negative &quot;</span>
+            <span class="s2">&quot;integer: got </span><span class="si">%d</span><span class="s2"> instead&quot;</span> <span class="o">%</span> <span class="n">i</span><span class="p">)</span>
+    <span class="n">a</span><span class="p">,</span> <span class="n">N</span> <span class="o">=</span> <span class="n">key</span>
+    <span class="n">bits</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">while</span> <span class="n">i</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">bits</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span> <span class="o">%</span> <span class="mi">2</span><span class="p">)</span>
+        <span class="n">i</span> <span class="o">//=</span> <span class="mi">2</span>
+
+    <span class="n">gen</span> <span class="o">=</span> <span class="n">_random_coprime_stream</span><span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">seed</span><span class="p">)</span>
+    <span class="n">rev</span> <span class="o">=</span> <span class="nb">reversed</span><span class="p">(</span><span class="n">bits</span><span class="p">)</span>
+    <span class="n">encode</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">b</span><span class="p">:</span> <span class="nb">next</span><span class="p">(</span><span class="n">gen</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="o">*</span><span class="nb">pow</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span> <span class="o">%</span> <span class="n">N</span>
+    <span class="k">return</span> <span class="p">[</span> <span class="n">encode</span><span class="p">(</span><span class="n">b</span><span class="p">)</span> <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">rev</span> <span class="p">]</span></div>
+
+
+
+<div class="viewcode-block" id="decipher_gm"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.decipher_gm">[docs]</a><span class="k">def</span> <span class="nf">decipher_gm</span><span class="p">(</span><span class="n">message</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Decrypt message &#39;message&#39; using public_key &#39;key&#39;.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    List[int]: the randomized encrpyted message.</span>
+<span class="sd">    key: Tuple (p, q) the private key</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    =======</span>
+
+<span class="sd">    i (int) the encrpyted message</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">p</span><span class="p">,</span> <span class="n">q</span> <span class="o">=</span> <span class="n">key</span>
+    <span class="n">res</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">m</span><span class="p">,</span> <span class="n">p</span><span class="p">:</span> <span class="n">_legendre</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="n">p</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span>
+    <span class="n">bits</span> <span class="o">=</span> <span class="p">[</span><span class="n">res</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="n">p</span><span class="p">)</span> <span class="o">*</span> <span class="n">res</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="n">q</span><span class="p">)</span> <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">message</span><span class="p">]</span>
+    <span class="n">m</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">bits</span><span class="p">:</span>
+        <span class="n">m</span> <span class="o">&lt;&lt;=</span> <span class="mi">1</span>
+        <span class="n">m</span> <span class="o">+=</span> <span class="ow">not</span> <span class="n">b</span>
+    <span class="k">return</span> <span class="n">m</span></div>
 </pre></div>
 
           </div>
@@ -2143,7 +2344,7 @@
     </div>
     <div class="footer" role="contentinfo">
         &#169; Copyright 2017 SymPy Development Team.
-      Last updated on Dec 14, 2017.
+      Last updated on Dec 21, 2017.
       Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.5.
     </div>
   </body>
