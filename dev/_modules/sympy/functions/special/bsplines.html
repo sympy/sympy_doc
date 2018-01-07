@@ -75,7 +75,7 @@
         <span class="n">new_args</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="n">n_intervals</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">b1</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">n_intervals</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">b2</span><span class="o">.</span><span class="n">args</span><span class="p">):</span>
-            <span class="c1"># Args of b1 and b2 are not equal. Just combining the Piecewise without any fancy optimisation</span>
+            <span class="c1"># Args of b1 and b2 are not equal. Just combining the Piecewise without any fancy optimization</span>
             <span class="n">p1</span> <span class="o">=</span> <span class="n">piecewise_fold</span><span class="p">(</span><span class="n">c</span><span class="o">*</span><span class="n">b1</span><span class="p">)</span>
             <span class="n">p2</span> <span class="o">=</span> <span class="n">piecewise_fold</span><span class="p">(</span><span class="n">d</span><span class="o">*</span><span class="n">b2</span><span class="p">)</span>
 
@@ -170,7 +170,7 @@
 <span class="sd">    B-splines and their derivatives:</span>
 
 <span class="sd">        &gt;&gt;&gt; d = 1</span>
-<span class="sd">        &gt;&gt;&gt; knots = [0,0,2,3,4]</span>
+<span class="sd">        &gt;&gt;&gt; knots = [0, 0, 2, 3, 4]</span>
 <span class="sd">        &gt;&gt;&gt; bspline_basis(d, knots, 0, x)</span>
 <span class="sd">        Piecewise((-x/2 + 1, (x &gt;= 0) &amp; (x &lt;= 2)), (0, True))</span>
 
@@ -261,6 +261,81 @@
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">n_splines</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">knots</span><span class="p">)</span> <span class="o">-</span> <span class="n">d</span> <span class="o">-</span> <span class="mi">1</span>
     <span class="k">return</span> <span class="p">[</span><span class="n">bspline_basis</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">knots</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_splines</span><span class="p">)]</span></div>
+
+
+<span class="k">def</span> <span class="nf">interpolating_spline</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">Y</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Return spline of degree ``d`` interpolating for given</span>
+<span class="sd">    ``X`` and ``Y`` values.</span>
+
+<span class="sd">    This function returns a piecewise function such that each part is</span>
+<span class="sd">    a polynomial of degreeat most ``d`` .</span>
+<span class="sd">    The degree ``d`` must be at least 1. The values listed in X must</span>
+<span class="sd">    be strictly increasing.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy import interpolating_spline</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.abc import x</span>
+<span class="sd">    &gt;&gt;&gt; interpolating_spline(1, x, [1, 2, 4, 7], [3, 6, 5, 7])</span>
+<span class="sd">    Piecewise((3*x, (x &gt;= 1) &amp; (x &lt;= 2)),</span>
+<span class="sd">            (-x/2 + 7, (x &gt;= 2) &amp; (x &lt;= 4)),</span>
+<span class="sd">            (2*x/3 + 7/3, (x &gt;= 4) &amp; (x &lt;= 7)))</span>
+<span class="sd">    &gt;&gt;&gt; interpolating_spline(3, x, [-2, 0, 1, 3, 4], [4, 2, 1, 1, 3])</span>
+<span class="sd">    Piecewise((-x**3/36 - x**2/36 - 17*x/18 + 2, (x &gt;= -2) &amp; (x &lt;= 1)),</span>
+<span class="sd">            (5*x**3/36 - 13*x**2/36 - 11*x/18 + 7/3, (x &gt;= 1) &amp; (x &lt;= 4)))</span>
+
+<span class="sd">    See Also</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    bsplines_basis_set, sympy.polys.specialpolys.interpolating_poly</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">symbols</span><span class="p">,</span> <span class="n">Number</span><span class="p">,</span> <span class="n">Dummy</span><span class="p">,</span> <span class="n">Rational</span>
+    <span class="kn">from</span> <span class="nn">sympy.solvers.solveset</span> <span class="k">import</span> <span class="n">linsolve</span>
+    <span class="kn">from</span> <span class="nn">sympy.matrices.dense</span> <span class="k">import</span> <span class="n">Matrix</span>
+
+    <span class="c1"># Input sanitization</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">d</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">is_Integer</span> <span class="ow">and</span> <span class="n">d</span><span class="o">.</span><span class="n">is_positive</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Spline degree must be a positive integer, not </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">d</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">X</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">Y</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Number of X and Y coordinates passed not equal&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">X</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">d</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Degree must be less than the number of control points&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">(</span><span class="n">a</span> <span class="o">&lt;</span> <span class="n">b</span> <span class="k">for</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">X</span><span class="p">[</span><span class="mi">1</span><span class="p">:])):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;The x-coordinates must be strictly increasing&#39;</span><span class="p">)</span>
+
+    <span class="c1"># Evaluating knots value</span>
+    <span class="k">if</span> <span class="n">d</span><span class="o">.</span><span class="n">is_odd</span><span class="p">:</span>
+        <span class="n">j</span> <span class="o">=</span> <span class="p">(</span><span class="n">d</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span>
+        <span class="n">interior_knots</span> <span class="o">=</span> <span class="n">X</span><span class="p">[</span><span class="n">j</span><span class="p">:</span><span class="o">-</span><span class="n">j</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">j</span> <span class="o">=</span> <span class="n">d</span> <span class="o">//</span> <span class="mi">2</span>
+        <span class="n">interior_knots</span> <span class="o">=</span> <span class="p">[</span><span class="n">Rational</span><span class="p">(</span><span class="n">a</span> <span class="o">+</span> <span class="n">b</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">X</span><span class="p">[</span><span class="n">j</span><span class="p">:</span><span class="o">-</span><span class="n">j</span> <span class="o">-</span> <span class="mi">1</span><span class="p">],</span> <span class="n">X</span><span class="p">[</span><span class="n">j</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="n">j</span><span class="p">])]</span>
+
+    <span class="n">knots</span> <span class="o">=</span> <span class="p">[</span><span class="n">X</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span> <span class="o">*</span> <span class="p">(</span><span class="n">d</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">interior_knots</span><span class="p">)</span> <span class="o">+</span> <span class="p">[</span><span class="n">X</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]]</span> <span class="o">*</span> <span class="p">(</span><span class="n">d</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="n">basis</span> <span class="o">=</span> <span class="n">bspline_basis_set</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">knots</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+
+    <span class="n">A</span> <span class="o">=</span> <span class="p">[[</span><span class="n">b</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">basis</span><span class="p">]</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">X</span><span class="p">]</span>
+
+    <span class="n">coeff</span> <span class="o">=</span> <span class="n">linsolve</span><span class="p">((</span><span class="n">Matrix</span><span class="p">(</span><span class="n">A</span><span class="p">),</span> <span class="n">Matrix</span><span class="p">(</span><span class="n">Y</span><span class="p">)),</span> <span class="n">symbols</span><span class="p">(</span><span class="s1">&#39;c0:</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">X</span><span class="p">)),</span> <span class="bp">cls</span><span class="o">=</span><span class="n">Dummy</span><span class="p">))</span>
+    <span class="n">coeff</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">coeff</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">intervals</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([</span><span class="n">c</span> <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">basis</span> <span class="k">for</span> <span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span> <span class="ow">in</span> <span class="n">b</span><span class="o">.</span><span class="n">args</span> <span class="k">if</span> <span class="n">c</span> <span class="o">!=</span> <span class="kc">True</span><span class="p">])</span>
+
+    <span class="c1"># Sorting the intervals</span>
+    <span class="n">ival</span> <span class="o">=</span> <span class="p">[</span><span class="n">e</span><span class="o">.</span><span class="n">atoms</span><span class="p">(</span><span class="n">Number</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">intervals</span><span class="p">]</span>   <span class="c1"># List containing end-points of each interval</span>
+    <span class="n">ival</span> <span class="o">=</span> <span class="p">[</span><span class="nb">list</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">e</span><span class="p">))[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">ival</span><span class="p">]</span>
+    <span class="n">com</span> <span class="o">=</span> <span class="nb">zip</span><span class="p">(</span><span class="n">ival</span><span class="p">,</span> <span class="n">intervals</span><span class="p">)</span>
+    <span class="n">com</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">com</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">intervals</span> <span class="o">=</span> <span class="p">[</span><span class="n">y</span> <span class="k">for</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="ow">in</span> <span class="n">com</span><span class="p">]</span>
+
+    <span class="n">basis_dicts</span> <span class="o">=</span> <span class="p">[</span><span class="nb">dict</span><span class="p">((</span><span class="n">c</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span> <span class="k">for</span> <span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span> <span class="ow">in</span> <span class="n">b</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">basis</span><span class="p">]</span>
+    <span class="n">spline</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">intervals</span><span class="p">:</span>
+        <span class="n">piece</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">([</span><span class="n">c</span><span class="o">*</span><span class="n">d</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span><span class="p">)</span> <span class="k">for</span> <span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">d</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">coeff</span><span class="p">,</span> <span class="n">basis_dicts</span><span class="p">)],</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span><span class="p">)</span>
+        <span class="n">spline</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">piece</span><span class="p">,</span> <span class="n">i</span><span class="p">))</span>
+    <span class="k">return</span><span class="p">(</span><span class="n">Piecewise</span><span class="p">(</span><span class="o">*</span><span class="n">spline</span><span class="p">))</span>
 </pre></div>
 
           </div>
@@ -300,7 +375,7 @@
     </div>
     <div class="footer" role="contentinfo">
         &#169; Copyright 2018 SymPy Development Team.
-      Last updated on Jan 06, 2018.
+      Last updated on Jan 07, 2018.
       Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.5.
     </div>
   </body>
