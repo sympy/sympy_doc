@@ -199,6 +199,8 @@
                     <span class="n">args</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">Permutation</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">size</span><span class="o">=</span><span class="n">degree</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;dups&#39;</span><span class="p">,</span> <span class="kc">True</span><span class="p">):</span>
             <span class="n">args</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">uniq</span><span class="p">([</span><span class="n">_af_new</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">a</span><span class="p">))</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">args</span><span class="p">]))</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="p">[</span><span class="n">g</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">args</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">g</span><span class="o">.</span><span class="n">is_identity</span><span class="p">]</span>
         <span class="n">obj</span> <span class="o">=</span> <span class="n">Basic</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
         <span class="n">obj</span><span class="o">.</span><span class="n">_generators</span> <span class="o">=</span> <span class="n">args</span>
         <span class="n">obj</span><span class="o">.</span><span class="n">_order</span> <span class="o">=</span> <span class="kc">None</span>
@@ -1466,7 +1468,6 @@
 <span class="sd">        &gt;&gt;&gt; J = PermutationGroup(list(H.generate())); J</span>
 <span class="sd">        PermutationGroup([</span>
 <span class="sd">            (0 1)(2 3),</span>
-<span class="sd">            (3),</span>
 <span class="sd">            (1 2 3),</span>
 <span class="sd">            (1 3 2),</span>
 <span class="sd">            (0 3 1),</span>
@@ -3243,8 +3244,7 @@
 <span class="sd">        &gt;&gt;&gt; G = DihedralGroup(6)</span>
 <span class="sd">        &gt;&gt;&gt; G.stabilizer(5)</span>
 <span class="sd">        PermutationGroup([</span>
-<span class="sd">            (5)(0 4)(1 3),</span>
-<span class="sd">            (5)])</span>
+<span class="sd">            (5)(0 4)(1 3)])</span>
 
 <span class="sd">        See Also</span>
 <span class="sd">        ========</span>
@@ -3874,7 +3874,307 @@
 
         <span class="k">return</span> <span class="n">C</span><span class="o">.</span><span class="n">sylow_subgroup</span><span class="p">(</span><span class="n">p</span><span class="p">)</span></div>
 
-<div class="viewcode-block" id="PermutationGroup.presentation"><a class="viewcode-back" href="../../../modules/combinatorics/perm_groups.html#sympy.combinatorics.perm_groups.PermutationGroup.presentation">[docs]</a>    <span class="k">def</span> <span class="nf">presentation</span><span class="p">(</span><span class="n">G</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_block_verify</span><span class="p">(</span><span class="n">H</span><span class="p">,</span> <span class="n">L</span><span class="p">,</span> <span class="n">alpha</span><span class="p">):</span>
+        <span class="n">delta</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">H</span><span class="o">.</span><span class="n">orbit</span><span class="p">(</span><span class="n">alpha</span><span class="p">))</span>
+        <span class="n">H_gens</span> <span class="o">=</span> <span class="n">H</span><span class="o">.</span><span class="n">generators</span>
+        <span class="n">L_gens</span> <span class="o">=</span> <span class="n">L</span><span class="o">.</span><span class="n">generators</span>
+        <span class="c1"># p[i] will be the number of the block</span>
+        <span class="c1"># delta[i] belongs to</span>
+        <span class="n">p</span> <span class="o">=</span> <span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">delta</span><span class="p">)</span>
+        <span class="n">blocks</span> <span class="o">=</span> <span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">delta</span><span class="p">)</span>
+
+        <span class="n">B</span> <span class="o">=</span> <span class="p">[[]]</span> <span class="c1"># future list of blocks</span>
+        <span class="n">u</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">delta</span><span class="p">)</span> <span class="c1"># u[i] in L s.t. alpha^u[i] = B[0][i]</span>
+
+        <span class="n">t</span> <span class="o">=</span> <span class="n">L</span><span class="o">.</span><span class="n">orbit_transversal</span><span class="p">(</span><span class="n">alpha</span><span class="p">,</span> <span class="n">pairs</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">a</span><span class="p">,</span> <span class="n">beta</span> <span class="ow">in</span> <span class="n">t</span><span class="p">:</span>
+            <span class="n">B</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+            <span class="n">i_a</span> <span class="o">=</span> <span class="n">delta</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+            <span class="n">p</span><span class="p">[</span><span class="n">i_a</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">blocks</span><span class="p">[</span><span class="n">i_a</span><span class="p">]</span> <span class="o">=</span> <span class="n">alpha</span>
+            <span class="n">u</span><span class="p">[</span><span class="n">i_a</span><span class="p">]</span> <span class="o">=</span> <span class="n">beta</span>
+
+        <span class="n">rho</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">m</span> <span class="o">=</span> <span class="mi">0</span> <span class="c1"># number of blocks - 1</span>
+
+        <span class="k">while</span> <span class="n">rho</span> <span class="o">&lt;=</span> <span class="n">m</span><span class="p">:</span>
+            <span class="n">beta</span> <span class="o">=</span> <span class="n">B</span><span class="p">[</span><span class="n">rho</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">H_gens</span><span class="p">:</span>
+                <span class="n">d</span> <span class="o">=</span> <span class="n">beta</span><span class="o">^</span><span class="n">g</span>
+                <span class="n">i_d</span> <span class="o">=</span> <span class="n">delta</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">d</span><span class="p">)</span>
+                <span class="n">sigma</span> <span class="o">=</span> <span class="n">p</span><span class="p">[</span><span class="n">i_d</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">sigma</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="c1"># define a new block</span>
+                    <span class="n">m</span> <span class="o">+=</span> <span class="mi">1</span>
+                    <span class="n">sigma</span> <span class="o">=</span> <span class="n">m</span>
+                    <span class="n">u</span><span class="p">[</span><span class="n">i_d</span><span class="p">]</span> <span class="o">=</span> <span class="n">u</span><span class="p">[</span><span class="n">delta</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">beta</span><span class="p">)]</span><span class="o">*</span><span class="n">g</span>
+                    <span class="n">p</span><span class="p">[</span><span class="n">i_d</span><span class="p">]</span> <span class="o">=</span> <span class="n">sigma</span>
+                    <span class="n">rep</span> <span class="o">=</span> <span class="n">d</span>
+                    <span class="n">blocks</span><span class="p">[</span><span class="n">i_d</span><span class="p">]</span> <span class="o">=</span> <span class="n">rep</span>
+                    <span class="n">newb</span> <span class="o">=</span> <span class="p">[</span><span class="n">d</span><span class="p">]</span>
+                    <span class="k">for</span> <span class="n">gamma</span> <span class="ow">in</span> <span class="n">B</span><span class="p">[</span><span class="n">rho</span><span class="p">][</span><span class="mi">1</span><span class="p">:]:</span>
+                        <span class="n">i_gamma</span> <span class="o">=</span> <span class="n">delta</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">gamma</span><span class="p">)</span>
+                        <span class="n">d</span> <span class="o">=</span> <span class="n">gamma</span><span class="o">^</span><span class="n">g</span>
+                        <span class="n">i_d</span> <span class="o">=</span> <span class="n">delta</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">d</span><span class="p">)</span>
+                        <span class="k">if</span> <span class="n">p</span><span class="p">[</span><span class="n">i_d</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                            <span class="n">u</span><span class="p">[</span><span class="n">i_d</span><span class="p">]</span> <span class="o">=</span> <span class="n">u</span><span class="p">[</span><span class="n">i_gamma</span><span class="p">]</span><span class="o">*</span><span class="n">g</span>
+                            <span class="n">p</span><span class="p">[</span><span class="n">i_d</span><span class="p">]</span> <span class="o">=</span> <span class="n">sigma</span>
+                            <span class="n">blocks</span><span class="p">[</span><span class="n">i_d</span><span class="p">]</span> <span class="o">=</span> <span class="n">rep</span>
+                            <span class="n">newb</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">d</span><span class="p">)</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="c1"># B[rho] is not a block</span>
+                            <span class="n">s</span> <span class="o">=</span> <span class="n">u</span><span class="p">[</span><span class="n">i_gamma</span><span class="p">]</span><span class="o">*</span><span class="n">g</span><span class="o">*</span><span class="n">u</span><span class="p">[</span><span class="n">i_d</span><span class="p">]</span><span class="o">**</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+                            <span class="k">return</span> <span class="kc">False</span><span class="p">,</span> <span class="n">s</span>
+
+                    <span class="n">B</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">newb</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">h</span> <span class="ow">in</span> <span class="n">B</span><span class="p">[</span><span class="n">rho</span><span class="p">][</span><span class="mi">1</span><span class="p">:]:</span>
+                        <span class="k">if</span> <span class="ow">not</span> <span class="n">h</span><span class="o">^</span><span class="n">g</span> <span class="ow">in</span> <span class="n">B</span><span class="p">[</span><span class="n">sigma</span><span class="p">]:</span>
+                            <span class="c1"># B[rho] is not a block</span>
+                            <span class="n">s</span> <span class="o">=</span> <span class="n">u</span><span class="p">[</span><span class="n">delta</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">beta</span><span class="p">)]</span><span class="o">*</span><span class="n">g</span><span class="o">*</span><span class="n">u</span><span class="p">[</span><span class="n">i_d</span><span class="p">]</span><span class="o">**</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+                            <span class="k">return</span> <span class="kc">False</span><span class="p">,</span> <span class="n">s</span>
+            <span class="n">rho</span> <span class="o">+=</span> <span class="mi">1</span>
+
+        <span class="k">return</span> <span class="kc">True</span><span class="p">,</span> <span class="n">blocks</span>
+
+    <span class="k">def</span> <span class="nf">_verify</span><span class="p">(</span><span class="n">H</span><span class="p">,</span> <span class="n">K</span><span class="p">,</span> <span class="n">phi</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">alpha</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Return a list of relators `rels` in generators `gens_h` that</span>
+<span class="sd">        are mapped to `H.generators` by `phi` so that given a finite</span>
+<span class="sd">        presentation &lt;gens_k | rels_k&gt; of `K` on a subset of `gens_h`</span>
+<span class="sd">        &lt;gens_h | rels_k + rels&gt; is a finite presentation of `H`.</span>
+
+<span class="sd">        `H` should be generated by the union of `K.generators` and `z`</span>
+<span class="sd">        (a single generator), and `H.stabilizer(alpha) == K`; `phi` is a</span>
+<span class="sd">        canonical injection from a free group into a permutation group</span>
+<span class="sd">        containing `H`.</span>
+
+<span class="sd">        The algorithm is described in [1], Chapter 6.</span>
+
+<span class="sd">        Example</span>
+<span class="sd">        =======</span>
+<span class="sd">        &gt;&gt;&gt; from sympy.combinatorics.perm_groups import PermutationGroup</span>
+<span class="sd">        &gt;&gt;&gt; from sympy.combinatorics import Permutation</span>
+<span class="sd">        &gt;&gt;&gt; from sympy.combinatorics.homomorphisms import homomorphism</span>
+<span class="sd">        &gt;&gt;&gt; from sympy.combinatorics.free_groups import free_group</span>
+<span class="sd">        &gt;&gt;&gt; from sympy.combinatorics.fp_groups import FpGroup</span>
+
+<span class="sd">        &gt;&gt;&gt; H = PermutationGroup(Permutation(0, 2), Permutation (1, 5))</span>
+<span class="sd">        &gt;&gt;&gt; K = PermutationGroup(Permutation(5)(0, 2))</span>
+<span class="sd">        &gt;&gt;&gt; F = free_group(&quot;x_0 x_1&quot;)[0]</span>
+<span class="sd">        &gt;&gt;&gt; gens = F.generators</span>
+<span class="sd">        &gt;&gt;&gt; phi = homomorphism(F, H, F.generators, H.generators)</span>
+<span class="sd">        &gt;&gt;&gt; rels_k = [gens[0]**2] # relators for presentation of K</span>
+<span class="sd">        &gt;&gt;&gt; z= Permutation(1, 5)</span>
+<span class="sd">        &gt;&gt;&gt; check, rels_h = H._verify(K, phi, z, 1)</span>
+<span class="sd">        &gt;&gt;&gt; check</span>
+<span class="sd">        True</span>
+<span class="sd">        &gt;&gt;&gt; rels = rels_k + rels_h</span>
+<span class="sd">        &gt;&gt;&gt; G = FpGroup(F, rels) # presentation of H</span>
+<span class="sd">        &gt;&gt;&gt; G.order() == H.order()</span>
+<span class="sd">        True</span>
+
+<span class="sd">        See also</span>
+<span class="sd">        ========</span>
+<span class="sd">        strong_presentation, presentation, stabilizer</span>
+
+<span class="sd">        &#39;&#39;&#39;</span>
+
+        <span class="n">orbit</span> <span class="o">=</span> <span class="n">H</span><span class="o">.</span><span class="n">orbit</span><span class="p">(</span><span class="n">alpha</span><span class="p">)</span>
+        <span class="n">beta</span> <span class="o">=</span> <span class="n">alpha</span><span class="o">^</span><span class="p">(</span><span class="n">z</span><span class="o">**-</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="n">K_beta</span> <span class="o">=</span> <span class="n">K</span><span class="o">.</span><span class="n">stabilizer</span><span class="p">(</span><span class="n">beta</span><span class="p">)</span>
+
+        <span class="c1"># orbit representatives of K_beta</span>
+        <span class="n">gammas</span> <span class="o">=</span> <span class="p">[</span><span class="n">alpha</span><span class="p">,</span> <span class="n">beta</span><span class="p">]</span>
+        <span class="n">orbits</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">K_beta</span><span class="o">.</span><span class="n">orbit</span><span class="p">(</span><span class="n">o</span><span class="p">))</span> <span class="k">for</span> <span class="n">o</span> <span class="ow">in</span> <span class="n">orbit</span><span class="p">))</span>
+        <span class="n">orbit_reps</span> <span class="o">=</span> <span class="p">[</span><span class="n">orb</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">orb</span> <span class="ow">in</span> <span class="n">orbits</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">rep</span> <span class="ow">in</span> <span class="n">orbit_reps</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">rep</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">gammas</span><span class="p">:</span>
+                <span class="n">gammas</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">rep</span><span class="p">)</span>
+
+        <span class="c1"># orbit transversal of K</span>
+        <span class="n">betas</span> <span class="o">=</span> <span class="p">[</span><span class="n">alpha</span><span class="p">,</span> <span class="n">beta</span><span class="p">]</span>
+        <span class="n">transversal</span> <span class="o">=</span> <span class="p">{</span><span class="n">alpha</span><span class="p">:</span> <span class="n">phi</span><span class="o">.</span><span class="n">invert</span><span class="p">(</span><span class="n">H</span><span class="o">.</span><span class="n">identity</span><span class="p">),</span> <span class="n">beta</span><span class="p">:</span> <span class="n">phi</span><span class="o">.</span><span class="n">invert</span><span class="p">(</span><span class="n">z</span><span class="o">**-</span><span class="mi">1</span><span class="p">)}</span>
+
+        <span class="k">for</span> <span class="n">s</span><span class="p">,</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">K</span><span class="o">.</span><span class="n">orbit_transversal</span><span class="p">(</span><span class="n">beta</span><span class="p">,</span> <span class="n">pairs</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">transversal</span><span class="p">:</span>
+                <span class="n">transversal</span><span class="p">[</span><span class="n">s</span><span class="p">]</span> <span class="o">=</span> <span class="n">transversal</span><span class="p">[</span><span class="n">beta</span><span class="p">]</span><span class="o">*</span><span class="n">phi</span><span class="o">.</span><span class="n">invert</span><span class="p">(</span><span class="n">g</span><span class="p">)</span>
+
+
+        <span class="n">union</span> <span class="o">=</span> <span class="n">K</span><span class="o">.</span><span class="n">orbit</span><span class="p">(</span><span class="n">alpha</span><span class="p">)</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="n">K</span><span class="o">.</span><span class="n">orbit</span><span class="p">(</span><span class="n">beta</span><span class="p">))</span>
+        <span class="k">while</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">union</span><span class="p">)</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">orbit</span><span class="p">)):</span>
+            <span class="k">for</span> <span class="n">gamma</span> <span class="ow">in</span> <span class="n">gammas</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">gamma</span> <span class="ow">in</span> <span class="n">union</span><span class="p">:</span>
+                    <span class="n">r</span> <span class="o">=</span> <span class="n">gamma</span><span class="o">^</span><span class="n">z</span>
+                    <span class="k">if</span> <span class="n">r</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">union</span><span class="p">:</span>
+                        <span class="n">betas</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">r</span><span class="p">)</span>
+                        <span class="n">transversal</span><span class="p">[</span><span class="n">r</span><span class="p">]</span> <span class="o">=</span> <span class="n">transversal</span><span class="p">[</span><span class="n">gamma</span><span class="p">]</span><span class="o">*</span><span class="n">phi</span><span class="o">.</span><span class="n">invert</span><span class="p">(</span><span class="n">z</span><span class="p">)</span>
+                        <span class="k">for</span> <span class="n">s</span><span class="p">,</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">K</span><span class="o">.</span><span class="n">orbit_transversal</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">pairs</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+                            <span class="k">if</span> <span class="ow">not</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">transversal</span><span class="p">:</span>
+                                <span class="n">transversal</span><span class="p">[</span><span class="n">s</span><span class="p">]</span> <span class="o">=</span> <span class="n">transversal</span><span class="p">[</span><span class="n">r</span><span class="p">]</span><span class="o">*</span><span class="n">phi</span><span class="o">.</span><span class="n">invert</span><span class="p">(</span><span class="n">g</span><span class="p">)</span>
+                        <span class="n">union</span> <span class="o">=</span> <span class="n">union</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="n">K</span><span class="o">.</span><span class="n">orbit</span><span class="p">(</span><span class="n">r</span><span class="p">))</span>
+                        <span class="k">break</span>
+
+        <span class="c1"># compute relators</span>
+        <span class="n">rels</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">betas</span><span class="p">:</span>
+            <span class="n">k_gens</span> <span class="o">=</span> <span class="n">K</span><span class="o">.</span><span class="n">stabilizer</span><span class="p">(</span><span class="n">b</span><span class="p">)</span><span class="o">.</span><span class="n">generators</span>
+            <span class="k">for</span> <span class="n">y</span> <span class="ow">in</span> <span class="n">k_gens</span><span class="p">:</span>
+                <span class="n">new_rel</span> <span class="o">=</span> <span class="n">transversal</span><span class="p">[</span><span class="n">b</span><span class="p">]</span>
+                <span class="n">gens</span> <span class="o">=</span> <span class="n">K</span><span class="o">.</span><span class="n">generator_product</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">original</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">gens</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span>
+                    <span class="n">new_rel</span> <span class="o">=</span> <span class="n">new_rel</span><span class="o">*</span><span class="n">phi</span><span class="o">.</span><span class="n">invert</span><span class="p">(</span><span class="n">g</span><span class="p">)</span>
+                <span class="n">new_rel</span> <span class="o">=</span> <span class="n">new_rel</span><span class="o">*</span><span class="n">transversal</span><span class="p">[</span><span class="n">b</span><span class="p">]</span><span class="o">**-</span><span class="mi">1</span>
+
+                <span class="n">perm</span> <span class="o">=</span> <span class="n">phi</span><span class="p">(</span><span class="n">new_rel</span><span class="p">)</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">gens</span> <span class="o">=</span> <span class="n">K</span><span class="o">.</span><span class="n">generator_product</span><span class="p">(</span><span class="n">perm</span><span class="p">,</span> <span class="n">original</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="kc">False</span><span class="p">,</span> <span class="n">perm</span>
+                <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">gens</span><span class="p">:</span>
+                    <span class="n">new_rel</span> <span class="o">=</span> <span class="n">new_rel</span><span class="o">*</span><span class="n">phi</span><span class="o">.</span><span class="n">invert</span><span class="p">(</span><span class="n">g</span><span class="p">)</span><span class="o">**-</span><span class="mi">1</span>
+                <span class="k">if</span> <span class="n">new_rel</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">rels</span><span class="p">:</span>
+                    <span class="n">rels</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">new_rel</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">gamma</span> <span class="ow">in</span> <span class="n">gammas</span><span class="p">:</span>
+            <span class="n">new_rel</span> <span class="o">=</span> <span class="n">transversal</span><span class="p">[</span><span class="n">gamma</span><span class="p">]</span><span class="o">*</span><span class="n">phi</span><span class="o">.</span><span class="n">invert</span><span class="p">(</span><span class="n">z</span><span class="p">)</span><span class="o">*</span><span class="n">transversal</span><span class="p">[</span><span class="n">gamma</span><span class="o">^</span><span class="n">z</span><span class="p">]</span><span class="o">**-</span><span class="mi">1</span>
+            <span class="n">perm</span> <span class="o">=</span> <span class="n">phi</span><span class="p">(</span><span class="n">new_rel</span><span class="p">)</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">gens</span> <span class="o">=</span> <span class="n">K</span><span class="o">.</span><span class="n">generator_product</span><span class="p">(</span><span class="n">perm</span><span class="p">,</span> <span class="n">original</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">False</span><span class="p">,</span> <span class="n">perm</span>
+            <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">gens</span><span class="p">:</span>
+               <span class="n">new_rel</span> <span class="o">=</span> <span class="n">new_rel</span><span class="o">*</span><span class="n">phi</span><span class="o">.</span><span class="n">invert</span><span class="p">(</span><span class="n">g</span><span class="p">)</span><span class="o">**-</span><span class="mi">1</span>
+            <span class="k">if</span> <span class="n">new_rel</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">rels</span><span class="p">:</span>
+                <span class="n">rels</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">new_rel</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="kc">True</span><span class="p">,</span> <span class="n">rels</span>
+
+<div class="viewcode-block" id="PermutationGroup.strong_presentation"><a class="viewcode-back" href="../../../modules/combinatorics/perm_groups.html#sympy.combinatorics.perm_groups.PermutationGroup.strong_presentation">[docs]</a>    <span class="k">def</span> <span class="nf">strong_presentation</span><span class="p">(</span><span class="n">G</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Return a strong finite presentation of `G`. The generators</span>
+<span class="sd">        of the returned group are in the same order as the strong</span>
+<span class="sd">        generators of `G`.</span>
+
+<span class="sd">        The algorithm is based on Sims&#39; Verify algorithm described</span>
+<span class="sd">        in [1], Chapter 6.</span>
+
+<span class="sd">        Example</span>
+<span class="sd">        =======</span>
+<span class="sd">        &gt;&gt;&gt; from sympy.combinatorics.perm_groups import PermutationGroup</span>
+<span class="sd">        &gt;&gt;&gt; from sympy.combinatorics.named_groups import DihedralGroup</span>
+<span class="sd">        &gt;&gt;&gt; P = DihedralGroup(4)</span>
+<span class="sd">        &gt;&gt;&gt; G = P.strong_presentation()</span>
+<span class="sd">        &gt;&gt;&gt; P.order() == G.order()</span>
+<span class="sd">        True</span>
+
+<span class="sd">        See Also</span>
+<span class="sd">        ========</span>
+<span class="sd">        presentation, _verify</span>
+
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="kn">from</span> <span class="nn">sympy.combinatorics.fp_groups</span> <span class="k">import</span> <span class="p">(</span><span class="n">FpGroup</span><span class="p">,</span>
+                                            <span class="n">simplify_presentation</span><span class="p">)</span>
+        <span class="kn">from</span> <span class="nn">sympy.combinatorics.free_groups</span> <span class="k">import</span> <span class="n">free_group</span>
+        <span class="kn">from</span> <span class="nn">sympy.combinatorics.homomorphisms</span> <span class="k">import</span> <span class="p">(</span><span class="n">block_homomorphism</span><span class="p">,</span>
+                                           <span class="n">homomorphism</span><span class="p">,</span> <span class="n">GroupHomomorphism</span><span class="p">)</span>
+        <span class="kn">from</span> <span class="nn">itertools</span> <span class="k">import</span> <span class="n">product</span>
+
+        <span class="n">strong_gens</span> <span class="o">=</span> <span class="n">G</span><span class="o">.</span><span class="n">strong_gens</span><span class="p">[:]</span>
+        <span class="n">stabs</span> <span class="o">=</span> <span class="n">G</span><span class="o">.</span><span class="n">basic_stabilizers</span><span class="p">[:]</span>
+        <span class="n">base</span> <span class="o">=</span> <span class="n">G</span><span class="o">.</span><span class="n">base</span><span class="p">[:]</span>
+
+        <span class="c1"># injection from a free group on len(strong_gens)</span>
+        <span class="c1"># generators into G</span>
+        <span class="n">gen_syms</span> <span class="o">=</span> <span class="p">[(</span><span class="s1">&#39;x_</span><span class="si">%d</span><span class="s1">&#39;</span><span class="o">%</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">strong_gens</span><span class="p">))]</span>
+        <span class="n">F</span> <span class="o">=</span> <span class="n">free_group</span><span class="p">(</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">gen_syms</span><span class="p">))[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">phi</span> <span class="o">=</span> <span class="n">homomorphism</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">G</span><span class="p">,</span> <span class="n">F</span><span class="o">.</span><span class="n">generators</span><span class="p">,</span> <span class="n">strong_gens</span><span class="p">)</span>
+
+        <span class="n">H</span> <span class="o">=</span> <span class="n">PermutationGroup</span><span class="p">(</span><span class="n">G</span><span class="o">.</span><span class="n">identity</span><span class="p">)</span>
+        <span class="k">while</span> <span class="n">stabs</span><span class="p">:</span>
+            <span class="n">alpha</span> <span class="o">=</span> <span class="n">base</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+            <span class="n">K</span> <span class="o">=</span> <span class="n">H</span>
+            <span class="n">H</span> <span class="o">=</span> <span class="n">stabs</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+            <span class="n">new_gens</span> <span class="o">=</span> <span class="p">[</span><span class="n">g</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">H</span><span class="o">.</span><span class="n">generators</span> <span class="k">if</span> <span class="n">g</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">K</span><span class="p">]</span>
+
+            <span class="k">if</span> <span class="n">K</span><span class="o">.</span><span class="n">order</span><span class="p">()</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">z</span> <span class="o">=</span> <span class="n">new_gens</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+                <span class="n">rels</span> <span class="o">=</span> <span class="p">[</span><span class="n">F</span><span class="o">.</span><span class="n">generators</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">**</span><span class="n">z</span><span class="o">.</span><span class="n">order</span><span class="p">()]</span>
+                <span class="n">intermediate_gens</span> <span class="o">=</span> <span class="p">[</span><span class="n">z</span><span class="p">]</span>
+                <span class="n">K</span> <span class="o">=</span> <span class="n">PermutationGroup</span><span class="p">(</span><span class="n">intermediate_gens</span><span class="p">)</span>
+
+            <span class="c1"># add generators one at a time building up from K to H</span>
+            <span class="k">while</span> <span class="n">new_gens</span><span class="p">:</span>
+                <span class="n">z</span> <span class="o">=</span> <span class="n">new_gens</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+                <span class="n">intermediate_gens</span> <span class="o">=</span> <span class="p">[</span><span class="n">z</span><span class="p">]</span> <span class="o">+</span> <span class="n">intermediate_gens</span>
+                <span class="n">K_s</span> <span class="o">=</span> <span class="n">PermutationGroup</span><span class="p">(</span><span class="n">intermediate_gens</span><span class="p">)</span>
+                <span class="n">orbit</span> <span class="o">=</span> <span class="n">K_s</span><span class="o">.</span><span class="n">orbit</span><span class="p">(</span><span class="n">alpha</span><span class="p">)</span>
+                <span class="n">orbit_k</span> <span class="o">=</span> <span class="n">K</span><span class="o">.</span><span class="n">orbit</span><span class="p">(</span><span class="n">alpha</span><span class="p">)</span>
+
+                <span class="c1"># split into cases based on the orbit of K_s</span>
+                <span class="k">if</span> <span class="n">orbit_k</span> <span class="o">==</span> <span class="n">orbit</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">z</span> <span class="ow">in</span> <span class="n">K</span><span class="p">:</span>
+                        <span class="n">rel</span> <span class="o">=</span> <span class="n">phi</span><span class="o">.</span><span class="n">invert</span><span class="p">(</span><span class="n">z</span><span class="p">)</span>
+                        <span class="n">perm</span> <span class="o">=</span> <span class="n">z</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">t</span> <span class="o">=</span> <span class="n">K</span><span class="o">.</span><span class="n">orbit_rep</span><span class="p">(</span><span class="n">alpha</span><span class="p">,</span> <span class="n">alpha</span><span class="o">^</span><span class="n">z</span><span class="p">)</span>
+                        <span class="n">rel</span> <span class="o">=</span> <span class="n">phi</span><span class="o">.</span><span class="n">invert</span><span class="p">(</span><span class="n">z</span><span class="p">)</span><span class="o">*</span><span class="n">phi</span><span class="o">.</span><span class="n">invert</span><span class="p">(</span><span class="n">t</span><span class="p">)</span><span class="o">**-</span><span class="mi">1</span>
+                        <span class="n">perm</span> <span class="o">=</span> <span class="n">z</span><span class="o">*</span><span class="n">t</span><span class="o">**-</span><span class="mi">1</span>
+                    <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">K</span><span class="o">.</span><span class="n">generator_product</span><span class="p">(</span><span class="n">perm</span><span class="p">,</span> <span class="n">original</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+                        <span class="n">rel</span> <span class="o">=</span> <span class="n">rel</span><span class="o">*</span><span class="n">phi</span><span class="o">.</span><span class="n">invert</span><span class="p">(</span><span class="n">g</span><span class="p">)</span><span class="o">**-</span><span class="mi">1</span>
+                    <span class="n">new_rels</span> <span class="o">=</span> <span class="p">[</span><span class="n">rel</span><span class="p">]</span>
+                <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">orbit_k</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="c1"># `success` is always true because `strong_gens`</span>
+                    <span class="c1"># and `base` are already a verified BSGS. Later</span>
+                    <span class="c1"># this could be changed to start with a randomly</span>
+                    <span class="c1"># generated (potential) BSGS, and then new elements</span>
+                    <span class="c1"># would have to be appended to it when `success`</span>
+                    <span class="c1"># is false.</span>
+                    <span class="n">success</span><span class="p">,</span> <span class="n">new_rels</span> <span class="o">=</span> <span class="n">K_s</span><span class="o">.</span><span class="n">_verify</span><span class="p">(</span><span class="n">K</span><span class="p">,</span> <span class="n">phi</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">alpha</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="c1"># K.orbit(alpha) should be a block</span>
+                    <span class="c1"># under the action of K_s on K_s.orbit(alpha)</span>
+                    <span class="n">check</span><span class="p">,</span> <span class="n">block</span> <span class="o">=</span> <span class="n">K_s</span><span class="o">.</span><span class="n">_block_verify</span><span class="p">(</span><span class="n">K</span><span class="p">,</span> <span class="n">alpha</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">check</span><span class="p">:</span>
+                        <span class="c1"># apply _verify to the action of K_s</span>
+                        <span class="c1"># on the block system; for convenience,</span>
+                        <span class="c1"># add the blocks as additional points</span>
+                        <span class="c1"># that K_s should act on</span>
+                        <span class="n">t</span> <span class="o">=</span> <span class="n">block_homomorphism</span><span class="p">(</span><span class="n">K_s</span><span class="p">,</span> <span class="n">block</span><span class="p">)</span>
+                        <span class="n">m</span> <span class="o">=</span> <span class="n">t</span><span class="o">.</span><span class="n">codomain</span><span class="o">.</span><span class="n">degree</span> <span class="c1"># number of blocks</span>
+                        <span class="n">d</span> <span class="o">=</span> <span class="n">K_s</span><span class="o">.</span><span class="n">degree</span>
+
+                        <span class="c1"># conjugating with p will shift</span>
+                        <span class="c1"># permutations in t.image() to</span>
+                        <span class="c1"># higher numbers, e.g.</span>
+                        <span class="c1"># p*(0 1)*p = (m m+1)</span>
+                        <span class="n">p</span> <span class="o">=</span> <span class="n">Permutation</span><span class="p">()</span>
+                        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">m</span><span class="p">):</span>
+                            <span class="n">p</span> <span class="o">*=</span> <span class="n">Permutation</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">i</span><span class="o">+</span><span class="n">d</span><span class="p">)</span>
+
+                        <span class="n">t_img</span> <span class="o">=</span> <span class="n">t</span><span class="o">.</span><span class="n">images</span>
+                        <span class="c1"># combine generators of K_s with their</span>
+                        <span class="c1"># action on the block system</span>
+                        <span class="n">images</span> <span class="o">=</span> <span class="p">{</span><span class="n">g</span><span class="p">:</span> <span class="n">g</span><span class="o">*</span><span class="n">p</span><span class="o">*</span><span class="n">t_img</span><span class="p">[</span><span class="n">g</span><span class="p">]</span><span class="o">*</span><span class="n">p</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">t_img</span><span class="p">}</span>
+                        <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">G</span><span class="o">.</span><span class="n">strong_gens</span><span class="p">[:</span><span class="o">-</span><span class="nb">len</span><span class="p">(</span><span class="n">K_s</span><span class="o">.</span><span class="n">generators</span><span class="p">)]:</span>
+                            <span class="n">images</span><span class="p">[</span><span class="n">g</span><span class="p">]</span> <span class="o">=</span> <span class="n">g</span>
+                        <span class="n">K_s_act</span> <span class="o">=</span> <span class="n">PermutationGroup</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">images</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
+                        <span class="n">f</span> <span class="o">=</span> <span class="n">GroupHomomorphism</span><span class="p">(</span><span class="n">G</span><span class="p">,</span> <span class="n">K_s_act</span><span class="p">,</span> <span class="n">images</span><span class="p">)</span>
+
+                        <span class="n">K_act</span> <span class="o">=</span> <span class="n">PermutationGroup</span><span class="p">([</span><span class="n">f</span><span class="p">(</span><span class="n">g</span><span class="p">)</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">K</span><span class="o">.</span><span class="n">generators</span><span class="p">])</span>
+                        <span class="n">success</span><span class="p">,</span> <span class="n">new_rels</span> <span class="o">=</span> <span class="n">K_s_act</span><span class="o">.</span><span class="n">_verify</span><span class="p">(</span><span class="n">K_act</span><span class="p">,</span> <span class="n">f</span><span class="o">.</span><span class="n">compose</span><span class="p">(</span><span class="n">phi</span><span class="p">),</span> <span class="n">f</span><span class="p">(</span><span class="n">z</span><span class="p">),</span> <span class="n">d</span><span class="p">)</span>
+
+                <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">new_rels</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">rels</span><span class="p">:</span>
+                        <span class="n">rels</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+                <span class="n">K</span> <span class="o">=</span> <span class="n">K_s</span>
+
+        <span class="n">group</span> <span class="o">=</span> <span class="n">FpGroup</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">rels</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">simplify_presentation</span><span class="p">(</span><span class="n">group</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="PermutationGroup.presentation"><a class="viewcode-back" href="../../../modules/combinatorics/perm_groups.html#sympy.combinatorics.perm_groups.PermutationGroup.presentation">[docs]</a>    <span class="k">def</span> <span class="nf">presentation</span><span class="p">(</span><span class="n">G</span><span class="p">,</span> <span class="n">eliminate_gens</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
         <span class="sd">&#39;&#39;&#39;</span>
 <span class="sd">        Return an `FpGroup` presentation of the group.</span>
 
@@ -3891,16 +4191,20 @@
         <span class="k">if</span> <span class="n">G</span><span class="o">.</span><span class="n">_fp_presentation</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">G</span><span class="o">.</span><span class="n">_fp_presentation</span>
 
+        <span class="k">if</span> <span class="n">G</span><span class="o">.</span><span class="n">_fp_presentation</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">G</span><span class="o">.</span><span class="n">_fp_presentation</span>
+
         <span class="k">def</span> <span class="nf">_factor_group_by_rels</span><span class="p">(</span><span class="n">G</span><span class="p">,</span> <span class="n">rels</span><span class="p">):</span>
             <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">G</span><span class="p">,</span> <span class="n">FpGroup</span><span class="p">):</span>
-                <span class="k">return</span> <span class="n">FpGroup</span><span class="p">(</span><span class="n">G</span><span class="o">.</span><span class="n">free_group</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">uniq</span><span class="p">(</span>
-                                    <span class="n">g</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">G</span><span class="o">.</span><span class="n">relators</span> <span class="o">+</span> <span class="n">rels</span><span class="p">)))</span>
+                <span class="n">rels</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">G</span><span class="o">.</span><span class="n">relators</span><span class="p">)</span>
+                <span class="k">return</span> <span class="n">FpGroup</span><span class="p">(</span><span class="n">G</span><span class="o">.</span><span class="n">free_group</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">rels</span><span class="p">)))</span>
             <span class="k">return</span> <span class="n">FpGroup</span><span class="p">(</span><span class="n">G</span><span class="p">,</span> <span class="n">rels</span><span class="p">)</span>
 
-        <span class="n">len_g</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">G</span><span class="o">.</span><span class="n">generators</span><span class="p">)</span>
+        <span class="n">gens</span> <span class="o">=</span> <span class="n">G</span><span class="o">.</span><span class="n">generators</span>
+        <span class="n">len_g</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">gens</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="n">len_g</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
-            <span class="n">order</span> <span class="o">=</span> <span class="n">G</span><span class="o">.</span><span class="n">generators</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">order</span><span class="p">()</span>
+            <span class="n">order</span> <span class="o">=</span> <span class="n">gens</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">order</span><span class="p">()</span>
             <span class="c1"># handle the trivial group</span>
             <span class="k">if</span> <span class="n">order</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
                 <span class="k">return</span> <span class="n">free_group</span><span class="p">([])[</span><span class="mi">0</span><span class="p">]</span>
@@ -3919,26 +4223,19 @@
         <span class="n">C</span> <span class="o">=</span> <span class="n">G</span><span class="o">.</span><span class="n">coset_table</span><span class="p">(</span><span class="n">H</span><span class="p">)</span>
         <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">C</span><span class="p">)</span> <span class="c1"># subgroup index</span>
 
-        <span class="n">gen_syms</span> <span class="o">=</span> <span class="p">[(</span><span class="s1">&#39;x_</span><span class="si">%d</span><span class="s1">&#39;</span><span class="o">%</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">G</span><span class="o">.</span><span class="n">generators</span><span class="p">))]</span>
+        <span class="n">gen_syms</span> <span class="o">=</span> <span class="p">[(</span><span class="s1">&#39;x_</span><span class="si">%d</span><span class="s1">&#39;</span><span class="o">%</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">gens</span><span class="p">))]</span>
         <span class="n">F</span> <span class="o">=</span> <span class="n">free_group</span><span class="p">(</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">gen_syms</span><span class="p">))[</span><span class="mi">0</span><span class="p">]</span>
 
-        <span class="c1"># the rewriting could be replaced by a homomorphism</span>
-        <span class="n">images</span> <span class="o">=</span> <span class="p">{</span><span class="n">H_p</span><span class="o">.</span><span class="n">generators</span><span class="p">[</span><span class="n">i</span><span class="p">]:</span> <span class="n">F</span><span class="o">.</span><span class="n">generators</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">len_h</span><span class="p">)}</span>
+        <span class="c1"># mapping generators of H_p to those of F</span>
+        <span class="n">images</span> <span class="o">=</span> <span class="p">[</span><span class="n">F</span><span class="o">.</span><span class="n">generators</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">len_h</span><span class="p">)]</span>
+        <span class="n">R</span> <span class="o">=</span> <span class="n">homomorphism</span><span class="p">(</span><span class="n">H_p</span><span class="p">,</span> <span class="n">F</span><span class="p">,</span> <span class="n">H_p</span><span class="o">.</span><span class="n">generators</span><span class="p">,</span> <span class="n">images</span><span class="p">,</span> <span class="n">check</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 
-        <span class="k">def</span> <span class="nf">_rewrite</span><span class="p">(</span><span class="n">group</span><span class="p">,</span> <span class="n">w</span><span class="p">):</span>
-            <span class="n">w1</span> <span class="o">=</span> <span class="n">group</span><span class="o">.</span><span class="n">identity</span>
-            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">w</span><span class="p">)):</span>
-                <span class="n">e</span> <span class="o">=</span> <span class="n">w</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
-                <span class="k">if</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">images</span><span class="p">:</span>
-                    <span class="n">w1</span> <span class="o">=</span> <span class="n">w1</span><span class="o">*</span><span class="n">images</span><span class="p">[</span><span class="n">e</span><span class="p">]</span>
-                <span class="k">else</span><span class="p">:</span>
-                    <span class="n">w1</span> <span class="o">=</span> <span class="n">w1</span><span class="o">*</span><span class="n">images</span><span class="p">[</span><span class="n">e</span><span class="o">**-</span><span class="mi">1</span><span class="p">]</span><span class="o">**-</span><span class="mi">1</span>
-            <span class="k">return</span> <span class="n">w1</span>
-
-        <span class="n">rels</span> <span class="o">=</span> <span class="p">[</span><span class="n">_rewrite</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">r</span><span class="p">)</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">H_p</span><span class="o">.</span><span class="n">relators</span><span class="p">]</span>
+        <span class="c1"># rewrite relators</span>
+        <span class="n">rels</span> <span class="o">=</span> <span class="n">R</span><span class="p">(</span><span class="n">H_p</span><span class="o">.</span><span class="n">relators</span><span class="p">)</span>
         <span class="n">G_p</span> <span class="o">=</span> <span class="n">FpGroup</span><span class="p">(</span><span class="n">F</span><span class="p">,</span> <span class="n">rels</span><span class="p">)</span>
 
-        <span class="n">T</span> <span class="o">=</span> <span class="n">homomorphism</span><span class="p">(</span><span class="n">G_p</span><span class="p">,</span> <span class="n">G</span><span class="p">,</span> <span class="n">G_p</span><span class="o">.</span><span class="n">generators</span><span class="p">,</span> <span class="n">G</span><span class="o">.</span><span class="n">generators</span><span class="p">)</span>
+        <span class="c1"># injective homomorphism from G_p into G</span>
+        <span class="n">T</span> <span class="o">=</span> <span class="n">homomorphism</span><span class="p">(</span><span class="n">G_p</span><span class="p">,</span> <span class="n">G</span><span class="p">,</span> <span class="n">G_p</span><span class="o">.</span><span class="n">generators</span><span class="p">,</span> <span class="n">gens</span><span class="p">)</span>
 
         <span class="n">C_p</span> <span class="o">=</span> <span class="n">CosetTable</span><span class="p">(</span><span class="n">G_p</span><span class="p">,</span> <span class="p">[])</span>
 
@@ -3980,8 +4277,8 @@
             <span class="n">perm</span> <span class="o">=</span> <span class="n">T</span><span class="p">(</span><span class="n">new_rel</span><span class="p">)</span>
             <span class="nb">next</span> <span class="o">=</span> <span class="n">G_p</span><span class="o">.</span><span class="n">identity</span>
             <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">H</span><span class="o">.</span><span class="n">generator_product</span><span class="p">(</span><span class="n">perm</span><span class="p">,</span> <span class="n">original</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
-                <span class="nb">next</span> <span class="o">=</span> <span class="n">T</span><span class="o">.</span><span class="n">invert</span><span class="p">(</span><span class="n">s</span><span class="p">)</span><span class="o">*</span><span class="nb">next</span>
-            <span class="n">new_rel</span> <span class="o">=</span> <span class="n">new_rel</span><span class="o">*</span><span class="nb">next</span><span class="o">**-</span><span class="mi">1</span>
+                <span class="nb">next</span> <span class="o">=</span> <span class="nb">next</span><span class="o">*</span><span class="n">T</span><span class="o">.</span><span class="n">invert</span><span class="p">(</span><span class="n">s</span><span class="p">)</span><span class="o">**-</span><span class="mi">1</span>
+            <span class="n">new_rel</span> <span class="o">=</span> <span class="n">new_rel</span><span class="o">*</span><span class="nb">next</span>
 
             <span class="c1"># continue coset enumeration</span>
             <span class="n">G_p</span> <span class="o">=</span> <span class="n">_factor_group_by_rels</span><span class="p">(</span><span class="n">G_p</span><span class="p">,</span> <span class="p">[</span><span class="n">new_rel</span><span class="p">])</span>
@@ -4248,7 +4545,7 @@
     </div>
     <div class="footer" role="contentinfo">
         &#169; Copyright 2018 SymPy Development Team.
-      Last updated on Jan 13, 2018.
+      Last updated on Jan 14, 2018.
       Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.6.
     </div>
   </body>
