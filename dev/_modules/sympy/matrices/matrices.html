@@ -65,6 +65,7 @@
 <span class="kn">from</span> <span class="nn">sympy.core.add</span> <span class="k">import</span> <span class="n">Add</span>
 <span class="kn">from</span> <span class="nn">sympy.core.basic</span> <span class="k">import</span> <span class="n">Basic</span><span class="p">,</span> <span class="n">Atom</span>
 <span class="kn">from</span> <span class="nn">sympy.core.expr</span> <span class="k">import</span> <span class="n">Expr</span>
+<span class="kn">from</span> <span class="nn">sympy.core.function</span> <span class="k">import</span> <span class="n">expand_mul</span>
 <span class="kn">from</span> <span class="nn">sympy.core.power</span> <span class="k">import</span> <span class="n">Pow</span>
 <span class="kn">from</span> <span class="nn">sympy.core.symbol</span> <span class="k">import</span> <span class="p">(</span><span class="n">Symbol</span><span class="p">,</span> <span class="n">Dummy</span><span class="p">,</span> <span class="n">symbols</span><span class="p">,</span>
     <span class="n">_uniquely_named_symbol</span><span class="p">)</span>
@@ -80,8 +81,8 @@
 
 <span class="kn">from</span> <span class="nn">sympy.utilities.iterables</span> <span class="k">import</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">numbered_symbols</span>
 <span class="kn">from</span> <span class="nn">sympy.core.decorators</span> <span class="k">import</span> <span class="n">call_highest_priority</span>
-<span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="k">import</span> <span class="n">is_sequence</span><span class="p">,</span> <span class="n">default_sort_key</span><span class="p">,</span> <span class="nb">range</span><span class="p">,</span> \
-    <span class="n">NotIterable</span>
+<span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="k">import</span> <span class="p">(</span><span class="n">is_sequence</span><span class="p">,</span> <span class="n">default_sort_key</span><span class="p">,</span> <span class="nb">range</span><span class="p">,</span>
+    <span class="n">NotIterable</span><span class="p">)</span>
 
 
 <span class="kn">from</span> <span class="nn">types</span> <span class="k">import</span> <span class="n">FunctionType</span>
@@ -96,6 +97,12 @@
         <span class="k">return</span> <span class="n">x</span><span class="o">.</span><span class="n">is_zero</span>
     <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
         <span class="k">return</span> <span class="kc">None</span>
+
+
+<span class="k">def</span> <span class="nf">_is_zero_after_expand_mul</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Tests by expand_mul only, suitable for polynomials and rational</span>
+<span class="sd">    functions.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">expand_mul</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
 
 
 <span class="k">class</span> <span class="nc">DeferredVector</span><span class="p">(</span><span class="n">Symbol</span><span class="p">,</span> <span class="n">NotIterable</span><span class="p">):</span>
@@ -233,14 +240,6 @@
 <span class="sd">        http://www.eecis.udel.edu/~saunders/papers/sffge/it5.ps.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
-        <span class="c1"># XXX included as a workaround for issue #12362.  Should use `_find_reasonable_pivot` instead</span>
-        <span class="k">def</span> <span class="nf">_find_pivot</span><span class="p">(</span><span class="n">l</span><span class="p">):</span>
-            <span class="k">for</span> <span class="n">pos</span><span class="p">,</span><span class="n">val</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">l</span><span class="p">):</span>
-                <span class="k">if</span> <span class="n">val</span><span class="p">:</span>
-                    <span class="k">return</span> <span class="p">(</span><span class="n">pos</span><span class="p">,</span> <span class="n">val</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-            <span class="k">return</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-
-
         <span class="c1"># Recursively implemented Bareiss&#39; algorithm as per Deanna Richelle Leggett&#39;s</span>
         <span class="c1"># thesis http://www.math.usm.edu/perry/Research/Thesis_DRL.pdf</span>
         <span class="k">def</span> <span class="nf">bareiss</span><span class="p">(</span><span class="n">mat</span><span class="p">,</span> <span class="n">cumm</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
@@ -250,8 +249,11 @@
                 <span class="k">return</span> <span class="n">mat</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
 
             <span class="c1"># find a pivot and extract the remaining matrix</span>
-            <span class="c1"># XXX should use `_find_reasonable_pivot`.  Blocked by issue #12362</span>
-            <span class="n">pivot_pos</span><span class="p">,</span> <span class="n">pivot_val</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">_find_pivot</span><span class="p">(</span><span class="n">mat</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">])</span>
+            <span class="c1"># With the default iszerofunc, _find_reasonable_pivot slows down</span>
+            <span class="c1"># the computation by the factor of 2.5 in one test.</span>
+            <span class="c1"># Relevant issues: #10279 and #13877.</span>
+            <span class="n">pivot_pos</span><span class="p">,</span> <span class="n">pivot_val</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">_find_reasonable_pivot</span><span class="p">(</span><span class="n">mat</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span>
+                                         <span class="n">iszerofunc</span><span class="o">=</span><span class="n">_is_zero_after_expand_mul</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">pivot_pos</span> <span class="o">==</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span>
 
