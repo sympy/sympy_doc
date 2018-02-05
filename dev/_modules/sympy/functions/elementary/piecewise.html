@@ -722,17 +722,20 @@
         <span class="k">return</span> <span class="nb">sum</span>
 
     <span class="k">def</span> <span class="nf">_intervals</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sym</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Return a list of tuples, (a, b, e, i), where a and b</span>
-<span class="sd">        are the lower and upper bounds in which the expression e</span>
-<span class="sd">        of argument i in self is defined.</span>
+        <span class="sd">&quot;&quot;&quot;Return a list of unique tuples, (a, b, e, i), where a and b</span>
+<span class="sd">        are the lower and upper bounds in which the expression e of</span>
+<span class="sd">        argument i in self is defined and a &lt; b (when involving</span>
+<span class="sd">        numbers) or a &lt;= b when involving symbols.</span>
 
-<span class="sd">        If there are any relationals not involving sym, or</span>
-<span class="sd">        any relational cannot be solved for sym,</span>
-<span class="sd">        NotImplementedError is raised. The evaluated conditions will</span>
-<span class="sd">        be returned as ranges. Discontinuous ranges will be</span>
-<span class="sd">        returned separately with identical expressions and</span>
-<span class="sd">        the first condition that evaluates to True will be</span>
-<span class="sd">        returned as the last tuple with a, b = -oo, oo.</span>
+<span class="sd">        If there are any relationals not involving sym, or any</span>
+<span class="sd">        relational cannot be solved for sym, NotImplementedError is</span>
+<span class="sd">        raised. The calling routine should have removed such</span>
+<span class="sd">        relationals before calling this routine.</span>
+
+<span class="sd">        The evaluated conditions will be returned as ranges.</span>
+<span class="sd">        Discontinuous ranges will be returned separately with</span>
+<span class="sd">        identical expressions. The first condition that evaluates to</span>
+<span class="sd">        True will be returned as the last tuple with a, b = -oo, oo.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="kn">from</span> <span class="nn">sympy.solvers.inequalities</span> <span class="k">import</span> <span class="n">_solve_inequality</span>
         <span class="kn">from</span> <span class="nn">sympy.logic.boolalg</span> <span class="k">import</span> <span class="n">to_cnf</span><span class="p">,</span> <span class="n">distribute_or_over_and</span>
@@ -740,20 +743,29 @@
         <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">Piecewise</span><span class="p">)</span>
 
         <span class="k">def</span> <span class="nf">_solve_relational</span><span class="p">(</span><span class="n">r</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">sym</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">r</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">:</span>
+                <span class="n">nonsymfail</span><span class="p">(</span><span class="n">r</span><span class="p">)</span>
             <span class="n">rv</span> <span class="o">=</span> <span class="n">_solve_inequality</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">sym</span><span class="p">)</span>
-            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">rv</span><span class="p">,</span> <span class="n">Relational</span><span class="p">)</span> <span class="ow">and</span> \
-                    <span class="n">sym</span> <span class="ow">in</span> <span class="n">rv</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">:</span>
-                <span class="k">if</span> <span class="n">rv</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="n">sym</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">rv</span><span class="p">,</span> <span class="n">Relational</span><span class="p">):</span>
+                <span class="n">free</span> <span class="o">=</span> <span class="n">rv</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">free_symbols</span>
+                <span class="k">if</span> <span class="n">rv</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="n">sym</span> <span class="ow">or</span> <span class="n">sym</span> <span class="ow">in</span> <span class="n">free</span><span class="p">:</span>
                     <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="n">filldedent</span><span class="p">(</span><span class="s1">&#39;&#39;&#39;</span>
 <span class="s1">                        Unable to solve relational</span>
 <span class="s1">                        </span><span class="si">%s</span><span class="s1"> for </span><span class="si">%s</span><span class="s1">.&#39;&#39;&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">sym</span><span class="p">)))</span>
-                <span class="k">if</span> <span class="n">rv</span><span class="o">.</span><span class="n">rel_op</span> <span class="o">==</span> <span class="s1">&#39;!=&#39;</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">rv</span><span class="o">.</span><span class="n">rel_op</span> <span class="o">==</span> <span class="s1">&#39;==&#39;</span><span class="p">:</span>
+                    <span class="c1"># this equality has been affirmed to have the form</span>
+                    <span class="c1"># Eq(sym, rhs) where rhs is sym-free; it represents</span>
+                    <span class="c1"># a zero-width interval which will be ignored</span>
+                    <span class="c1"># whether it is an isolated condition or contained</span>
+                    <span class="c1"># within an And or an Or</span>
+                    <span class="n">rv</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">false</span>
+                <span class="k">elif</span> <span class="n">rv</span><span class="o">.</span><span class="n">rel_op</span> <span class="o">==</span> <span class="s1">&#39;!=&#39;</span><span class="p">:</span>
                     <span class="k">try</span><span class="p">:</span>
                         <span class="n">rv</span> <span class="o">=</span> <span class="n">Or</span><span class="p">(</span><span class="n">sym</span> <span class="o">&lt;</span> <span class="n">rv</span><span class="o">.</span><span class="n">rhs</span><span class="p">,</span> <span class="n">sym</span> <span class="o">&gt;</span> <span class="n">rv</span><span class="o">.</span><span class="n">rhs</span><span class="p">)</span>
                     <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
                         <span class="c1"># e.g. x != I ==&gt; all real x satisfy</span>
                         <span class="n">rv</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">true</span>
-            <span class="k">if</span> <span class="n">rv</span> <span class="o">==</span> <span class="p">(</span><span class="n">S</span><span class="o">.</span><span class="n">NegativeInfinity</span> <span class="o">&lt;</span> <span class="n">sym</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">sym</span> <span class="o">&lt;</span> <span class="n">S</span><span class="o">.</span><span class="n">Infinity</span><span class="p">):</span>
+            <span class="k">elif</span> <span class="n">rv</span> <span class="o">==</span> <span class="p">(</span><span class="n">S</span><span class="o">.</span><span class="n">NegativeInfinity</span> <span class="o">&lt;</span> <span class="n">sym</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">sym</span> <span class="o">&lt;</span> <span class="n">S</span><span class="o">.</span><span class="n">Infinity</span><span class="p">):</span>
                 <span class="n">rv</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">true</span>
             <span class="k">return</span> <span class="n">rv</span>
 
@@ -763,8 +775,8 @@
 <span class="s1">                </span><span class="si">%s</span><span class="s1"> appeared: </span><span class="si">%s</span><span class="s1">&#39;&#39;&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">sym</span><span class="p">,</span> <span class="n">cond</span><span class="p">)))</span>
 
         <span class="c1"># make self canonical wrt Relationals</span>
-        <span class="n">reps</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
-            <span class="p">[(</span><span class="n">r</span><span class="p">,</span><span class="n">_solve_relational</span><span class="p">(</span><span class="n">r</span><span class="p">))</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">atoms</span><span class="p">(</span><span class="n">Relational</span><span class="p">)])</span>
+        <span class="n">reps</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">([</span>
+            <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">_solve_relational</span><span class="p">(</span><span class="n">r</span><span class="p">))</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">atoms</span><span class="p">(</span><span class="n">Relational</span><span class="p">)])</span>
         <span class="c1"># process args individually so if any evaluate, their position</span>
         <span class="c1"># in the original Piecewise will be known</span>
         <span class="n">args</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">reps</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">]</span>
@@ -773,14 +785,12 @@
         <span class="n">expr_cond</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="n">default</span> <span class="o">=</span> <span class="n">idefault</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">cond</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">args</span><span class="p">):</span>
-            <span class="k">if</span> <span class="n">cond</span> <span class="o">==</span> <span class="kc">False</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">cond</span> <span class="ow">is</span> <span class="n">S</span><span class="o">.</span><span class="n">false</span><span class="p">:</span>
                 <span class="k">continue</span>
-            <span class="k">elif</span> <span class="n">cond</span> <span class="o">==</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="k">elif</span> <span class="n">cond</span> <span class="ow">is</span> <span class="n">S</span><span class="o">.</span><span class="n">true</span><span class="p">:</span>
                 <span class="n">default</span> <span class="o">=</span> <span class="n">expr</span>
                 <span class="n">idefault</span> <span class="o">=</span> <span class="n">i</span>
                 <span class="k">break</span>
-            <span class="k">elif</span> <span class="n">sym</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">cond</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">:</span>
-                <span class="n">nonsymfail</span><span class="p">(</span><span class="n">cond</span><span class="p">)</span>
 
             <span class="n">cond</span> <span class="o">=</span> <span class="n">to_cnf</span><span class="p">(</span><span class="n">cond</span><span class="p">)</span>
             <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cond</span><span class="p">,</span> <span class="n">And</span><span class="p">):</span>
@@ -788,61 +798,27 @@
 
             <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cond</span><span class="p">,</span> <span class="n">Or</span><span class="p">):</span>
                 <span class="n">expr_cond</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span>
-                    <span class="p">[(</span><span class="n">i</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">o</span><span class="p">)</span> <span class="k">for</span> <span class="n">o</span> <span class="ow">in</span> <span class="n">cond</span><span class="o">.</span><span class="n">args</span><span class="p">])</span>
-            <span class="k">elif</span> <span class="n">cond</span> <span class="o">!=</span> <span class="kc">False</span><span class="p">:</span>
+                    <span class="p">[(</span><span class="n">i</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">o</span><span class="p">)</span> <span class="k">for</span> <span class="n">o</span> <span class="ow">in</span> <span class="n">cond</span><span class="o">.</span><span class="n">args</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">o</span><span class="p">,</span> <span class="n">Equality</span><span class="p">)])</span>
+            <span class="k">elif</span> <span class="n">cond</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">S</span><span class="o">.</span><span class="n">false</span><span class="p">:</span>
                 <span class="n">expr_cond</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">i</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">cond</span><span class="p">))</span>
 
         <span class="c1"># determine intervals represented by conditions</span>
         <span class="n">int_expr</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">for</span> <span class="n">iarg</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">cond</span> <span class="ow">in</span> <span class="n">expr_cond</span><span class="p">:</span>
-            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cond</span><span class="p">,</span> <span class="n">Equality</span><span class="p">):</span>
-                <span class="k">if</span> <span class="n">cond</span><span class="o">.</span><span class="n">lhs</span> <span class="o">==</span> <span class="n">sym</span><span class="p">:</span>
-                    <span class="n">v</span> <span class="o">=</span> <span class="n">cond</span><span class="o">.</span><span class="n">rhs</span>
-                    <span class="n">int_expr</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">v</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">expr</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">sym</span><span class="p">,</span> <span class="n">v</span><span class="p">),</span> <span class="n">iarg</span><span class="p">))</span>
-                    <span class="k">continue</span>
-                <span class="k">else</span><span class="p">:</span>
-                    <span class="n">nonsymfail</span><span class="p">(</span><span class="n">cond</span><span class="p">)</span>
-
             <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cond</span><span class="p">,</span> <span class="n">And</span><span class="p">):</span>
                 <span class="n">lower</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">NegativeInfinity</span>
                 <span class="n">upper</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">Infinity</span>
-                <span class="n">nonsym</span> <span class="o">=</span> <span class="kc">False</span>
-                <span class="n">rhs</span> <span class="o">=</span> <span class="kc">None</span>
                 <span class="k">for</span> <span class="n">cond2</span> <span class="ow">in</span> <span class="n">cond</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
                     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cond2</span><span class="p">,</span> <span class="n">Equality</span><span class="p">):</span>
-                        <span class="c1"># all relationals were solved and</span>
-                        <span class="c1"># only sym-dependent ones made it to here</span>
-                        <span class="k">assert</span> <span class="n">cond2</span><span class="o">.</span><span class="n">lhs</span> <span class="o">==</span> <span class="n">sym</span>
-                        <span class="k">assert</span> <span class="n">sym</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">cond2</span><span class="o">.</span><span class="n">rhs</span><span class="o">.</span><span class="n">free_symbols</span>
-                        <span class="k">if</span> <span class="n">rhs</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-                            <span class="n">rhs</span> <span class="o">=</span> <span class="n">cond2</span><span class="o">.</span><span class="n">rhs</span>
-                        <span class="k">else</span><span class="p">:</span>
-                            <span class="n">same</span> <span class="o">=</span> <span class="n">Eq</span><span class="p">(</span><span class="n">cond2</span><span class="o">.</span><span class="n">rhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">)</span>
-                            <span class="k">if</span> <span class="n">same</span> <span class="o">==</span> <span class="kc">False</span><span class="p">:</span>
-                                <span class="n">cond</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">false</span>
-                                <span class="k">break</span>
-                            <span class="k">elif</span> <span class="n">same</span> <span class="o">!=</span> <span class="kc">True</span><span class="p">:</span>
-                                <span class="k">raise</span> <span class="n">Undecidable</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1"> did not evaluate&#39;</span> <span class="o">%</span> <span class="n">same</span><span class="p">)</span>
+                        <span class="n">lower</span> <span class="o">=</span> <span class="n">upper</span>  <span class="c1"># ignore</span>
+                        <span class="k">break</span>
                     <span class="k">elif</span> <span class="n">cond2</span><span class="o">.</span><span class="n">lts</span> <span class="o">==</span> <span class="n">sym</span><span class="p">:</span>
                         <span class="n">upper</span> <span class="o">=</span> <span class="n">Min</span><span class="p">(</span><span class="n">cond2</span><span class="o">.</span><span class="n">gts</span><span class="p">,</span> <span class="n">upper</span><span class="p">)</span>
                     <span class="k">elif</span> <span class="n">cond2</span><span class="o">.</span><span class="n">gts</span> <span class="o">==</span> <span class="n">sym</span><span class="p">:</span>
                         <span class="n">lower</span> <span class="o">=</span> <span class="n">Max</span><span class="p">(</span><span class="n">cond2</span><span class="o">.</span><span class="n">lts</span><span class="p">,</span> <span class="n">lower</span><span class="p">)</span>
                     <span class="k">else</span><span class="p">:</span>
-                        <span class="c1"># mark but don&#39;t fail until later</span>
-                        <span class="n">nonsym</span> <span class="o">=</span> <span class="n">cond2</span>
-                <span class="k">if</span> <span class="n">rhs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">cond</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="n">S</span><span class="o">.</span><span class="n">true</span><span class="p">,</span> <span class="n">S</span><span class="o">.</span><span class="n">false</span><span class="p">):</span>
-                    <span class="n">lower</span> <span class="o">=</span> <span class="n">upper</span> <span class="o">=</span> <span class="n">rhs</span>
-                    <span class="n">cond</span> <span class="o">=</span> <span class="n">cond</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">sym</span><span class="p">,</span> <span class="n">lower</span><span class="p">)</span>
-                <span class="c1"># cond might have evaluated b/c of an Eq</span>
-                <span class="k">if</span> <span class="n">cond</span> <span class="ow">is</span> <span class="n">S</span><span class="o">.</span><span class="n">true</span><span class="p">:</span>
-                    <span class="n">default</span> <span class="o">=</span> <span class="n">expr</span>
-                    <span class="k">continue</span>
-                <span class="k">elif</span> <span class="n">cond</span> <span class="ow">is</span> <span class="n">S</span><span class="o">.</span><span class="n">false</span><span class="p">:</span>
-                    <span class="k">continue</span>
-                <span class="k">elif</span> <span class="n">nonsym</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">False</span><span class="p">:</span>
-                    <span class="n">nonsymfail</span><span class="p">(</span><span class="n">nonsym</span><span class="p">)</span>
-                <span class="k">else</span><span class="p">:</span>
-                    <span class="k">pass</span>  <span class="c1"># for coverage</span>
+                        <span class="n">nonsymfail</span><span class="p">(</span><span class="n">cond2</span><span class="p">)</span>  <span class="c1"># should never get here</span>
             <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cond</span><span class="p">,</span> <span class="n">Relational</span><span class="p">):</span>
                 <span class="n">lower</span><span class="p">,</span> <span class="n">upper</span> <span class="o">=</span> <span class="n">cond</span><span class="o">.</span><span class="n">lts</span><span class="p">,</span> <span class="n">cond</span><span class="o">.</span><span class="n">gts</span>  <span class="c1"># part 1: initialize with givens</span>
                 <span class="k">if</span> <span class="n">cond</span><span class="o">.</span><span class="n">lts</span> <span class="o">==</span> <span class="n">sym</span><span class="p">:</span>                <span class="c1"># part 1a: expand the side ...</span>
@@ -856,14 +832,14 @@
                     <span class="s1">&#39;unrecognized condition: </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">cond</span><span class="p">)</span>
 
             <span class="n">lower</span><span class="p">,</span> <span class="n">upper</span> <span class="o">=</span> <span class="n">lower</span><span class="p">,</span> <span class="n">Max</span><span class="p">(</span><span class="n">lower</span><span class="p">,</span> <span class="n">upper</span><span class="p">)</span>
-            <span class="k">if</span> <span class="p">(</span><span class="n">lower</span> <span class="o">&gt;</span> <span class="n">upper</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">S</span><span class="o">.</span><span class="n">true</span><span class="p">:</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">lower</span> <span class="o">&gt;=</span> <span class="n">upper</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">S</span><span class="o">.</span><span class="n">true</span><span class="p">:</span>
                 <span class="n">int_expr</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">lower</span><span class="p">,</span> <span class="n">upper</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">iarg</span><span class="p">))</span>
 
         <span class="k">if</span> <span class="n">default</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">int_expr</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
                 <span class="p">(</span><span class="n">S</span><span class="o">.</span><span class="n">NegativeInfinity</span><span class="p">,</span> <span class="n">S</span><span class="o">.</span><span class="n">Infinity</span><span class="p">,</span> <span class="n">default</span><span class="p">,</span> <span class="n">idefault</span><span class="p">))</span>
 
-        <span class="k">return</span> <span class="n">int_expr</span>
+        <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="n">uniq</span><span class="p">(</span><span class="n">int_expr</span><span class="p">))</span>
 
     <span class="k">def</span> <span class="nf">_eval_nseries</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">logx</span><span class="p">):</span>
         <span class="n">args</span> <span class="o">=</span> <span class="p">[(</span><span class="n">ec</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">_eval_nseries</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">logx</span><span class="p">),</span> <span class="n">ec</span><span class="o">.</span><span class="n">cond</span><span class="p">)</span> <span class="k">for</span> <span class="n">ec</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">]</span>
