@@ -72,8 +72,8 @@
 <span class="sd">http://www.star.le.ac.uk/~cgp/prof77.html</span>
 
 <span class="sd">Fortran is a case-insensitive language. This might cause trouble because</span>
-<span class="sd">SymPy is case sensitive. The implementation below does not care and leaves</span>
-<span class="sd">the responsibility for generating properly cased Fortran code to the user.</span>
+<span class="sd">SymPy is case sensitive. So, fcode adds underscores to variable names when</span>
+<span class="sd">it is necessary to make them different for Fortran.</span>
 <span class="sd">&quot;&quot;&quot;</span>
 
 <span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">division</span>
@@ -82,7 +82,7 @@
 <span class="kn">from</span> <span class="nn">itertools</span> <span class="k">import</span> <span class="n">chain</span>
 <span class="kn">import</span> <span class="nn">string</span>
 
-<span class="kn">from</span> <span class="nn">sympy.core</span> <span class="k">import</span> <span class="n">S</span><span class="p">,</span> <span class="n">Add</span><span class="p">,</span> <span class="n">N</span><span class="p">,</span> <span class="n">Float</span>
+<span class="kn">from</span> <span class="nn">sympy.core</span> <span class="k">import</span> <span class="n">S</span><span class="p">,</span> <span class="n">Add</span><span class="p">,</span> <span class="n">N</span><span class="p">,</span> <span class="n">Float</span><span class="p">,</span> <span class="n">Symbol</span>
 <span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="k">import</span> <span class="n">string_types</span><span class="p">,</span> <span class="nb">range</span>
 <span class="kn">from</span> <span class="nn">sympy.core.function</span> <span class="k">import</span> <span class="n">Function</span>
 <span class="kn">from</span> <span class="nn">sympy.core.relational</span> <span class="k">import</span> <span class="n">Eq</span>
@@ -148,6 +148,7 @@
         <span class="s1">&#39;source_format&#39;</span><span class="p">:</span> <span class="s1">&#39;fixed&#39;</span><span class="p">,</span>
         <span class="s1">&#39;contract&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
         <span class="s1">&#39;standard&#39;</span><span class="p">:</span> <span class="mi">77</span><span class="p">,</span>
+        <span class="s1">&#39;name_mangling&#39;</span> <span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
     <span class="p">}</span>
 
     <span class="n">_operators</span> <span class="o">=</span> <span class="p">{</span>
@@ -163,6 +164,8 @@
     <span class="p">}</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">settings</span><span class="o">=</span><span class="p">{}):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mangled_symbols</span> <span class="o">=</span> <span class="p">{}</span>         <span class="c1">## Dict showing mapping of all words</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">used_name</span><span class="o">=</span> <span class="p">[]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">type_aliases</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">chain</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">type_aliases</span><span class="o">.</span><span class="n">items</span><span class="p">(),</span>
                                        <span class="n">settings</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;type_aliases&#39;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()))</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">type_mappings</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">chain</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">type_mappings</span><span class="o">.</span><span class="n">items</span><span class="p">(),</span>
@@ -178,7 +181,6 @@
                              <span class="s1">&#39;standard&#39;</span><span class="p">])</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">module_uses</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">set</span><span class="p">)</span>  <span class="c1"># e.g.: use iso_c_binding, only: c_int</span>
 
-
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_lead</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_settings</span><span class="p">[</span><span class="s1">&#39;source_format&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;fixed&#39;</span><span class="p">:</span>
@@ -187,6 +189,23 @@
             <span class="k">return</span> <span class="p">{</span><span class="s1">&#39;code&#39;</span><span class="p">:</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="s1">&#39;cont&#39;</span><span class="p">:</span> <span class="s2">&quot;      &quot;</span><span class="p">,</span> <span class="s1">&#39;comment&#39;</span><span class="p">:</span> <span class="s2">&quot;! &quot;</span><span class="p">}</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Unknown source format: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">_settings</span><span class="p">[</span><span class="s1">&#39;source_format&#39;</span><span class="p">])</span>
+
+    <span class="k">def</span> <span class="nf">_print_Symbol</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_settings</span><span class="p">[</span><span class="s1">&#39;name_mangling&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">expr</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">mangled_symbols</span><span class="p">:</span>
+                <span class="n">name</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">name</span>
+                <span class="k">while</span> <span class="n">name</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">used_name</span><span class="p">:</span>
+                    <span class="n">name</span> <span class="o">+=</span> <span class="s1">&#39;_&#39;</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">used_name</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">name</span><span class="o">.</span><span class="n">lower</span><span class="p">())</span>
+                <span class="k">if</span> <span class="n">name</span> <span class="o">==</span> <span class="n">expr</span><span class="o">.</span><span class="n">name</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">mangled_symbols</span><span class="p">[</span><span class="n">expr</span><span class="p">]</span> <span class="o">=</span> <span class="n">expr</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">mangled_symbols</span><span class="p">[</span><span class="n">expr</span><span class="p">]</span> <span class="o">=</span> <span class="n">Symbol</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+
+            <span class="n">expr</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mangled_symbols</span><span class="p">)</span>
+
+        <span class="n">name</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">FCodePrinter</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_print_Symbol</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">name</span>
 
     <span class="k">def</span> <span class="nf">_rate_index_position</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="p">):</span>
         <span class="k">return</span> <span class="o">-</span><span class="n">p</span><span class="o">*</span><span class="mi">5</span>
@@ -605,6 +624,11 @@
 <span class="sd">        Note that currently the only distinction internally is between</span>
 <span class="sd">        standards before 95, and those 95 and after. This may change later as</span>
 <span class="sd">        more features are added.</span>
+<span class="sd">    name_mangling : bool, optional</span>
+<span class="sd">        If True, then the variables that would become identical in</span>
+<span class="sd">        case-insensitive Fortran are mangled by appending different number</span>
+<span class="sd">        of ``_`` at the end. If False, SymPy won&#39;t interfere with naming of</span>
+<span class="sd">        variables. [default=True]</span>
 
 <span class="sd">    Examples</span>
 <span class="sd">    ========</span>
