@@ -81,6 +81,10 @@
 <span class="kn">from</span> <span class="nn">sympy.matrices</span> <span class="k">import</span> <span class="n">eye</span>
 <span class="kn">from</span> <span class="nn">sympy.sets</span> <span class="k">import</span> <span class="n">Set</span>
 <span class="kn">from</span> <span class="nn">sympy.utilities.misc</span> <span class="k">import</span> <span class="n">func_name</span>
+<span class="kn">from</span> <span class="nn">sympy.multipledispatch</span> <span class="k">import</span> <span class="n">dispatch</span>
+<span class="kn">from</span> <span class="nn">sympy.sets.handlers.union</span> <span class="k">import</span> <span class="n">union_sets</span>
+<span class="kn">from</span> <span class="nn">sympy.sets.handlers.intersection</span> <span class="k">import</span> <span class="n">intersection_sets</span>
+
 
 <span class="c1"># How entities are ordered; used by __cmp__ in GeometryEntity</span>
 <span class="n">ordering_of_classes</span> <span class="o">=</span> <span class="p">[</span>
@@ -591,47 +595,50 @@
 
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="fm">__contains__</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
 
-    <span class="k">def</span> <span class="nf">_union</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot; Returns the union of self and o</span>
-<span class="sd">        for use with sympy.sets.Set, if possible. &quot;&quot;&quot;</span>
+<span class="nd">@dispatch</span><span class="p">(</span><span class="n">GeometrySet</span><span class="p">,</span> <span class="n">Set</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">union_sets</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Returns the union of self and o</span>
+<span class="sd">    for use with sympy.sets.Set, if possible. &quot;&quot;&quot;</span>
 
-        <span class="kn">from</span> <span class="nn">sympy.sets</span> <span class="k">import</span> <span class="n">Union</span><span class="p">,</span> <span class="n">FiniteSet</span>
+    <span class="kn">from</span> <span class="nn">sympy.sets</span> <span class="k">import</span> <span class="n">Union</span><span class="p">,</span> <span class="n">FiniteSet</span>
 
-        <span class="c1"># if its a FiniteSet, merge any points</span>
-        <span class="c1"># we contain and return a union with the rest</span>
+    <span class="c1"># if its a FiniteSet, merge any points</span>
+    <span class="c1"># we contain and return a union with the rest</span>
+    <span class="k">if</span> <span class="n">o</span><span class="o">.</span><span class="n">is_FiniteSet</span><span class="p">:</span>
+        <span class="n">other_points</span> <span class="o">=</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">o</span> <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_contains</span><span class="p">(</span><span class="n">p</span><span class="p">)]</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">other_points</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">o</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">return</span> <span class="n">Union</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">FiniteSet</span><span class="p">(</span><span class="o">*</span><span class="n">other_points</span><span class="p">))</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_contains</span><span class="p">(</span><span class="n">o</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span>
+    <span class="k">return</span> <span class="kc">None</span>
+
+
+<span class="nd">@dispatch</span><span class="p">(</span><span class="n">GeometrySet</span><span class="p">,</span> <span class="n">Set</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">intersection_sets</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Returns a sympy.sets.Set of intersection objects,</span>
+<span class="sd">    if possible. &quot;&quot;&quot;</span>
+
+    <span class="kn">from</span> <span class="nn">sympy.sets</span> <span class="k">import</span> <span class="n">Set</span><span class="p">,</span> <span class="n">FiniteSet</span><span class="p">,</span> <span class="n">Union</span>
+    <span class="kn">from</span> <span class="nn">sympy.geometry</span> <span class="k">import</span> <span class="n">Point</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="c1"># if o is a FiniteSet, find the intersection directly</span>
+        <span class="c1"># to avoid infinite recursion</span>
         <span class="k">if</span> <span class="n">o</span><span class="o">.</span><span class="n">is_FiniteSet</span><span class="p">:</span>
-            <span class="n">other_points</span> <span class="o">=</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">o</span> <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_contains</span><span class="p">(</span><span class="n">p</span><span class="p">)]</span>
-            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">other_points</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">o</span><span class="p">):</span>
-                <span class="k">return</span> <span class="kc">None</span>
-            <span class="k">return</span> <span class="n">Union</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">FiniteSet</span><span class="p">(</span><span class="o">*</span><span class="n">other_points</span><span class="p">))</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_contains</span><span class="p">(</span><span class="n">o</span><span class="p">):</span>
-            <span class="k">return</span> <span class="bp">self</span>
+            <span class="n">inter</span> <span class="o">=</span> <span class="n">FiniteSet</span><span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">o</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">contains</span><span class="p">(</span><span class="n">p</span><span class="p">)))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">inter</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">intersection</span><span class="p">(</span><span class="n">o</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">NotImplementedError</span><span class="p">:</span>
+        <span class="c1"># sympy.sets.Set.reduce expects None if an object</span>
+        <span class="c1"># doesn&#39;t know how to simplify</span>
         <span class="k">return</span> <span class="kc">None</span>
 
-    <span class="k">def</span> <span class="nf">_intersect</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot; Returns a sympy.sets.Set of intersection objects,</span>
-<span class="sd">        if possible. &quot;&quot;&quot;</span>
+    <span class="c1"># put the points in a FiniteSet</span>
+    <span class="n">points</span> <span class="o">=</span> <span class="n">FiniteSet</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">inter</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">Point</span><span class="p">)])</span>
+    <span class="n">non_points</span> <span class="o">=</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">inter</span> <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">Point</span><span class="p">)]</span>
 
-        <span class="kn">from</span> <span class="nn">sympy.sets</span> <span class="k">import</span> <span class="n">Set</span><span class="p">,</span> <span class="n">FiniteSet</span><span class="p">,</span> <span class="n">Union</span>
-        <span class="kn">from</span> <span class="nn">sympy.geometry</span> <span class="k">import</span> <span class="n">Point</span>
-
-        <span class="k">try</span><span class="p">:</span>
-            <span class="c1"># if o is a FiniteSet, find the intersection directly</span>
-            <span class="c1"># to avoid infinite recursion</span>
-            <span class="k">if</span> <span class="n">o</span><span class="o">.</span><span class="n">is_FiniteSet</span><span class="p">:</span>
-                <span class="n">inter</span> <span class="o">=</span> <span class="n">FiniteSet</span><span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">o</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">contains</span><span class="p">(</span><span class="n">p</span><span class="p">)))</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="n">inter</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">intersection</span><span class="p">(</span><span class="n">o</span><span class="p">)</span>
-        <span class="k">except</span> <span class="ne">NotImplementedError</span><span class="p">:</span>
-            <span class="c1"># sympy.sets.Set.reduce expects None if an object</span>
-            <span class="c1"># doesn&#39;t know how to simplify</span>
-            <span class="k">return</span> <span class="kc">None</span>
-
-        <span class="c1"># put the points in a FiniteSet</span>
-        <span class="n">points</span> <span class="o">=</span> <span class="n">FiniteSet</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">inter</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">Point</span><span class="p">)])</span>
-        <span class="n">non_points</span> <span class="o">=</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">inter</span> <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">Point</span><span class="p">)]</span>
-
-        <span class="k">return</span> <span class="n">Union</span><span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="n">non_points</span> <span class="o">+</span> <span class="p">[</span><span class="n">points</span><span class="p">]))</span>
+    <span class="k">return</span> <span class="n">Union</span><span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="n">non_points</span> <span class="o">+</span> <span class="p">[</span><span class="n">points</span><span class="p">]))</span>
 
 <span class="k">def</span> <span class="nf">translate</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Return the matrix to translate a 2-D point by x and y.&quot;&quot;&quot;</span>
