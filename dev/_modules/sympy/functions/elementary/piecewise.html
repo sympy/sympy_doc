@@ -53,7 +53,8 @@
 <span class="kn">from</span> <span class="nn">sympy.core</span> <span class="k">import</span> <span class="n">Basic</span><span class="p">,</span> <span class="n">S</span><span class="p">,</span> <span class="n">Function</span><span class="p">,</span> <span class="n">diff</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">Dummy</span><span class="p">,</span> <span class="n">Number</span>
 <span class="kn">from</span> <span class="nn">sympy.core.basic</span> <span class="k">import</span> <span class="n">as_Basic</span>
 <span class="kn">from</span> <span class="nn">sympy.core.sympify</span> <span class="k">import</span> <span class="n">SympifyError</span>
-<span class="kn">from</span> <span class="nn">sympy.core.relational</span> <span class="k">import</span> <span class="n">Equality</span><span class="p">,</span> <span class="n">Relational</span><span class="p">,</span> <span class="n">_canonical</span>
+<span class="kn">from</span> <span class="nn">sympy.core.relational</span> <span class="k">import</span> <span class="p">(</span><span class="n">Equality</span><span class="p">,</span> <span class="n">Unequality</span><span class="p">,</span> <span class="n">Relational</span><span class="p">,</span>
+    <span class="n">_canonical</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">sympy.functions.elementary.miscellaneous</span> <span class="k">import</span> <span class="n">Max</span><span class="p">,</span> <span class="n">Min</span>
 <span class="kn">from</span> <span class="nn">sympy.logic.boolalg</span> <span class="k">import</span> <span class="p">(</span><span class="n">And</span><span class="p">,</span> <span class="n">Boolean</span><span class="p">,</span> <span class="n">distribute_and_over_or</span><span class="p">,</span>
     <span class="n">true</span><span class="p">,</span> <span class="n">false</span><span class="p">,</span> <span class="n">Not</span><span class="p">,</span> <span class="n">Or</span><span class="p">,</span> <span class="n">ITE</span><span class="p">,</span> <span class="n">simplify_logic</span><span class="p">)</span>
@@ -907,28 +908,42 @@
             <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
                 <span class="k">pass</span>
 
-    <span class="k">def</span> <span class="nf">as_expr_set_pairs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">as_expr_set_pairs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">domain</span><span class="o">=</span><span class="n">S</span><span class="o">.</span><span class="n">Reals</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Return tuples for each argument of self that give</span>
-<span class="sd">        the expression and the interval in which it is valid.</span>
+<span class="sd">        the expression and the interval in which it is valid</span>
+<span class="sd">        which is contained within the given domain.</span>
 <span class="sd">        If a condition cannot be converted to a set, an error</span>
 <span class="sd">        will be raised. The variable of the conditions is</span>
 <span class="sd">        assumed to be real; sets of real values are returned.</span>
 
 <span class="sd">        Examples</span>
 <span class="sd">        ========</span>
-<span class="sd">        &gt;&gt;&gt; from sympy import Piecewise</span>
+
+<span class="sd">        &gt;&gt;&gt; from sympy import Piecewise, Interval</span>
 <span class="sd">        &gt;&gt;&gt; from sympy.abc import x</span>
-<span class="sd">        &gt;&gt;&gt; Piecewise(</span>
+<span class="sd">        &gt;&gt;&gt; p = Piecewise(</span>
 <span class="sd">        ...     (1, x &lt; 2),</span>
 <span class="sd">        ...     (2,(x &gt; 0) &amp; (x &lt; 4)),</span>
-<span class="sd">        ...     (3, True)).as_expr_set_pairs()</span>
+<span class="sd">        ...     (3, True))</span>
+<span class="sd">        &gt;&gt;&gt; p.as_expr_set_pairs()</span>
 <span class="sd">        [(1, Interval.open(-oo, 2)),</span>
 <span class="sd">         (2, Interval.Ropen(2, 4)),</span>
 <span class="sd">         (3, Interval(4, oo))]</span>
+<span class="sd">        &gt;&gt;&gt; p.as_expr_set_pairs(Interval(0, 3))</span>
+<span class="sd">        [(1, Interval.Ropen(0, 2)),</span>
+<span class="sd">         (2, Interval(2, 3)), (3, EmptySet())]</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">exp_sets</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="n">U</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">Reals</span>
+        <span class="n">U</span> <span class="o">=</span> <span class="n">domain</span>
+        <span class="nb">complex</span> <span class="o">=</span> <span class="ow">not</span> <span class="n">domain</span><span class="o">.</span><span class="n">is_subset</span><span class="p">(</span><span class="n">S</span><span class="o">.</span><span class="n">Reals</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">expr</span><span class="p">,</span> <span class="n">cond</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">complex</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">cond</span><span class="o">.</span><span class="n">atoms</span><span class="p">(</span><span class="n">Relational</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">Equality</span><span class="p">,</span> <span class="n">Unequality</span><span class="p">)):</span>
+                        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">filldedent</span><span class="p">(</span><span class="s1">&#39;&#39;&#39;</span>
+<span class="s1">                            Inequalities in the complex domain are</span>
+<span class="s1">                            not supported. Try the real domain by</span>
+<span class="s1">                            setting domain=S.Reals&#39;&#39;&#39;</span><span class="p">))</span>
             <span class="n">cond_int</span> <span class="o">=</span> <span class="n">U</span><span class="o">.</span><span class="n">intersect</span><span class="p">(</span><span class="n">cond</span><span class="o">.</span><span class="n">as_set</span><span class="p">())</span>
             <span class="n">U</span> <span class="o">=</span> <span class="n">U</span> <span class="o">-</span> <span class="n">cond_int</span>
             <span class="n">exp_sets</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">expr</span><span class="p">,</span> <span class="n">cond_int</span><span class="p">))</span>
@@ -1117,7 +1132,7 @@
     </div>
     <div class="footer" role="contentinfo">
         &#169; Copyright 2018 SymPy Development Team.
-      Last updated on Feb 25, 2018.
+      Last updated on Feb 26, 2018.
       Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.7.1.
     </div>
   </body>
