@@ -1036,8 +1036,53 @@
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">new_args</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">e</span><span class="p">,</span> <span class="n">c</span><span class="p">))</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="kn">from</span> <span class="nn">sympy.utilities.iterables</span> <span class="k">import</span> <span class="n">cartes</span>
-        <span class="n">folded</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="n">piecewise_fold</span><span class="p">,</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">))</span>
+        <span class="kn">from</span> <span class="nn">sympy.utilities.iterables</span> <span class="k">import</span> <span class="n">cartes</span><span class="p">,</span> <span class="n">sift</span><span class="p">,</span> <span class="n">common_prefix</span>
+        <span class="c1"># Given</span>
+        <span class="c1">#     P1 = Piecewise((e11, c1), (e12, c2), A)</span>
+        <span class="c1">#     P2 = Piecewise((e21, c1), (e22, c2), B)</span>
+        <span class="c1">#     ...</span>
+        <span class="c1"># the folding of f(P1, P2) is trivially</span>
+        <span class="c1"># Piecewise(</span>
+        <span class="c1">#   (f(e11, e21), c1),</span>
+        <span class="c1">#   (f(e12, e22), c2),</span>
+        <span class="c1">#   (f(Piecewise(A), Piecewise(B)), True))</span>
+        <span class="c1"># Certain objects end up rewriting themselves as thus, so</span>
+        <span class="c1"># we do that grouping before the more generic folding.</span>
+        <span class="c1"># The following applies this idea when f = Add or f = Mul</span>
+        <span class="c1"># (and the expression is commutative).</span>
+        <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Add</span> <span class="ow">or</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Mul</span> <span class="ow">and</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_commutative</span><span class="p">:</span>
+            <span class="n">p</span><span class="p">,</span> <span class="n">args</span> <span class="o">=</span> <span class="n">sift</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">is_Piecewise</span><span class="p">,</span> <span class="n">binary</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">pc</span> <span class="o">=</span> <span class="n">sift</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">cond</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">pc</span><span class="p">:</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">pc</span><span class="p">[</span><span class="n">c</span><span class="p">])</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="n">pargs</span> <span class="o">=</span> <span class="p">[</span><span class="nb">list</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">pc</span><span class="p">[</span><span class="n">c</span><span class="p">]]</span>
+                    <span class="c1"># the first one is the same; there may be more</span>
+                    <span class="n">com</span> <span class="o">=</span> <span class="n">common_prefix</span><span class="p">(</span><span class="o">*</span><span class="p">[</span>
+                        <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">cond</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">j</span><span class="p">]</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">pargs</span><span class="p">])</span>
+                    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">com</span><span class="p">)</span>
+                    <span class="n">collected</span> <span class="o">=</span> <span class="p">[]</span>
+                    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+                        <span class="n">collected</span><span class="o">.</span><span class="n">append</span><span class="p">((</span>
+                            <span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">ai</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">expr</span> <span class="k">for</span> <span class="n">ai</span> <span class="ow">in</span> <span class="n">pargs</span><span class="p">]),</span>
+                            <span class="n">com</span><span class="p">[</span><span class="n">i</span><span class="p">]))</span>
+                    <span class="n">remains</span> <span class="o">=</span> <span class="p">[]</span>
+                    <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">pargs</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="n">n</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">a</span><span class="p">):</span>  <span class="c1"># no more args</span>
+                            <span class="k">continue</span>
+                        <span class="k">if</span> <span class="n">a</span><span class="p">[</span><span class="n">n</span><span class="p">]</span><span class="o">.</span><span class="n">cond</span> <span class="o">==</span> <span class="kc">True</span><span class="p">:</span>  <span class="c1"># no longer Piecewise</span>
+                            <span class="n">remains</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">a</span><span class="p">[</span><span class="n">n</span><span class="p">]</span><span class="o">.</span><span class="n">expr</span><span class="p">)</span>
+                        <span class="k">else</span><span class="p">:</span>  <span class="c1"># restore the remaining Piecewise</span>
+                            <span class="n">remains</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                                <span class="n">Piecewise</span><span class="p">(</span><span class="o">*</span><span class="n">a</span><span class="p">[</span><span class="n">n</span><span class="p">:],</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
+                    <span class="k">if</span> <span class="n">remains</span><span class="p">:</span>
+                        <span class="n">collected</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">remains</span><span class="p">),</span> <span class="kc">True</span><span class="p">))</span>
+                    <span class="n">args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Piecewise</span><span class="p">(</span><span class="o">*</span><span class="n">collected</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
+                    <span class="k">continue</span>
+                <span class="n">args</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">pc</span><span class="p">[</span><span class="n">c</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span>
+        <span class="c1"># fold</span>
+        <span class="n">folded</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="n">piecewise_fold</span><span class="p">,</span> <span class="n">args</span><span class="p">))</span>
         <span class="k">for</span> <span class="n">ec</span> <span class="ow">in</span> <span class="n">cartes</span><span class="p">(</span><span class="o">*</span><span class="p">[</span>
                 <span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">args</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">Piecewise</span><span class="p">)</span> <span class="k">else</span>
                  <span class="p">[(</span><span class="n">i</span><span class="p">,</span> <span class="n">true</span><span class="p">)])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">folded</span><span class="p">]):</span>
