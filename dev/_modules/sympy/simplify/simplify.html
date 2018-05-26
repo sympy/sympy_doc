@@ -590,6 +590,9 @@
         <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">simplify</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">ratio</span><span class="o">=</span><span class="n">ratio</span><span class="p">,</span> <span class="n">measure</span><span class="o">=</span><span class="n">measure</span><span class="p">,</span> <span class="n">rational</span><span class="o">=</span><span class="n">rational</span><span class="p">)</span>
                          <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">])</span>
 
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_commutative</span><span class="p">:</span>
+        <span class="n">expr</span> <span class="o">=</span> <span class="n">nc_simplify</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+
     <span class="c1"># TODO: Apply different strategies, considering expression pattern:</span>
     <span class="c1"># is it a purely rational function? Is there any trigonometric function?...</span>
     <span class="c1"># See also https://github.com/sympy/sympy/pull/185.</span>
@@ -1538,6 +1541,293 @@
         <span class="n">expr</span> <span class="o">=</span> <span class="o">-</span><span class="n">expr</span>
         <span class="n">rhs</span> <span class="o">=</span> <span class="o">-</span><span class="n">rhs</span>
     <span class="k">return</span> <span class="n">expr</span><span class="p">,</span> <span class="n">rhs</span>
+
+<span class="k">def</span> <span class="nf">nc_simplify</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">deep</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Simplify a non-commutative expression composed of multiplication</span>
+<span class="sd">    and raising to a power by grouping repeated subterms into one power.</span>
+<span class="sd">    Priority is given to simplifications that give the fewest number</span>
+<span class="sd">    of arguments in the end (for example, in a*b*a*b*c*a*b*c simplifying</span>
+<span class="sd">    to (a*b)**2*c*a*b*c gives 5 arguments while a*b*(a*b*c)**2 has 3).</span>
+<span class="sd">    If `expr` is a sum of such terms, the sum of the simplified terms</span>
+<span class="sd">    is returned.</span>
+
+<span class="sd">    Keyword argument `deep` controls whether or not subexpressions</span>
+<span class="sd">    nested deeper inside the main expression are simplified. See examples</span>
+<span class="sd">    below. Setting `deep` to `False` can save time on nested expressions</span>
+<span class="sd">    that don&#39;t need simplifying on all levels.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy import symbols</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.simplify.simplify import nc_simplify</span>
+<span class="sd">    &gt;&gt;&gt; a, b, c = symbols(&quot;a b c&quot;, commutative=False)</span>
+<span class="sd">    &gt;&gt;&gt; nc_simplify(a*b*a*b*c*a*b*c)</span>
+<span class="sd">    a*b*(a*b*c)**2</span>
+<span class="sd">    &gt;&gt;&gt; expr = a**2*b*a**4*b*a**4</span>
+<span class="sd">    &gt;&gt;&gt; nc_simplify(expr)</span>
+<span class="sd">    a**2*(b*a**4)**2</span>
+<span class="sd">    &gt;&gt;&gt; nc_simplify(a*b*a*b*c**2*(a*b)**2*c**2)</span>
+<span class="sd">    ((a*b)**2*c**2)**2</span>
+<span class="sd">    &gt;&gt;&gt; nc_simplify(a*b*a*b + 2*a*c*a**2*c*a**2*c*a)</span>
+<span class="sd">    (a*b)**2 + 2*(a*c*a)**3</span>
+<span class="sd">    &gt;&gt;&gt; nc_simplify(b**-1*a**-1*(a*b)**2)</span>
+<span class="sd">    a*b</span>
+<span class="sd">    &gt;&gt;&gt; nc_simplify(a**-1*b**-1*c*a)</span>
+<span class="sd">    (b*a)**(-1)*c*a</span>
+<span class="sd">    &gt;&gt;&gt; expr = (a*b*a*b)**2*a*c*a*c</span>
+<span class="sd">    &gt;&gt;&gt; nc_simplify(expr)</span>
+<span class="sd">    (a*b)**4*(a*c)**2</span>
+<span class="sd">    &gt;&gt;&gt; nc_simplify(expr, deep=False)</span>
+<span class="sd">    (a*b*a*b)**2*(a*c)**2</span>
+
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="c1"># =========== Auxiliary functions ========================</span>
+    <span class="k">def</span> <span class="nf">_overlaps</span><span class="p">(</span><span class="n">args</span><span class="p">):</span>
+        <span class="c1"># Calculate a list of lists m such that m[i][j] contains the lengths</span>
+        <span class="c1"># of all possible overlaps between args[:i+1] and args[i+1+j:].</span>
+        <span class="c1"># An overlap is a suffix of the prefix that matches a prefix</span>
+        <span class="c1"># of the suffix.</span>
+        <span class="c1"># For example, let expr=c*a*b*a*b*a*b*a*b. Then m[3][0] contains</span>
+        <span class="c1"># the lengths of overlaps of c*a*b*a*b with a*b*a*b. The overlaps</span>
+        <span class="c1"># are a*b*a*b, a*b and the empty word so that m[3][0]=[4,2,0].</span>
+        <span class="c1"># All overlaps rather than only the longest one are recorded</span>
+        <span class="c1"># because this information helps calculate other overlap lengths.</span>
+        <span class="n">m</span> <span class="o">=</span> <span class="p">[[([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="n">a</span> <span class="o">==</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">else</span> <span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">:]]]</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)):</span>
+            <span class="n">overlaps</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">j</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">-</span> <span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">):</span>
+                <span class="n">overlap</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">m</span><span class="p">[</span><span class="n">i</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="n">j</span><span class="o">+</span><span class="mi">1</span><span class="p">]:</span>
+                    <span class="k">if</span> <span class="n">j</span> <span class="o">+</span> <span class="n">i</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">+</span> <span class="n">v</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="ow">and</span> <span class="n">args</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">==</span> <span class="n">args</span><span class="p">[</span><span class="n">j</span><span class="o">+</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="o">+</span><span class="n">v</span><span class="p">]:</span>
+                        <span class="n">overlap</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">v</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+                <span class="n">overlap</span> <span class="o">+=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">overlaps</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">overlap</span><span class="p">)</span>
+            <span class="n">m</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">overlaps</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">m</span>
+
+    <span class="k">def</span> <span class="nf">_reduce_inverses</span><span class="p">(</span><span class="n">_args</span><span class="p">):</span>
+        <span class="c1"># replace consecutive negative powers by an inverse</span>
+        <span class="c1"># of a product of positive powers, e.g. a**-1*b**-1*c</span>
+        <span class="c1"># will simplify to (a*b)**-1*c;</span>
+        <span class="c1"># return that new args list and the number of negative</span>
+        <span class="c1"># powers in it (inv_tot)</span>
+        <span class="n">inv_tot</span> <span class="o">=</span> <span class="mi">0</span> <span class="c1"># total number of inverses</span>
+        <span class="n">inverses</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">_args</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">Pow</span><span class="p">)</span> <span class="ow">and</span> <span class="n">arg</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">inverses</span> <span class="o">=</span> <span class="p">[</span><span class="n">arg</span><span class="o">**-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">inverses</span>
+                <span class="n">inv_tot</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">inverses</span><span class="p">:</span>
+                    <span class="n">args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Pow</span><span class="p">(</span><span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">inverses</span><span class="p">),</span> <span class="o">-</span><span class="mi">1</span><span class="p">))</span>
+                    <span class="n">inv_tot</span> <span class="o">-=</span> <span class="nb">len</span><span class="p">(</span><span class="n">inverses</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+                <span class="n">inverses</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="n">args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">inverses</span><span class="p">:</span>
+            <span class="n">args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Pow</span><span class="p">(</span><span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">inverses</span><span class="p">),</span> <span class="o">-</span><span class="mi">1</span><span class="p">))</span>
+            <span class="n">inv_tot</span> <span class="o">-=</span> <span class="nb">len</span><span class="p">(</span><span class="n">inverses</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+        <span class="k">return</span> <span class="n">inv_tot</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+    <span class="c1"># ========================================================</span>
+
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="p">(</span><span class="n">Add</span><span class="p">,</span> <span class="n">Mul</span><span class="p">,</span> <span class="n">Pow</span><span class="p">)):</span>
+        <span class="k">return</span> <span class="n">expr</span>
+    <span class="n">args</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">[:]</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">Pow</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">deep</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">Pow</span><span class="p">(</span><span class="n">nc_simplify</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">expr</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">Add</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">Add</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">nc_simplify</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">deep</span><span class="o">=</span><span class="n">deep</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">args</span><span class="p">])</span>
+
+    <span class="n">inv_tot</span><span class="p">,</span> <span class="n">args</span> <span class="o">=</span> <span class="n">_reduce_inverses</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+    <span class="c1"># if most arguments are negative, work with the inverse</span>
+    <span class="c1"># of the expression, e.g. a**-1*b*a**-1*c**-1 will become</span>
+    <span class="c1"># (c*a*b**-1*a)**-1 at the end so can work with c*a*b**-1*a</span>
+    <span class="n">invert</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="k">if</span> <span class="n">inv_tot</span> <span class="o">&gt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span><span class="o">/</span><span class="mi">2</span><span class="p">:</span>
+        <span class="n">invert</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="p">[</span><span class="n">a</span><span class="o">**-</span><span class="mi">1</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">args</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]]</span>
+
+    <span class="k">if</span> <span class="n">deep</span><span class="p">:</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">nc_simplify</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">args</span><span class="p">)</span>
+
+    <span class="n">m</span> <span class="o">=</span> <span class="n">_overlaps</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+
+    <span class="c1"># simps will be {subterm: end} where `end` is the ending</span>
+    <span class="c1"># index of a sequence of repetitions of subterm;</span>
+    <span class="c1"># this is for not wasting time with subterms that are part</span>
+    <span class="c1"># of longer, already considered sequences</span>
+    <span class="n">simps</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="n">post</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">pre</span> <span class="o">=</span> <span class="mi">1</span>
+
+    <span class="c1"># the simplification coefficient is the number of</span>
+    <span class="c1"># arguments by which contracting a given sequence</span>
+    <span class="c1"># would reduce the word; e.g. in a*b*a*b*c*a*b*c,</span>
+    <span class="c1"># contracting a*b*a*b to (a*b)**2 removes 3 arguments</span>
+    <span class="c1"># while a*b*c*a*b*c to (a*b*c)**2 removes 6. It&#39;s</span>
+    <span class="c1"># better to contract the latter so simplification</span>
+    <span class="c1"># with a maximum simplification coefficient will be chosen</span>
+    <span class="n">max_simp_coeff</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">simp</span> <span class="o">=</span> <span class="kc">None</span> <span class="c1"># information about future simplification</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)):</span>
+        <span class="n">simp_coeff</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">l</span> <span class="o">=</span> <span class="mi">0</span> <span class="c1"># length of a subterm</span>
+        <span class="n">p</span> <span class="o">=</span> <span class="mi">0</span> <span class="c1"># the power of a subterm</span>
+        <span class="k">if</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">rep</span> <span class="o">=</span> <span class="n">m</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">start</span> <span class="o">=</span> <span class="n">i</span> <span class="c1"># starting index of the repeated sequence</span>
+        <span class="n">end</span> <span class="o">=</span> <span class="n">i</span><span class="o">+</span><span class="mi">1</span> <span class="c1"># ending index of the repeated sequence</span>
+        <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span> <span class="ow">or</span> <span class="n">rep</span> <span class="o">==</span> <span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+            <span class="c1"># no subterm is repeated at this stage, at least as</span>
+            <span class="c1"># far as the arguments are concerned - there may be</span>
+            <span class="c1"># a repetition if powers are taken into account</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">Pow</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">subterm</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">args</span>
+                <span class="n">l</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">subterm</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">args</span><span class="p">[</span><span class="n">i</span><span class="o">-</span><span class="n">l</span><span class="p">:</span><span class="n">i</span><span class="p">]</span> <span class="o">==</span> <span class="n">subterm</span><span class="p">:</span>
+                    <span class="c1"># e.g. a*b in a*b*(a*b)**2 is not repeated</span>
+                    <span class="c1"># in args (= [a, b, (a*b)**2]) but it</span>
+                    <span class="c1"># can be matched here</span>
+                    <span class="n">p</span> <span class="o">+=</span> <span class="mi">1</span>
+                    <span class="n">start</span> <span class="o">-=</span> <span class="n">l</span>
+                <span class="k">if</span> <span class="n">args</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">:</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="o">+</span><span class="n">l</span><span class="p">]</span> <span class="o">==</span> <span class="n">subterm</span><span class="p">:</span>
+                    <span class="c1"># e.g. a*b in (a*b)**2*a*b</span>
+                    <span class="n">p</span> <span class="o">+=</span> <span class="mi">1</span>
+                    <span class="n">end</span> <span class="o">+=</span> <span class="n">l</span>
+            <span class="k">if</span> <span class="n">p</span><span class="p">:</span>
+                <span class="n">p</span> <span class="o">+=</span> <span class="n">args</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">continue</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">l</span> <span class="o">=</span> <span class="n">rep</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="c1"># length of the longest repeated subterm at this point</span>
+            <span class="n">start</span> <span class="o">-=</span> <span class="n">l</span> <span class="o">-</span> <span class="mi">1</span>
+            <span class="n">subterm</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="n">start</span><span class="p">:</span><span class="n">end</span><span class="p">]</span>
+            <span class="n">p</span> <span class="o">=</span> <span class="mi">2</span>
+            <span class="n">end</span> <span class="o">+=</span> <span class="n">l</span>
+
+        <span class="k">if</span> <span class="n">subterm</span> <span class="ow">in</span> <span class="n">simps</span> <span class="ow">and</span> <span class="n">simps</span><span class="p">[</span><span class="n">subterm</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="n">start</span><span class="p">:</span>
+            <span class="c1"># the subterm is part of a sequence that</span>
+            <span class="c1"># has already been considered</span>
+            <span class="k">continue</span>
+
+        <span class="c1"># count how many times it&#39;s repeated</span>
+        <span class="k">while</span> <span class="n">end</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">l</span> <span class="ow">in</span> <span class="n">m</span><span class="p">[</span><span class="n">end</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">]:</span>
+                <span class="n">p</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="n">end</span> <span class="o">+=</span> <span class="n">l</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="n">end</span><span class="p">],</span> <span class="n">Pow</span><span class="p">)</span> <span class="ow">and</span> <span class="n">args</span><span class="p">[</span><span class="n">end</span><span class="p">]</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">args</span> <span class="o">==</span> <span class="n">subterm</span><span class="p">:</span>
+                <span class="c1"># for cases like a*b*a*b*(a*b)**2*a*b</span>
+                <span class="n">p</span> <span class="o">+=</span> <span class="n">args</span><span class="p">[</span><span class="n">end</span><span class="p">]</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+                <span class="n">end</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">break</span>
+
+        <span class="c1"># see if another match can be made, e.g.</span>
+        <span class="c1"># for b*a**2 in b*a**2*b*a**3 or a*b in</span>
+        <span class="c1"># a**2*b*a*b</span>
+
+        <span class="n">pre_exp</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">pre_arg</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="n">start</span> <span class="o">-</span> <span class="n">l</span> <span class="o">&gt;=</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">args</span><span class="p">[</span><span class="n">start</span><span class="o">-</span><span class="n">l</span><span class="o">+</span><span class="mi">1</span><span class="p">:</span><span class="n">start</span><span class="p">]</span> <span class="o">==</span> <span class="n">subterm</span><span class="p">[</span><span class="mi">1</span><span class="p">:]:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">subterm</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">Pow</span><span class="p">):</span>
+                <span class="n">pre_arg</span> <span class="o">=</span> <span class="n">subterm</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">exp</span> <span class="o">=</span> <span class="n">subterm</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">pre_arg</span> <span class="o">=</span> <span class="n">subterm</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">exp</span> <span class="o">=</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="n">start</span><span class="o">-</span><span class="n">l</span><span class="p">],</span> <span class="n">Pow</span><span class="p">)</span> <span class="ow">and</span> <span class="n">args</span><span class="p">[</span><span class="n">start</span><span class="o">-</span><span class="n">l</span><span class="p">]</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">pre_arg</span><span class="p">:</span>
+                <span class="n">pre_exp</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="n">start</span><span class="o">-</span><span class="n">l</span><span class="p">]</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">exp</span>
+                <span class="n">start</span> <span class="o">-=</span> <span class="n">l</span>
+                <span class="n">p</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">elif</span> <span class="n">args</span><span class="p">[</span><span class="n">start</span><span class="o">-</span><span class="n">l</span><span class="p">]</span> <span class="o">==</span> <span class="n">pre_arg</span><span class="p">:</span>
+                <span class="n">pre_exp</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">-</span> <span class="n">exp</span>
+                <span class="n">start</span> <span class="o">-=</span> <span class="n">l</span>
+                <span class="n">p</span> <span class="o">+=</span> <span class="mi">1</span>
+
+        <span class="n">post_exp</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">post_arg</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="n">end</span> <span class="o">+</span> <span class="n">l</span> <span class="o">-</span> <span class="mi">1</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="ow">and</span> <span class="n">args</span><span class="p">[</span><span class="n">end</span><span class="p">:</span><span class="n">end</span><span class="o">+</span><span class="n">l</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">subterm</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">subterm</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">Pow</span><span class="p">):</span>
+                <span class="n">post_arg</span> <span class="o">=</span> <span class="n">subterm</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">exp</span> <span class="o">=</span> <span class="n">subterm</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">post_arg</span> <span class="o">=</span> <span class="n">subterm</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+                <span class="n">exp</span> <span class="o">=</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="n">end</span><span class="o">+</span><span class="n">l</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">Pow</span><span class="p">)</span> <span class="ow">and</span> <span class="n">args</span><span class="p">[</span><span class="n">end</span><span class="o">+</span><span class="n">l</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">post_arg</span><span class="p">:</span>
+                <span class="n">post_exp</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="n">end</span><span class="o">+</span><span class="n">l</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">exp</span>
+                <span class="n">end</span> <span class="o">+=</span> <span class="n">l</span>
+                <span class="n">p</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">elif</span> <span class="n">args</span><span class="p">[</span><span class="n">end</span><span class="o">+</span><span class="n">l</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">post_arg</span><span class="p">:</span>
+                <span class="n">post_exp</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">-</span> <span class="n">exp</span>
+                <span class="n">end</span> <span class="o">+=</span> <span class="n">l</span>
+                <span class="n">p</span> <span class="o">+=</span> <span class="mi">1</span>
+
+        <span class="c1"># Consider a*b*a**2*b*a**2*b*a:</span>
+        <span class="c1"># b*a**2 is explicitly repeated, but note</span>
+        <span class="c1"># that in this case a*b*a is also repeated</span>
+        <span class="c1"># so there are two possible simplifications:</span>
+        <span class="c1"># a*(b*a**2)**3*a**-1 or (a*b*a)**3</span>
+        <span class="c1"># The latter is obviously simpler.</span>
+        <span class="c1"># But in a*b*a**2*b**2*a**2 the simplifications are</span>
+        <span class="c1"># a*(b*a**2)**2 and (a*b*a)**3*a in which case</span>
+        <span class="c1"># it&#39;s better to stick with the shorter subterm</span>
+        <span class="k">if</span> <span class="n">post_exp</span> <span class="ow">and</span> <span class="n">exp</span> <span class="o">%</span> <span class="mi">2</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">start</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">exp</span> <span class="o">=</span> <span class="n">exp</span><span class="o">/</span><span class="mi">2</span>
+            <span class="n">_pre_exp</span> <span class="o">=</span> <span class="mi">1</span>
+            <span class="n">_post_exp</span> <span class="o">=</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="n">start</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">Pow</span><span class="p">)</span> <span class="ow">and</span> <span class="n">args</span><span class="p">[</span><span class="n">start</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">post_arg</span><span class="p">:</span>
+                <span class="n">_post_exp</span> <span class="o">=</span> <span class="n">post_exp</span> <span class="o">+</span> <span class="n">exp</span>
+                <span class="n">_pre_exp</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="n">start</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">exp</span>
+            <span class="k">elif</span> <span class="n">args</span><span class="p">[</span><span class="n">start</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">post_arg</span><span class="p">:</span>
+                <span class="n">_post_exp</span> <span class="o">=</span> <span class="n">post_exp</span> <span class="o">+</span> <span class="n">exp</span>
+                <span class="n">_pre_exp</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">-</span> <span class="n">exp</span>
+            <span class="k">if</span> <span class="n">_pre_exp</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">_post_exp</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">pre_exp</span><span class="p">:</span>
+                    <span class="n">start</span> <span class="o">-=</span> <span class="mi">1</span>
+                <span class="n">post_exp</span> <span class="o">=</span> <span class="n">_post_exp</span>
+                <span class="n">pre_exp</span> <span class="o">=</span> <span class="n">_pre_exp</span>
+                <span class="n">pre_arg</span> <span class="o">=</span> <span class="n">post_arg</span>
+                <span class="n">subterm</span> <span class="o">=</span> <span class="p">(</span><span class="n">post_arg</span><span class="o">**</span><span class="n">exp</span><span class="p">,)</span> <span class="o">+</span> <span class="n">subterm</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="p">(</span><span class="n">post_arg</span><span class="o">**</span><span class="n">exp</span><span class="p">,)</span>
+
+        <span class="n">simp_coeff</span> <span class="o">+=</span> <span class="n">end</span><span class="o">-</span><span class="n">start</span>
+
+        <span class="k">if</span> <span class="n">post_exp</span><span class="p">:</span>
+            <span class="n">simp_coeff</span> <span class="o">-=</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="n">pre_exp</span><span class="p">:</span>
+            <span class="n">simp_coeff</span> <span class="o">-=</span> <span class="mi">1</span>
+
+        <span class="n">simps</span><span class="p">[</span><span class="n">subterm</span><span class="p">]</span> <span class="o">=</span> <span class="n">end</span>
+
+        <span class="k">if</span> <span class="n">simp_coeff</span> <span class="o">&gt;</span> <span class="n">max_simp_coeff</span><span class="p">:</span>
+            <span class="n">max_simp_coeff</span> <span class="o">=</span> <span class="n">simp_coeff</span>
+            <span class="n">simp</span> <span class="o">=</span> <span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">subterm</span><span class="p">),</span> <span class="n">p</span><span class="p">,</span> <span class="n">end</span><span class="p">,</span> <span class="n">l</span><span class="p">)</span>
+            <span class="n">pre</span> <span class="o">=</span> <span class="n">pre_arg</span><span class="o">**</span><span class="n">pre_exp</span>
+            <span class="n">post</span> <span class="o">=</span> <span class="n">post_arg</span><span class="o">**</span><span class="n">post_exp</span>
+
+    <span class="k">if</span> <span class="n">simp</span><span class="p">:</span>
+        <span class="n">subterm</span> <span class="o">=</span> <span class="n">Pow</span><span class="p">(</span><span class="n">nc_simplify</span><span class="p">(</span><span class="n">simp</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">deep</span><span class="o">=</span><span class="n">deep</span><span class="p">),</span> <span class="n">simp</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+        <span class="n">pre</span> <span class="o">=</span> <span class="n">nc_simplify</span><span class="p">(</span><span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">[:</span><span class="n">simp</span><span class="p">[</span><span class="mi">0</span><span class="p">]])</span><span class="o">*</span><span class="n">pre</span><span class="p">,</span> <span class="n">deep</span><span class="o">=</span><span class="n">deep</span><span class="p">)</span>
+        <span class="n">post</span> <span class="o">=</span> <span class="n">post</span><span class="o">*</span><span class="n">nc_simplify</span><span class="p">(</span><span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">[</span><span class="n">simp</span><span class="p">[</span><span class="mi">3</span><span class="p">]:]),</span> <span class="n">deep</span><span class="o">=</span><span class="n">deep</span><span class="p">)</span>
+        <span class="n">simp</span> <span class="o">=</span> <span class="n">pre</span><span class="o">*</span><span class="n">subterm</span><span class="o">*</span><span class="n">post</span>
+        <span class="k">if</span> <span class="n">pre</span> <span class="o">!=</span> <span class="mi">1</span> <span class="ow">or</span> <span class="n">post</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="c1"># new simplifications may be possible but no need</span>
+            <span class="c1"># to recurse over arguments</span>
+            <span class="n">simp</span> <span class="o">=</span> <span class="n">nc_simplify</span><span class="p">(</span><span class="n">simp</span><span class="p">,</span> <span class="n">deep</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">simp</span> <span class="o">=</span> <span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">invert</span><span class="p">:</span>
+        <span class="n">simp</span> <span class="o">=</span> <span class="n">simp</span><span class="o">**-</span><span class="mi">1</span>
+    <span class="k">return</span> <span class="n">simp</span>
 </pre></div>
 
           </div>
@@ -1579,7 +1869,7 @@
     </div>
     <div class="footer" role="contentinfo">
         &#169; Copyright 2018 SymPy Development Team.
-      Last updated on May 25, 2018.
+      Last updated on May 26, 2018.
       Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.7.4.
     </div>
   </body>
