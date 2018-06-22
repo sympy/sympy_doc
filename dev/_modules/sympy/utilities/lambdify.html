@@ -268,7 +268,6 @@
 <span class="sd">    (1) Use one of the provided modules:</span>
 
 <span class="sd">        &gt;&gt;&gt; from sympy import sin, tan, gamma</span>
-<span class="sd">        &gt;&gt;&gt; from sympy.utilities.lambdify import lambdastr</span>
 <span class="sd">        &gt;&gt;&gt; from sympy.abc import x, y</span>
 <span class="sd">        &gt;&gt;&gt; f = lambdify(x, sin(x), &quot;math&quot;)</span>
 
@@ -294,6 +293,28 @@
 <span class="sd">        &gt;&gt;&gt; from numpy import array</span>
 <span class="sd">        &gt;&gt;&gt; f(array([1, 2, 3]), array([2, 3, 5]))</span>
 <span class="sd">        [-2.18503986 -0.29100619 -0.8559934 ]</span>
+
+<span class="sd">        In the above examples, the generated functions can accept scalar</span>
+<span class="sd">        values or numpy arrays as arguments.  However, in some cases</span>
+<span class="sd">        the generated function relies on the input being a numpy array:</span>
+
+<span class="sd">        &gt;&gt;&gt; from sympy import Piecewise</span>
+<span class="sd">        &gt;&gt;&gt; f = lambdify(x, Piecewise((x, x &lt;= 1), (1/x, x &gt; 1)), &quot;numpy&quot;)</span>
+<span class="sd">        &gt;&gt;&gt; f(array([-1, 0, 1, 2]))</span>
+<span class="sd">        [-1.   0.   1.   0.5]</span>
+<span class="sd">        &gt;&gt;&gt; f(0)</span>
+<span class="sd">        Traceback (most recent call last):</span>
+<span class="sd">            ...</span>
+<span class="sd">        ZeroDivisionError: division by zero</span>
+
+<span class="sd">        In such cases, the input should be wrapped in a numpy array:</span>
+<span class="sd">        &gt;&gt;&gt; float(f(array([0])))</span>
+<span class="sd">        0.0</span>
+
+<span class="sd">        Or if numpy functionality is not required another module can be used:</span>
+<span class="sd">        &gt;&gt;&gt; f = lambdify(x, Piecewise((x, x &lt;= 1), (1/x, x &gt; 1)), &quot;math&quot;)</span>
+<span class="sd">        &gt;&gt;&gt; f(0)</span>
+<span class="sd">        0</span>
 
 <span class="sd">    (3) Use a dictionary defining custom functions:</span>
 
@@ -475,26 +496,9 @@
 
     <span class="c1"># Create the function definition code and execute it</span>
 
-    <span class="c1"># For numpy lambdify, wrap all input arguments in arrays.</span>
-    <span class="c1"># If no arguments are strings, we can safely do this at</span>
-    <span class="c1"># code generation time.  Otherwise, apply a decorator to the</span>
-    <span class="c1"># generated function.</span>
-    <span class="c1">#</span>
-    <span class="c1"># This is a fix for gh-11306.</span>
-    <span class="n">wrap_numpy_args</span> <span class="o">=</span> <span class="kc">False</span>
-    <span class="n">apply_numpy_decorator</span> <span class="o">=</span> <span class="kc">False</span>
-    <span class="k">if</span> <span class="n">module_provided</span> <span class="ow">and</span> <span class="n">_module_present</span><span class="p">(</span><span class="s1">&#39;numpy&#39;</span><span class="p">,</span><span class="n">namespaces</span><span class="p">):</span>
-        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">args</span><span class="p">):</span>
-            <span class="n">apply_numpy_decorator</span> <span class="o">=</span> <span class="kc">True</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">wrap_numpy_args</span> <span class="o">=</span> <span class="kc">True</span>
-
     <span class="n">funcname</span> <span class="o">=</span> <span class="s1">&#39;_lambdifygenerated&#39;</span>
 
-    <span class="k">if</span> <span class="n">_module_present</span><span class="p">(</span><span class="s1">&#39;numpy&#39;</span><span class="p">,</span> <span class="n">namespaces</span><span class="p">):</span>
-        <span class="n">funcprinter</span> <span class="o">=</span> <span class="n">_NumpyEvaluatorPrinter</span><span class="p">(</span>
-                <span class="n">printer</span><span class="p">,</span> <span class="n">dummify</span><span class="p">,</span> <span class="n">wrap_numpy_args</span><span class="p">)</span>
-    <span class="k">elif</span> <span class="n">_module_present</span><span class="p">(</span><span class="s1">&#39;tensorflow&#39;</span><span class="p">,</span> <span class="n">namespaces</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">_module_present</span><span class="p">(</span><span class="s1">&#39;tensorflow&#39;</span><span class="p">,</span> <span class="n">namespaces</span><span class="p">):</span>
         <span class="n">funcprinter</span> <span class="o">=</span> <span class="n">_TensorflowEvaluatorPrinter</span><span class="p">(</span><span class="n">printer</span><span class="p">,</span> <span class="n">dummify</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">funcprinter</span> <span class="o">=</span> <span class="n">_EvaluatorPrinter</span><span class="p">(</span><span class="n">printer</span><span class="p">,</span> <span class="n">dummify</span><span class="p">)</span>
@@ -512,16 +516,6 @@
 
     <span class="n">func</span> <span class="o">=</span> <span class="n">funclocals</span><span class="p">[</span><span class="n">funcname</span><span class="p">]</span>
 
-    <span class="k">if</span> <span class="n">apply_numpy_decorator</span><span class="p">:</span>
-        <span class="k">def</span> <span class="nf">array_wrap</span><span class="p">(</span><span class="n">funcarg</span><span class="p">):</span>
-            <span class="n">builtin_numerics</span> <span class="o">=</span> <span class="n">integer_types</span> <span class="o">+</span> <span class="p">(</span><span class="nb">float</span><span class="p">,</span> <span class="nb">complex</span><span class="p">)</span>
-            <span class="n">array</span> <span class="o">=</span> <span class="n">namespace</span><span class="p">[</span><span class="s1">&#39;array&#39;</span><span class="p">]</span>
-            <span class="nd">@wraps</span><span class="p">(</span><span class="n">funcarg</span><span class="p">)</span>
-            <span class="k">def</span> <span class="nf">wrapper</span><span class="p">(</span><span class="o">*</span><span class="n">argsx</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargsx</span><span class="p">):</span>
-                <span class="n">newargs</span> <span class="o">=</span> <span class="p">[</span><span class="n">array</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">builtin_numerics</span><span class="p">)</span> <span class="k">else</span> <span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">argsx</span><span class="p">]</span>
-                <span class="k">return</span> <span class="n">funcarg</span><span class="p">(</span><span class="o">*</span><span class="n">newargs</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargsx</span><span class="p">)</span>
-            <span class="k">return</span> <span class="n">wrapper</span>
-        <span class="n">func</span> <span class="o">=</span> <span class="n">array_wrap</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>
     <span class="c1"># Apply the docstring</span>
     <span class="n">sig</span> <span class="o">=</span> <span class="s2">&quot;func(</span><span class="si">{0}</span><span class="s2">)&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">names</span><span class="p">))</span>
     <span class="n">sig</span> <span class="o">=</span> <span class="n">textwrap</span><span class="o">.</span><span class="n">fill</span><span class="p">(</span><span class="n">sig</span><span class="p">,</span> <span class="n">subsequent_indent</span><span class="o">=</span><span class="s1">&#39; &#39;</span><span class="o">*</span><span class="mi">8</span><span class="p">)</span>
@@ -840,27 +834,6 @@
 
         <span class="k">return</span> <span class="p">[</span><span class="s1">&#39;</span><span class="si">{}</span><span class="s1"> = </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">unpack_lhs</span><span class="p">(</span><span class="n">unpackto</span><span class="p">),</span> <span class="n">arg</span><span class="p">)]</span>
 
-<span class="k">class</span> <span class="nc">_NumpyEvaluatorPrinter</span><span class="p">(</span><span class="n">_EvaluatorPrinter</span><span class="p">):</span>
-    <span class="n">_numerics_def_stmt</span> <span class="o">=</span> <span class="s1">&#39;builtin_numerics = (</span><span class="si">{}</span><span class="s1">, float, complex)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
-                        <span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">cls</span><span class="o">.</span><span class="vm">__name__</span> <span class="k">for</span> <span class="bp">cls</span> <span class="ow">in</span> <span class="n">integer_types</span><span class="p">))</span>
-
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">printer</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dummify</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">wrapargs</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
-        <span class="nb">super</span><span class="p">(</span><span class="n">_NumpyEvaluatorPrinter</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
-            <span class="n">printer</span><span class="o">=</span><span class="n">printer</span><span class="p">,</span> <span class="n">dummify</span><span class="o">=</span><span class="n">dummify</span><span class="p">)</span>
-
-        <span class="bp">self</span><span class="o">.</span><span class="n">_wrapargs</span> <span class="o">=</span> <span class="n">wrapargs</span>
-
-    <span class="k">def</span> <span class="nf">_print_funcargwrapping</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">):</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_wrapargs</span><span class="p">:</span>
-            <span class="k">return</span> <span class="p">[]</span>
-
-        <span class="n">lines</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_numerics_def_stmt</span><span class="p">]</span>
-
-        <span class="n">stmt</span> <span class="o">=</span> <span class="s1">&#39;if isinstance(</span><span class="si">{arg}</span><span class="s1">, builtin_numerics): </span><span class="si">{arg}</span><span class="s1"> = array(</span><span class="si">{arg}</span><span class="s1">)&#39;</span>
-        <span class="n">lines</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">stmt</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">arg</span><span class="o">=</span><span class="n">arg</span><span class="p">)</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">args</span><span class="p">)</span>
-
-        <span class="k">return</span> <span class="n">lines</span>
-
 <span class="k">class</span> <span class="nc">_TensorflowEvaluatorPrinter</span><span class="p">(</span><span class="n">_EvaluatorPrinter</span><span class="p">):</span>
     <span class="k">def</span> <span class="nf">_print_unpacking</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lvalues</span><span class="p">,</span> <span class="n">rvalue</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Generate argument unpacking code.</span>
@@ -1048,7 +1021,7 @@
     </div>
     <div class="footer" role="contentinfo">
         &#169; Copyright 2018 SymPy Development Team.
-      Last updated on Jun 21, 2018.
+      Last updated on Jun 22, 2018.
       Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.7.5.
     </div>
   </body>
