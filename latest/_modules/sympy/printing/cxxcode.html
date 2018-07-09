@@ -4,23 +4,15 @@
 
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-    <title>sympy.printing.cxxcode &#8212; SymPy 1.1.1 documentation</title>
+    <title>sympy.printing.cxxcode &#8212; SymPy 1.2 documentation</title>
     <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
     <link rel="stylesheet" href="http://live.sympy.org/static/live-core.css" type="text/css" />
     <link rel="stylesheet" href="http://live.sympy.org/static/live-autocomplete.css" type="text/css" />
     <link rel="stylesheet" href="http://live.sympy.org/static/live-sphinx.css" type="text/css" />
-    <script type="text/javascript">
-      var DOCUMENTATION_OPTIONS = {
-        URL_ROOT:    '../../../',
-        VERSION:     '1.1.1',
-        COLLAPSE_INDEX: false,
-        FILE_SUFFIX: '.html',
-        HAS_SOURCE:  true,
-        SOURCELINK_SUFFIX: '.txt'
-      };
-    </script>
+    <script type="text/javascript" id="documentation_options" data-url_root="../../../" src="../../../_static/documentation_options.js"></script>
     <script type="text/javascript" src="../../../_static/jquery.js"></script>
     <script type="text/javascript" src="../../../_static/underscore.js"></script>
     <script type="text/javascript" src="../../../_static/doctools.js"></script>
@@ -35,8 +27,7 @@
     
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" /> 
-  </head>
-  <body>
+  </head><body>
     <div class="related" role="navigation" aria-label="related navigation">
       <h3>Navigation</h3>
       <ul>
@@ -46,7 +37,7 @@
         <li class="right" >
           <a href="../../../py-modindex.html" title="Python Module Index"
              >modules</a> |</li>
-        <li class="nav-item nav-item-0"><a href="../../../index.html">SymPy 1.1.1 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-0"><a href="../../../index.html">SymPy 1.2 documentation</a> &#187;</li>
           <li class="nav-item nav-item-1"><a href="../../index.html" accesskey="U">Module code</a> &#187;</li> 
       </ul>
     </div>  
@@ -62,6 +53,8 @@
 <span class="sd">C++ code printer</span>
 <span class="sd">&quot;&quot;&quot;</span>
 <span class="kn">from</span> <span class="nn">functools</span> <span class="k">import</span> <span class="n">wraps</span>
+<span class="kn">from</span> <span class="nn">itertools</span> <span class="k">import</span> <span class="n">chain</span>
+<span class="kn">from</span> <span class="nn">sympy.codegen.ast</span> <span class="k">import</span> <span class="n">Type</span><span class="p">,</span> <span class="n">none</span>
 <span class="kn">from</span> <span class="nn">.ccode</span> <span class="k">import</span> <span class="n">C89CodePrinter</span><span class="p">,</span> <span class="n">C99CodePrinter</span>
 
 
@@ -86,7 +79,8 @@
     <span class="s1">&#39;alignas&#39;</span><span class="p">,</span> <span class="s1">&#39;alignof&#39;</span><span class="p">,</span> <span class="s1">&#39;char16_t&#39;</span><span class="p">,</span> <span class="s1">&#39;char32_t&#39;</span><span class="p">,</span> <span class="s1">&#39;constexpr&#39;</span><span class="p">,</span> <span class="s1">&#39;decltype&#39;</span><span class="p">,</span>
     <span class="s1">&#39;noexcept&#39;</span><span class="p">,</span> <span class="s1">&#39;nullptr&#39;</span><span class="p">,</span> <span class="s1">&#39;static_assert&#39;</span><span class="p">,</span> <span class="s1">&#39;thread_local&#39;</span>
 <span class="p">]</span>
-<span class="n">reserved</span><span class="p">[</span><span class="s1">&#39;C++17&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="n">reserved</span><span class="p">[</span><span class="s1">&#39;C++17&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">reserved</span><span class="p">[</span><span class="s1">&#39;C++11&#39;</span><span class="p">][:]</span>
+<span class="n">reserved</span><span class="p">[</span><span class="s1">&#39;C++17&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="s1">&#39;register&#39;</span><span class="p">)</span>
 <span class="c1"># TM TS: atomic_cancel, atomic_commit, atomic_noexcept, synchronized</span>
 <span class="c1"># concepts TS: concept, requires</span>
 <span class="c1"># module TS: import, module</span>
@@ -152,29 +146,67 @@
             <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
         <span class="k">return</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">min(</span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_ns</span><span class="p">,</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">Min</span><span class="p">(</span><span class="o">*</span><span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">:])))</span>
 
+    <span class="k">def</span> <span class="nf">_print_using</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">alias</span> <span class="o">==</span> <span class="n">none</span><span class="p">:</span>
+            <span class="k">return</span> <span class="s1">&#39;using </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">expr</span><span class="o">.</span><span class="n">type</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;C++98 does not support type aliases&quot;</span><span class="p">)</span>
+
 
 <div class="viewcode-block" id="CXX98CodePrinter"><a class="viewcode-back" href="../../../modules/printing.html#sympy.printing.cxxcode.CXX98CodePrinter">[docs]</a><span class="k">class</span> <span class="nc">CXX98CodePrinter</span><span class="p">(</span><span class="n">_CXXCodePrinterBase</span><span class="p">,</span> <span class="n">C89CodePrinter</span><span class="p">):</span>
     <span class="n">standard</span> <span class="o">=</span> <span class="s1">&#39;C++98&#39;</span>
     <span class="n">reserved_words</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">reserved</span><span class="p">[</span><span class="s1">&#39;C++98&#39;</span><span class="p">])</span></div>
 
 
-<span class="n">_attach_print_methods</span><span class="p">(</span><span class="n">CXX98CodePrinter</span><span class="p">,</span> <span class="n">_math_functions</span><span class="p">)</span>
+<span class="c1"># _attach_print_methods(CXX98CodePrinter, _math_functions)</span>
 
 
 <div class="viewcode-block" id="CXX11CodePrinter"><a class="viewcode-back" href="../../../modules/printing.html#sympy.printing.cxxcode.CXX11CodePrinter">[docs]</a><span class="k">class</span> <span class="nc">CXX11CodePrinter</span><span class="p">(</span><span class="n">_CXXCodePrinterBase</span><span class="p">,</span> <span class="n">C99CodePrinter</span><span class="p">):</span>
     <span class="n">standard</span> <span class="o">=</span> <span class="s1">&#39;C++11&#39;</span>
-    <span class="n">reserved_words</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">reserved</span><span class="p">[</span><span class="s1">&#39;C++11&#39;</span><span class="p">])</span></div>
+    <span class="n">reserved_words</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">reserved</span><span class="p">[</span><span class="s1">&#39;C++11&#39;</span><span class="p">])</span>
+    <span class="n">type_mappings</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">chain</span><span class="p">(</span>
+        <span class="n">CXX98CodePrinter</span><span class="o">.</span><span class="n">type_mappings</span><span class="o">.</span><span class="n">items</span><span class="p">(),</span>
+        <span class="p">{</span>
+            <span class="n">Type</span><span class="p">(</span><span class="s1">&#39;int8&#39;</span><span class="p">):</span> <span class="p">(</span><span class="s1">&#39;int8_t&#39;</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;cstdint&#39;</span><span class="p">}),</span>
+            <span class="n">Type</span><span class="p">(</span><span class="s1">&#39;int16&#39;</span><span class="p">):</span> <span class="p">(</span><span class="s1">&#39;int16_t&#39;</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;cstdint&#39;</span><span class="p">}),</span>
+            <span class="n">Type</span><span class="p">(</span><span class="s1">&#39;int32&#39;</span><span class="p">):</span> <span class="p">(</span><span class="s1">&#39;int32_t&#39;</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;cstdint&#39;</span><span class="p">}),</span>
+            <span class="n">Type</span><span class="p">(</span><span class="s1">&#39;int64&#39;</span><span class="p">):</span> <span class="p">(</span><span class="s1">&#39;int64_t&#39;</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;cstdint&#39;</span><span class="p">}),</span>
+            <span class="n">Type</span><span class="p">(</span><span class="s1">&#39;uint8&#39;</span><span class="p">):</span> <span class="p">(</span><span class="s1">&#39;uint8_t&#39;</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;cstdint&#39;</span><span class="p">}),</span>
+            <span class="n">Type</span><span class="p">(</span><span class="s1">&#39;uint16&#39;</span><span class="p">):</span> <span class="p">(</span><span class="s1">&#39;uint16_t&#39;</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;cstdint&#39;</span><span class="p">}),</span>
+            <span class="n">Type</span><span class="p">(</span><span class="s1">&#39;uint32&#39;</span><span class="p">):</span> <span class="p">(</span><span class="s1">&#39;uint32_t&#39;</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;cstdint&#39;</span><span class="p">}),</span>
+            <span class="n">Type</span><span class="p">(</span><span class="s1">&#39;uint64&#39;</span><span class="p">):</span> <span class="p">(</span><span class="s1">&#39;uint64_t&#39;</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;cstdint&#39;</span><span class="p">}),</span>
+            <span class="n">Type</span><span class="p">(</span><span class="s1">&#39;complex64&#39;</span><span class="p">):</span> <span class="p">(</span><span class="s1">&#39;std::complex&lt;float&gt;&#39;</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;complex&#39;</span><span class="p">}),</span>
+            <span class="n">Type</span><span class="p">(</span><span class="s1">&#39;complex128&#39;</span><span class="p">):</span> <span class="p">(</span><span class="s1">&#39;std::complex&lt;double&gt;&#39;</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;complex&#39;</span><span class="p">}),</span>
+            <span class="n">Type</span><span class="p">(</span><span class="s1">&#39;bool&#39;</span><span class="p">):</span> <span class="p">(</span><span class="s1">&#39;bool&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+        <span class="p">}</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+    <span class="p">))</span>
 
+    <span class="k">def</span> <span class="nf">_print_using</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">alias</span> <span class="o">==</span> <span class="n">none</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">CXX11CodePrinter</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_print_using</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="s1">&#39;using </span><span class="si">%(alias)s</span><span class="s1"> = </span><span class="si">%(type)s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">expr</span><span class="o">.</span><span class="n">kwargs</span><span class="p">(</span><span class="n">apply</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">)</span></div>
 
-<span class="n">_attach_print_methods</span><span class="p">(</span><span class="n">CXX11CodePrinter</span><span class="p">,</span> <span class="n">_math_functions</span><span class="p">)</span>
+<span class="c1"># _attach_print_methods(CXX11CodePrinter, _math_functions)</span>
 
 
 <span class="k">class</span> <span class="nc">CXX17CodePrinter</span><span class="p">(</span><span class="n">_CXXCodePrinterBase</span><span class="p">,</span> <span class="n">C99CodePrinter</span><span class="p">):</span>
     <span class="n">standard</span> <span class="o">=</span> <span class="s1">&#39;C++17&#39;</span>
     <span class="n">reserved_words</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">reserved</span><span class="p">[</span><span class="s1">&#39;C++17&#39;</span><span class="p">])</span>
 
+    <span class="n">_kf</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">C99CodePrinter</span><span class="o">.</span><span class="n">_kf</span><span class="p">,</span> <span class="o">**</span><span class="n">_math_functions</span><span class="p">[</span><span class="s1">&#39;C++17&#39;</span><span class="p">])</span>
 
-<span class="n">_attach_print_methods</span><span class="p">(</span><span class="n">CXX17CodePrinter</span><span class="p">,</span> <span class="n">_math_functions</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">_print_beta</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print_math_func</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_print_Ei</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print_math_func</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_print_zeta</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print_math_func</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+
+
+<span class="c1"># _attach_print_methods(CXX17CodePrinter, _math_functions)</span>
 
 <span class="n">cxx_code_printers</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s1">&#39;c++98&#39;</span><span class="p">:</span> <span class="n">CXX98CodePrinter</span><span class="p">,</span>
@@ -197,12 +229,14 @@
             </a></p>
 <div id="searchbox" style="display: none" role="search">
   <h3>Quick search</h3>
+    <div class="searchformwrapper">
     <form class="search" action="../../../search.html" method="get">
-      <div><input type="text" name="q" /></div>
-      <div><input type="submit" value="Go" /></div>
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
       <input type="hidden" name="check_keywords" value="yes" />
       <input type="hidden" name="area" value="default" />
     </form>
+    </div>
 </div>
 <script type="text/javascript">$('#searchbox').show(0);</script>
         </div>
@@ -218,14 +252,14 @@
         <li class="right" >
           <a href="../../../py-modindex.html" title="Python Module Index"
              >modules</a> |</li>
-        <li class="nav-item nav-item-0"><a href="../../../index.html">SymPy 1.1.1 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-0"><a href="../../../index.html">SymPy 1.2 documentation</a> &#187;</li>
           <li class="nav-item nav-item-1"><a href="../../index.html" >Module code</a> &#187;</li> 
       </ul>
     </div>
     <div class="footer" role="contentinfo">
-        &#169; Copyright 2017 SymPy Development Team.
-      Last updated on Jul 27, 2017.
-      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.3.
+        &#169; Copyright 2018 SymPy Development Team.
+      Last updated on Jul 09, 2018.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.7.5.
     </div>
   </body>
 </html>

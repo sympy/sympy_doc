@@ -4,23 +4,15 @@
 
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-    <title>sympy.utilities.lambdify &#8212; SymPy 1.1.1 documentation</title>
+    <title>sympy.utilities.lambdify &#8212; SymPy 1.2 documentation</title>
     <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
     <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
     <link rel="stylesheet" href="http://live.sympy.org/static/live-core.css" type="text/css" />
     <link rel="stylesheet" href="http://live.sympy.org/static/live-autocomplete.css" type="text/css" />
     <link rel="stylesheet" href="http://live.sympy.org/static/live-sphinx.css" type="text/css" />
-    <script type="text/javascript">
-      var DOCUMENTATION_OPTIONS = {
-        URL_ROOT:    '../../../',
-        VERSION:     '1.1.1',
-        COLLAPSE_INDEX: false,
-        FILE_SUFFIX: '.html',
-        HAS_SOURCE:  true,
-        SOURCELINK_SUFFIX: '.txt'
-      };
-    </script>
+    <script type="text/javascript" id="documentation_options" data-url_root="../../../" src="../../../_static/documentation_options.js"></script>
     <script type="text/javascript" src="../../../_static/jquery.js"></script>
     <script type="text/javascript" src="../../../_static/underscore.js"></script>
     <script type="text/javascript" src="../../../_static/doctools.js"></script>
@@ -35,8 +27,7 @@
     
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" /> 
-  </head>
-  <body>
+  </head><body>
     <div class="related" role="navigation" aria-label="related navigation">
       <h3>Navigation</h3>
       <ul>
@@ -46,7 +37,7 @@
         <li class="right" >
           <a href="../../../py-modindex.html" title="Python Module Index"
              >modules</a> |</li>
-        <li class="nav-item nav-item-0"><a href="../../../index.html">SymPy 1.1.1 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-0"><a href="../../../index.html">SymPy 1.2 documentation</a> &#187;</li>
           <li class="nav-item nav-item-1"><a href="../../index.html" accesskey="U">Module code</a> &#187;</li> 
       </ul>
     </div>  
@@ -66,10 +57,13 @@
 
 <span class="kn">from</span> <span class="nn">functools</span> <span class="k">import</span> <span class="n">wraps</span>
 <span class="kn">import</span> <span class="nn">inspect</span>
+<span class="kn">import</span> <span class="nn">keyword</span>
+<span class="kn">import</span> <span class="nn">re</span>
 <span class="kn">import</span> <span class="nn">textwrap</span>
+<span class="kn">import</span> <span class="nn">linecache</span>
 
 <span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="k">import</span> <span class="p">(</span><span class="n">exec_</span><span class="p">,</span> <span class="n">is_sequence</span><span class="p">,</span> <span class="n">iterable</span><span class="p">,</span>
-    <span class="n">NotIterable</span><span class="p">,</span> <span class="n">string_types</span><span class="p">,</span> <span class="nb">range</span><span class="p">,</span> <span class="n">builtins</span><span class="p">,</span> <span class="n">integer_types</span><span class="p">)</span>
+    <span class="n">NotIterable</span><span class="p">,</span> <span class="n">string_types</span><span class="p">,</span> <span class="nb">range</span><span class="p">,</span> <span class="n">builtins</span><span class="p">,</span> <span class="n">integer_types</span><span class="p">,</span> <span class="n">PY3</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">sympy.utilities.decorator</span> <span class="k">import</span> <span class="n">doctest_depends_on</span>
 
 <span class="c1"># These are the namespaces the lambda functions will use.</span>
@@ -125,28 +119,7 @@
     <span class="s2">&quot;Ci&quot;</span><span class="p">:</span> <span class="s2">&quot;ci&quot;</span>
 <span class="p">}</span>
 
-<span class="n">NUMPY_TRANSLATIONS</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s2">&quot;acos&quot;</span><span class="p">:</span> <span class="s2">&quot;arccos&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;acosh&quot;</span><span class="p">:</span> <span class="s2">&quot;arccosh&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;arg&quot;</span><span class="p">:</span> <span class="s2">&quot;angle&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;asin&quot;</span><span class="p">:</span> <span class="s2">&quot;arcsin&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;asinh&quot;</span><span class="p">:</span> <span class="s2">&quot;arcsinh&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;atan&quot;</span><span class="p">:</span> <span class="s2">&quot;arctan&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;atan2&quot;</span><span class="p">:</span> <span class="s2">&quot;arctan2&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;atanh&quot;</span><span class="p">:</span> <span class="s2">&quot;arctanh&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;ceiling&quot;</span><span class="p">:</span> <span class="s2">&quot;ceil&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;E&quot;</span><span class="p">:</span> <span class="s2">&quot;e&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;im&quot;</span><span class="p">:</span> <span class="s2">&quot;imag&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;ln&quot;</span><span class="p">:</span> <span class="s2">&quot;log&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;Mod&quot;</span><span class="p">:</span> <span class="s2">&quot;mod&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;oo&quot;</span><span class="p">:</span> <span class="s2">&quot;inf&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;re&quot;</span><span class="p">:</span> <span class="s2">&quot;real&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;SparseMatrix&quot;</span><span class="p">:</span> <span class="s2">&quot;array&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;ImmutableSparseMatrix&quot;</span><span class="p">:</span> <span class="s2">&quot;array&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;Matrix&quot;</span><span class="p">:</span> <span class="s2">&quot;array&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;MutableDenseMatrix&quot;</span><span class="p">:</span> <span class="s2">&quot;array&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;ImmutableDenseMatrix&quot;</span><span class="p">:</span> <span class="s2">&quot;array&quot;</span><span class="p">,</span>
-<span class="p">}</span>
+<span class="n">NUMPY_TRANSLATIONS</span> <span class="o">=</span> <span class="p">{}</span>
 
 <span class="n">TENSORFLOW_TRANSLATIONS</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s2">&quot;Abs&quot;</span><span class="p">:</span> <span class="s2">&quot;abs&quot;</span><span class="p">,</span>
@@ -164,7 +137,7 @@
 <span class="n">MODULES</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s2">&quot;math&quot;</span><span class="p">:</span> <span class="p">(</span><span class="n">MATH</span><span class="p">,</span> <span class="n">MATH_DEFAULT</span><span class="p">,</span> <span class="n">MATH_TRANSLATIONS</span><span class="p">,</span> <span class="p">(</span><span class="s2">&quot;from math import *&quot;</span><span class="p">,)),</span>
     <span class="s2">&quot;mpmath&quot;</span><span class="p">:</span> <span class="p">(</span><span class="n">MPMATH</span><span class="p">,</span> <span class="n">MPMATH_DEFAULT</span><span class="p">,</span> <span class="n">MPMATH_TRANSLATIONS</span><span class="p">,</span> <span class="p">(</span><span class="s2">&quot;from mpmath import *&quot;</span><span class="p">,)),</span>
-    <span class="s2">&quot;numpy&quot;</span><span class="p">:</span> <span class="p">(</span><span class="n">NUMPY</span><span class="p">,</span> <span class="n">NUMPY_DEFAULT</span><span class="p">,</span> <span class="n">NUMPY_TRANSLATIONS</span><span class="p">,</span> <span class="p">(</span><span class="s2">&quot;import_module(&#39;numpy&#39;)&quot;</span><span class="p">,)),</span>
+    <span class="s2">&quot;numpy&quot;</span><span class="p">:</span> <span class="p">(</span><span class="n">NUMPY</span><span class="p">,</span> <span class="n">NUMPY_DEFAULT</span><span class="p">,</span> <span class="n">NUMPY_TRANSLATIONS</span><span class="p">,</span> <span class="p">(</span><span class="s2">&quot;import numpy; from numpy import *&quot;</span><span class="p">,)),</span>
     <span class="s2">&quot;tensorflow&quot;</span><span class="p">:</span> <span class="p">(</span><span class="n">TENSORFLOW</span><span class="p">,</span> <span class="n">TENSORFLOW_DEFAULT</span><span class="p">,</span> <span class="n">TENSORFLOW_TRANSLATIONS</span><span class="p">,</span> <span class="p">(</span><span class="s2">&quot;import_module(&#39;tensorflow&#39;)&quot;</span><span class="p">,)),</span>
     <span class="s2">&quot;sympy&quot;</span><span class="p">:</span> <span class="p">(</span><span class="n">SYMPY</span><span class="p">,</span> <span class="n">SYMPY_DEFAULT</span><span class="p">,</span> <span class="p">{},</span> <span class="p">(</span>
         <span class="s2">&quot;from sympy.functions import *&quot;</span><span class="p">,</span>
@@ -233,11 +206,15 @@
         <span class="n">namespace</span><span class="p">[</span><span class="s1">&#39;Abs&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">abs</span>
 
 
+<span class="c1"># Used for dynamically generated filenames that are inserted into the</span>
+<span class="c1"># linecache.</span>
+<span class="n">_lambdify_generated_counter</span> <span class="o">=</span> <span class="mi">1</span>
+
 <div class="viewcode-block" id="lambdify"><a class="viewcode-back" href="../../../modules/utilities/lambdify.html#sympy.utilities.lambdify.lambdify">[docs]</a><span class="nd">@doctest_depends_on</span><span class="p">(</span><span class="n">modules</span><span class="o">=</span><span class="p">(</span><span class="s1">&#39;numpy&#39;</span><span class="p">))</span>
 <span class="k">def</span> <span class="nf">lambdify</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">modules</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">printer</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">use_imps</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-             <span class="n">dummify</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+             <span class="n">dummify</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Returns a lambda function for fast calculation of numerical values.</span>
+<span class="sd">    Returns an anonymous function for fast calculation of numerical values.</span>
 
 <span class="sd">    If not specified differently by the user, ``modules`` defaults to</span>
 <span class="sd">    ``[&quot;numpy&quot;]`` if NumPy is installed, and ``[&quot;math&quot;, &quot;mpmath&quot;, &quot;sympy&quot;]``</span>
@@ -256,12 +233,12 @@
 <span class="sd">        Note that this function uses ``eval``, and thus shouldn&#39;t be used on</span>
 <span class="sd">        unsanitized input.</span>
 
-<span class="sd">    The default behavior is to substitute all arguments in the provided</span>
-<span class="sd">    expression with dummy symbols. This allows for applied functions (e.g.</span>
-<span class="sd">    f(t)) to be supplied as arguments. Call the function with dummify=False if</span>
-<span class="sd">    dummy substitution is unwanted (and `args` is not a string). If you want</span>
-<span class="sd">    to view the lambdified function or provide &quot;sympy&quot; as the module, you</span>
-<span class="sd">    should probably set dummify=False.</span>
+<span class="sd">    Arguments in the provided expression that are not valid Python identifiers</span>
+<span class="sd">    are substitued with dummy symbols. This allows for applied functions</span>
+<span class="sd">    (e.g. f(t)) to be supplied as arguments. Call the function with</span>
+<span class="sd">    dummify=True to replace all arguments with dummy symbols (if `args` is</span>
+<span class="sd">    not a string) - for example, to ensure that the arguments do not</span>
+<span class="sd">    redefine any built-in names.</span>
 
 <span class="sd">    For functions involving large array calculations, numexpr can provide a</span>
 <span class="sd">    significant speedup over numpy.  Please note that the available functions</span>
@@ -291,13 +268,12 @@
 <span class="sd">    (1) Use one of the provided modules:</span>
 
 <span class="sd">        &gt;&gt;&gt; from sympy import sin, tan, gamma</span>
-<span class="sd">        &gt;&gt;&gt; from sympy.utilities.lambdify import lambdastr</span>
 <span class="sd">        &gt;&gt;&gt; from sympy.abc import x, y</span>
 <span class="sd">        &gt;&gt;&gt; f = lambdify(x, sin(x), &quot;math&quot;)</span>
 
 <span class="sd">        Attention: Functions that are not in the math module will throw a name</span>
-<span class="sd">                   error when the lambda function is evaluated! So this would</span>
-<span class="sd">                   be better:</span>
+<span class="sd">                   error when the function definition is evaluated! So this</span>
+<span class="sd">                   would be better:</span>
 
 <span class="sd">        &gt;&gt;&gt; f = lambdify(x, sin(x)*gamma(x), (&quot;math&quot;, &quot;mpmath&quot;, &quot;sympy&quot;))</span>
 
@@ -317,6 +293,28 @@
 <span class="sd">        &gt;&gt;&gt; from numpy import array</span>
 <span class="sd">        &gt;&gt;&gt; f(array([1, 2, 3]), array([2, 3, 5]))</span>
 <span class="sd">        [-2.18503986 -0.29100619 -0.8559934 ]</span>
+
+<span class="sd">        In the above examples, the generated functions can accept scalar</span>
+<span class="sd">        values or numpy arrays as arguments.  However, in some cases</span>
+<span class="sd">        the generated function relies on the input being a numpy array:</span>
+
+<span class="sd">        &gt;&gt;&gt; from sympy import Piecewise</span>
+<span class="sd">        &gt;&gt;&gt; f = lambdify(x, Piecewise((x, x &lt;= 1), (1/x, x &gt; 1)), &quot;numpy&quot;)</span>
+<span class="sd">        &gt;&gt;&gt; f(array([-1, 0, 1, 2]))</span>
+<span class="sd">        [-1.   0.   1.   0.5]</span>
+<span class="sd">        &gt;&gt;&gt; f(0)</span>
+<span class="sd">        Traceback (most recent call last):</span>
+<span class="sd">            ...</span>
+<span class="sd">        ZeroDivisionError: division by zero</span>
+
+<span class="sd">        In such cases, the input should be wrapped in a numpy array:</span>
+<span class="sd">        &gt;&gt;&gt; float(f(array([0])))</span>
+<span class="sd">        0.0</span>
+
+<span class="sd">        Or if numpy functionality is not required another module can be used:</span>
+<span class="sd">        &gt;&gt;&gt; f = lambdify(x, Piecewise((x, x &lt;= 1), (1/x, x &gt; 1)), &quot;math&quot;)</span>
+<span class="sd">        &gt;&gt;&gt; f(0)</span>
+<span class="sd">        0</span>
 
 <span class="sd">    (3) Use a dictionary defining custom functions:</span>
 
@@ -445,21 +443,26 @@
         <span class="k">for</span> <span class="n">term</span> <span class="ow">in</span> <span class="n">syms</span><span class="p">:</span>
             <span class="n">namespace</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="nb">str</span><span class="p">(</span><span class="n">term</span><span class="p">):</span> <span class="n">term</span><span class="p">})</span>
 
-    <span class="k">if</span> <span class="n">_module_present</span><span class="p">(</span><span class="s1">&#39;mpmath&#39;</span><span class="p">,</span><span class="n">namespaces</span><span class="p">)</span> <span class="ow">and</span> <span class="n">printer</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="c1">#XXX: This has to be done here because of circular imports</span>
-        <span class="kn">from</span> <span class="nn">sympy.printing.lambdarepr</span> <span class="k">import</span> <span class="n">MpmathPrinter</span> <span class="k">as</span> <span class="n">printer</span>
-
-    <span class="k">if</span> <span class="n">_module_present</span><span class="p">(</span><span class="s1">&#39;numpy&#39;</span><span class="p">,</span><span class="n">namespaces</span><span class="p">)</span> <span class="ow">and</span> <span class="n">printer</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="c1">#XXX: This has to be done here because of circular imports</span>
-        <span class="kn">from</span> <span class="nn">sympy.printing.lambdarepr</span> <span class="k">import</span> <span class="n">NumPyPrinter</span> <span class="k">as</span> <span class="n">printer</span>
-
-    <span class="k">if</span> <span class="n">_module_present</span><span class="p">(</span><span class="s1">&#39;numexpr&#39;</span><span class="p">,</span><span class="n">namespaces</span><span class="p">)</span> <span class="ow">and</span> <span class="n">printer</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="c1">#XXX: This has to be done here because of circular imports</span>
-        <span class="kn">from</span> <span class="nn">sympy.printing.lambdarepr</span> <span class="k">import</span> <span class="n">NumExprPrinter</span> <span class="k">as</span> <span class="n">printer</span>
-
-    <span class="k">if</span> <span class="n">_module_present</span><span class="p">(</span><span class="s1">&#39;tensorflow&#39;</span><span class="p">,</span><span class="n">namespaces</span><span class="p">)</span> <span class="ow">and</span> <span class="n">printer</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="c1">#XXX: This has to be done here because of circular imports</span>
-        <span class="kn">from</span> <span class="nn">sympy.printing.lambdarepr</span> <span class="k">import</span> <span class="n">TensorflowPrinter</span> <span class="k">as</span> <span class="n">printer</span>
+    <span class="k">if</span> <span class="n">printer</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">_module_present</span><span class="p">(</span><span class="s1">&#39;mpmath&#39;</span><span class="p">,</span> <span class="n">namespaces</span><span class="p">):</span>
+            <span class="kn">from</span> <span class="nn">sympy.printing.pycode</span> <span class="k">import</span> <span class="n">MpmathPrinter</span> <span class="k">as</span> <span class="n">Printer</span>
+        <span class="k">elif</span> <span class="n">_module_present</span><span class="p">(</span><span class="s1">&#39;numpy&#39;</span><span class="p">,</span> <span class="n">namespaces</span><span class="p">):</span>
+            <span class="kn">from</span> <span class="nn">sympy.printing.pycode</span> <span class="k">import</span> <span class="n">NumPyPrinter</span> <span class="k">as</span> <span class="n">Printer</span>
+        <span class="k">elif</span> <span class="n">_module_present</span><span class="p">(</span><span class="s1">&#39;numexpr&#39;</span><span class="p">,</span> <span class="n">namespaces</span><span class="p">):</span>
+            <span class="kn">from</span> <span class="nn">sympy.printing.lambdarepr</span> <span class="k">import</span> <span class="n">NumExprPrinter</span> <span class="k">as</span> <span class="n">Printer</span>
+        <span class="k">elif</span> <span class="n">_module_present</span><span class="p">(</span><span class="s1">&#39;tensorflow&#39;</span><span class="p">,</span> <span class="n">namespaces</span><span class="p">):</span>
+            <span class="kn">from</span> <span class="nn">sympy.printing.lambdarepr</span> <span class="k">import</span> <span class="n">TensorflowPrinter</span> <span class="k">as</span> <span class="n">Printer</span>
+        <span class="k">elif</span> <span class="n">_module_present</span><span class="p">(</span><span class="s1">&#39;sympy&#39;</span><span class="p">,</span> <span class="n">namespaces</span><span class="p">):</span>
+            <span class="kn">from</span> <span class="nn">sympy.printing.pycode</span> <span class="k">import</span> <span class="n">SymPyPrinter</span> <span class="k">as</span> <span class="n">Printer</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="kn">from</span> <span class="nn">sympy.printing.pycode</span> <span class="k">import</span> <span class="n">PythonCodePrinter</span> <span class="k">as</span> <span class="n">Printer</span>
+        <span class="n">user_functions</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">namespaces</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+                <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">m</span><span class="p">:</span>
+                    <span class="n">user_functions</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">k</span>
+        <span class="n">printer</span> <span class="o">=</span> <span class="n">Printer</span><span class="p">({</span><span class="s1">&#39;fully_qualified_modules&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span> <span class="s1">&#39;inline&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+                           <span class="s1">&#39;user_functions&#39;</span><span class="p">:</span> <span class="n">user_functions</span><span class="p">})</span>
 
     <span class="c1"># Get the names of the args, for creating a docstring</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">iterable</span><span class="p">(</span><span class="n">args</span><span class="p">):</span>
@@ -480,37 +483,55 @@
                 <span class="c1"># Cannot infer name with certainty. arg_# will have to do.</span>
                 <span class="n">names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;arg_&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">n</span><span class="p">))</span>
 
-    <span class="c1"># Create lambda function.</span>
-    <span class="n">lstr</span> <span class="o">=</span> <span class="n">lambdastr</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">printer</span><span class="o">=</span><span class="n">printer</span><span class="p">,</span> <span class="n">dummify</span><span class="o">=</span><span class="n">dummify</span><span class="p">)</span>
-    <span class="n">flat</span> <span class="o">=</span> <span class="s1">&#39;__flatten_args__&#39;</span>
-
-    <span class="k">if</span> <span class="n">flat</span> <span class="ow">in</span> <span class="n">lstr</span><span class="p">:</span>
-        <span class="n">namespace</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">flat</span><span class="p">:</span> <span class="n">flatten</span><span class="p">})</span>
+    <span class="n">imp_mod_lines</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">mod</span><span class="p">,</span> <span class="n">keys</span> <span class="ow">in</span> <span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">printer</span><span class="p">,</span> <span class="s1">&#39;module_imports&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">namespace</span><span class="p">:</span>
+                <span class="n">imp_mod_lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;from </span><span class="si">%s</span><span class="s2"> import </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">mod</span><span class="p">,</span> <span class="n">k</span><span class="p">))</span>
+    <span class="k">for</span> <span class="n">ln</span> <span class="ow">in</span> <span class="n">imp_mod_lines</span><span class="p">:</span>
+        <span class="n">exec_</span><span class="p">(</span><span class="n">ln</span><span class="p">,</span> <span class="p">{},</span> <span class="n">namespace</span><span class="p">)</span>
 
     <span class="c1"># Provide lambda expression with builtins, and compatible implementation of range</span>
     <span class="n">namespace</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s1">&#39;builtins&#39;</span><span class="p">:</span><span class="n">builtins</span><span class="p">,</span> <span class="s1">&#39;range&#39;</span><span class="p">:</span><span class="nb">range</span><span class="p">})</span>
 
-    <span class="n">func</span> <span class="o">=</span> <span class="nb">eval</span><span class="p">(</span><span class="n">lstr</span><span class="p">,</span> <span class="n">namespace</span><span class="p">)</span>
-    <span class="c1"># For numpy lambdify, wrap all input arguments in arrays.</span>
-    <span class="c1"># This is a fix for gh-11306.</span>
-    <span class="k">if</span> <span class="n">module_provided</span> <span class="ow">and</span> <span class="n">_module_present</span><span class="p">(</span><span class="s1">&#39;numpy&#39;</span><span class="p">,</span><span class="n">namespaces</span><span class="p">):</span>
-        <span class="k">def</span> <span class="nf">array_wrap</span><span class="p">(</span><span class="n">funcarg</span><span class="p">):</span>
-            <span class="nd">@wraps</span><span class="p">(</span><span class="n">funcarg</span><span class="p">)</span>
-            <span class="k">def</span> <span class="nf">wrapper</span><span class="p">(</span><span class="o">*</span><span class="n">argsx</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargsx</span><span class="p">):</span>
-                <span class="n">asarray</span> <span class="o">=</span> <span class="n">namespace</span><span class="p">[</span><span class="s1">&#39;asarray&#39;</span><span class="p">]</span>
-                <span class="n">newargs</span> <span class="o">=</span> <span class="p">[</span><span class="n">asarray</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">integer_types</span> <span class="o">+</span> <span class="p">(</span><span class="nb">float</span><span class="p">,</span>
-                    <span class="nb">complex</span><span class="p">))</span> <span class="k">else</span> <span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">argsx</span><span class="p">]</span>
-                <span class="k">return</span> <span class="n">funcarg</span><span class="p">(</span><span class="o">*</span><span class="n">newargs</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargsx</span><span class="p">)</span>
-            <span class="k">return</span> <span class="n">wrapper</span>
-        <span class="n">func</span> <span class="o">=</span> <span class="n">array_wrap</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>
+    <span class="c1"># Create the function definition code and execute it</span>
+
+    <span class="n">funcname</span> <span class="o">=</span> <span class="s1">&#39;_lambdifygenerated&#39;</span>
+
+    <span class="k">if</span> <span class="n">_module_present</span><span class="p">(</span><span class="s1">&#39;tensorflow&#39;</span><span class="p">,</span> <span class="n">namespaces</span><span class="p">):</span>
+        <span class="n">funcprinter</span> <span class="o">=</span> <span class="n">_TensorflowEvaluatorPrinter</span><span class="p">(</span><span class="n">printer</span><span class="p">,</span> <span class="n">dummify</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">funcprinter</span> <span class="o">=</span> <span class="n">_EvaluatorPrinter</span><span class="p">(</span><span class="n">printer</span><span class="p">,</span> <span class="n">dummify</span><span class="p">)</span>
+
+    <span class="n">funcstr</span> <span class="o">=</span> <span class="n">funcprinter</span><span class="o">.</span><span class="n">doprint</span><span class="p">(</span><span class="n">funcname</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">expr</span><span class="p">)</span>
+
+    <span class="n">funclocals</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">global</span> <span class="n">_lambdify_generated_counter</span>
+    <span class="n">filename</span> <span class="o">=</span> <span class="s1">&#39;&lt;lambdifygenerated-</span><span class="si">%s</span><span class="s1">&gt;&#39;</span> <span class="o">%</span> <span class="n">_lambdify_generated_counter</span>
+    <span class="n">_lambdify_generated_counter</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="nb">compile</span><span class="p">(</span><span class="n">funcstr</span><span class="p">,</span> <span class="n">filename</span><span class="p">,</span> <span class="s1">&#39;exec&#39;</span><span class="p">)</span>
+    <span class="n">exec_</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">namespace</span><span class="p">,</span> <span class="n">funclocals</span><span class="p">)</span>
+    <span class="c1"># mtime has to be None or else linecache.checkcache will remove it</span>
+    <span class="n">linecache</span><span class="o">.</span><span class="n">cache</span><span class="p">[</span><span class="n">filename</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">funcstr</span><span class="p">),</span> <span class="kc">None</span><span class="p">,</span> <span class="n">funcstr</span><span class="o">.</span><span class="n">splitlines</span><span class="p">(</span><span class="kc">True</span><span class="p">),</span> <span class="n">filename</span><span class="p">)</span>
+
+    <span class="n">func</span> <span class="o">=</span> <span class="n">funclocals</span><span class="p">[</span><span class="n">funcname</span><span class="p">]</span>
+
     <span class="c1"># Apply the docstring</span>
     <span class="n">sig</span> <span class="o">=</span> <span class="s2">&quot;func(</span><span class="si">{0}</span><span class="s2">)&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">names</span><span class="p">))</span>
     <span class="n">sig</span> <span class="o">=</span> <span class="n">textwrap</span><span class="o">.</span><span class="n">fill</span><span class="p">(</span><span class="n">sig</span><span class="p">,</span> <span class="n">subsequent_indent</span><span class="o">=</span><span class="s1">&#39; &#39;</span><span class="o">*</span><span class="mi">8</span><span class="p">)</span>
     <span class="n">expr_str</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
     <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">expr_str</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">78</span><span class="p">:</span>
         <span class="n">expr_str</span> <span class="o">=</span> <span class="n">textwrap</span><span class="o">.</span><span class="n">wrap</span><span class="p">(</span><span class="n">expr_str</span><span class="p">,</span> <span class="mi">75</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;...&#39;</span>
-    <span class="n">func</span><span class="o">.</span><span class="vm">__doc__</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;Created with lambdify. Signature:</span><span class="se">\n\n</span><span class="si">{sig}</span><span class="se">\n\n</span><span class="s2">&quot;</span>
-                    <span class="s2">&quot;Expression:</span><span class="se">\n\n</span><span class="si">{expr}</span><span class="s2">&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">sig</span><span class="o">=</span><span class="n">sig</span><span class="p">,</span> <span class="n">expr</span><span class="o">=</span><span class="n">expr_str</span><span class="p">)</span>
+    <span class="n">func</span><span class="o">.</span><span class="vm">__doc__</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="s2">&quot;Created with lambdify. Signature:</span><span class="se">\n\n</span><span class="s2">&quot;</span>
+        <span class="s2">&quot;</span><span class="si">{sig}</span><span class="se">\n\n</span><span class="s2">&quot;</span>
+        <span class="s2">&quot;Expression:</span><span class="se">\n\n</span><span class="s2">&quot;</span>
+        <span class="s2">&quot;</span><span class="si">{expr}</span><span class="se">\n\n</span><span class="s2">&quot;</span>
+        <span class="s2">&quot;Source code:</span><span class="se">\n\n</span><span class="s2">&quot;</span>
+        <span class="s2">&quot;</span><span class="si">{src}</span><span class="se">\n\n</span><span class="s2">&quot;</span>
+        <span class="s2">&quot;Imported modules:</span><span class="se">\n\n</span><span class="s2">&quot;</span>
+        <span class="s2">&quot;</span><span class="si">{imp_mods}</span><span class="s2">&quot;</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">sig</span><span class="o">=</span><span class="n">sig</span><span class="p">,</span> <span class="n">expr</span><span class="o">=</span><span class="n">expr_str</span><span class="p">,</span> <span class="n">src</span><span class="o">=</span><span class="n">funcstr</span><span class="p">,</span> <span class="n">imp_mods</span><span class="o">=</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">imp_mod_lines</span><span class="p">))</span>
     <span class="k">return</span> <span class="n">func</span></div>
 
 <span class="k">def</span> <span class="nf">_module_present</span><span class="p">(</span><span class="n">modname</span><span class="p">,</span> <span class="n">modlist</span><span class="p">):</span>
@@ -526,7 +547,7 @@
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    This is used by _lambdify to parse its arguments.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="n">string_types</span><span class="p">):</span>
         <span class="n">_import</span><span class="p">(</span><span class="n">m</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">MODULES</span><span class="p">[</span><span class="n">m</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
     <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
@@ -535,7 +556,6 @@
         <span class="k">return</span> <span class="n">m</span><span class="o">.</span><span class="vm">__dict__</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Argument must be either a string, dict or module but it is: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">m</span><span class="p">)</span>
-
 
 <div class="viewcode-block" id="lambdastr"><a class="viewcode-back" href="../../../modules/utilities/lambdify.html#sympy.utilities.lambdify.lambdastr">[docs]</a><span class="k">def</span> <span class="nf">lambdastr</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">printer</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dummify</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
@@ -556,7 +576,7 @@
 <span class="sd">    arguments so that nested arguments can be handled:</span>
 
 <span class="sd">    &gt;&gt;&gt; lambdastr((x, (y, z)), x + y)</span>
-<span class="sd">    &#39;lambda _0,_1: (lambda x,y,z: (x + y))(*list(__flatten_args__([_0,_1])))&#39;</span>
+<span class="sd">    &#39;lambda _0,_1: (lambda x,y,z: (x + y))(_0,_1[0],_1[1])&#39;</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="c1"># Transforming everything to strings.</span>
     <span class="kn">from</span> <span class="nn">sympy.matrices</span> <span class="k">import</span> <span class="n">DeferredVector</span>
@@ -611,19 +631,28 @@
     <span class="k">def</span> <span class="nf">isiter</span><span class="p">(</span><span class="n">l</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">iterable</span><span class="p">(</span><span class="n">l</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="n">DeferredVector</span><span class="p">,</span> <span class="n">NotIterable</span><span class="p">))</span>
 
+    <span class="k">def</span> <span class="nf">flat_indexes</span><span class="p">(</span><span class="n">iterable</span><span class="p">):</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="k">for</span> <span class="n">el</span> <span class="ow">in</span> <span class="n">iterable</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">isiter</span><span class="p">(</span><span class="n">el</span><span class="p">):</span>
+                <span class="k">for</span> <span class="n">ndeep</span> <span class="ow">in</span> <span class="n">flat_indexes</span><span class="p">(</span><span class="n">el</span><span class="p">):</span>
+                    <span class="k">yield</span> <span class="p">(</span><span class="n">n</span><span class="p">,)</span> <span class="o">+</span> <span class="n">ndeep</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">yield</span> <span class="p">(</span><span class="n">n</span><span class="p">,)</span>
+
+            <span class="n">n</span> <span class="o">+=</span> <span class="mi">1</span>
+
     <span class="k">if</span> <span class="n">isiter</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">any</span><span class="p">(</span><span class="n">isiter</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">args</span><span class="p">):</span>
-        <span class="kn">from</span> <span class="nn">sympy.utilities.iterables</span> <span class="k">import</span> <span class="n">flatten</span>
-        <span class="kn">import</span> <span class="nn">re</span>
         <span class="n">dum_args</span> <span class="o">=</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">Dummy</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">)))</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">))]</span>
-        <span class="n">iter_args</span> <span class="o">=</span> <span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">i</span> <span class="k">if</span> <span class="n">isiter</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="k">else</span> <span class="n">i</span>
-            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">a</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">dum_args</span><span class="p">,</span> <span class="n">args</span><span class="p">)])</span>
+
+        <span class="n">indexed_args</span> <span class="o">=</span> <span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span>
+            <span class="n">dum_args</span><span class="p">[</span><span class="n">ind</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span> <span class="o">+</span> <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="s2">&quot;[</span><span class="si">%s</span><span class="s2">]&quot;</span> <span class="o">%</span> <span class="n">k</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">ind</span><span class="p">[</span><span class="mi">1</span><span class="p">:]])</span>
+                    <span class="k">for</span> <span class="n">ind</span> <span class="ow">in</span> <span class="n">flat_indexes</span><span class="p">(</span><span class="n">args</span><span class="p">)])</span>
+
         <span class="n">lstr</span> <span class="o">=</span> <span class="n">lambdastr</span><span class="p">(</span><span class="n">flatten</span><span class="p">(</span><span class="n">args</span><span class="p">),</span> <span class="n">expr</span><span class="p">,</span> <span class="n">printer</span><span class="o">=</span><span class="n">printer</span><span class="p">,</span> <span class="n">dummify</span><span class="o">=</span><span class="n">dummify</span><span class="p">)</span>
-        <span class="n">flat</span> <span class="o">=</span> <span class="s1">&#39;__flatten_args__&#39;</span>
-        <span class="n">rv</span> <span class="o">=</span> <span class="s1">&#39;lambda </span><span class="si">%s</span><span class="s1">: (</span><span class="si">%s</span><span class="s1">)(*list(</span><span class="si">%s</span><span class="s1">([</span><span class="si">%s</span><span class="s1">])))&#39;</span> <span class="o">%</span> <span class="p">(</span>
-            <span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">dum_args</span><span class="p">),</span> <span class="n">lstr</span><span class="p">,</span> <span class="n">flat</span><span class="p">,</span> <span class="n">iter_args</span><span class="p">)</span>
-        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;\b</span><span class="si">%s</span><span class="s1">\b&#39;</span> <span class="o">%</span> <span class="n">flat</span><span class="p">,</span> <span class="n">rv</span><span class="p">))</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;the name </span><span class="si">%s</span><span class="s1"> is reserved by lambdastr&#39;</span> <span class="o">%</span> <span class="n">flat</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">rv</span>
+
+        <span class="k">return</span> <span class="s1">&#39;lambda </span><span class="si">%s</span><span class="s1">: (</span><span class="si">%s</span><span class="s1">)(</span><span class="si">%s</span><span class="s1">)&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">dum_args</span><span class="p">),</span> <span class="n">lstr</span><span class="p">,</span> <span class="n">indexed_args</span><span class="p">)</span>
 
     <span class="n">dummies_dict</span> <span class="o">=</span> <span class="p">{}</span>
     <span class="k">if</span> <span class="n">dummify</span><span class="p">:</span>
@@ -641,9 +670,195 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="n">expr</span> <span class="o">=</span> <span class="n">sub_expr</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">dummies_dict</span><span class="p">)</span>
     <span class="n">expr</span> <span class="o">=</span> <span class="n">lambdarepr</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
-
     <span class="k">return</span> <span class="s2">&quot;lambda </span><span class="si">%s</span><span class="s2">: (</span><span class="si">%s</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">expr</span><span class="p">)</span></div>
 
+<span class="k">class</span> <span class="nc">_EvaluatorPrinter</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">printer</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dummify</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_dummify</span> <span class="o">=</span> <span class="n">dummify</span>
+
+        <span class="c1">#XXX: This has to be done here because of circular imports</span>
+        <span class="kn">from</span> <span class="nn">sympy.printing.lambdarepr</span> <span class="k">import</span> <span class="n">LambdaPrinter</span>
+
+        <span class="k">if</span> <span class="n">printer</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">printer</span> <span class="o">=</span> <span class="n">LambdaPrinter</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="n">inspect</span><span class="o">.</span><span class="n">isfunction</span><span class="p">(</span><span class="n">printer</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_exprrepr</span> <span class="o">=</span> <span class="n">printer</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">inspect</span><span class="o">.</span><span class="n">isclass</span><span class="p">(</span><span class="n">printer</span><span class="p">):</span>
+                <span class="n">printer</span> <span class="o">=</span> <span class="n">printer</span><span class="p">()</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">_exprrepr</span> <span class="o">=</span> <span class="n">printer</span><span class="o">.</span><span class="n">doprint</span>
+
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">printer</span><span class="p">,</span> <span class="s1">&#39;_print_Symbol&#39;</span><span class="p">):</span>
+                <span class="n">symbolrepr</span> <span class="o">=</span> <span class="n">printer</span><span class="o">.</span><span class="n">_print_Symbol</span>
+
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">printer</span><span class="p">,</span> <span class="s1">&#39;_print_Dummy&#39;</span><span class="p">):</span>
+                <span class="n">dummyrepr</span> <span class="o">=</span> <span class="n">printer</span><span class="o">.</span><span class="n">_print_Dummy</span>
+
+        <span class="c1"># Used to print the generated function arguments in a standard way</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_argrepr</span> <span class="o">=</span> <span class="n">LambdaPrinter</span><span class="p">()</span><span class="o">.</span><span class="n">doprint</span>
+
+    <span class="k">def</span> <span class="nf">doprint</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">funcname</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Returns the function definition code as a string.&quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Dummy</span>
+
+        <span class="n">funcbody</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">iterable</span><span class="p">(</span><span class="n">args</span><span class="p">):</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="p">[</span><span class="n">args</span><span class="p">]</span>
+
+        <span class="n">argstrs</span><span class="p">,</span> <span class="n">expr</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_preprocess</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">expr</span><span class="p">)</span>
+
+        <span class="c1"># Generate argument unpacking and final argument list</span>
+        <span class="n">funcargs</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">unpackings</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">for</span> <span class="n">argstr</span> <span class="ow">in</span> <span class="n">argstrs</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">iterable</span><span class="p">(</span><span class="n">argstr</span><span class="p">):</span>
+                <span class="n">funcargs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_argrepr</span><span class="p">(</span><span class="n">Dummy</span><span class="p">()))</span>
+                <span class="n">unpackings</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_print_unpacking</span><span class="p">(</span><span class="n">argstr</span><span class="p">,</span> <span class="n">funcargs</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">funcargs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">argstr</span><span class="p">)</span>
+
+        <span class="n">funcsig</span> <span class="o">=</span> <span class="s1">&#39;def </span><span class="si">{}</span><span class="s1">(</span><span class="si">{}</span><span class="s1">):&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">funcname</span><span class="p">,</span> <span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">funcargs</span><span class="p">))</span>
+
+        <span class="c1"># Wrap input arguments before unpacking</span>
+        <span class="n">funcbody</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_print_funcargwrapping</span><span class="p">(</span><span class="n">funcargs</span><span class="p">))</span>
+
+        <span class="n">funcbody</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">unpackings</span><span class="p">)</span>
+
+        <span class="n">funcbody</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;return (</span><span class="si">{}</span><span class="s1">)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_exprrepr</span><span class="p">(</span><span class="n">expr</span><span class="p">)))</span>
+
+        <span class="n">funclines</span> <span class="o">=</span> <span class="p">[</span><span class="n">funcsig</span><span class="p">]</span>
+        <span class="n">funclines</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="s1">&#39;    &#39;</span> <span class="o">+</span> <span class="n">line</span> <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">funcbody</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">funclines</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span>
+
+    <span class="k">if</span> <span class="n">PY3</span><span class="p">:</span>
+        <span class="nd">@classmethod</span>
+        <span class="k">def</span> <span class="nf">_is_safe_ident</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">ident</span><span class="p">):</span>
+            <span class="k">return</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ident</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">and</span> <span class="n">ident</span><span class="o">.</span><span class="n">isidentifier</span><span class="p">()</span> \
+                    <span class="ow">and</span> <span class="ow">not</span> <span class="n">keyword</span><span class="o">.</span><span class="n">iskeyword</span><span class="p">(</span><span class="n">ident</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">_safe_ident_re</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s1">&#39;^[a-zA-Z_][a-zA-Z0-9_]*$&#39;</span><span class="p">)</span>
+
+        <span class="nd">@classmethod</span>
+        <span class="k">def</span> <span class="nf">_is_safe_ident</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">ident</span><span class="p">):</span>
+            <span class="k">return</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ident</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">and</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_safe_ident_re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">ident</span><span class="p">)</span> \
+                <span class="ow">and</span> <span class="ow">not</span> <span class="p">(</span><span class="n">keyword</span><span class="o">.</span><span class="n">iskeyword</span><span class="p">(</span><span class="n">ident</span><span class="p">)</span> <span class="ow">or</span> <span class="n">ident</span> <span class="o">==</span> <span class="s1">&#39;None&#39;</span><span class="p">)</span>
+
+
+    <span class="k">def</span> <span class="nf">_preprocess</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Preprocess args, expr to replace arguments that do not map</span>
+<span class="sd">        to valid Python identifiers.</span>
+
+<span class="sd">        Returns string form of args, and updated expr.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Dummy</span><span class="p">,</span> <span class="n">Symbol</span><span class="p">,</span> <span class="n">Function</span><span class="p">,</span> <span class="n">flatten</span>
+        <span class="kn">from</span> <span class="nn">sympy.matrices</span> <span class="k">import</span> <span class="n">DeferredVector</span>
+
+        <span class="n">dummify</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dummify</span>
+
+        <span class="c1"># Args of type Dummy can cause name collisions with args</span>
+        <span class="c1"># of type Symbol.  Force dummify of everything in this</span>
+        <span class="c1"># situation.</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">dummify</span><span class="p">:</span>
+            <span class="n">dummify</span> <span class="o">=</span> <span class="nb">any</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">Dummy</span><span class="p">)</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">flatten</span><span class="p">(</span><span class="n">args</span><span class="p">))</span>
+
+        <span class="n">argstrs</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">args</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">iterable</span><span class="p">(</span><span class="n">arg</span><span class="p">):</span>
+                <span class="n">nested_argstrs</span><span class="p">,</span> <span class="n">expr</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_preprocess</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">expr</span><span class="p">)</span>
+                <span class="n">argstrs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nested_argstrs</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">DeferredVector</span><span class="p">):</span>
+                <span class="n">argstrs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">arg</span><span class="p">))</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">Symbol</span><span class="p">):</span>
+                <span class="n">argrep</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_argrepr</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span>
+
+                <span class="k">if</span> <span class="n">dummify</span> <span class="ow">or</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_safe_ident</span><span class="p">(</span><span class="n">argrep</span><span class="p">):</span>
+                    <span class="n">dummy</span> <span class="o">=</span> <span class="n">Dummy</span><span class="p">()</span>
+                    <span class="n">argstrs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_argrepr</span><span class="p">(</span><span class="n">dummy</span><span class="p">))</span>
+                    <span class="n">expr</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_subexpr</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="p">{</span><span class="n">arg</span><span class="p">:</span> <span class="n">dummy</span><span class="p">})</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">argstrs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">argrep</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">Function</span><span class="p">):</span>
+                <span class="n">dummy</span> <span class="o">=</span> <span class="n">Dummy</span><span class="p">()</span>
+                <span class="n">argstrs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_argrepr</span><span class="p">(</span><span class="n">dummy</span><span class="p">))</span>
+                <span class="n">expr</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_subexpr</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="p">{</span><span class="n">arg</span><span class="p">:</span> <span class="n">dummy</span><span class="p">})</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">argstrs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">arg</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">argstrs</span><span class="p">,</span> <span class="n">expr</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_subexpr</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">dummies_dict</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">sympy.matrices</span> <span class="k">import</span> <span class="n">DeferredVector</span>
+        <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">sympify</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">expr</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">dummies_dict</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">DeferredVector</span><span class="p">):</span>
+                <span class="k">pass</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+                <span class="n">k</span> <span class="o">=</span> <span class="p">[</span><span class="n">sub_expr</span><span class="p">(</span><span class="n">sympify</span><span class="p">(</span><span class="n">a</span><span class="p">),</span> <span class="n">dummies_dict</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">keys</span><span class="p">()]</span>
+                <span class="n">v</span> <span class="o">=</span> <span class="p">[</span><span class="n">sub_expr</span><span class="p">(</span><span class="n">sympify</span><span class="p">(</span><span class="n">a</span><span class="p">),</span> <span class="n">dummies_dict</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">values</span><span class="p">()]</span>
+                <span class="n">expr</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">))</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>
+                <span class="n">expr</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">sub_expr</span><span class="p">(</span><span class="n">sympify</span><span class="p">(</span><span class="n">a</span><span class="p">),</span> <span class="n">dummies_dict</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">expr</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+                <span class="n">expr</span> <span class="o">=</span> <span class="p">[</span><span class="n">sub_expr</span><span class="p">(</span><span class="n">sympify</span><span class="p">(</span><span class="n">a</span><span class="p">),</span> <span class="n">dummies_dict</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">expr</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">expr</span>
+
+    <span class="k">def</span> <span class="nf">_print_funcargwrapping</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Generate argument wrapping code.</span>
+
+<span class="sd">        args is the argument list of the generated function (strings).</span>
+
+<span class="sd">        Return value is a list of lines of code that will be inserted  at</span>
+<span class="sd">        the beginning of the function definition.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">[]</span>
+
+    <span class="k">def</span> <span class="nf">_print_unpacking</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">unpackto</span><span class="p">,</span> <span class="n">arg</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Generate argument unpacking code.</span>
+
+<span class="sd">        arg is the function argument to be unpacked (a string), and</span>
+<span class="sd">        unpackto is a list or nested lists of the variable names (strings) to</span>
+<span class="sd">        unpack to.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">def</span> <span class="nf">unpack_lhs</span><span class="p">(</span><span class="n">lvalues</span><span class="p">):</span>
+            <span class="k">return</span> <span class="s1">&#39;[</span><span class="si">{}</span><span class="s1">]&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+                <span class="n">unpack_lhs</span><span class="p">(</span><span class="n">val</span><span class="p">)</span> <span class="k">if</span> <span class="n">iterable</span><span class="p">(</span><span class="n">val</span><span class="p">)</span> <span class="k">else</span> <span class="n">val</span> <span class="k">for</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">lvalues</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="p">[</span><span class="s1">&#39;</span><span class="si">{}</span><span class="s1"> = </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">unpack_lhs</span><span class="p">(</span><span class="n">unpackto</span><span class="p">),</span> <span class="n">arg</span><span class="p">)]</span>
+
+<span class="k">class</span> <span class="nc">_TensorflowEvaluatorPrinter</span><span class="p">(</span><span class="n">_EvaluatorPrinter</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_print_unpacking</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lvalues</span><span class="p">,</span> <span class="n">rvalue</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Generate argument unpacking code.</span>
+
+<span class="sd">        This method is used when the input value is not interable,</span>
+<span class="sd">        but can be indexed (see issue #14655).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">flatten</span>
+
+        <span class="k">def</span> <span class="nf">flat_indexes</span><span class="p">(</span><span class="n">elems</span><span class="p">):</span>
+            <span class="n">n</span> <span class="o">=</span> <span class="mi">0</span>
+
+            <span class="k">for</span> <span class="n">el</span> <span class="ow">in</span> <span class="n">elems</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">iterable</span><span class="p">(</span><span class="n">el</span><span class="p">):</span>
+                    <span class="k">for</span> <span class="n">ndeep</span> <span class="ow">in</span> <span class="n">flat_indexes</span><span class="p">(</span><span class="n">el</span><span class="p">):</span>
+                        <span class="k">yield</span> <span class="p">(</span><span class="n">n</span><span class="p">,)</span> <span class="o">+</span> <span class="n">ndeep</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">yield</span> <span class="p">(</span><span class="n">n</span><span class="p">,)</span>
+
+                <span class="n">n</span> <span class="o">+=</span> <span class="mi">1</span>
+
+        <span class="n">indexed</span> <span class="o">=</span> <span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">{}</span><span class="s1">[</span><span class="si">{}</span><span class="s1">]&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">rvalue</span><span class="p">,</span> <span class="s1">&#39;][&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="n">ind</span><span class="p">)))</span>
+                                <span class="k">for</span> <span class="n">ind</span> <span class="ow">in</span> <span class="n">flat_indexes</span><span class="p">(</span><span class="n">lvalues</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="p">[</span><span class="s1">&#39;[</span><span class="si">{}</span><span class="s1">] = [</span><span class="si">{}</span><span class="s1">]&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">flatten</span><span class="p">(</span><span class="n">lvalues</span><span class="p">)),</span> <span class="n">indexed</span><span class="p">)]</span>
 
 <span class="k">def</span> <span class="nf">_imp_namespace</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">namespace</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot; Return namespace dict with function implementations</span>
@@ -729,7 +944,8 @@
 <span class="sd">    ----------</span>
 <span class="sd">    symfunc : ``str`` or ``UndefinedFunction`` instance</span>
 <span class="sd">       If ``str``, then create new ``UndefinedFunction`` with this as</span>
-<span class="sd">       name.  If `symfunc` is a sympy function, attach implementation to it.</span>
+<span class="sd">       name.  If `symfunc` is an Undefined function, create a new function</span>
+<span class="sd">       with the same name and the implemented function attached.</span>
 <span class="sd">    implementation : callable</span>
 <span class="sd">       numerical implementation to be called by ``evalf()`` or ``lambdify``</span>
 
@@ -744,7 +960,7 @@
 <span class="sd">    &gt;&gt;&gt; from sympy.abc import x</span>
 <span class="sd">    &gt;&gt;&gt; from sympy.utilities.lambdify import lambdify, implemented_function</span>
 <span class="sd">    &gt;&gt;&gt; from sympy import Function</span>
-<span class="sd">    &gt;&gt;&gt; f = implemented_function(Function(&#39;f&#39;), lambda x: x+1)</span>
+<span class="sd">    &gt;&gt;&gt; f = implemented_function(&#39;f&#39;, lambda x: x+1)</span>
 <span class="sd">    &gt;&gt;&gt; lam_f = lambdify(x, f(x))</span>
 <span class="sd">    &gt;&gt;&gt; lam_f(4)</span>
 <span class="sd">    5</span>
@@ -752,13 +968,17 @@
     <span class="c1"># Delayed import to avoid circular imports</span>
     <span class="kn">from</span> <span class="nn">sympy.core.function</span> <span class="k">import</span> <span class="n">UndefinedFunction</span>
     <span class="c1"># if name, create function to hold implementation</span>
+    <span class="n">_extra_kwargs</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">symfunc</span><span class="p">,</span> <span class="n">UndefinedFunction</span><span class="p">):</span>
+        <span class="n">_extra_kwargs</span> <span class="o">=</span> <span class="n">symfunc</span><span class="o">.</span><span class="n">_extra_kwargs</span>
+        <span class="n">symfunc</span> <span class="o">=</span> <span class="n">symfunc</span><span class="o">.</span><span class="vm">__name__</span>
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">symfunc</span><span class="p">,</span> <span class="n">string_types</span><span class="p">):</span>
-        <span class="n">symfunc</span> <span class="o">=</span> <span class="n">UndefinedFunction</span><span class="p">(</span><span class="n">symfunc</span><span class="p">)</span>
+        <span class="c1"># Keyword arguments to UndefinedFunction are added as attributes to</span>
+        <span class="c1"># the created class.</span>
+        <span class="n">symfunc</span> <span class="o">=</span> <span class="n">UndefinedFunction</span><span class="p">(</span><span class="n">symfunc</span><span class="p">,</span> <span class="n">_imp_</span><span class="o">=</span><span class="nb">staticmethod</span><span class="p">(</span><span class="n">implementation</span><span class="p">),</span> <span class="o">**</span><span class="n">_extra_kwargs</span><span class="p">)</span>
     <span class="k">elif</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">symfunc</span><span class="p">,</span> <span class="n">UndefinedFunction</span><span class="p">):</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;symfunc should be either a string or&#39;</span>
                          <span class="s1">&#39; an UndefinedFunction instance.&#39;</span><span class="p">)</span>
-    <span class="c1"># We need to attach as a method because symfunc will be a class</span>
-    <span class="n">symfunc</span><span class="o">.</span><span class="n">_imp_</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">implementation</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">symfunc</span></div>
 </pre></div>
 
@@ -772,12 +992,14 @@
             </a></p>
 <div id="searchbox" style="display: none" role="search">
   <h3>Quick search</h3>
+    <div class="searchformwrapper">
     <form class="search" action="../../../search.html" method="get">
-      <div><input type="text" name="q" /></div>
-      <div><input type="submit" value="Go" /></div>
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
       <input type="hidden" name="check_keywords" value="yes" />
       <input type="hidden" name="area" value="default" />
     </form>
+    </div>
 </div>
 <script type="text/javascript">$('#searchbox').show(0);</script>
         </div>
@@ -793,14 +1015,14 @@
         <li class="right" >
           <a href="../../../py-modindex.html" title="Python Module Index"
              >modules</a> |</li>
-        <li class="nav-item nav-item-0"><a href="../../../index.html">SymPy 1.1.1 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-0"><a href="../../../index.html">SymPy 1.2 documentation</a> &#187;</li>
           <li class="nav-item nav-item-1"><a href="../../index.html" >Module code</a> &#187;</li> 
       </ul>
     </div>
     <div class="footer" role="contentinfo">
-        &#169; Copyright 2017 SymPy Development Team.
-      Last updated on Jul 27, 2017.
-      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.3.
+        &#169; Copyright 2018 SymPy Development Team.
+      Last updated on Jul 09, 2018.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.7.5.
     </div>
   </body>
 </html>
