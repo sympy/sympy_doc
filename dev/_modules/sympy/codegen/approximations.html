@@ -1,0 +1,281 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>sympy.codegen.approximations &#8212; SymPy 1.2 documentation</title>
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="http://live.sympy.org/static/live-core.css" type="text/css" />
+    <link rel="stylesheet" href="http://live.sympy.org/static/live-autocomplete.css" type="text/css" />
+    <link rel="stylesheet" href="http://live.sympy.org/static/live-sphinx.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="../../../" src="../../../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_HTML-full"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/utilities.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/external/classy.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/live-core.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/live-autocomplete.js"></script>
+    <script type="text/javascript" src="http://live.sympy.org/static/live-sphinx.js"></script>
+    <link rel="shortcut icon" href="../../../_static/sympy-notailtext-favicon.ico"/>
+    <link href="http://docs.sympy.org/latest/_modules/sympy/codegen/approximations.html" rel="canonical" />
+    
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../../index.html">SymPy 1.2 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for sympy.codegen.approximations</h1><div class="highlight"><pre>
+<span></span><span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="p">(</span><span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span><span class="p">)</span>
+
+<span class="kn">import</span> <span class="nn">math</span>
+<span class="kn">from</span> <span class="nn">itertools</span> <span class="k">import</span> <span class="n">product</span>
+<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Add</span><span class="p">,</span> <span class="n">Symbol</span><span class="p">,</span> <span class="n">sin</span><span class="p">,</span> <span class="n">Abs</span><span class="p">,</span> <span class="n">oo</span><span class="p">,</span> <span class="n">Interval</span>
+<span class="kn">from</span> <span class="nn">sympy.core.function</span> <span class="k">import</span> <span class="n">UndefinedFunction</span>
+<span class="kn">from</span> <span class="nn">sympy.calculus.singularities</span> <span class="k">import</span> <span class="n">is_increasing</span><span class="p">,</span> <span class="n">is_decreasing</span>
+<span class="kn">from</span> <span class="nn">sympy.codegen.rewriting</span> <span class="k">import</span> <span class="n">Optimization</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">This module collects classes useful for approimate rewriting of expressions.</span>
+<span class="sd">This can be beneficial when generating numeric code for which performance is</span>
+<span class="sd">of greater importance than precision (e.g. for preconditioners used in iterative</span>
+<span class="sd">methods).</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="SumApprox"><a class="viewcode-back" href="../../../modules/codegen.html#sympy.codegen.approximations.SumApprox">[docs]</a><span class="k">class</span> <span class="nc">SumApprox</span><span class="p">(</span><span class="n">Optimization</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Approximates sum by neglecting small terms</span>
+
+<span class="sd">    If terms are expressions which can be determined to be monotonic, then</span>
+<span class="sd">    bounds for those expressions are added.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+<span class="sd">    bounds : dict</span>
+<span class="sd">        Mapping expressions to length 2 tuple of bounds (low, high).</span>
+<span class="sd">    reltol : number</span>
+<span class="sd">        Threshold for when to ignore a term. Taken relative to the largest</span>
+<span class="sd">        lower bound among bounds.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy import exp</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.abc import x, y, z</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.codegen.rewriting import optimize</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.codegen.approximations import SumApprox</span>
+<span class="sd">    &gt;&gt;&gt; bounds = {x: (-1, 1), y: (1000, 2000), z: (-10, 3)}</span>
+<span class="sd">    &gt;&gt;&gt; sum_approx3 = SumApprox(bounds, reltol=1e-3)</span>
+<span class="sd">    &gt;&gt;&gt; sum_approx2 = SumApprox(bounds, reltol=1e-2)</span>
+<span class="sd">    &gt;&gt;&gt; sum_approx1 = SumApprox(bounds, reltol=1e-1)</span>
+<span class="sd">    &gt;&gt;&gt; expr = 3*(x + y + exp(z))</span>
+<span class="sd">    &gt;&gt;&gt; optimize(expr, [sum_approx3])</span>
+<span class="sd">    3*(x + y + exp(z))</span>
+<span class="sd">    &gt;&gt;&gt; optimize(expr, [sum_approx2])</span>
+<span class="sd">    3*y + 3*exp(z)</span>
+<span class="sd">    &gt;&gt;&gt; optimize(expr, [sum_approx1])</span>
+<span class="sd">    3*y</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">bounds</span><span class="p">,</span> <span class="n">reltol</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">SumApprox</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">bounds</span> <span class="o">=</span> <span class="n">bounds</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">reltol</span> <span class="o">=</span> <span class="n">reltol</span>
+
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">factor</span><span class="p">()</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">query</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">arg</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="n">arg</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">query</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Add</span>
+
+    <span class="k">def</span> <span class="nf">value</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">add</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">term</span> <span class="ow">in</span> <span class="n">add</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">term</span><span class="o">.</span><span class="n">is_number</span> <span class="ow">or</span> <span class="n">term</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">bounds</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="n">term</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">fs</span><span class="p">,</span> <span class="o">=</span> <span class="n">term</span><span class="o">.</span><span class="n">free_symbols</span>
+            <span class="k">if</span> <span class="n">fs</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">bounds</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">intrvl</span> <span class="o">=</span> <span class="n">Interval</span><span class="p">(</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">bounds</span><span class="p">[</span><span class="n">fs</span><span class="p">])</span>
+            <span class="k">if</span> <span class="n">is_increasing</span><span class="p">(</span><span class="n">term</span><span class="p">,</span> <span class="n">intrvl</span><span class="p">,</span> <span class="n">fs</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">bounds</span><span class="p">[</span><span class="n">term</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+                    <span class="n">term</span><span class="o">.</span><span class="n">subs</span><span class="p">({</span><span class="n">fs</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">bounds</span><span class="p">[</span><span class="n">fs</span><span class="p">][</span><span class="mi">0</span><span class="p">]}),</span>
+                    <span class="n">term</span><span class="o">.</span><span class="n">subs</span><span class="p">({</span><span class="n">fs</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">bounds</span><span class="p">[</span><span class="n">fs</span><span class="p">][</span><span class="mi">1</span><span class="p">]})</span>
+                <span class="p">)</span>
+            <span class="k">elif</span> <span class="n">is_decreasing</span><span class="p">(</span><span class="n">term</span><span class="p">,</span> <span class="n">intrvl</span><span class="p">,</span> <span class="n">fs</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">bounds</span><span class="p">[</span><span class="n">term</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+                    <span class="n">term</span><span class="o">.</span><span class="n">subs</span><span class="p">({</span><span class="n">fs</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">bounds</span><span class="p">[</span><span class="n">fs</span><span class="p">][</span><span class="mi">1</span><span class="p">]}),</span>
+                    <span class="n">term</span><span class="o">.</span><span class="n">subs</span><span class="p">({</span><span class="n">fs</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">bounds</span><span class="p">[</span><span class="n">fs</span><span class="p">][</span><span class="mi">0</span><span class="p">]})</span>
+                <span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">add</span>
+
+        <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">term</span><span class="o">.</span><span class="n">is_number</span> <span class="ow">or</span> <span class="n">term</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">bounds</span> <span class="k">for</span> <span class="n">term</span> <span class="ow">in</span> <span class="n">add</span><span class="o">.</span><span class="n">args</span><span class="p">):</span>
+            <span class="n">bounds</span> <span class="o">=</span> <span class="p">[(</span><span class="n">term</span><span class="p">,</span> <span class="n">term</span><span class="p">)</span> <span class="k">if</span> <span class="n">term</span><span class="o">.</span><span class="n">is_number</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">bounds</span><span class="p">[</span><span class="n">term</span><span class="p">]</span> <span class="k">for</span> <span class="n">term</span> <span class="ow">in</span> <span class="n">add</span><span class="o">.</span><span class="n">args</span><span class="p">]</span>
+            <span class="n">largest_abs_guarantee</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">for</span> <span class="n">lo</span><span class="p">,</span> <span class="n">hi</span> <span class="ow">in</span> <span class="n">bounds</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">lo</span> <span class="o">&lt;=</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">hi</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="n">largest_abs_guarantee</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">largest_abs_guarantee</span><span class="p">,</span>
+                                            <span class="nb">min</span><span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">lo</span><span class="p">),</span> <span class="nb">abs</span><span class="p">(</span><span class="n">hi</span><span class="p">)))</span>
+            <span class="n">new_terms</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">term</span><span class="p">,</span> <span class="p">(</span><span class="n">lo</span><span class="p">,</span> <span class="n">hi</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">add</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="n">bounds</span><span class="p">):</span>
+                <span class="k">if</span> <span class="nb">max</span><span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">lo</span><span class="p">),</span> <span class="nb">abs</span><span class="p">(</span><span class="n">hi</span><span class="p">))</span> <span class="o">&gt;=</span> <span class="n">largest_abs_guarantee</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">reltol</span><span class="p">:</span>
+                    <span class="n">new_terms</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">term</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">add</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">new_terms</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">add</span></div>
+
+
+<div class="viewcode-block" id="SeriesApprox"><a class="viewcode-back" href="../../../modules/codegen.html#sympy.codegen.approximations.SeriesApprox">[docs]</a><span class="k">class</span> <span class="nc">SeriesApprox</span><span class="p">(</span><span class="n">Optimization</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Approximates functions by expanding them as a series</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+<span class="sd">    bounds : dict</span>
+<span class="sd">        Mapping expressions to length 2 tuple of bounds (low, high).</span>
+<span class="sd">    reltol : number</span>
+<span class="sd">        Threshold for when to ignore a term. Taken relative to the largest</span>
+<span class="sd">        lower bound among bounds.</span>
+<span class="sd">    max_order : int</span>
+<span class="sd">        Largest order to include in series expansion</span>
+<span class="sd">    n_point_checks : int (even)</span>
+<span class="sd">        The validity of an expansion (with respect to reltol) is checked at</span>
+<span class="sd">        discrete points (linearly spaced over the bounds of the variable). The</span>
+<span class="sd">        number of points used in this numerical check is given by this number.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy import sin, pi</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.abc import x, y</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.codegen.rewriting import optimize</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.codegen.approximations import SeriesApprox</span>
+<span class="sd">    &gt;&gt;&gt; bounds = {x: (-.1, .1), y: (pi-1, pi+1)}</span>
+<span class="sd">    &gt;&gt;&gt; series_approx2 = SeriesApprox(bounds, reltol=1e-2)</span>
+<span class="sd">    &gt;&gt;&gt; series_approx3 = SeriesApprox(bounds, reltol=1e-3)</span>
+<span class="sd">    &gt;&gt;&gt; series_approx8 = SeriesApprox(bounds, reltol=1e-8)</span>
+<span class="sd">    &gt;&gt;&gt; expr = sin(x)*sin(y)</span>
+<span class="sd">    &gt;&gt;&gt; optimize(expr, [series_approx2])</span>
+<span class="sd">    x*(-y + (y - pi)**3/6 + pi)</span>
+<span class="sd">    &gt;&gt;&gt; optimize(expr, [series_approx3])</span>
+<span class="sd">    (-x**3/6 + x)*sin(y)</span>
+<span class="sd">    &gt;&gt;&gt; optimize(expr, [series_approx8])</span>
+<span class="sd">    sin(x)*sin(y)</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">bounds</span><span class="p">,</span> <span class="n">reltol</span><span class="p">,</span> <span class="n">max_order</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">n_point_checks</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">SeriesApprox</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">bounds</span> <span class="o">=</span> <span class="n">bounds</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">reltol</span> <span class="o">=</span> <span class="n">reltol</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">max_order</span> <span class="o">=</span> <span class="n">max_order</span>
+        <span class="k">if</span> <span class="n">n_point_checks</span> <span class="o">%</span> <span class="mi">2</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Checking the solution at expansion point is not helpful&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_point_checks</span> <span class="o">=</span> <span class="n">n_point_checks</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_prec</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="o">-</span><span class="n">math</span><span class="o">.</span><span class="n">log10</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">reltol</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">factor</span><span class="p">()</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">query</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">arg</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="n">arg</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">query</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">is_Function</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">UndefinedFunction</span><span class="p">)</span>
+                <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">value</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fexpr</span><span class="p">):</span>
+        <span class="n">free_symbols</span> <span class="o">=</span> <span class="n">fexpr</span><span class="o">.</span><span class="n">free_symbols</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">free_symbols</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">fexpr</span>
+        <span class="n">symb</span><span class="p">,</span> <span class="o">=</span> <span class="n">free_symbols</span>
+        <span class="k">if</span> <span class="n">symb</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">bounds</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">fexpr</span>
+        <span class="n">lo</span><span class="p">,</span> <span class="n">hi</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">bounds</span><span class="p">[</span><span class="n">symb</span><span class="p">]</span>
+        <span class="n">x0</span> <span class="o">=</span> <span class="p">(</span><span class="n">lo</span> <span class="o">+</span> <span class="n">hi</span><span class="p">)</span><span class="o">/</span><span class="mi">2</span>
+        <span class="n">cheapest</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">max_order</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+            <span class="n">fseri</span> <span class="o">=</span> <span class="n">fexpr</span><span class="o">.</span><span class="n">series</span><span class="p">(</span><span class="n">symb</span><span class="p">,</span> <span class="n">x0</span><span class="o">=</span><span class="n">x0</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="n">n</span><span class="p">)</span><span class="o">.</span><span class="n">removeO</span><span class="p">()</span>
+            <span class="n">n_ok</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_point_checks</span><span class="p">):</span>
+                <span class="n">x</span> <span class="o">=</span> <span class="n">lo</span> <span class="o">+</span> <span class="n">idx</span><span class="o">*</span><span class="p">(</span><span class="n">hi</span> <span class="o">-</span> <span class="n">lo</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_point_checks</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+                <span class="n">val</span> <span class="o">=</span> <span class="n">fseri</span><span class="o">.</span><span class="n">xreplace</span><span class="p">({</span><span class="n">symb</span><span class="p">:</span> <span class="n">x</span><span class="p">})</span>
+                <span class="n">ref</span> <span class="o">=</span> <span class="n">fexpr</span><span class="o">.</span><span class="n">xreplace</span><span class="p">({</span><span class="n">symb</span><span class="p">:</span> <span class="n">x</span><span class="p">})</span>
+                <span class="k">if</span> <span class="nb">abs</span><span class="p">((</span><span class="mi">1</span> <span class="o">-</span> <span class="n">val</span><span class="o">/</span><span class="n">ref</span><span class="p">)</span><span class="o">.</span><span class="n">evalf</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_prec</span><span class="p">))</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">reltol</span><span class="p">:</span>
+                    <span class="n">n_ok</span> <span class="o">=</span> <span class="kc">False</span>
+                    <span class="k">break</span>
+
+            <span class="k">if</span> <span class="n">n_ok</span><span class="p">:</span>
+                <span class="n">cheapest</span> <span class="o">=</span> <span class="n">fseri</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">break</span>
+
+        <span class="k">if</span> <span class="n">cheapest</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">fexpr</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">cheapest</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../../index.html">
+              <img class="logo" src="../../../_static/sympylogo.png" alt="Logo"/>
+            </a></p>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../../index.html">SymPy 1.2 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../../index.html" >Module code</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2018 SymPy Development Team.
+      Last updated on Jul 11, 2018.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.7.5.
+    </div>
+  </body>
+</html>
