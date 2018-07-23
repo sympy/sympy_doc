@@ -1165,6 +1165,336 @@
             <span class="k">return</span> <span class="p">(</span><span class="n">points</span><span class="p">[</span><span class="n">deflections</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">max_def</span><span class="p">)],</span> <span class="n">max_def</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">return</span> <span class="kc">None</span></div></div>
+
+
+
+<div class="viewcode-block" id="Beam_3d"><a class="viewcode-back" href="../../../../modules/physics/continuum_mechanics/beam.html#sympy.physics.continuum_mechanics.beam.Beam_3d">[docs]</a><span class="k">class</span> <span class="nc">Beam_3d</span><span class="p">(</span><span class="n">Beam</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This class handles loads applied in any direction of a 3D space along</span>
+<span class="sd">    with unequal values of Second moment along different axes.</span>
+
+<span class="sd">    .. note::</span>
+<span class="sd">       While solving a beam bending problem, a user should choose its</span>
+<span class="sd">       own sign convention and should stick to it. The results will</span>
+<span class="sd">       automatically follow the chosen sign convention.</span>
+<span class="sd">       This class assumes that any kind of distributed load/moment is</span>
+<span class="sd">       applied through out the span of a beam.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+<span class="sd">    There is a beam of l meters long. A constant distributed load of magnitude q</span>
+<span class="sd">    is applied along y-axis from start till the end of beam. A constant distributed</span>
+<span class="sd">    moment of magnitude m is also applied along z-axis from start till the end of beam.</span>
+<span class="sd">    Beam is fixed at both of its end. So, deflection of the beam at the both ends</span>
+<span class="sd">    is restricted.</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.physics.continuum_mechanics.beam import Beam_3d</span>
+<span class="sd">    &gt;&gt;&gt; from sympy import symbols</span>
+<span class="sd">    &gt;&gt;&gt; l, E, G, I, A = symbols(&#39;l, E, G, I, A&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; b = Beam_3d(l, E, G, I, A)</span>
+<span class="sd">    &gt;&gt;&gt; b.apply_support(0, &quot;fixed&quot;)</span>
+<span class="sd">    &gt;&gt;&gt; b.apply_support(l, &quot;fixed&quot;)</span>
+<span class="sd">    &gt;&gt;&gt; q, m = symbols(&#39;q, m&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; b.apply_load(q, dir=&quot;y&quot;)</span>
+<span class="sd">    &gt;&gt;&gt; b.apply_moment_load(m, dir=&quot;z&quot;)</span>
+<span class="sd">    &gt;&gt;&gt; b.shear_force()</span>
+<span class="sd">    [0, -q*x, 0]</span>
+<span class="sd">    &gt;&gt;&gt; b.bending_moment()</span>
+<span class="sd">    [0, 0, -m*x + q*x**2/2]</span>
+<span class="sd">    &gt;&gt;&gt; b.solve_slope_deflection()</span>
+<span class="sd">    &gt;&gt;&gt; b.slope()</span>
+<span class="sd">    [0, 0, l*x*(-l*q + 3*l*(A*G*l**2*q - 2*A*G*l*m + 12*E*I*q)/(2*(A*G*l**2 + 12*E*I)) + 3*m)/(6*E*I)</span>
+<span class="sd">    + q*x**3/(6*E*I) + x**2*(-l*(A*G*l**2*q - 2*A*G*l*m + 12*E*I*q)/(2*(A*G*l**2 + 12*E*I))</span>
+<span class="sd">    - m)/(2*E*I)]</span>
+<span class="sd">    &gt;&gt;&gt; b.deflection()</span>
+<span class="sd">    [0, -l**2*q*x**2/(12*E*I) + l**2*x**2*(A*G*l**2*q - 2*A*G*l*m + 12*E*I*q)/(8*E*I*(A*G*l**2 + 12*E*I))</span>
+<span class="sd">    + l*m*x**2/(4*E*I) - l*x**3*(A*G*l**2*q - 2*A*G*l*m + 12*E*I*q)/(12*E*I*(A*G*l**2 + 12*E*I)) - m*x**3/(6*E*I)</span>
+<span class="sd">    + q*x**4/(24*E*I) + l*x*(A*G*l**2*q - 2*A*G*l*m + 12*E*I*q)/(2*A*G*(A*G*l**2 + 12*E*I)) - q*x**2/(2*A*G), 0]</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    .. [1] http://homes.civil.aau.dk/jc/FemteSemester/Beams3D.pdf</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">length</span><span class="p">,</span> <span class="n">elastic_modulus</span><span class="p">,</span> <span class="n">shear_modulus</span> <span class="p">,</span> <span class="n">second_moment</span><span class="p">,</span> <span class="n">area</span><span class="p">,</span> <span class="n">variable</span><span class="o">=</span><span class="n">Symbol</span><span class="p">(</span><span class="s1">&#39;x&#39;</span><span class="p">)):</span>
+        <span class="sd">&quot;&quot;&quot;Initializes the class.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ==========</span>
+<span class="sd">        length : Sympifyable</span>
+<span class="sd">            A Symbol or value representing the Beam&#39;s length.</span>
+<span class="sd">        elastic_modulus : Sympifyable</span>
+<span class="sd">            A SymPy expression representing the Beam&#39;s Modulus of Elasticity.</span>
+<span class="sd">            It is a measure of the stiffness of the Beam material.</span>
+<span class="sd">        shear_modulus : Sympifyable</span>
+<span class="sd">            A SymPy expression representing the Beam&#39;s Modulus of rigidity.</span>
+<span class="sd">            It is a measure of rigidity of the Beam material.</span>
+<span class="sd">        second_moment : Sympifyable or list</span>
+<span class="sd">            A list of two elements having SymPy expression representing the</span>
+<span class="sd">            Beam&#39;s Second moment of area. First value represent Second moment</span>
+<span class="sd">            across y-axis and second across z-axis.</span>
+<span class="sd">            Single SymPy expression can be passed if both values are same</span>
+<span class="sd">        area : Sympifyable</span>
+<span class="sd">            A SymPy expression representing the Beam&#39;s cross-sectional area</span>
+<span class="sd">            in a plane prependicular to length of the Beam.</span>
+<span class="sd">        variable : Symbol, optional</span>
+<span class="sd">            A Symbol object that will be used as the variable along the beam</span>
+<span class="sd">            while representing the load, shear, moment, slope and deflection</span>
+<span class="sd">            curve. By default, it is set to ``Symbol(&#39;x&#39;)``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">length</span> <span class="o">=</span> <span class="n">length</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">elastic_modulus</span> <span class="o">=</span> <span class="n">elastic_modulus</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">shear_modulus</span> <span class="o">=</span> <span class="n">shear_modulus</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">second_moment</span> <span class="o">=</span> <span class="n">second_moment</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">area</span> <span class="o">=</span> <span class="n">area</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">variable</span> <span class="o">=</span> <span class="n">variable</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_boundary_conditions</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;deflection&#39;</span><span class="p">:</span> <span class="p">[],</span> <span class="s1">&#39;slope&#39;</span><span class="p">:</span> <span class="p">[]}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_load_vector</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_moment_load_vector</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_reaction_loads</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_slope</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_deflection</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">shear_modulus</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Young&#39;s Modulus of the Beam. &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_shear_modulus</span>
+
+    <span class="nd">@shear_modulus</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">shear_modulus</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">e</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_shear_modulus</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">second_moment</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Second moment of area of the Beam. &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_second_moment</span>
+
+    <span class="nd">@second_moment</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">second_moment</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">i</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+            <span class="n">i</span> <span class="o">=</span> <span class="p">[</span><span class="n">sympify</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">i</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_second_moment</span> <span class="o">=</span> <span class="n">i</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_second_moment</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">area</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Cross-sectional area of the Beam. &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_area</span>
+
+    <span class="nd">@area</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">area</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">a</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_area</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">load_vector</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a three element list representing the load vector.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_load_vector</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">moment_load_vector</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a three element list representing moment loads on Beam.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_moment_load_vector</span>
+
+<div class="viewcode-block" id="Beam_3d.apply_load"><a class="viewcode-back" href="../../../../modules/physics/continuum_mechanics/beam.html#sympy.physics.continuum_mechanics.beam.Beam_3d.apply_load">[docs]</a>    <span class="k">def</span> <span class="nf">apply_load</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="nb">dir</span><span class="o">=</span><span class="s2">&quot;y&quot;</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        This method adds up the force load to a particular beam object.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ==========</span>
+<span class="sd">        value : Sympifyable</span>
+<span class="sd">            The magnitude of an applied load.</span>
+<span class="sd">        dir : String</span>
+<span class="sd">            Axis along which load is applied.</span>
+<span class="sd">        order : Integer</span>
+<span class="sd">            The order of the applied load.</span>
+<span class="sd">            - For point loads, order=-1</span>
+<span class="sd">            - For constant distributed load, order=0</span>
+<span class="sd">            - For ramp loads, order=1</span>
+<span class="sd">            - For parabolic ramp loads, order=2</span>
+<span class="sd">            - ... so on.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+        <span class="n">order</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">order</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;This class doesn&#39;t support point loads&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">dir</span> <span class="o">==</span> <span class="s2">&quot;x&quot;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_load_vector</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+=</span> <span class="n">value</span>
+        <span class="k">elif</span> <span class="nb">dir</span> <span class="o">==</span> <span class="s2">&quot;y&quot;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_load_vector</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+=</span> <span class="n">value</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_load_vector</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">+=</span> <span class="n">value</span></div>
+
+<div class="viewcode-block" id="Beam_3d.apply_moment_load"><a class="viewcode-back" href="../../../../modules/physics/continuum_mechanics/beam.html#sympy.physics.continuum_mechanics.beam.Beam_3d.apply_moment_load">[docs]</a>    <span class="k">def</span> <span class="nf">apply_moment_load</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="nb">dir</span><span class="o">=</span><span class="s2">&quot;y&quot;</span><span class="p">,</span> <span class="n">order</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        This method adds up the moment loads to a particular beam object.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ==========</span>
+<span class="sd">        value : Sympifyable</span>
+<span class="sd">            The magnitude of an applied moment.</span>
+<span class="sd">        dir : String</span>
+<span class="sd">            Axis along which moment is applied.</span>
+<span class="sd">        order : Integer</span>
+<span class="sd">            The order of the applied load.</span>
+<span class="sd">            - For point moments, order=-2</span>
+<span class="sd">            - For constant distributed moment, order=-1</span>
+<span class="sd">            - For ramp moments, order=0</span>
+<span class="sd">            - For parabolic ramp moments, order=1</span>
+<span class="sd">            - ... so on.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+        <span class="n">order</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">order</span> <span class="o">==</span> <span class="o">-</span><span class="mi">2</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;This class doesn&#39;t support point moments&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">dir</span> <span class="o">==</span> <span class="s2">&quot;x&quot;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_moment_load_vector</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+=</span> <span class="n">value</span>
+        <span class="k">elif</span> <span class="nb">dir</span> <span class="o">==</span> <span class="s2">&quot;y&quot;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_moment_load_vector</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+=</span> <span class="n">value</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_moment_load_vector</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">+=</span> <span class="n">value</span></div>
+
+    <span class="k">def</span> <span class="nf">apply_support</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">loc</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;fixed&quot;</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">type</span> <span class="o">==</span> <span class="s2">&quot;pin&quot;</span> <span class="ow">or</span> <span class="nb">type</span> <span class="o">==</span> <span class="s2">&quot;roller&quot;</span><span class="p">:</span>
+            <span class="n">reaction_load</span> <span class="o">=</span> <span class="n">Symbol</span><span class="p">(</span><span class="s1">&#39;R_&#39;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">loc</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_reaction_loads</span><span class="p">[</span><span class="n">reaction_load</span><span class="p">]</span> <span class="o">=</span> <span class="n">reaction_load</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">bc_deflection</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">loc</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">reaction_load</span> <span class="o">=</span> <span class="n">Symbol</span><span class="p">(</span><span class="s1">&#39;R_&#39;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">loc</span><span class="p">))</span>
+            <span class="n">reaction_moment</span> <span class="o">=</span> <span class="n">Symbol</span><span class="p">(</span><span class="s1">&#39;M_&#39;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">loc</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_reaction_loads</span><span class="p">[</span><span class="n">reaction_load</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">reaction_load</span><span class="p">,</span> <span class="n">reaction_moment</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">bc_deflection</span> <span class="o">=</span> <span class="p">[(</span><span class="n">loc</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">])]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">bc_slope</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">loc</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]))</span>
+
+    <span class="k">def</span> <span class="nf">solve_for_reaction_loads</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">reaction</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Beam_3d can&#39;t solve for&quot;</span>
+                       <span class="s2">&quot;reactional loads&quot;</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Beam_3d.shear_force"><a class="viewcode-back" href="../../../../modules/physics/continuum_mechanics/beam.html#sympy.physics.continuum_mechanics.beam.Beam_3d.shear_force">[docs]</a>    <span class="k">def</span> <span class="nf">shear_force</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a list of three expressions which represents the shear force</span>
+<span class="sd">        curve of the Beam object along all three axes.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">variable</span>
+        <span class="n">q</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_load_vector</span>
+        <span class="n">m</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_moment_load_vector</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">integrate</span><span class="p">(</span><span class="o">-</span><span class="n">q</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">x</span><span class="p">),</span> <span class="n">integrate</span><span class="p">(</span><span class="o">-</span><span class="n">q</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">x</span><span class="p">),</span> <span class="n">integrate</span><span class="p">(</span><span class="o">-</span><span class="n">q</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">x</span><span class="p">)]</span></div>
+
+<div class="viewcode-block" id="Beam_3d.axial_force"><a class="viewcode-back" href="../../../../modules/physics/continuum_mechanics/beam.html#sympy.physics.continuum_mechanics.beam.Beam_3d.axial_force">[docs]</a>    <span class="k">def</span> <span class="nf">axial_force</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns expression of Axial shear force present inside the Beam object.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">shear_force</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span></div>
+
+<div class="viewcode-block" id="Beam_3d.bending_moment"><a class="viewcode-back" href="../../../../modules/physics/continuum_mechanics/beam.html#sympy.physics.continuum_mechanics.beam.Beam_3d.bending_moment">[docs]</a>    <span class="k">def</span> <span class="nf">bending_moment</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a list of three expressions which represents the bending moment</span>
+<span class="sd">        curve of the Beam object along all three axes.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">variable</span>
+        <span class="n">q</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_load_vector</span>
+        <span class="n">m</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_moment_load_vector</span>
+        <span class="n">shear</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">shear_force</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="p">[</span><span class="n">integrate</span><span class="p">(</span><span class="o">-</span><span class="n">m</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">x</span><span class="p">),</span> <span class="n">integrate</span><span class="p">(</span><span class="o">-</span><span class="n">m</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">shear</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">x</span><span class="p">),</span>
+                <span class="n">integrate</span><span class="p">(</span><span class="o">-</span><span class="n">m</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">-</span> <span class="n">shear</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">x</span><span class="p">)</span> <span class="p">]</span></div>
+
+<div class="viewcode-block" id="Beam_3d.torsional_moment"><a class="viewcode-back" href="../../../../modules/physics/continuum_mechanics/beam.html#sympy.physics.continuum_mechanics.beam.Beam_3d.torsional_moment">[docs]</a>    <span class="k">def</span> <span class="nf">torsional_moment</span><span class="p">():</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns expression of Torsional moment present inside the Beam object.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">bending_moment</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span></div>
+
+    <span class="k">def</span> <span class="nf">solve_slope_deflection</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">dsolve</span><span class="p">,</span> <span class="n">Function</span><span class="p">,</span> <span class="n">Derivative</span><span class="p">,</span> <span class="n">Eq</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">variable</span>
+        <span class="n">l</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">length</span>
+        <span class="n">E</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">elastic_modulus</span>
+        <span class="n">G</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">shear_modulus</span>
+        <span class="n">I</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">second_moment</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">I</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+            <span class="n">I_y</span><span class="p">,</span> <span class="n">I_z</span> <span class="o">=</span> <span class="n">I</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">I</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">I_y</span> <span class="o">=</span> <span class="n">I_z</span> <span class="o">=</span> <span class="n">I</span>
+        <span class="n">A</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">area</span>
+        <span class="n">load</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_load_vector</span>
+        <span class="n">moment</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_moment_load_vector</span>
+        <span class="n">defl</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="s1">&#39;defl&#39;</span><span class="p">)</span>
+        <span class="n">theta</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="s1">&#39;theta&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Finding deflection along x-axis(and corresponding slope value by differentiating it)</span>
+        <span class="c1"># Equation used: Derivative(E*A*Derivative(def_x(x), x), x) + load_x = 0</span>
+        <span class="n">eq</span> <span class="o">=</span> <span class="n">Derivative</span><span class="p">(</span><span class="n">E</span><span class="o">*</span><span class="n">A</span><span class="o">*</span><span class="n">Derivative</span><span class="p">(</span><span class="n">defl</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="n">x</span><span class="p">),</span> <span class="n">x</span><span class="p">)</span> <span class="o">+</span> <span class="n">load</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">def_x</span> <span class="o">=</span> <span class="n">dsolve</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">defl</span><span class="p">(</span><span class="n">x</span><span class="p">))</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="c1"># Solving constants originated from dsolve</span>
+        <span class="n">C1</span> <span class="o">=</span> <span class="n">Symbol</span><span class="p">(</span><span class="s1">&#39;C1&#39;</span><span class="p">)</span>
+        <span class="n">C2</span> <span class="o">=</span> <span class="n">Symbol</span><span class="p">(</span><span class="s1">&#39;C2&#39;</span><span class="p">)</span>
+        <span class="n">constants</span> <span class="o">=</span> <span class="nb">list</span><span class="p">((</span><span class="n">linsolve</span><span class="p">([</span><span class="n">def_x</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">def_x</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">l</span><span class="p">)],</span> <span class="n">C1</span><span class="p">,</span> <span class="n">C2</span><span class="p">)</span><span class="o">.</span><span class="n">args</span><span class="p">)[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">def_x</span> <span class="o">=</span> <span class="n">def_x</span><span class="o">.</span><span class="n">subs</span><span class="p">({</span><span class="n">C1</span><span class="p">:</span><span class="n">constants</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">C2</span><span class="p">:</span><span class="n">constants</span><span class="p">[</span><span class="mi">1</span><span class="p">]})</span>
+        <span class="n">slope_x</span> <span class="o">=</span> <span class="n">def_x</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_deflection</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">def_x</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_slope</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">slope_x</span>
+
+        <span class="c1"># Finding deflection along y-axis and slope across z-axis. System of equation involved:</span>
+        <span class="c1"># 1: Derivative(E*I_z*Derivative(theta_z(x), x), x) + G*A*(Derivative(defl_y(x), x) - theta_z(x)) + moment_z = 0</span>
+        <span class="c1"># 2: Derivative(G*A*(Derivative(defl_y(x), x) - theta_z(x)), x) + load_y = 0</span>
+        <span class="n">C_i</span> <span class="o">=</span> <span class="n">Symbol</span><span class="p">(</span><span class="s1">&#39;C_i&#39;</span><span class="p">)</span>
+        <span class="c1"># Substitute value of `G*A*(Derivative(defl_y(x), x) - theta_z(x))` from (2) in (1)</span>
+        <span class="n">eq1</span> <span class="o">=</span> <span class="n">Derivative</span><span class="p">(</span><span class="n">E</span><span class="o">*</span><span class="n">I_z</span><span class="o">*</span><span class="n">Derivative</span><span class="p">(</span><span class="n">theta</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="n">x</span><span class="p">),</span> <span class="n">x</span><span class="p">)</span> <span class="o">+</span> <span class="p">(</span><span class="n">integrate</span><span class="p">(</span><span class="o">-</span><span class="n">load</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">x</span><span class="p">)</span> <span class="o">+</span> <span class="n">C_i</span><span class="p">)</span> <span class="o">+</span> <span class="n">moment</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+        <span class="n">slope_z</span> <span class="o">=</span> <span class="n">dsolve</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="n">eq1</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="c1"># Solve for constants originated from using dsolve on eq1</span>
+        <span class="n">constants</span> <span class="o">=</span> <span class="nb">list</span><span class="p">((</span><span class="n">linsolve</span><span class="p">([</span><span class="n">slope_z</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">slope_z</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">l</span><span class="p">)],</span> <span class="n">C1</span><span class="p">,</span> <span class="n">C2</span><span class="p">)</span><span class="o">.</span><span class="n">args</span><span class="p">)[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">slope_z</span> <span class="o">=</span> <span class="n">slope_z</span><span class="o">.</span><span class="n">subs</span><span class="p">({</span><span class="n">C1</span><span class="p">:</span><span class="n">constants</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">C2</span><span class="p">:</span><span class="n">constants</span><span class="p">[</span><span class="mi">1</span><span class="p">]})</span>
+
+        <span class="c1"># Put value of slope obtained back in (2) to solve for `C_i` and find deflection across y-axis</span>
+        <span class="n">eq2</span> <span class="o">=</span> <span class="n">G</span><span class="o">*</span><span class="n">A</span><span class="o">*</span><span class="p">(</span><span class="n">Derivative</span><span class="p">(</span><span class="n">defl</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="n">x</span><span class="p">))</span> <span class="o">+</span> <span class="n">load</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">x</span> <span class="o">-</span> <span class="n">C_i</span> <span class="o">-</span> <span class="n">G</span><span class="o">*</span><span class="n">A</span><span class="o">*</span><span class="n">slope_z</span>
+        <span class="n">def_y</span> <span class="o">=</span> <span class="n">dsolve</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="n">eq2</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">defl</span><span class="p">(</span><span class="n">x</span><span class="p">))</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="c1"># Solve for constants originated from using dsolve on eq2</span>
+        <span class="n">constants</span> <span class="o">=</span> <span class="nb">list</span><span class="p">((</span><span class="n">linsolve</span><span class="p">([</span><span class="n">def_y</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">def_y</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">l</span><span class="p">)],</span> <span class="n">C1</span><span class="p">,</span> <span class="n">C_i</span><span class="p">)</span><span class="o">.</span><span class="n">args</span><span class="p">)[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_deflection</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">def_y</span><span class="o">.</span><span class="n">subs</span><span class="p">({</span><span class="n">C1</span><span class="p">:</span><span class="n">constants</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">C_i</span><span class="p">:</span><span class="n">constants</span><span class="p">[</span><span class="mi">1</span><span class="p">]})</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_slope</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">slope_z</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">C_i</span><span class="p">,</span> <span class="n">constants</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+
+        <span class="c1"># Finding deflection along z-axis and slope across y-axis. System of equation involved:</span>
+        <span class="c1"># 1: Derivative(E*I_y*Derivative(theta_y(x), x), x) - G*A*(Derivative(defl_z(x), x) + theta_y(x)) + moment_y = 0</span>
+        <span class="c1"># 2: Derivative(G*A*(Derivative(defl_z(x), x) + theta_y(x)), x) + load_z = 0</span>
+
+        <span class="c1"># Substitute value of `G*A*(Derivative(defl_y(x), x) + theta_z(x))` from (2) in (1)</span>
+        <span class="n">eq1</span> <span class="o">=</span> <span class="n">Derivative</span><span class="p">(</span><span class="n">E</span><span class="o">*</span><span class="n">I_y</span><span class="o">*</span><span class="n">Derivative</span><span class="p">(</span><span class="n">theta</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="n">x</span><span class="p">),</span> <span class="n">x</span><span class="p">)</span> <span class="o">+</span> <span class="p">(</span><span class="n">integrate</span><span class="p">(</span><span class="n">load</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">x</span><span class="p">)</span> <span class="o">-</span> <span class="n">C_i</span><span class="p">)</span> <span class="o">+</span> <span class="n">moment</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">slope_y</span> <span class="o">=</span> <span class="n">dsolve</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="n">eq1</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="c1"># Solve for constants originated from using dsolve on eq1</span>
+        <span class="n">constants</span> <span class="o">=</span> <span class="nb">list</span><span class="p">((</span><span class="n">linsolve</span><span class="p">([</span><span class="n">slope_y</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">slope_y</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">l</span><span class="p">)],</span> <span class="n">C1</span><span class="p">,</span> <span class="n">C2</span><span class="p">)</span><span class="o">.</span><span class="n">args</span><span class="p">)[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">slope_y</span> <span class="o">=</span> <span class="n">slope_y</span><span class="o">.</span><span class="n">subs</span><span class="p">({</span><span class="n">C1</span><span class="p">:</span><span class="n">constants</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">C2</span><span class="p">:</span><span class="n">constants</span><span class="p">[</span><span class="mi">1</span><span class="p">]})</span>
+
+        <span class="c1"># Put value of slope obtained back in (2) to solve for `C_i` and find deflection across z-axis</span>
+        <span class="n">eq2</span> <span class="o">=</span> <span class="n">G</span><span class="o">*</span><span class="n">A</span><span class="o">*</span><span class="p">(</span><span class="n">Derivative</span><span class="p">(</span><span class="n">defl</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="n">x</span><span class="p">))</span> <span class="o">+</span> <span class="n">load</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="n">x</span> <span class="o">-</span> <span class="n">C_i</span> <span class="o">+</span> <span class="n">G</span><span class="o">*</span><span class="n">A</span><span class="o">*</span><span class="n">slope_y</span>
+        <span class="n">def_z</span> <span class="o">=</span> <span class="n">dsolve</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="n">eq2</span><span class="p">,</span><span class="mi">0</span><span class="p">))</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="c1"># Solve for constants originated from using dsolve on eq2</span>
+        <span class="n">constants</span> <span class="o">=</span> <span class="nb">list</span><span class="p">((</span><span class="n">linsolve</span><span class="p">([</span><span class="n">def_z</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">def_z</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">l</span><span class="p">)],</span> <span class="n">C1</span><span class="p">,</span> <span class="n">C_i</span><span class="p">)</span><span class="o">.</span><span class="n">args</span><span class="p">)[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_deflection</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">def_z</span><span class="o">.</span><span class="n">subs</span><span class="p">({</span><span class="n">C1</span><span class="p">:</span><span class="n">constants</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">C_i</span><span class="p">:</span><span class="n">constants</span><span class="p">[</span><span class="mi">1</span><span class="p">]})</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_slope</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">slope_y</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">C_i</span><span class="p">,</span> <span class="n">constants</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+
+<div class="viewcode-block" id="Beam_3d.slope"><a class="viewcode-back" href="../../../../modules/physics/continuum_mechanics/beam.html#sympy.physics.continuum_mechanics.beam.Beam_3d.slope">[docs]</a>    <span class="k">def</span> <span class="nf">slope</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a three element list representing slope of deflection curve</span>
+<span class="sd">        along all the three axes.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_slope</span></div>
+
+<div class="viewcode-block" id="Beam_3d.deflection"><a class="viewcode-back" href="../../../../modules/physics/continuum_mechanics/beam.html#sympy.physics.continuum_mechanics.beam.Beam_3d.deflection">[docs]</a>    <span class="k">def</span> <span class="nf">deflection</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a three element list representing deflection curve along all</span>
+<span class="sd">        the three axes.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_deflection</span></div></div>
 </pre></div>
 
           </div>
