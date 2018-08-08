@@ -62,24 +62,25 @@
 <span class="kn">from</span> <span class="nn">sympy.utilities</span> <span class="k">import</span> <span class="n">public</span>
 
 <div class="viewcode-block" id="itermonomials"><a class="viewcode-back" href="../../../modules/polys/reference.html#sympy.polys.monomials.itermonomials">[docs]</a><span class="nd">@public</span>
-<span class="k">def</span> <span class="nf">itermonomials</span><span class="p">(</span><span class="n">variables</span><span class="p">,</span> <span class="n">degree</span><span class="p">):</span>
+<span class="k">def</span> <span class="nf">itermonomials</span><span class="p">(</span><span class="n">variables</span><span class="p">,</span> <span class="n">max_degree</span><span class="p">,</span> <span class="n">min_degree</span> <span class="o">=</span> <span class="mi">0</span><span class="p">):</span>
     <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Generate a set of monomials of the given total degree or less.</span>
+<span class="sd">    Generate a set of monomials of the degree greater than or equal</span>
+<span class="sd">    to `min_degree` and less than or equal to `max_degree`.</span>
 
-<span class="sd">    Given a set of variables `V` and a total degree `N` generate</span>
-<span class="sd">    a set of monomials of degree at most `N`. The total number of</span>
-<span class="sd">    monomials in commutative variables is huge and is given by the</span>
-<span class="sd">    following formula:</span>
+<span class="sd">    Given a set of variables `V` and a min_degree `N` and a max_degree `M`</span>
+<span class="sd">    generate a set of monomials of degree less than or equal to `N` and greater</span>
+<span class="sd">    than or equal to `M`. The total number of monomials in commutative</span>
+<span class="sd">    variables is huge and is given by the following formula if `M = 0`:</span>
 
 <span class="sd">    .. math::</span>
 
 <span class="sd">        \frac{(\#V + N)!}{\#V! N!}</span>
 
 <span class="sd">    For example if we would like to generate a dense polynomial of</span>
-<span class="sd">    a total degree `N = 50` in 5 variables, assuming that exponents</span>
-<span class="sd">    and all of coefficients are 32-bit long and stored in an array we</span>
-<span class="sd">    would need almost 80 GiB of memory! Fortunately most polynomials,</span>
-<span class="sd">    that we will encounter, are sparse.</span>
+<span class="sd">    a total degree `N = 50` and `M = 0`, which is the worst case, in 5</span>
+<span class="sd">    variables, assuming that exponents and all of coefficients are 32-bit long</span>
+<span class="sd">    and stored in an array we would need almost 80 GiB of memory! Fortunately</span>
+<span class="sd">    most polynomials, that we will encounter, are sparse.</span>
 
 <span class="sd">    Examples</span>
 <span class="sd">    ========</span>
@@ -102,18 +103,41 @@
 <span class="sd">        &gt;&gt;&gt; itermonomials([a, b, x], 2)</span>
 <span class="sd">        {1, a, a**2, b, b**2, x, x**2, a*b, b*a, x*a, x*b}</span>
 
+<span class="sd">        &gt;&gt;&gt; sorted(itermonomials([x, y], 2, 1), key=monomial_key(&#39;grlex&#39;, [y, x]))</span>
+<span class="sd">        [x, y, x**2, x*y, y**2]</span>
+
 
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">if</span> <span class="n">degree</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">max_degree</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">min_degree</span> <span class="o">&gt;</span> <span class="n">max_degree</span><span class="p">:</span>
         <span class="k">return</span> <span class="nb">set</span><span class="p">()</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">variables</span> <span class="ow">or</span> <span class="n">degree</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">variables</span> <span class="ow">or</span> <span class="n">max_degree</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
         <span class="k">return</span> <span class="p">{</span><span class="n">S</span><span class="p">(</span><span class="mi">1</span><span class="p">)}</span>
     <span class="c1"># Force to list in case of passed tuple or other incompatible collection</span>
     <span class="n">variables</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">variables</span><span class="p">)</span> <span class="o">+</span> <span class="p">[</span><span class="n">S</span><span class="p">(</span><span class="mi">1</span><span class="p">)]</span>
     <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">variable</span><span class="o">.</span><span class="n">is_commutative</span> <span class="k">for</span> <span class="n">variable</span> <span class="ow">in</span> <span class="n">variables</span><span class="p">):</span>
-        <span class="k">return</span> <span class="p">{</span><span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">item</span><span class="p">)</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">combinations_with_replacement</span><span class="p">(</span><span class="n">variables</span><span class="p">,</span> <span class="n">degree</span><span class="p">)}</span>
+        <span class="n">monomials_list_comm</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">combinations_with_replacement</span><span class="p">(</span><span class="n">variables</span><span class="p">,</span> <span class="n">max_degree</span><span class="p">):</span>
+            <span class="n">powers</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+            <span class="k">for</span> <span class="n">variable</span> <span class="ow">in</span> <span class="n">variables</span><span class="p">:</span>
+                <span class="n">powers</span><span class="p">[</span><span class="n">variable</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">for</span> <span class="n">variable</span> <span class="ow">in</span> <span class="n">item</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">variable</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="n">powers</span><span class="p">[</span><span class="n">variable</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="nb">max</span><span class="p">(</span><span class="n">powers</span><span class="o">.</span><span class="n">values</span><span class="p">())</span> <span class="o">&gt;=</span> <span class="n">min_degree</span><span class="p">:</span>
+                <span class="n">monomials_list_comm</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">item</span><span class="p">))</span>
+        <span class="k">return</span> <span class="nb">set</span><span class="p">(</span><span class="n">monomials_list_comm</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="k">return</span> <span class="p">{</span><span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">item</span><span class="p">)</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">product</span><span class="p">(</span><span class="n">variables</span><span class="p">,</span> <span class="n">repeat</span><span class="o">=</span><span class="n">degree</span><span class="p">)}</span></div>
+        <span class="n">monomials_list_non_comm</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">product</span><span class="p">(</span><span class="n">variables</span><span class="p">,</span> <span class="n">repeat</span><span class="o">=</span><span class="n">max_degree</span><span class="p">):</span>
+            <span class="n">powers</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+            <span class="k">for</span> <span class="n">variable</span> <span class="ow">in</span> <span class="n">variables</span><span class="p">:</span>
+                <span class="n">powers</span><span class="p">[</span><span class="n">variable</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">for</span> <span class="n">variable</span> <span class="ow">in</span> <span class="n">item</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">variable</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="n">powers</span><span class="p">[</span><span class="n">variable</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="nb">max</span><span class="p">(</span><span class="n">powers</span><span class="o">.</span><span class="n">values</span><span class="p">())</span> <span class="o">&gt;=</span> <span class="n">min_degree</span><span class="p">:</span>
+                <span class="n">monomials_list_non_comm</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">item</span><span class="p">))</span>
+        <span class="k">return</span> <span class="nb">set</span><span class="p">(</span><span class="n">monomials_list_non_comm</span><span class="p">)</span></div>
 
 <div class="viewcode-block" id="monomial_count"><a class="viewcode-back" href="../../../modules/polys/reference.html#sympy.polys.monomials.monomial_count">[docs]</a><span class="k">def</span> <span class="nf">monomial_count</span><span class="p">(</span><span class="n">V</span><span class="p">,</span> <span class="n">N</span><span class="p">):</span>
     <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
