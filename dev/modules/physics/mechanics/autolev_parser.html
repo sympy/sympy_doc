@@ -198,6 +198,414 @@ getting outputs similar to Autolev.
 Refer to the <a class="reference external" href="http://docs.sympy.org/latest/tutorial/index.html">SymPy Tutorial</a>
 to know more about these.</p>
 </div>
+<div class="section" id="gotchas">
+<span id="gotchas-autolev"></span><h2>Gotchas<a class="headerlink" href="#gotchas" title="Permalink to this headline">¶</a></h2>
+<ul>
+<li><p class="first">Don’t use variable names that conflict with Python’s reserved words.
+This is one example where this is violated:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>Autolev Code
+------------
+LAMBDA = EIG(M)
+</pre></div>
+</div>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">SymPy</span> <span class="n">Code</span>
+<span class="o">----------</span>
+<span class="k">lambda</span> <span class="o">=</span> <span class="n">sm</span><span class="o">.</span><span class="n">Matrix</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">evalf</span><span class="p">()</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">(</span><span class="n">m</span><span class="p">)</span><span class="o">.</span><span class="n">eigenvals</span><span class="p">()</span><span class="o">.</span><span class="n">keys</span><span class="p">()])</span>
+</pre></div>
+</div>
+</li>
+</ul>
+<hr class="docutils" />
+<ul>
+<li><p class="first">Make sure that the names of vectors and scalars are different.
+Autolev treats these differently but these will get overwritten in Python.
+The parser currently allows the names of bodies and scalars/vectors to
+coincide but doesn’t do this between scalars and vectors.
+This should probably be changed in the future.</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>Autolev Code
+------------
+VARIABLES X,Y
+FRAMES A
+A&gt; = X*A1&gt; + Y*A2&gt;
+A = X+Y
+</pre></div>
+</div>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">SymPy</span> <span class="n">Code</span>
+<span class="o">----------</span>
+<span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">me</span><span class="o">.</span><span class="n">dynamicsymbols</span><span class="p">(</span><span class="s1">&#39;x y&#39;</span><span class="p">)</span>
+<span class="n">frame_a</span> <span class="o">=</span> <span class="n">me</span><span class="o">.</span><span class="n">ReferenceFrame</span><span class="p">(</span><span class="s1">&#39;a&#39;</span><span class="p">)</span>
+<span class="n">a</span> <span class="o">=</span> <span class="n">x</span><span class="o">*</span><span class="n">frame_a</span><span class="o">.</span><span class="n">x</span> <span class="o">+</span> <span class="n">y</span><span class="o">*</span><span class="n">frame_a</span><span class="o">.</span><span class="n">y</span>
+<span class="n">a</span> <span class="o">=</span> <span class="n">x</span> <span class="o">+</span> <span class="n">y</span>
+<span class="c1"># Note how frame_a is named differently so it doesn&#39;t cause a problem.</span>
+<span class="c1"># On the other hand, &#39;a&#39; gets rewritten from a scalar to a vector.</span>
+<span class="c1"># This should be changed in the future.</span>
+</pre></div>
+</div>
+</li>
+</ul>
+<hr class="docutils" />
+<ul>
+<li><p class="first">When dealing with Matrices returned by functions, one must check the
+order of the values as they may not be the same as in Autolev. This is
+especially the case for eigenvalues and eigenvetors.</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>Autolev Code
+------------
+EIG(M, E1, E2)
+% -&gt; [5; 14; 13]
+E2ROW = ROWS(E2, 1)
+EIGVEC&gt; = VECTOR(A, E2ROW)
+</pre></div>
+</div>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">SymPy</span> <span class="n">Code</span>
+<span class="o">----------</span>
+<span class="n">e1</span> <span class="o">=</span> <span class="n">sm</span><span class="o">.</span><span class="n">Matrix</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">evalf</span><span class="p">()</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">m</span><span class="o">.</span><span class="n">eigenvals</span><span class="p">()</span><span class="o">.</span><span class="n">keys</span><span class="p">()])</span>
+<span class="c1"># sm.Matrix([5;13;14]) different order</span>
+<span class="n">e2</span> <span class="o">=</span> <span class="n">sm</span><span class="o">.</span><span class="n">Matrix</span><span class="p">([</span><span class="n">i</span><span class="p">[</span><span class="mi">2</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">evalf</span><span class="p">()</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">m</span><span class="o">.</span><span class="n">eigenvects</span><span class="p">()])</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">m</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+<span class="n">e2row</span> <span class="o">=</span> <span class="n">e2</span><span class="o">.</span><span class="n">row</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+<span class="c1"># This result depends on the order of the vectors in the eigenvecs.</span>
+<span class="n">eigenvec</span> <span class="o">=</span> <span class="n">e2row</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">a</span><span class="o">.</span><span class="n">x</span> <span class="o">+</span> <span class="n">e2row</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">a</span><span class="o">.</span><span class="n">y</span> <span class="o">+</span> <span class="n">e2row</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="n">a</span><span class="o">.</span><span class="n">y</span>
+</pre></div>
+</div>
+</li>
+</ul>
+<hr class="docutils" />
+<ul>
+<li><p class="first">When using <code class="docutils literal notranslate"><span class="pre">EVALUATE</span></code>, use something like <code class="docutils literal notranslate"><span class="pre">90*UNITS(deg,rad)</span></code> for
+angle substitutions as radians are the default in SymPy.
+You could also add <code class="docutils literal notranslate"><span class="pre">np.deg2rad()</span></code> directly in the SymPy code.</p>
+<p>This need not be done for the output code (generated on parsing the
+<code class="docutils literal notranslate"><span class="pre">CODE</span></code> commands) as the parser takes care of this when <code class="docutils literal notranslate"><span class="pre">deg</span></code> units
+are given in the <code class="docutils literal notranslate"><span class="pre">INPUT</span></code> declarations.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">DEGREES</span></code> setting, on the other hand, works only in some cases like
+in <code class="docutils literal notranslate"><span class="pre">SIMPROT</span></code> where an angle is expected.</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>Autolev Code
+------------
+A&gt; = Q1*A1&gt; + Q2*A2&gt;
+B&gt; = EVALUATE(A&gt;, Q1:30*UNITS(DEG,RAD))
+</pre></div>
+</div>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">SymPy</span> <span class="n">Code</span>
+<span class="o">----------</span>
+<span class="n">a</span> <span class="o">=</span> <span class="n">q1</span><span class="o">*</span><span class="n">a</span><span class="o">.</span><span class="n">frame_a</span><span class="o">.</span><span class="n">x</span> <span class="o">+</span> <span class="n">q2</span><span class="o">*</span><span class="n">frame_a</span><span class="o">.</span><span class="n">y</span>
+<span class="n">b</span> <span class="o">=</span> <span class="n">a</span><span class="o">.</span><span class="n">subs</span><span class="p">({</span><span class="n">q1</span><span class="p">:</span><span class="mi">30</span><span class="o">*</span><span class="mf">0.0174533</span><span class="p">})</span>
+<span class="c1"># b = a.subs({q1:np.deg2rad(30)}</span>
+</pre></div>
+</div>
+</li>
+</ul>
+<hr class="docutils" />
+<ul class="simple">
+<li>Most of the Autolev settings have not been parsed and have no effect on the parser.
+The only ones that work somewhat are <code class="docutils literal notranslate"><span class="pre">COMPLEX</span></code> and <code class="docutils literal notranslate"><span class="pre">DEGREES</span></code>.
+It is advised to look into alternatives to these in SymPy and Python.</li>
+</ul>
+<hr class="docutils" />
+<ul class="simple">
+<li>The <code class="docutils literal notranslate"><span class="pre">REPRESENT</span></code> command is not supported.
+Use the <code class="docutils literal notranslate"><span class="pre">MATRIX</span></code>, <code class="docutils literal notranslate"><span class="pre">VECTOR</span></code> or <code class="docutils literal notranslate"><span class="pre">DYADIC</span></code> commands instead.
+Autolev 4.1 suggests these over <code class="docutils literal notranslate"><span class="pre">REPRESENT</span></code> as well while still allowing
+it but the parser doesn’t parse it.</li>
+</ul>
+<hr class="docutils" />
+<ul class="simple">
+<li>Do not use variables declarations of the type <code class="docutils literal notranslate"><span class="pre">WO{3}RD{2,4}</span></code>.
+The parser can only handle one variable name followed by one pair
+of curly braces and any number of <code class="docutils literal notranslate"><span class="pre">'</span></code> s.
+You would have to declare all the cases manually if you want to achieve
+something like <code class="docutils literal notranslate"><span class="pre">WO{3}RD{2,4}</span></code>.</li>
+</ul>
+<hr class="docutils" />
+<ul>
+<li><p class="first">The parser can handle normal versions of most commands but it may not
+parse functions with Matrix arguments properly in most cases.
+Eg:</p>
+<p><code class="docutils literal notranslate"><span class="pre">M=COEF([E1;E2],[U1,U2,U3])</span></code></p>
+<p>This would compute the coefficients of <code class="docutils literal notranslate"><span class="pre">U1</span></code>, <code class="docutils literal notranslate"><span class="pre">U2</span></code> and <code class="docutils literal notranslate"><span class="pre">U3</span></code> in <code class="docutils literal notranslate"><span class="pre">E1</span></code>
+and <code class="docutils literal notranslate"><span class="pre">E2</span></code>. It is preferable to manually construct a Matrix using the
+regular versions of these commands.</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>Autolev Code
+------------
+% COEF([E1;E2],[U1,U2,U3])
+M = [COEF(E1,U1),COEF(E1,U2),COEF(E1,U3) &amp;
+    ;COEF(E2,U1),COEF(E2,U2),COEF(E2,U3)]
+</pre></div>
+</div>
+</li>
+</ul>
+<hr class="docutils" />
+<ul>
+<li><p class="first"><code class="docutils literal notranslate"><span class="pre">MOTIONVARIABLE</span></code> declarations must be used for the generalized coordinates
+and speeds and all other variables must be declared in regular
+<code class="docutils literal notranslate"><span class="pre">VARIABLE</span></code> declarations.
+The parser requires this to distinguish between them to pass the correct
+parameters to the Kane’s method object.</p>
+<p>It is also preferred to always declare the speeds corresponding to the
+coordinates and to pass in the kinematic differential equations.
+The parser is able to handle some cases where this isn’t the case by
+introducing some dummy variables of its own but SymPy on its own
+does require them.</p>
+<p>Also note that older Autolev declarations like <code class="docutils literal notranslate"><span class="pre">VARIABLES</span> <span class="pre">U{3}'</span></code> are not
+supported either.</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>Autolev Code
+------------
+MOTIONVARIABLES&#39; Q{2}&#39;, U{2}&#39;
+% ----- OTHER LINES ----
+Q1&#39; = U1
+Q2&#39; = U2
+----- OTHER LINES ----
+ZERO = FR() + FRSTAR()
+</pre></div>
+</div>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">SymPy</span> <span class="n">Code</span>
+<span class="o">----------</span>
+<span class="n">q1</span><span class="p">,</span> <span class="n">q2</span><span class="p">,</span> <span class="n">u1</span><span class="p">,</span> <span class="n">u2</span> <span class="o">=</span> <span class="n">me</span><span class="o">.</span><span class="n">dynamicsymbols</span><span class="p">(</span><span class="s1">&#39;q1 q2 u1 u2&#39;</span><span class="p">)</span>
+<span class="n">q1d</span><span class="p">,</span> <span class="n">q2d</span><span class="p">,</span> <span class="n">u1d</span><span class="p">,</span> <span class="n">u2d</span> <span class="o">=</span> <span class="n">me</span><span class="o">.</span><span class="n">dynamicsymbols</span><span class="p">(</span><span class="s1">&#39;q1 q2 u1 u2&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+<span class="c1"># ------- other lines -------</span>
+
+<span class="n">kd_eqs</span> <span class="o">=</span> <span class="p">[</span><span class="n">q1d</span> <span class="o">-</span> <span class="n">u1</span><span class="p">,</span> <span class="n">q2d</span> <span class="o">-</span> <span class="n">u2</span><span class="p">]</span>
+<span class="n">kane</span> <span class="o">=</span> <span class="n">me</span><span class="o">.</span><span class="n">KanesMethod</span><span class="p">(</span><span class="n">frame_n</span><span class="p">,</span> <span class="n">q_ind</span><span class="o">=</span><span class="p">[</span><span class="n">q1</span><span class="p">,</span><span class="n">q2</span><span class="p">],</span> <span class="n">u_ind</span><span class="o">=</span><span class="p">[</span><span class="n">u1</span><span class="p">,</span> <span class="n">u2</span><span class="p">],</span> <span class="n">kd_eqs</span> <span class="o">=</span> <span class="n">kd_eqs</span><span class="p">)</span>
+<span class="n">fr</span><span class="p">,</span> <span class="n">frstar</span> <span class="o">=</span> <span class="n">kane</span><span class="o">.</span><span class="n">kanes_equations</span><span class="p">([</span><span class="n">particle_p</span><span class="p">,</span> <span class="n">particle_r</span><span class="p">],</span> <span class="n">forceList</span><span class="p">)</span>
+<span class="n">zero</span> <span class="o">=</span> <span class="n">fr</span><span class="o">+</span><span class="n">frstar</span>
+</pre></div>
+</div>
+</li>
+</ul>
+<hr class="docutils" />
+<ul>
+<li><p class="first">Need to change <code class="docutils literal notranslate"><span class="pre">me.dynamicsymbols._t</span></code> to <code class="docutils literal notranslate"><span class="pre">me.dynamicsymbols('t')</span></code> for
+all occurences of it in the Kane’s equations. For example have a look at
+line 10 of this <a class="reference external" href="https://github.com/sympy/sympy/blob/master/sympy/parsing/autolev/test_examples/mass_spring_damper.py">spring damper example</a>.
+This equation is used in forming the Kane’s equations so we need to
+change <code class="docutils literal notranslate"><span class="pre">me.dynamicsymbols._t</span></code> to <code class="docutils literal notranslate"><span class="pre">me.dynamicsymbols('t')</span></code> in this case.</p>
+<p>The main reason that this needs to be done is because PyDy
+requires time dependent specifieds to be explicitly laid out while
+Autolev simply takes care of the stray time variables in the equations
+by itself.</p>
+<p>The problem is that PyDy’s System class does not accept
+<code class="docutils literal notranslate"><span class="pre">dynamicsymbols._t</span></code> as a specified.
+This change is not actually ideal so a better solution should be figured
+out in the future.</p>
+</li>
+</ul>
+<hr class="docutils" />
+<ul>
+<li><p class="first">The parser creates SymPy <code class="docutils literal notranslate"><span class="pre">symbols</span></code> and <code class="docutils literal notranslate"><span class="pre">dynamicsymbols</span></code> by parsing
+variable declarations in the Autolev Code.</p>
+<p>For intermediate expressions which are directly initialized the parser
+does not create SymPy symbols. It just assigns them to the expression.</p>
+<p>On the other hand, when a declared variable is assigned to an expression,
+the parser stores the expression against the variable in a dictionary so
+as to not reassign it to a completely different entity. This constraint
+is due to the inherent nature of Python and how it differs from a language
+like Autolev.</p>
+<p>Also, Autolev seems to be able to assume whether to use a variable or the
+rhs expression that variable has been assigned to in equations even
+without an explicit <code class="docutils literal notranslate"><span class="pre">RHS()</span></code> call in some cases.
+For the parser to work correctly however, it is better to use <code class="docutils literal notranslate"><span class="pre">RHS()</span></code>
+wherever a variable’s rhs expression is meant to be used.</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>Autolev Code
+------------
+VARIABLES X, Y
+E = X + Y
+X = 2*Y
+
+RHS_X = RHS(X)
+
+I1 = X
+I2 = Y
+I3 = X + Y
+
+INERTIA B,I1,I2,I3
+% -&gt; I_B_BO&gt;&gt; = I1*B1&gt;*B1&gt; + I2*B2&gt;*B2&gt; + I3*B3&gt;*B3&gt;
+</pre></div>
+</div>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">SymPy</span> <span class="n">Code</span>
+<span class="o">----------</span>
+<span class="n">x</span><span class="p">,</span><span class="n">y</span> <span class="o">=</span> <span class="n">me</span><span class="o">.</span><span class="n">dynamicsymbols</span><span class="p">(</span><span class="s1">&#39;x y&#39;</span><span class="p">)</span>
+<span class="n">e</span> <span class="o">=</span> <span class="n">x</span> <span class="o">+</span> <span class="n">y</span>  <span class="c1"># No symbol is made out of &#39;e&#39;</span>
+
+<span class="c1"># an entry like {x:2*y} is stored in an rhs dictionary</span>
+
+<span class="n">rhs_x</span> <span class="o">=</span> <span class="mi">2</span><span class="o">*</span><span class="n">y</span>
+
+<span class="n">i1</span> <span class="o">=</span> <span class="n">x</span>  <span class="c1"># again these are not made into SymPy symbols</span>
+<span class="n">i2</span> <span class="o">=</span> <span class="n">y</span>
+<span class="n">i3</span> <span class="o">=</span> <span class="n">x</span> <span class="o">+</span> <span class="n">y</span>
+
+<span class="n">body_b</span><span class="o">.</span><span class="n">inertia</span> <span class="o">=</span> <span class="p">(</span><span class="n">me</span><span class="o">.</span><span class="n">inertia</span><span class="p">(</span><span class="n">body_b_f</span><span class="p">,</span> <span class="n">i1</span><span class="p">,</span> <span class="n">i2</span><span class="p">,</span> <span class="n">i3</span><span class="p">),</span> <span class="n">b_cm</span><span class="p">)</span>
+<span class="c1"># This prints as:</span>
+<span class="c1"># x*b_f.x*b_f.x + y*b_f.y*b_f.y + (x+y)*b_f.z*b_f.z</span>
+<span class="c1"># while Autolev&#39;s output has I1,I2 and I3 in it.</span>
+<span class="c1"># Autolev however seems to know when to use the RHS of I1,I2 and I3</span>
+<span class="c1"># based on the context.</span>
+</pre></div>
+</div>
+</li>
+</ul>
+<hr class="docutils" />
+<ul>
+<li><p class="first">This is how the <code class="docutils literal notranslate"><span class="pre">SOLVE</span></code> command is parsed:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>Autolev Code
+------------
+SOLVE(ZERO,X,Y)
+A = RHS(X)*2 + RHS(Y)
+</pre></div>
+</div>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">SymPy</span> <span class="n">Code</span>
+<span class="o">----------</span>
+<span class="k">print</span><span class="p">(</span><span class="n">sm</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">zero</span><span class="p">,</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">))</span>
+<span class="c1"># Behind the scenes the rhs of x</span>
+<span class="c1"># is set to sm.solve(zero,x,y)[x].</span>
+<span class="n">a</span> <span class="o">=</span> <span class="n">sm</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">zero</span><span class="p">,</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">)[</span><span class="n">x</span><span class="p">]</span><span class="o">*</span><span class="mi">2</span> <span class="o">+</span> <span class="n">sm</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">zero</span><span class="p">,</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">)[</span><span class="n">y</span><span class="p">]</span>
+</pre></div>
+</div>
+<p>The indexing like <code class="docutils literal notranslate"><span class="pre">[x]</span></code> and <code class="docutils literal notranslate"><span class="pre">[y]</span></code> doesn’t always work so you might want to
+look at the underlying dictionary that solve returns and index it correctly.</p>
+</li>
+</ul>
+<hr class="docutils" />
+<ul>
+<li><p class="first">Inertia declarations and Inertia functions work somewhat differently in
+the context of the parser. This might be hard to understand at first
+but this had to be done to bridge the gap due to the differences in
+SymPy and Autolev. Here are some points about them:</p>
+<p>1. Inertia declarations (<code class="docutils literal notranslate"><span class="pre">INERTIA</span> <span class="pre">B,I1,I2,I3</span></code>) set the inertias of rigid
+bodies.</p>
+<p>2. Inertia setters of the form <code class="docutils literal notranslate"><span class="pre">I_C_D&gt;&gt;</span> <span class="pre">=</span> <span class="pre">expr</span></code> however, set the inertias
+only when C is a body. If C is a particle then <code class="docutils literal notranslate"><span class="pre">I_C_D&gt;&gt;</span> <span class="pre">=</span> <span class="pre">expr</span></code>
+simply parses to <code class="docutils literal notranslate"><span class="pre">i_c_d</span> <span class="pre">=</span> <span class="pre">expr</span></code> and <code class="docutils literal notranslate"><span class="pre">i_c_d</span></code> acts like a regular variable.</p>
+<p>3. When it comes to inertia getters (<code class="docutils literal notranslate"><span class="pre">I_C_D&gt;&gt;</span></code> used in an expression or
+<code class="docutils literal notranslate"><span class="pre">INERTIA</span></code> commands), these MUST be used with the <code class="docutils literal notranslate"><span class="pre">EXPRESS</span></code> command
+to specify the frame as SymPy needs this information to compute the
+inertia dyadic.</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>Autolev Code
+------------
+INERTIA B,I1,I2,I3
+I_B_BO&gt;&gt; = X*A1&gt;*A1&gt; + Y*A2&gt;*A2&gt;  % Parser will set the inertia of B
+I_P_Q&gt;&gt; = X*A1&gt;*A1&gt; + Y^2*A2&gt;*A2&gt; % Parser just parses it as i_p_q = expr
+
+E1 = 2*EXPRESS(I_B_O&gt;&gt;,A)
+E2 =  I_P_Q&gt;&gt;
+E3 = EXPRESS(I_P_O&gt;&gt;,A)
+E4 = EXPRESS(INERTIA(O),A)
+
+% In E1 we are using the EXPRESS command with I_B_O&gt;&gt; which makes
+% the parser and SymPy compute the inertia of Body B about point O.
+
+% In E2 we are just using the dyadic object I_P_Q&gt;&gt; (as I_P_Q&gt;&gt; = expr
+% doesn&#39;t act as a setter) defined above and not asking the parser
+% or SymPy to compute anything.
+
+% E3 asks the parser to compute the inertia of P about point O.
+
+% E4 asks the parser to compute the inertias of all bodies wrt about O.
+</pre></div>
+</div>
+</li>
+</ul>
+<hr class="docutils" />
+<ul>
+<li><p class="first">In an inertia declaration of a body, if the inertia is being set about
+a point other than the center of mass, one needs to make sure that
+the position vector setter for that point and the center of mass appears
+before the inertia declaration as SymPy will throw an error otherwise.</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>Autolev Code
+------------
+P_SO_O&gt; = X*A1&gt;
+INERTIA S_(O) I1,I2,I3
+</pre></div>
+</div>
+</li>
+</ul>
+<hr class="docutils" />
+<ul class="simple">
+<li>Note that all Autolev commands have not been implemented. The parser
+now covers the important ones in their basic forms. If you are doubtful
+whether a command is included or not, please have a look at <a class="reference external" href="https://github.com/sympy/sympy/blob/master/sympy/parsing/autolev/_listener_autolev_antlr.py">this file</a>
+in the source code. Search for “&lt;command&gt;” to verify this. Looking at the
+code for the specific command will also give an idea about what form it
+is expected to work in.</li>
+</ul>
+</div>
+<div class="section" id="limitations-and-issues">
+<span id="issues"></span><h2>Limitations and Issues<a class="headerlink" href="#limitations-and-issues" title="Permalink to this headline">¶</a></h2>
+<ul class="simple">
+<li>A lot of the issues have already been discussed in the Gotchas section.
+Some of these are:<ul>
+<li>Vector names coinciding with scalar names are overwritten in Python.</li>
+<li>Some convenient variable declarations aren’t parsed.</li>
+<li>Some convenient forms of functions to return matrices aren’t parsed.</li>
+<li>Settings aren’t parsed.</li>
+<li>symbols and rhs expressions work very differently in Python which might
+cause undesirable results.</li>
+<li>Dictionary indexing for the parsed code of the <code class="docutils literal notranslate"><span class="pre">SOLVE</span></code> command is
+not proper in many cases.</li>
+<li>Need to change <code class="docutils literal notranslate"><span class="pre">dynamicsymbols._t</span></code> to <code class="docutils literal notranslate"><span class="pre">dynamicsymbols('t')</span></code> for the
+PyDy simulation code to work properly.</li>
+</ul>
+</li>
+</ul>
+<p>Here are some other ones:</p>
+<ul class="simple">
+<li>Eigenvectors do not seem to work as expected. The values in Autolev and SymPy
+are not the same in many cases.</li>
+<li>Block matrices aren’t parsed by the parser. It would actually be easier
+to make a change in SymPy to allow matrices to accept other matrices for
+arguments.</li>
+<li>The SymPy equivalent of the <code class="docutils literal notranslate"><span class="pre">TAYLOR</span></code> command <code class="docutils literal notranslate"><span class="pre">.series()</span></code> does not work
+with <code class="docutils literal notranslate"><span class="pre">dynamicsymbols()</span></code>.</li>
+<li>Only <code class="docutils literal notranslate"><span class="pre">DEPENDENT</span></code> constraints are currently parsed. Need to parse
+<code class="docutils literal notranslate"><span class="pre">AUXILIARY</span></code> constraints as well. This should be done soon as it isn’t
+very difficult.</li>
+<li>None of the energy and momentum functions are parsed right now. It would
+be nice to get these working as well. Some changes should probably be made
+to SymPy. For instance, SymPy doesn’t have a function equivalent to <code class="docutils literal notranslate"><span class="pre">NICHECK()</span></code>.</li>
+<li>The numerical integration parts work properly only in the case of the
+<code class="docutils literal notranslate"><span class="pre">KANE</span></code> command with no arguments. Things like <code class="docutils literal notranslate"><span class="pre">KANE(F1,F2)</span></code> do not currently
+work.</li>
+<li>Also, the PyDy numerical simulation code works only for cases where the
+matrix say <code class="docutils literal notranslate"><span class="pre">ZERO</span> <span class="pre">=</span> <span class="pre">FR()</span> <span class="pre">+</span> <span class="pre">FRSTAR()</span></code> is solved for. It doesn’t work well when the
+matrix has some other equations plugged in as well. One hurdle
+faced in achieving this was that PyDy’s System class automatically takes
+in the <code class="docutils literal notranslate"><span class="pre">forcing_full</span></code> and <code class="docutils literal notranslate"><span class="pre">mass_matrix_full</span></code> and solves them without giving the
+user the flexibility to specify the equations. It would be nice to add
+this functionality to the System class.</li>
+</ul>
+</div>
+<div class="section" id="future-improvements">
+<span id="id3"></span><h2>Future Improvements<a class="headerlink" href="#future-improvements" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="completing-dynamics-online">
+<h3>1. Completing Dynamics Online<a class="headerlink" href="#completing-dynamics-online" title="Permalink to this headline">¶</a></h3>
+<p>The parser has been built by referring to and parsing codes from the
+<a class="reference external" href="http://web.mae.ufl.edu/~fregly/PDFs/autolev_tutorial.pdf">Autolev Tutorial</a>
+and the book <em>Dynamics Online: Theory and Implementation Using Autolev</em>.
+Basically, the process involved going through each of these codes,
+validating the parser results and improving the rules if required
+to make sure the codes parsed well.</p>
+<p>The parsed codes of these are available on GitLab <a class="reference external" href="https://gitlab.com/sympy/autolev-test-examples">here</a>.
+The repo is private so access needs to be requested.
+As of now, most codes till Chapter 4 of <em>Dynamics Online</em> have been parsed.</p>
+<p>Completing all the remaining codes of the book (namely, <em>2-10</em>, <em>2-11</em>, <em>rest
+of Ch4</em>, <em>Ch5</em> and <em>Ch6</em> (less important) ) would make the parser more complete.</p>
+</div>
+<div class="section" id="fixing-issues">
+<h3>2. Fixing Issues<a class="headerlink" href="#fixing-issues" title="Permalink to this headline">¶</a></h3>
+<p>The second thing to do would be to go about fixing the problems described
+above in the <a class="reference internal" href="#gotchas-autolev"><span class="std std-ref">Gotchas</span></a> and <a class="reference internal" href="#issues"><span class="std std-ref">Limitations and Issues</span></a>
+sections in order of priority and ease. Many of these require changes
+in the parser code while some of these are better fixed by adding some
+functionality to SymPy.</p>
+</div>
+<div class="section" id="switching-to-an-ast">
+<h3>3. Switching to an AST<a class="headerlink" href="#switching-to-an-ast" title="Permalink to this headline">¶</a></h3>
+<p>The parser is currently built using a kind of Concrete Syntax Tree (CST)
+using the <a class="reference external" href="http://www.antlr.org/">ANTLR</a> framework. It would be ideal to switch from a CST to an
+Abstract Syntax Tree (AST). This way, the parser code will be independent
+of the ANTLR grammar which makes it a lot more flexible. It would also be
+easier to make changes to the grammar and the rules of the parser.</p>
+</div>
+</div>
 </div>
 
 
@@ -214,6 +622,14 @@ to know more about these.</p>
 <li><a class="reference internal" href="#">Autolev Parser</a><ul>
 <li><a class="reference internal" href="#introduction">Introduction</a></li>
 <li><a class="reference internal" href="#usage">Usage</a></li>
+<li><a class="reference internal" href="#gotchas">Gotchas</a></li>
+<li><a class="reference internal" href="#limitations-and-issues">Limitations and Issues</a></li>
+<li><a class="reference internal" href="#future-improvements">Future Improvements</a><ul>
+<li><a class="reference internal" href="#completing-dynamics-online">1. Completing Dynamics Online</a></li>
+<li><a class="reference internal" href="#fixing-issues">2. Fixing Issues</a></li>
+<li><a class="reference internal" href="#switching-to-an-ast">3. Switching to an AST</a></li>
+</ul>
+</li>
 </ul>
 </li>
 </ul>
@@ -270,7 +686,7 @@ to know more about these.</p>
     </div>
     <div class="footer" role="contentinfo">
         &#169; Copyright 2018 SymPy Development Team.
-      Last updated on Aug 12, 2018.
+      Last updated on Aug 13, 2018.
       Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.7.6.
     </div>
   </body>
