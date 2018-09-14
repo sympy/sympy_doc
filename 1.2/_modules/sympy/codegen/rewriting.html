@@ -1,8 +1,325 @@
-<html>
-    <head>
-        <meta http-equiv="refresh" content="0;URL=/latest/_modules/sympy/codegen/rewriting.html" />
-    </head>
-    <body>
-    </body>
-</html>
 
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>sympy.codegen.rewriting &#8212; SymPy 1.2 documentation</title>
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="https://live.sympy.org/static/live-core.css" type="text/css" />
+    <link rel="stylesheet" href="https://live.sympy.org/static/live-autocomplete.css" type="text/css" />
+    <link rel="stylesheet" href="https://live.sympy.org/static/live-sphinx.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="../../../" src="../../../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_HTML-full"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/utilities.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/external/classy.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/live-core.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/live-autocomplete.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/live-sphinx.js"></script>
+    <link rel="shortcut icon" href="../../../_static/sympy-notailtext-favicon.ico"/>
+    <link href="http://docs.sympy.org/latest/_modules/sympy/codegen/rewriting.html" rel="canonical" />
+    
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../../index.html">SymPy 1.2 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for sympy.codegen.rewriting</h1><div class="highlight"><pre>
+<span></span><span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Classes and functions useful for rewriting expressions for optimized code</span>
+<span class="sd">generation. Some languages (or standards thereof), e.g. C99, offer specialized</span>
+<span class="sd">math functions for better performance and/or precision.</span>
+
+<span class="sd">Using the ``optimize`` function in this module, together with a collection of</span>
+<span class="sd">rules (represented as instances of ``Optimization``), one can rewrite the</span>
+<span class="sd">expressions for this purpose::</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy import Symbol, exp, log</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.codegen.rewriting import optimize, optims_c99</span>
+<span class="sd">    &gt;&gt;&gt; x = Symbol(&#39;x&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; optimize(3*exp(2*x) - 3, optims_c99)</span>
+<span class="sd">    3*expm1(2*x)</span>
+<span class="sd">    &gt;&gt;&gt; optimize(exp(2*x) - 3, optims_c99)</span>
+<span class="sd">    exp(2*x) - 3</span>
+<span class="sd">    &gt;&gt;&gt; optimize(log(3*x + 3), optims_c99)</span>
+<span class="sd">    log1p(x) + log(3)</span>
+<span class="sd">    &gt;&gt;&gt; optimize(log(2*x + 3), optims_c99)</span>
+<span class="sd">    log(2*x + 3)</span>
+
+<span class="sd">The ``optims_c99`` imported above is tuple containing the following instances</span>
+<span class="sd">(which may be imported from ``sympy.codegen.rewriting``):</span>
+
+<span class="sd">- ``expm1_opt``</span>
+<span class="sd">- ``log1p_opt``</span>
+<span class="sd">- ``exp2_opt``</span>
+<span class="sd">- ``log2_opt``</span>
+<span class="sd">- ``log2const_opt``</span>
+
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="p">(</span><span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">itertools</span> <span class="k">import</span> <span class="n">tee</span><span class="p">,</span> <span class="n">chain</span>
+<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">log</span><span class="p">,</span> <span class="n">Add</span><span class="p">,</span> <span class="n">exp</span><span class="p">,</span> <span class="n">Max</span><span class="p">,</span> <span class="n">Min</span><span class="p">,</span> <span class="n">Wild</span><span class="p">,</span> <span class="n">Pow</span><span class="p">,</span> <span class="n">expand_log</span><span class="p">,</span> <span class="n">Dummy</span>
+<span class="kn">from</span> <span class="nn">sympy.utilities.iterables</span> <span class="k">import</span> <span class="n">sift</span>
+<span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="k">import</span> <span class="n">filterfalse</span>
+<span class="kn">from</span> <span class="nn">sympy.core.mul</span> <span class="k">import</span> <span class="n">Mul</span>
+<span class="kn">from</span> <span class="nn">sympy.codegen.cfunctions</span> <span class="k">import</span> <span class="n">log1p</span><span class="p">,</span> <span class="n">log2</span><span class="p">,</span> <span class="n">exp2</span><span class="p">,</span> <span class="n">expm1</span>
+
+
+<div class="viewcode-block" id="Optimization"><a class="viewcode-back" href="../../../modules/codegen.html#sympy.codegen.rewriting.Optimization">[docs]</a><span class="k">class</span> <span class="nc">Optimization</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Abstract base class for rewriting optimization.</span>
+
+<span class="sd">    Subclasses should implement ``__call__`` taking an expression</span>
+<span class="sd">    as argument.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+<span class="sd">    cost_function : callable returning number</span>
+<span class="sd">    priority : number</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cost_function</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">priority</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cost_function</span> <span class="o">=</span> <span class="n">cost_function</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">priority</span><span class="o">=</span><span class="n">priority</span></div>
+
+
+<div class="viewcode-block" id="ReplaceOptim"><a class="viewcode-back" href="../../../modules/codegen.html#sympy.codegen.rewriting.ReplaceOptim">[docs]</a><span class="k">class</span> <span class="nc">ReplaceOptim</span><span class="p">(</span><span class="n">Optimization</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Rewriting optimization calling replace on expressions.</span>
+
+<span class="sd">    The instance can be used as a function on expressions for which</span>
+<span class="sd">    it will apply the ``replace`` method (see</span>
+<span class="sd">    :meth:`sympy.core.basic.Basic.replace`).</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+<span class="sd">    query : first argument passed to replace</span>
+<span class="sd">    value : second argument passed to replace</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy import Symbol, Pow</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.codegen.rewriting import ReplaceOptim</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.codegen.cfunctions import exp2</span>
+<span class="sd">    &gt;&gt;&gt; x = Symbol(&#39;x&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; exp2_opt = ReplaceOptim(lambda p: p.is_Pow and p.base == 2,</span>
+<span class="sd">    ...     lambda p: exp2(p.exp))</span>
+<span class="sd">    &gt;&gt;&gt; exp2_opt(2**x)</span>
+<span class="sd">    exp2(x)</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">ReplaceOptim</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">query</span> <span class="o">=</span> <span class="n">query</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="n">value</span>
+
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">query</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">value</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="optimize"><a class="viewcode-back" href="../../../modules/codegen.html#sympy.codegen.rewriting.optimize">[docs]</a><span class="k">def</span> <span class="nf">optimize</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">optimizations</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Apply optimizations to an expression.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+<span class="sd">    expr : expression</span>
+<span class="sd">    optimizations : iterable of ``Optimization`` instances</span>
+<span class="sd">        The optimizations will be sorted with respect to ``priority`` (highest first).</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy import log, Symbol</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.codegen.rewriting import optims_c99, optimize</span>
+<span class="sd">    &gt;&gt;&gt; x = Symbol(&#39;x&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; optimize(log(x+3)/log(2) + log(x**2 + 1), optims_c99)</span>
+<span class="sd">    log1p(x**2) + log2(x + 3)</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">for</span> <span class="n">optim</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">optimizations</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">opt</span><span class="p">:</span> <span class="n">opt</span><span class="o">.</span><span class="n">priority</span><span class="p">,</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="n">new_expr</span> <span class="o">=</span> <span class="n">optim</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">optim</span><span class="o">.</span><span class="n">cost_function</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">expr</span> <span class="o">=</span> <span class="n">new_expr</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">before</span><span class="p">,</span> <span class="n">after</span> <span class="o">=</span> <span class="nb">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">optim</span><span class="o">.</span><span class="n">cost_function</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">new_expr</span><span class="p">))</span>
+            <span class="k">if</span> <span class="n">before</span> <span class="o">&gt;</span> <span class="n">after</span><span class="p">:</span>
+                <span class="n">expr</span> <span class="o">=</span> <span class="n">new_expr</span>
+    <span class="k">return</span> <span class="n">expr</span></div>
+
+
+<span class="n">exp2_opt</span> <span class="o">=</span> <span class="n">ReplaceOptim</span><span class="p">(</span>
+    <span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="n">p</span><span class="o">.</span><span class="n">is_Pow</span> <span class="ow">and</span> <span class="n">p</span><span class="o">.</span><span class="n">base</span> <span class="o">==</span> <span class="mi">2</span><span class="p">,</span>
+    <span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="n">exp2</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">exp</span><span class="p">)</span>
+<span class="p">)</span>
+
+<span class="n">_d</span> <span class="o">=</span> <span class="n">Wild</span><span class="p">(</span><span class="s1">&#39;d&#39;</span><span class="p">,</span> <span class="n">properties</span><span class="o">=</span><span class="p">[</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">is_Dummy</span><span class="p">])</span>
+<span class="n">_u</span> <span class="o">=</span> <span class="n">Wild</span><span class="p">(</span><span class="s1">&#39;u&#39;</span><span class="p">,</span> <span class="n">properties</span><span class="o">=</span><span class="p">[</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="ow">not</span> <span class="n">x</span><span class="o">.</span><span class="n">is_number</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">x</span><span class="o">.</span><span class="n">is_Add</span><span class="p">])</span>
+<span class="n">_v</span> <span class="o">=</span> <span class="n">Wild</span><span class="p">(</span><span class="s1">&#39;v&#39;</span><span class="p">)</span>
+<span class="n">_w</span> <span class="o">=</span> <span class="n">Wild</span><span class="p">(</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
+
+
+<span class="n">log2_opt</span> <span class="o">=</span> <span class="n">ReplaceOptim</span><span class="p">(</span><span class="n">_v</span><span class="o">*</span><span class="n">log</span><span class="p">(</span><span class="n">_w</span><span class="p">)</span><span class="o">/</span><span class="n">log</span><span class="p">(</span><span class="mi">2</span><span class="p">),</span> <span class="n">_v</span><span class="o">*</span><span class="n">log2</span><span class="p">(</span><span class="n">_w</span><span class="p">),</span> <span class="n">cost_function</span><span class="o">=</span><span class="k">lambda</span> <span class="n">expr</span><span class="p">:</span> <span class="n">expr</span><span class="o">.</span><span class="n">count</span><span class="p">(</span>
+    <span class="k">lambda</span> <span class="n">e</span><span class="p">:</span> <span class="p">(</span>  <span class="c1"># division &amp; eval of transcendentals are expensive floating point operations...</span>
+        <span class="n">e</span><span class="o">.</span><span class="n">is_Pow</span> <span class="ow">and</span> <span class="n">e</span><span class="o">.</span><span class="n">exp</span><span class="o">.</span><span class="n">is_negative</span>  <span class="c1"># division</span>
+        <span class="ow">or</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="p">(</span><span class="n">log</span><span class="p">,</span> <span class="n">log2</span><span class="p">))</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">e</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">is_number</span><span class="p">))</span>  <span class="c1"># transcendental</span>
+    <span class="p">)</span>
+<span class="p">)</span>
+
+<span class="n">log2const_opt</span> <span class="o">=</span> <span class="n">ReplaceOptim</span><span class="p">(</span><span class="n">log</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">*</span><span class="n">log2</span><span class="p">(</span><span class="n">_w</span><span class="p">),</span> <span class="n">log</span><span class="p">(</span><span class="n">_w</span><span class="p">))</span>
+
+<span class="n">logsumexp_2terms_opt</span> <span class="o">=</span> <span class="n">ReplaceOptim</span><span class="p">(</span>
+    <span class="k">lambda</span> <span class="n">l</span><span class="p">:</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">l</span><span class="p">,</span> <span class="n">log</span><span class="p">)</span>
+               <span class="ow">and</span> <span class="n">l</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">is_Add</span>
+               <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">l</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span>
+               <span class="ow">and</span> <span class="nb">all</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">exp</span><span class="p">)</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">l</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">args</span><span class="p">)),</span>
+    <span class="k">lambda</span> <span class="n">l</span><span class="p">:</span> <span class="p">(</span>
+        <span class="n">Max</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">e</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">l</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">args</span><span class="p">])</span> <span class="o">+</span>
+        <span class="n">log1p</span><span class="p">(</span><span class="n">exp</span><span class="p">(</span><span class="n">Min</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">e</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">l</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">args</span><span class="p">])))</span>
+    <span class="p">)</span>
+<span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_try_expm1</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+    <span class="n">protected</span><span class="p">,</span> <span class="n">old_new</span> <span class="o">=</span>  <span class="n">expr</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">exp</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">arg</span><span class="p">:</span> <span class="n">Dummy</span><span class="p">(),</span> <span class="nb">map</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">factored</span> <span class="o">=</span> <span class="n">protected</span><span class="o">.</span><span class="n">factor</span><span class="p">()</span>
+    <span class="n">new_old</span> <span class="o">=</span> <span class="p">{</span><span class="n">v</span><span class="p">:</span> <span class="n">k</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">old_new</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+    <span class="k">return</span> <span class="n">factored</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">_d</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">d</span><span class="p">:</span> <span class="n">expm1</span><span class="p">(</span><span class="n">new_old</span><span class="p">[</span><span class="n">d</span><span class="p">]</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">new_old</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_expm1_value</span><span class="p">(</span><span class="n">e</span><span class="p">):</span>
+    <span class="n">numbers</span><span class="p">,</span> <span class="n">non_num</span> <span class="o">=</span> <span class="n">sift</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">arg</span><span class="p">:</span> <span class="n">arg</span><span class="o">.</span><span class="n">is_number</span><span class="p">,</span> <span class="n">binary</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">non_num_exp</span><span class="p">,</span> <span class="n">non_num_other</span> <span class="o">=</span> <span class="n">sift</span><span class="p">(</span><span class="n">non_num</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">arg</span><span class="p">:</span> <span class="n">arg</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">exp</span><span class="p">),</span>
+        <span class="n">binary</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">numsum</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">numbers</span><span class="p">)</span>
+    <span class="n">new_exp_terms</span><span class="p">,</span> <span class="n">done</span> <span class="o">=</span> <span class="p">[],</span> <span class="kc">False</span>
+    <span class="k">for</span> <span class="n">exp_term</span> <span class="ow">in</span> <span class="n">non_num_exp</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">done</span><span class="p">:</span>
+            <span class="n">new_exp_terms</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">exp_term</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">looking_at</span> <span class="o">=</span> <span class="n">exp_term</span> <span class="o">+</span> <span class="n">numsum</span>
+            <span class="n">attempt</span> <span class="o">=</span> <span class="n">_try_expm1</span><span class="p">(</span><span class="n">looking_at</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">looking_at</span> <span class="o">==</span> <span class="n">attempt</span><span class="p">:</span>
+                <span class="n">new_exp_terms</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">exp_term</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">done</span> <span class="o">=</span> <span class="kc">True</span>
+                <span class="n">new_exp_terms</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">attempt</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">done</span><span class="p">:</span>
+        <span class="n">new_exp_terms</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">numsum</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">e</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">chain</span><span class="p">(</span><span class="n">new_exp_terms</span><span class="p">,</span> <span class="n">non_num_other</span><span class="p">))</span>
+
+
+<span class="n">expm1_opt</span> <span class="o">=</span> <span class="n">ReplaceOptim</span><span class="p">(</span><span class="k">lambda</span> <span class="n">e</span><span class="p">:</span> <span class="n">e</span><span class="o">.</span><span class="n">is_Add</span><span class="p">,</span> <span class="n">_expm1_value</span><span class="p">)</span>
+
+
+<span class="n">log1p_opt</span> <span class="o">=</span> <span class="n">ReplaceOptim</span><span class="p">(</span>
+    <span class="k">lambda</span> <span class="n">e</span><span class="p">:</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">log</span><span class="p">),</span>
+    <span class="k">lambda</span> <span class="n">l</span><span class="p">:</span> <span class="n">expand_log</span><span class="p">(</span><span class="n">l</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span>
+        <span class="n">log</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">arg</span><span class="p">:</span> <span class="n">log</span><span class="p">(</span><span class="n">arg</span><span class="o">.</span><span class="n">factor</span><span class="p">())</span>
+    <span class="p">))</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">log</span><span class="p">(</span><span class="n">_u</span><span class="o">+</span><span class="mi">1</span><span class="p">),</span> <span class="n">log1p</span><span class="p">(</span><span class="n">_u</span><span class="p">))</span>
+<span class="p">)</span>
+
+<div class="viewcode-block" id="create_expand_pow_optimization"><a class="viewcode-back" href="../../../modules/codegen.html#sympy.codegen.rewriting.create_expand_pow_optimization">[docs]</a><span class="k">def</span> <span class="nf">create_expand_pow_optimization</span><span class="p">(</span><span class="n">limit</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Creates an instance of :class:`ReplaceOptim` for expanding ``Pow``.</span>
+
+<span class="sd">    The requirements for expansions are that the base needs to be a symbol</span>
+<span class="sd">    and the exponent needs to be an integer (and be less than or equal to</span>
+<span class="sd">    ``limit``).</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    limit : int</span>
+<span class="sd">         The highest power which is expanded into multiplication.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy import Symbol, sin</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.codegen.rewriting import create_expand_pow_optimization</span>
+<span class="sd">    &gt;&gt;&gt; x = Symbol(&#39;x&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; expand_opt = create_expand_pow_optimization(3)</span>
+<span class="sd">    &gt;&gt;&gt; expand_opt(x**5 + x**3)</span>
+<span class="sd">    x**5 + x*x*x</span>
+<span class="sd">    &gt;&gt;&gt; expand_opt(x**5 + x**3 + sin(x)**3)</span>
+<span class="sd">    x**5 + x*x*x + sin(x)**3</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">ReplaceOptim</span><span class="p">(</span>
+        <span class="k">lambda</span> <span class="n">e</span><span class="p">:</span> <span class="n">e</span><span class="o">.</span><span class="n">is_Pow</span> <span class="ow">and</span> <span class="n">e</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">is_symbol</span> <span class="ow">and</span> <span class="n">e</span><span class="o">.</span><span class="n">exp</span><span class="o">.</span><span class="n">is_integer</span> <span class="ow">and</span> <span class="n">e</span><span class="o">.</span><span class="n">exp</span> <span class="o">&lt;=</span> <span class="n">limit</span><span class="p">,</span>
+        <span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="p">([</span><span class="n">p</span><span class="o">.</span><span class="n">base</span><span class="p">]</span><span class="o">*</span><span class="n">p</span><span class="o">.</span><span class="n">exp</span><span class="p">),</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="p">)</span></div>
+
+<span class="c1"># Collections of optimizations:</span>
+<span class="n">optims_c99</span> <span class="o">=</span> <span class="p">(</span><span class="n">expm1_opt</span><span class="p">,</span> <span class="n">log1p_opt</span><span class="p">,</span> <span class="n">exp2_opt</span><span class="p">,</span> <span class="n">log2_opt</span><span class="p">,</span> <span class="n">log2const_opt</span><span class="p">)</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../../index.html">
+              <img class="logo" src="../../../_static/sympylogo.png" alt="Logo"/>
+            </a></p>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../../index.html">SymPy 1.2 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../../index.html" >Module code</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2018 SymPy Development Team.
+      Last updated on Jul 09, 2018.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.7.5.
+    </div>
+  </body>
+</html>

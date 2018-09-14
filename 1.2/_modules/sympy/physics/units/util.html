@@ -1,8 +1,256 @@
-<html>
-    <head>
-        <meta http-equiv="refresh" content="0;URL=/latest/_modules/sympy/physics/units/util.html" />
-    </head>
-    <body>
-    </body>
-</html>
 
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>sympy.physics.units.util &#8212; SymPy 1.2 documentation</title>
+    <link rel="stylesheet" href="../../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="https://live.sympy.org/static/live-core.css" type="text/css" />
+    <link rel="stylesheet" href="https://live.sympy.org/static/live-autocomplete.css" type="text/css" />
+    <link rel="stylesheet" href="https://live.sympy.org/static/live-sphinx.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="../../../../" src="../../../../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_HTML-full"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/utilities.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/external/classy.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/live-core.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/live-autocomplete.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/live-sphinx.js"></script>
+    <link rel="shortcut icon" href="../../../../_static/sympy-notailtext-favicon.ico"/>
+    <link href="http://docs.sympy.org/latest/_modules/sympy/physics/units/util.html" rel="canonical" />
+    
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../../../index.html">SymPy 1.2 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../../../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for sympy.physics.units.util</h1><div class="highlight"><pre>
+<span></span><span class="c1"># -*- coding: utf-8 -*-</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Several methods to simplify expressions involving unit objects.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">division</span>
+
+<span class="kn">from</span> <span class="nn">sympy.utilities.exceptions</span> <span class="k">import</span> <span class="n">SymPyDeprecationWarning</span>
+
+<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Add</span><span class="p">,</span> <span class="n">Function</span><span class="p">,</span> <span class="n">Mul</span><span class="p">,</span> <span class="n">Pow</span><span class="p">,</span> <span class="n">Rational</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">sympify</span>
+<span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="k">import</span> <span class="n">reduce</span><span class="p">,</span> <span class="n">Iterable</span>
+<span class="kn">from</span> <span class="nn">sympy.physics.units.dimensions</span> <span class="k">import</span> <span class="n">Dimension</span><span class="p">,</span> <span class="n">dimsys_default</span>
+<span class="kn">from</span> <span class="nn">sympy.physics.units.quantities</span> <span class="k">import</span> <span class="n">Quantity</span>
+<span class="kn">from</span> <span class="nn">sympy.physics.units.prefixes</span> <span class="k">import</span> <span class="n">Prefix</span>
+<span class="kn">from</span> <span class="nn">sympy.utilities.iterables</span> <span class="k">import</span> <span class="n">sift</span>
+
+
+<span class="k">def</span> <span class="nf">dim_simplify</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    NOTE: this function could be deprecated in the future.</span>
+
+<span class="sd">    Simplify expression by recursively evaluating the dimension arguments.</span>
+
+<span class="sd">    This function proceeds to a very rough dimensional analysis. It tries to</span>
+<span class="sd">    simplify expression with dimensions, and it deletes all what multiplies a</span>
+<span class="sd">    dimension without being a dimension. This is necessary to avoid strange</span>
+<span class="sd">    behavior when Add(L, L) be transformed into Mul(2, L).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">SymPyDeprecationWarning</span><span class="p">(</span>
+        <span class="n">deprecated_since_version</span><span class="o">=</span><span class="s2">&quot;1.2&quot;</span><span class="p">,</span>
+        <span class="n">feature</span><span class="o">=</span><span class="s2">&quot;dimensional simplification function&quot;</span><span class="p">,</span>
+        <span class="n">issue</span><span class="o">=</span><span class="mi">13336</span><span class="p">,</span>
+        <span class="n">useinstead</span><span class="o">=</span><span class="s2">&quot;don&#39;t use&quot;</span><span class="p">,</span>
+    <span class="p">)</span><span class="o">.</span><span class="n">warn</span><span class="p">()</span>
+    <span class="n">_</span><span class="p">,</span> <span class="n">expr</span> <span class="o">=</span> <span class="n">Quantity</span><span class="o">.</span><span class="n">_collect_factor_and_dimension</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">expr</span>
+
+
+<span class="k">def</span> <span class="nf">_get_conversion_matrix_for_expr</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">target_units</span><span class="p">):</span>
+    <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Matrix</span>
+
+    <span class="n">expr_dim</span> <span class="o">=</span> <span class="n">Dimension</span><span class="p">(</span><span class="n">Quantity</span><span class="o">.</span><span class="n">get_dimensional_expr</span><span class="p">(</span><span class="n">expr</span><span class="p">))</span>
+    <span class="n">dim_dependencies</span> <span class="o">=</span> <span class="n">dimsys_default</span><span class="o">.</span><span class="n">get_dimensional_dependencies</span><span class="p">(</span><span class="n">expr_dim</span><span class="p">,</span> <span class="n">mark_dimensionless</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">target_dims</span> <span class="o">=</span> <span class="p">[</span><span class="n">Dimension</span><span class="p">(</span><span class="n">Quantity</span><span class="o">.</span><span class="n">get_dimensional_expr</span><span class="p">(</span><span class="n">x</span><span class="p">))</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">target_units</span><span class="p">]</span>
+    <span class="n">canon_dim_units</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">target_dims</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">dimsys_default</span><span class="o">.</span><span class="n">get_dimensional_dependencies</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">mark_dimensionless</span><span class="o">=</span><span class="kc">True</span><span class="p">)}</span>
+    <span class="n">canon_expr_units</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">dim_dependencies</span><span class="p">}</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">canon_expr_units</span><span class="o">.</span><span class="n">issubset</span><span class="p">(</span><span class="n">canon_dim_units</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="n">canon_dim_units</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">canon_dim_units</span><span class="p">)</span>
+
+    <span class="n">camat</span> <span class="o">=</span> <span class="n">Matrix</span><span class="p">([[</span><span class="n">dimsys_default</span><span class="o">.</span><span class="n">get_dimensional_dependencies</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">mark_dimensionless</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>  <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">target_dims</span><span class="p">]</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">canon_dim_units</span><span class="p">])</span>
+    <span class="n">exprmat</span> <span class="o">=</span> <span class="n">Matrix</span><span class="p">([</span><span class="n">dim_dependencies</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">canon_dim_units</span><span class="p">])</span>
+
+    <span class="n">res_exponents</span> <span class="o">=</span> <span class="n">camat</span><span class="o">.</span><span class="n">solve_least_squares</span><span class="p">(</span><span class="n">exprmat</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">res_exponents</span>
+
+
+<div class="viewcode-block" id="convert_to"><a class="viewcode-back" href="../../../../modules/physics/units/quantities.html#sympy.physics.units.util.convert_to">[docs]</a><span class="k">def</span> <span class="nf">convert_to</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">target_units</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Convert ``expr`` to the same expression with all of its units and quantities</span>
+<span class="sd">    represented as factors of ``target_units``, whenever the dimension is compatible.</span>
+
+<span class="sd">    ``target_units`` may be a single unit/quantity, or a collection of</span>
+<span class="sd">    units/quantities.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.physics.units import speed_of_light, meter, gram, second, day</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.physics.units import mile, newton, kilogram, atomic_mass_constant</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.physics.units import kilometer, centimeter</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.physics.units import convert_to</span>
+<span class="sd">    &gt;&gt;&gt; convert_to(mile, kilometer)</span>
+<span class="sd">    25146*kilometer/15625</span>
+<span class="sd">    &gt;&gt;&gt; convert_to(mile, kilometer).n()</span>
+<span class="sd">    1.609344*kilometer</span>
+<span class="sd">    &gt;&gt;&gt; convert_to(speed_of_light, meter/second)</span>
+<span class="sd">    299792458*meter/second</span>
+<span class="sd">    &gt;&gt;&gt; convert_to(day, second)</span>
+<span class="sd">    86400*second</span>
+<span class="sd">    &gt;&gt;&gt; 3*newton</span>
+<span class="sd">    3*newton</span>
+<span class="sd">    &gt;&gt;&gt; convert_to(3*newton, kilogram*meter/second**2)</span>
+<span class="sd">    3*kilogram*meter/second**2</span>
+<span class="sd">    &gt;&gt;&gt; convert_to(atomic_mass_constant, gram)</span>
+<span class="sd">    1.66053904e-24*gram</span>
+
+<span class="sd">    Conversion to multiple units:</span>
+
+<span class="sd">    &gt;&gt;&gt; convert_to(speed_of_light, [meter, second])</span>
+<span class="sd">    299792458*meter/second</span>
+<span class="sd">    &gt;&gt;&gt; convert_to(3*newton, [centimeter, gram, second])</span>
+<span class="sd">    300000*centimeter*gram/second**2</span>
+
+<span class="sd">    Conversion to Planck units:</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.physics.units import gravitational_constant, hbar</span>
+<span class="sd">    &gt;&gt;&gt; convert_to(atomic_mass_constant, [gravitational_constant, speed_of_light, hbar]).n()</span>
+<span class="sd">    7.62950196312651e-20*gravitational_constant**(-0.5)*hbar**0.5*speed_of_light**0.5</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">target_units</span><span class="p">,</span> <span class="p">(</span><span class="n">Iterable</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">)):</span>
+        <span class="n">target_units</span> <span class="o">=</span> <span class="p">[</span><span class="n">target_units</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">Add</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">Add</span><span class="o">.</span><span class="n">fromiter</span><span class="p">(</span><span class="n">convert_to</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">target_units</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
+
+    <span class="n">expr</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">Quantity</span><span class="p">)</span> <span class="ow">and</span> <span class="n">expr</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">Quantity</span><span class="p">):</span>
+        <span class="n">expr</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">Quantity</span><span class="p">),</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">convert_to</span><span class="p">(</span><span class="n">target_units</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">get_total_scale_factor</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">Mul</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">reduce</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">x</span> <span class="o">*</span> <span class="n">y</span><span class="p">,</span> <span class="p">[</span><span class="n">get_total_scale_factor</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">])</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">Pow</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">get_total_scale_factor</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">base</span><span class="p">)</span> <span class="o">**</span> <span class="n">expr</span><span class="o">.</span><span class="n">exp</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">Quantity</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">scale_factor</span>
+        <span class="k">return</span> <span class="n">expr</span>
+
+    <span class="n">depmat</span> <span class="o">=</span> <span class="n">_get_conversion_matrix_for_expr</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">target_units</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">depmat</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">expr</span>
+
+    <span class="n">expr_scale_factor</span> <span class="o">=</span> <span class="n">get_total_scale_factor</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">expr_scale_factor</span> <span class="o">*</span> <span class="n">Mul</span><span class="o">.</span><span class="n">fromiter</span><span class="p">((</span><span class="mi">1</span><span class="o">/</span><span class="n">get_total_scale_factor</span><span class="p">(</span><span class="n">u</span><span class="p">)</span> <span class="o">*</span> <span class="n">u</span><span class="p">)</span> <span class="o">**</span> <span class="n">p</span> <span class="k">for</span> <span class="n">u</span><span class="p">,</span> <span class="n">p</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">target_units</span><span class="p">,</span> <span class="n">depmat</span><span class="p">))</span></div>
+
+
+<span class="k">def</span> <span class="nf">quantity_simplify</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Atom</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">expr</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Mul</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="nb">map</span><span class="p">(</span><span class="n">quantity_simplify</span><span class="p">,</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">))</span>
+
+    <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">Prefix</span><span class="p">):</span>
+        <span class="n">coeff</span><span class="p">,</span> <span class="n">args</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">as_coeff_mul</span><span class="p">(</span><span class="n">Prefix</span><span class="p">)</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">args</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">Pow</span><span class="p">):</span>
+                <span class="n">coeff</span> <span class="o">=</span> <span class="n">coeff</span> <span class="o">*</span> <span class="p">(</span><span class="n">arg</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">scale_factor</span> <span class="o">**</span> <span class="n">arg</span><span class="o">.</span><span class="n">exp</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">coeff</span> <span class="o">=</span> <span class="n">coeff</span> <span class="o">*</span> <span class="n">arg</span><span class="o">.</span><span class="n">scale_factor</span>
+        <span class="n">expr</span> <span class="o">=</span> <span class="n">coeff</span>
+
+    <span class="n">coeff</span><span class="p">,</span> <span class="n">args</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">as_coeff_mul</span><span class="p">(</span><span class="n">Quantity</span><span class="p">)</span>
+    <span class="n">args_pow</span> <span class="o">=</span> <span class="p">[</span><span class="n">arg</span><span class="o">.</span><span class="n">as_base_exp</span><span class="p">()</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">args</span><span class="p">]</span>
+    <span class="n">quantity_pow</span><span class="p">,</span> <span class="n">other_pow</span> <span class="o">=</span> <span class="n">sift</span><span class="p">(</span><span class="n">args_pow</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">Quantity</span><span class="p">),</span> <span class="n">binary</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">quantity_pow_by_dim</span> <span class="o">=</span> <span class="n">sift</span><span class="p">(</span><span class="n">quantity_pow</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">dimension</span><span class="p">)</span>
+    <span class="c1"># Just pick the first quantity:</span>
+    <span class="n">ref_quantities</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">quantity_pow_by_dim</span><span class="o">.</span><span class="n">values</span><span class="p">()]</span>
+    <span class="n">new_quantities</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">Mul</span><span class="o">.</span><span class="n">fromiter</span><span class="p">(</span>
+            <span class="p">(</span><span class="n">quantity</span><span class="o">*</span><span class="n">i</span><span class="o">.</span><span class="n">scale_factor</span><span class="o">/</span><span class="n">quantity</span><span class="o">.</span><span class="n">scale_factor</span><span class="p">)</span><span class="o">**</span><span class="n">p</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">v</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">v</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span><span class="o">**</span><span class="n">v</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">quantity</span><span class="p">,</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">ref_quantities</span><span class="p">,</span> <span class="n">quantity_pow_by_dim</span><span class="o">.</span><span class="n">items</span><span class="p">())]</span>
+    <span class="k">return</span> <span class="n">coeff</span><span class="o">*</span><span class="n">Mul</span><span class="o">.</span><span class="n">fromiter</span><span class="p">(</span><span class="n">other_pow</span><span class="p">)</span><span class="o">*</span><span class="n">Mul</span><span class="o">.</span><span class="n">fromiter</span><span class="p">(</span><span class="n">new_quantities</span><span class="p">)</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../../../index.html">
+              <img class="logo" src="../../../../_static/sympylogo.png" alt="Logo"/>
+            </a></p>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../../../index.html">SymPy 1.2 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../../../index.html" >Module code</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2018 SymPy Development Team.
+      Last updated on Jul 09, 2018.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.7.5.
+    </div>
+  </body>
+</html>

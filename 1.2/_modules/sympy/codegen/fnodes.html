@@ -1,8 +1,736 @@
-<html>
-    <head>
-        <meta http-equiv="refresh" content="0;URL=/latest/_modules/sympy/codegen/fnodes.html" />
-    </head>
-    <body>
-    </body>
-</html>
 
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>sympy.codegen.fnodes &#8212; SymPy 1.2 documentation</title>
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="https://live.sympy.org/static/live-core.css" type="text/css" />
+    <link rel="stylesheet" href="https://live.sympy.org/static/live-autocomplete.css" type="text/css" />
+    <link rel="stylesheet" href="https://live.sympy.org/static/live-sphinx.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="../../../" src="../../../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_HTML-full"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/utilities.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/external/classy.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/live-core.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/live-autocomplete.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/live-sphinx.js"></script>
+    <link rel="shortcut icon" href="../../../_static/sympy-notailtext-favicon.ico"/>
+    <link href="http://docs.sympy.org/latest/_modules/sympy/codegen/fnodes.html" rel="canonical" />
+    
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../../index.html">SymPy 1.2 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for sympy.codegen.fnodes</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">AST nodes specific to Fortran.</span>
+
+<span class="sd">The functions defined in this module allows the user to express functions such as ``dsign``</span>
+<span class="sd">as a SymPy function for symbolic manipulation.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">sympy.core.basic</span> <span class="k">import</span> <span class="n">Basic</span>
+<span class="kn">from</span> <span class="nn">sympy.core.expr</span> <span class="k">import</span> <span class="n">Expr</span>
+<span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="k">import</span> <span class="n">string_types</span>
+<span class="kn">from</span> <span class="nn">sympy.core.containers</span> <span class="k">import</span> <span class="n">Tuple</span>
+<span class="kn">from</span> <span class="nn">sympy.core.function</span> <span class="k">import</span> <span class="n">Function</span>
+<span class="kn">from</span> <span class="nn">sympy.core.numbers</span> <span class="k">import</span> <span class="n">Float</span><span class="p">,</span> <span class="n">Integer</span>
+<span class="kn">from</span> <span class="nn">sympy.core.sympify</span> <span class="k">import</span> <span class="n">sympify</span>
+<span class="kn">from</span> <span class="nn">sympy.codegen.ast</span> <span class="k">import</span> <span class="p">(</span>
+    <span class="n">Attribute</span><span class="p">,</span> <span class="n">CodeBlock</span><span class="p">,</span> <span class="n">Declaration</span><span class="p">,</span> <span class="n">FunctionCall</span><span class="p">,</span> <span class="n">Node</span><span class="p">,</span> <span class="n">none</span><span class="p">,</span> <span class="n">String</span><span class="p">,</span>
+    <span class="n">Token</span><span class="p">,</span> <span class="n">Type</span><span class="p">,</span> <span class="n">_mk_Tuple</span><span class="p">,</span> <span class="n">Variable</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">sympy.logic</span> <span class="k">import</span> <span class="n">true</span><span class="p">,</span> <span class="n">false</span>
+<span class="kn">from</span> <span class="nn">sympy.utilities.iterables</span> <span class="k">import</span> <span class="n">iterable</span>
+
+
+
+<span class="n">pure</span> <span class="o">=</span> <span class="n">Attribute</span><span class="p">(</span><span class="s1">&#39;pure&#39;</span><span class="p">)</span>
+<span class="n">elemental</span> <span class="o">=</span> <span class="n">Attribute</span><span class="p">(</span><span class="s1">&#39;elemental&#39;</span><span class="p">)</span>  <span class="c1"># (all elemental procedures are also pure)</span>
+
+<span class="n">intent_in</span> <span class="o">=</span> <span class="n">Attribute</span><span class="p">(</span><span class="s1">&#39;intent_in&#39;</span><span class="p">)</span>
+<span class="n">intent_out</span> <span class="o">=</span> <span class="n">Attribute</span><span class="p">(</span><span class="s1">&#39;intent_out&#39;</span><span class="p">)</span>
+<span class="n">intent_inout</span> <span class="o">=</span> <span class="n">Attribute</span><span class="p">(</span><span class="s1">&#39;intent_inout&#39;</span><span class="p">)</span>
+
+<span class="n">allocatable</span> <span class="o">=</span> <span class="n">Attribute</span><span class="p">(</span><span class="s1">&#39;allocatable&#39;</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Program"><a class="viewcode-back" href="../../../modules/codegen.html#sympy.codegen.fnodes.Program">[docs]</a><span class="k">class</span> <span class="nc">Program</span><span class="p">(</span><span class="n">Token</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Represents a &#39;program&#39; block in Fortran</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.codegen.ast import Print</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.codegen.fnodes import Program</span>
+<span class="sd">    &gt;&gt;&gt; prog = Program(&#39;myprogram&#39;, [Print([42])])</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.printing import fcode</span>
+<span class="sd">    &gt;&gt;&gt; print(fcode(prog, source_format=&#39;free&#39;))</span>
+<span class="sd">    program myprogram</span>
+<span class="sd">        print *, 42</span>
+<span class="sd">    end program</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="vm">__slots__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="s1">&#39;body&#39;</span><span class="p">]</span>
+    <span class="n">_construct_name</span> <span class="o">=</span> <span class="n">String</span>
+    <span class="n">_construct_body</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="k">lambda</span> <span class="n">body</span><span class="p">:</span> <span class="n">CodeBlock</span><span class="p">(</span><span class="o">*</span><span class="n">body</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="use_rename"><a class="viewcode-back" href="../../../modules/codegen.html#sympy.codegen.fnodes.use_rename">[docs]</a><span class="k">class</span> <span class="nc">use_rename</span><span class="p">(</span><span class="n">Token</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Represents a renaming in a use statement in Fortran</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.codegen.fnodes import use_rename, use</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.printing import fcode</span>
+<span class="sd">    &gt;&gt;&gt; ren = use_rename(&quot;thingy&quot;, &quot;convolution2d&quot;)</span>
+<span class="sd">    &gt;&gt;&gt; print(fcode(ren, source_format=&#39;free&#39;))</span>
+<span class="sd">    thingy =&gt; convolution2d</span>
+<span class="sd">    &gt;&gt;&gt; full = use(&#39;signallib&#39;, only=[&#39;snr&#39;, ren])</span>
+<span class="sd">    &gt;&gt;&gt; print(fcode(full, source_format=&#39;free&#39;))</span>
+<span class="sd">    use signallib, only: snr, thingy =&gt; convolution2d</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="vm">__slots__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;local&#39;</span><span class="p">,</span> <span class="s1">&#39;original&#39;</span><span class="p">]</span>
+    <span class="n">_construct_local</span> <span class="o">=</span> <span class="n">String</span>
+    <span class="n">_construct_original</span> <span class="o">=</span> <span class="n">String</span></div>
+
+<span class="k">def</span> <span class="nf">_name</span><span class="p">(</span><span class="n">arg</span><span class="p">):</span>
+    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="s1">&#39;name&#39;</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">arg</span><span class="o">.</span><span class="n">name</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">String</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span>
+
+<div class="viewcode-block" id="use"><a class="viewcode-back" href="../../../modules/codegen.html#sympy.codegen.fnodes.use">[docs]</a><span class="k">class</span> <span class="nc">use</span><span class="p">(</span><span class="n">Token</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Represents a use statement in Fortran</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.codegen.fnodes import use</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.printing import fcode</span>
+<span class="sd">    &gt;&gt;&gt; fcode(use(&#39;signallib&#39;), source_format=&#39;free&#39;)</span>
+<span class="sd">    &#39;use signallib&#39;</span>
+<span class="sd">    &gt;&gt;&gt; fcode(use(&#39;signallib&#39;, [(&#39;metric&#39;, &#39;snr&#39;)]), source_format=&#39;free&#39;)</span>
+<span class="sd">    &#39;use signallib, metric =&gt; snr&#39;</span>
+<span class="sd">    &gt;&gt;&gt; fcode(use(&#39;signallib&#39;, only=[&#39;snr&#39;, &#39;convolution2d&#39;]), source_format=&#39;free&#39;)</span>
+<span class="sd">    &#39;use signallib, only: snr, convolution2d&#39;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="vm">__slots__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;namespace&#39;</span><span class="p">,</span> <span class="s1">&#39;rename&#39;</span><span class="p">,</span> <span class="s1">&#39;only&#39;</span><span class="p">]</span>
+    <span class="n">defaults</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;rename&#39;</span><span class="p">:</span> <span class="n">none</span><span class="p">,</span> <span class="s1">&#39;only&#39;</span><span class="p">:</span> <span class="n">none</span><span class="p">}</span>
+    <span class="n">_construct_namespace</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">_name</span><span class="p">)</span>
+    <span class="n">_construct_rename</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="k">lambda</span> <span class="n">args</span><span class="p">:</span> <span class="n">Tuple</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">arg</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">use_rename</span><span class="p">)</span> <span class="k">else</span> <span class="n">use_rename</span><span class="p">(</span><span class="o">*</span><span class="n">arg</span><span class="p">)</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">args</span><span class="p">]))</span>
+    <span class="n">_construct_only</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="k">lambda</span> <span class="n">args</span><span class="p">:</span> <span class="n">Tuple</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">arg</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">use_rename</span><span class="p">)</span> <span class="k">else</span> <span class="n">_name</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">args</span><span class="p">]))</span></div>
+
+
+<div class="viewcode-block" id="Module"><a class="viewcode-back" href="../../../modules/codegen.html#sympy.codegen.fnodes.Module">[docs]</a><span class="k">class</span> <span class="nc">Module</span><span class="p">(</span><span class="n">Token</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Represents a module in Fortran</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.codegen.fnodes import Module</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.printing import fcode</span>
+<span class="sd">    &gt;&gt;&gt; print(fcode(Module(&#39;signallib&#39;, [&#39;implicit none&#39;], []), source_format=&#39;free&#39;))</span>
+<span class="sd">    module signallib</span>
+<span class="sd">    implicit none</span>
+<span class="sd">    &lt;BLANKLINE&gt;</span>
+<span class="sd">    contains</span>
+<span class="sd">    &lt;BLANKLINE&gt;</span>
+<span class="sd">    &lt;BLANKLINE&gt;</span>
+<span class="sd">    end module</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="vm">__slots__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="s1">&#39;declarations&#39;</span><span class="p">,</span> <span class="s1">&#39;definitions&#39;</span><span class="p">]</span>
+    <span class="n">defaults</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;declarations&#39;</span><span class="p">:</span> <span class="n">Tuple</span><span class="p">()}</span>
+    <span class="n">_construct_name</span> <span class="o">=</span> <span class="n">String</span>
+    <span class="n">_construct_declarations</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="k">lambda</span> <span class="n">arg</span><span class="p">:</span> <span class="n">CodeBlock</span><span class="p">(</span><span class="o">*</span><span class="n">arg</span><span class="p">))</span>
+    <span class="n">_construct_definitions</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="k">lambda</span> <span class="n">arg</span><span class="p">:</span> <span class="n">CodeBlock</span><span class="p">(</span><span class="o">*</span><span class="n">arg</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="Subroutine"><a class="viewcode-back" href="../../../modules/codegen.html#sympy.codegen.fnodes.Subroutine">[docs]</a><span class="k">class</span> <span class="nc">Subroutine</span><span class="p">(</span><span class="n">Node</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Represents a subroutine in Fortran</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy import symbols</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.codegen.ast import Print</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.codegen.fnodes import Subroutine</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.printing import fcode</span>
+<span class="sd">    &gt;&gt;&gt; x, y = symbols(&#39;x y&#39;, real=True)</span>
+<span class="sd">    &gt;&gt;&gt; sub = Subroutine(&#39;mysub&#39;, [x, y], [Print([x**2 + y**2, x*y])])</span>
+<span class="sd">    &gt;&gt;&gt; print(fcode(sub, source_format=&#39;free&#39;, standard=2003))</span>
+<span class="sd">    subroutine mysub(x, y)</span>
+<span class="sd">    real*8 :: x</span>
+<span class="sd">    real*8 :: y</span>
+<span class="sd">    print *, x**2 + y**2, x*y</span>
+<span class="sd">    end subroutine</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="vm">__slots__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="s1">&#39;parameters&#39;</span><span class="p">,</span> <span class="s1">&#39;body&#39;</span><span class="p">,</span> <span class="s1">&#39;attrs&#39;</span><span class="p">]</span>
+    <span class="n">_construct_name</span> <span class="o">=</span> <span class="n">String</span>
+    <span class="n">_construct_parameters</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="k">lambda</span> <span class="n">params</span><span class="p">:</span> <span class="n">Tuple</span><span class="p">(</span><span class="o">*</span><span class="nb">map</span><span class="p">(</span><span class="n">Variable</span><span class="o">.</span><span class="n">deduced</span><span class="p">,</span> <span class="n">params</span><span class="p">)))</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_construct_body</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">itr</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">itr</span><span class="p">,</span> <span class="n">CodeBlock</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">itr</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">CodeBlock</span><span class="p">(</span><span class="o">*</span><span class="n">itr</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="SubroutineCall"><a class="viewcode-back" href="../../../modules/codegen.html#sympy.codegen.fnodes.SubroutineCall">[docs]</a><span class="k">class</span> <span class="nc">SubroutineCall</span><span class="p">(</span><span class="n">Token</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Represents a call to a subroutine in Fortran</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.codegen.fnodes import SubroutineCall</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.printing import fcode</span>
+<span class="sd">    &gt;&gt;&gt; fcode(SubroutineCall(&#39;mysub&#39;, &#39;x y&#39;.split()))</span>
+<span class="sd">    &#39;       call mysub(x, y)&#39;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="vm">__slots__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="s1">&#39;subroutine_args&#39;</span><span class="p">]</span>
+    <span class="n">_construct_name</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">_name</span><span class="p">)</span>
+    <span class="n">_construct_subroutine_args</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">_mk_Tuple</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Do"><a class="viewcode-back" href="../../../modules/codegen.html#sympy.codegen.fnodes.Do">[docs]</a><span class="k">class</span> <span class="nc">Do</span><span class="p">(</span><span class="n">Token</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Represents a Do loop in in Fortran</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy import symbols</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.codegen.ast import aug_assign, Print</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.codegen.fnodes import Do</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.printing import fcode</span>
+<span class="sd">    &gt;&gt;&gt; i, n = symbols(&#39;i n&#39;, integer=True)</span>
+<span class="sd">    &gt;&gt;&gt; r = symbols(&#39;r&#39;, real=True)</span>
+<span class="sd">    &gt;&gt;&gt; body = [aug_assign(r, &#39;+&#39;, 1/i), Print([i, r])]</span>
+<span class="sd">    &gt;&gt;&gt; do1 = Do(body, i, 1, n)</span>
+<span class="sd">    &gt;&gt;&gt; print(fcode(do1, source_format=&#39;free&#39;))</span>
+<span class="sd">    do i = 1, n</span>
+<span class="sd">        r = r + 1d0/i</span>
+<span class="sd">        print *, i, r</span>
+<span class="sd">    end do</span>
+<span class="sd">    &gt;&gt;&gt; do2 = Do(body, i, 1, n, 2)</span>
+<span class="sd">    &gt;&gt;&gt; print(fcode(do2, source_format=&#39;free&#39;))</span>
+<span class="sd">    do i = 1, n, 2</span>
+<span class="sd">        r = r + 1d0/i</span>
+<span class="sd">        print *, i, r</span>
+<span class="sd">    end do</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="vm">__slots__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;body&#39;</span><span class="p">,</span> <span class="s1">&#39;counter&#39;</span><span class="p">,</span> <span class="s1">&#39;first&#39;</span><span class="p">,</span> <span class="s1">&#39;last&#39;</span><span class="p">,</span> <span class="s1">&#39;step&#39;</span><span class="p">,</span> <span class="s1">&#39;concurrent&#39;</span><span class="p">]</span>
+    <span class="n">defaults</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;step&#39;</span><span class="p">:</span> <span class="n">Integer</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span> <span class="s1">&#39;concurrent&#39;</span><span class="p">:</span> <span class="n">false</span><span class="p">}</span>
+    <span class="n">_construct_body</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="k">lambda</span> <span class="n">body</span><span class="p">:</span> <span class="n">CodeBlock</span><span class="p">(</span><span class="o">*</span><span class="n">body</span><span class="p">))</span>
+    <span class="n">_construct_counter</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">sympify</span><span class="p">)</span>
+    <span class="n">_construct_first</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">sympify</span><span class="p">)</span>
+    <span class="n">_construct_last</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">sympify</span><span class="p">)</span>
+    <span class="n">_construct_step</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">sympify</span><span class="p">)</span>
+    <span class="n">_construct_concurrent</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="k">lambda</span> <span class="n">arg</span><span class="p">:</span> <span class="n">true</span> <span class="k">if</span> <span class="n">arg</span> <span class="k">else</span> <span class="n">false</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ArrayConstructor"><a class="viewcode-back" href="../../../modules/codegen.html#sympy.codegen.fnodes.ArrayConstructor">[docs]</a><span class="k">class</span> <span class="nc">ArrayConstructor</span><span class="p">(</span><span class="n">Token</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Represents an array constructor</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.printing import fcode</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.codegen.fnodes import ArrayConstructor</span>
+<span class="sd">    &gt;&gt;&gt; ac = ArrayConstructor([1, 2, 3])</span>
+<span class="sd">    &gt;&gt;&gt; fcode(ac, standard=95, source_format=&#39;free&#39;)</span>
+<span class="sd">    &#39;(/1, 2, 3/)&#39;</span>
+<span class="sd">    &gt;&gt;&gt; fcode(ac, standard=2003, source_format=&#39;free&#39;)</span>
+<span class="sd">    &#39;[1, 2, 3]&#39;</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="vm">__slots__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;elements&#39;</span><span class="p">]</span>
+    <span class="n">_construct_elements</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">_mk_Tuple</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ImpliedDoLoop"><a class="viewcode-back" href="../../../modules/codegen.html#sympy.codegen.fnodes.ImpliedDoLoop">[docs]</a><span class="k">class</span> <span class="nc">ImpliedDoLoop</span><span class="p">(</span><span class="n">Token</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Represents an implied do loop in Fortran</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy import Symbol, fcode</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.codegen.fnodes import ImpliedDoLoop, ArrayConstructor</span>
+<span class="sd">    &gt;&gt;&gt; i = Symbol(&#39;i&#39;, integer=True)</span>
+<span class="sd">    &gt;&gt;&gt; idl = ImpliedDoLoop(i**3, i, -3, 3, 2)  # -27, -1, 1, 27</span>
+<span class="sd">    &gt;&gt;&gt; ac = ArrayConstructor([-28, idl, 28]) # -28, -27, -1, 1, 27, 28</span>
+<span class="sd">    &gt;&gt;&gt; fcode(ac, standard=2003, source_format=&#39;free&#39;)</span>
+<span class="sd">    &#39;[-28, (i**3, i = -3, 3, 2), 28]&#39;</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="vm">__slots__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;expr&#39;</span><span class="p">,</span> <span class="s1">&#39;counter&#39;</span><span class="p">,</span> <span class="s1">&#39;first&#39;</span><span class="p">,</span> <span class="s1">&#39;last&#39;</span><span class="p">,</span> <span class="s1">&#39;step&#39;</span><span class="p">]</span>
+    <span class="n">defaults</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;step&#39;</span><span class="p">:</span> <span class="n">Integer</span><span class="p">(</span><span class="mi">1</span><span class="p">)}</span>
+    <span class="n">_construct_expr</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">sympify</span><span class="p">)</span>
+    <span class="n">_construct_counter</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">sympify</span><span class="p">)</span>
+    <span class="n">_construct_first</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">sympify</span><span class="p">)</span>
+    <span class="n">_construct_last</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">sympify</span><span class="p">)</span>
+    <span class="n">_construct_step</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">sympify</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Extent"><a class="viewcode-back" href="../../../modules/codegen.html#sympy.codegen.fnodes.Extent">[docs]</a><span class="k">class</span> <span class="nc">Extent</span><span class="p">(</span><span class="n">Basic</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Represents a dimension extent.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.codegen.fnodes import Extent</span>
+<span class="sd">    &gt;&gt;&gt; e = Extent(-3, 3)  # -3, -2, -1, 0, 1, 2, 3</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.printing import fcode</span>
+<span class="sd">    &gt;&gt;&gt; fcode(e, source_format=&#39;free&#39;)</span>
+<span class="sd">    &#39;-3:3&#39;</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.codegen.ast import Variable, real</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.codegen.fnodes import dimension, intent_out</span>
+<span class="sd">    &gt;&gt;&gt; dim = dimension(e, e)</span>
+<span class="sd">    &gt;&gt;&gt; arr = Variable(&#39;x&#39;, real, attrs=[dim, intent_out])</span>
+<span class="sd">    &gt;&gt;&gt; fcode(arr.as_Declaration(), source_format=&#39;free&#39;, standard=2003)</span>
+<span class="sd">    &#39;real*8, dimension(-3:3, -3:3), intent(out) :: x&#39;</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="n">low</span><span class="p">,</span> <span class="n">high</span> <span class="o">=</span> <span class="n">args</span>
+            <span class="k">return</span> <span class="n">Basic</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">sympify</span><span class="p">(</span><span class="n">low</span><span class="p">),</span> <span class="n">sympify</span><span class="p">(</span><span class="n">high</span><span class="p">))</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">or</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;:&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)):</span>
+            <span class="k">return</span> <span class="n">Basic</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span>  <span class="c1"># assumed shape</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Expected 0 or 2 args (or one argument == None or &#39;:&#39;)&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_sympystr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">printer</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="s1">&#39;:&#39;</span>
+        <span class="k">return</span> <span class="s1">&#39;</span><span class="si">%d</span><span class="s1">:</span><span class="si">%d</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span></div>
+
+<span class="n">assumed_extent</span> <span class="o">=</span> <span class="n">Extent</span><span class="p">()</span> <span class="c1"># or Extent(&#39;:&#39;), Extent(None)</span>
+
+
+<div class="viewcode-block" id="dimension"><a class="viewcode-back" href="../../../modules/codegen.html#sympy.codegen.fnodes.dimension">[docs]</a><span class="k">def</span> <span class="nf">dimension</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Creates a &#39;dimension&#39; Attribute with (up to 7) extents.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.printing import fcode</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.codegen.fnodes import dimension, intent_in</span>
+<span class="sd">    &gt;&gt;&gt; dim = dimension(&#39;2&#39;, &#39;:&#39;)  # 2 rows, runtime determined number of columns</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.codegen.ast import Variable, integer</span>
+<span class="sd">    &gt;&gt;&gt; arr = Variable(&#39;a&#39;, integer, attrs=[dim, intent_in])</span>
+<span class="sd">    &gt;&gt;&gt; fcode(arr.as_Declaration(), source_format=&#39;free&#39;, standard=2003)</span>
+<span class="sd">    &#39;integer*4, dimension(2, :), intent(in) :: a&#39;</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">7</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Fortran only supports up to 7 dimensional arrays&quot;</span><span class="p">)</span>
+    <span class="n">parameters</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">args</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">Extent</span><span class="p">):</span>
+            <span class="n">parameters</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">string_types</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">arg</span> <span class="o">==</span> <span class="s1">&#39;:&#39;</span><span class="p">:</span>
+                <span class="n">parameters</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Extent</span><span class="p">())</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">parameters</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">String</span><span class="p">(</span><span class="n">arg</span><span class="p">))</span>
+        <span class="k">elif</span> <span class="n">iterable</span><span class="p">(</span><span class="n">arg</span><span class="p">):</span>
+            <span class="n">parameters</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Extent</span><span class="p">(</span><span class="o">*</span><span class="n">arg</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">parameters</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">sympify</span><span class="p">(</span><span class="n">arg</span><span class="p">))</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Need at least one dimension&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">Attribute</span><span class="p">(</span><span class="s1">&#39;dimension&#39;</span><span class="p">,</span> <span class="n">parameters</span><span class="p">)</span></div>
+
+
+<span class="n">assumed_size</span> <span class="o">=</span> <span class="n">dimension</span><span class="p">(</span><span class="s1">&#39;*&#39;</span><span class="p">)</span>
+
+<div class="viewcode-block" id="array"><a class="viewcode-back" href="../../../modules/codegen.html#sympy.codegen.fnodes.array">[docs]</a><span class="k">def</span> <span class="nf">array</span><span class="p">(</span><span class="n">symbol</span><span class="p">,</span> <span class="n">dim</span><span class="p">,</span> <span class="n">intent</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Convenience function for creating a Variable instance for a Fortran array</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    symbol : symbol</span>
+<span class="sd">    dim : Attribute or iterable</span>
+<span class="sd">        If dim is an ``Attribute`` it need to have the name &#39;dimension&#39;. If it is</span>
+<span class="sd">        not an ``Attribute``, then it is passsed to :func:`dimension` as ``*dim``</span>
+<span class="sd">    intent : str</span>
+<span class="sd">        One of: &#39;in&#39;, &#39;out&#39;, &#39;inout&#39; or None</span>
+<span class="sd">    \\*\\*kwargs:</span>
+<span class="sd">        Keyword arguments for ``Variable`` (&#39;type&#39; &amp; &#39;value&#39;)</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.printing import fcode</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.codegen.ast import integer, real</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.codegen.fnodes import array</span>
+<span class="sd">    &gt;&gt;&gt; arr = array(&#39;a&#39;, &#39;*&#39;, &#39;in&#39;, type=integer)</span>
+<span class="sd">    &gt;&gt;&gt; print(fcode(arr.as_Declaration(), source_format=&#39;free&#39;, standard=2003))</span>
+<span class="sd">    integer*4, dimension(*), intent(in) :: a</span>
+<span class="sd">    &gt;&gt;&gt; x = array(&#39;x&#39;, [3, &#39;:&#39;, &#39;:&#39;], intent=&#39;out&#39;, type=real)</span>
+<span class="sd">    &gt;&gt;&gt; print(fcode(x.as_Declaration(value=1), source_format=&#39;free&#39;, standard=2003))</span>
+<span class="sd">    real*8, dimension(3, :, :), intent(out) :: x = 1</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">dim</span><span class="p">,</span> <span class="n">Attribute</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">str</span><span class="p">(</span><span class="n">dim</span><span class="o">.</span><span class="n">name</span><span class="p">)</span> <span class="o">!=</span> <span class="s1">&#39;dimension&#39;</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Got an unexpected Attribute argument as dim: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">dim</span><span class="p">))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">dim</span> <span class="o">=</span> <span class="n">dimension</span><span class="p">(</span><span class="o">*</span><span class="n">dim</span><span class="p">)</span>
+
+    <span class="n">attrs</span><span class="o">=</span><span class="nb">list</span><span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;attrs&#39;</span><span class="p">,</span> <span class="p">[]))</span> <span class="o">+</span> <span class="p">[</span><span class="n">dim</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">intent</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">intent</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="n">intent_in</span><span class="p">,</span> <span class="n">intent_out</span><span class="p">,</span> <span class="n">intent_inout</span><span class="p">):</span>
+            <span class="n">intent</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;in&#39;</span><span class="p">:</span> <span class="n">intent_in</span><span class="p">,</span> <span class="s1">&#39;out&#39;</span><span class="p">:</span> <span class="n">intent_out</span><span class="p">,</span> <span class="s1">&#39;inout&#39;</span><span class="p">:</span> <span class="n">intent_inout</span><span class="p">}[</span><span class="n">intent</span><span class="p">]</span>
+        <span class="n">attrs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">intent</span><span class="p">)</span>
+    <span class="n">value</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;value&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">type_</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;type&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">type_</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">Variable</span><span class="o">.</span><span class="n">deduced</span><span class="p">(</span><span class="n">symbol</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="n">value</span><span class="p">,</span> <span class="n">attrs</span><span class="o">=</span><span class="n">attrs</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">Variable</span><span class="p">(</span><span class="n">symbol</span><span class="p">,</span> <span class="n">type_</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="n">value</span><span class="p">,</span> <span class="n">attrs</span><span class="o">=</span><span class="n">attrs</span><span class="p">)</span></div>
+
+<span class="k">def</span> <span class="nf">_printable</span><span class="p">(</span><span class="n">arg</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">String</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">string_types</span><span class="p">)</span> <span class="k">else</span> <span class="n">sympify</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="allocated"><a class="viewcode-back" href="../../../modules/codegen.html#sympy.codegen.fnodes.allocated">[docs]</a><span class="k">def</span> <span class="nf">allocated</span><span class="p">(</span><span class="n">array</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Creates an AST node for a function call to Fortran&#39;s &quot;allocated(...)&quot;</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.printing import fcode</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.codegen.fnodes import allocated</span>
+<span class="sd">    &gt;&gt;&gt; alloc = allocated(&#39;x&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; fcode(alloc, source_format=&#39;free&#39;)</span>
+<span class="sd">    &#39;allocated(x)&#39;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">FunctionCall</span><span class="p">(</span><span class="s1">&#39;allocated&#39;</span><span class="p">,</span> <span class="p">[</span><span class="n">_printable</span><span class="p">(</span><span class="n">array</span><span class="p">)])</span></div>
+
+
+<div class="viewcode-block" id="lbound"><a class="viewcode-back" href="../../../modules/codegen.html#sympy.codegen.fnodes.lbound">[docs]</a><span class="k">def</span> <span class="nf">lbound</span><span class="p">(</span><span class="n">array</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">kind</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Creates an AST node for a function call to Fortran&#39;s &quot;lbound(...)&quot;</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    array : Symbol or String</span>
+<span class="sd">    dim : expr</span>
+<span class="sd">    kind : expr</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.printing import fcode</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.codegen.fnodes import lbound</span>
+<span class="sd">    &gt;&gt;&gt; lb = lbound(&#39;arr&#39;, dim=2)</span>
+<span class="sd">    &gt;&gt;&gt; fcode(lb, source_format=&#39;free&#39;)</span>
+<span class="sd">    &#39;lbound(arr, 2)&#39;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">FunctionCall</span><span class="p">(</span>
+        <span class="s1">&#39;lbound&#39;</span><span class="p">,</span>
+        <span class="p">[</span><span class="n">_printable</span><span class="p">(</span><span class="n">array</span><span class="p">)]</span> <span class="o">+</span>
+        <span class="p">([</span><span class="n">_printable</span><span class="p">(</span><span class="n">dim</span><span class="p">)]</span> <span class="k">if</span> <span class="n">dim</span> <span class="k">else</span> <span class="p">[])</span> <span class="o">+</span>
+        <span class="p">([</span><span class="n">_printable</span><span class="p">(</span><span class="n">kind</span><span class="p">)]</span> <span class="k">if</span> <span class="n">kind</span> <span class="k">else</span> <span class="p">[])</span>
+    <span class="p">)</span></div>
+
+
+<span class="k">def</span> <span class="nf">ubound</span><span class="p">(</span><span class="n">array</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">kind</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">FunctionCall</span><span class="p">(</span>
+        <span class="s1">&#39;ubound&#39;</span><span class="p">,</span>
+        <span class="p">[</span><span class="n">_printable</span><span class="p">(</span><span class="n">array</span><span class="p">)]</span> <span class="o">+</span>
+        <span class="p">([</span><span class="n">_printable</span><span class="p">(</span><span class="n">dim</span><span class="p">)]</span> <span class="k">if</span> <span class="n">dim</span> <span class="k">else</span> <span class="p">[])</span> <span class="o">+</span>
+        <span class="p">([</span><span class="n">_printable</span><span class="p">(</span><span class="n">kind</span><span class="p">)]</span> <span class="k">if</span> <span class="n">kind</span> <span class="k">else</span> <span class="p">[])</span>
+    <span class="p">)</span>
+
+
+<div class="viewcode-block" id="shape"><a class="viewcode-back" href="../../../modules/codegen.html#sympy.codegen.fnodes.shape">[docs]</a><span class="k">def</span> <span class="nf">shape</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">kind</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Creates an AST node for a function call to Fortran&#39;s &quot;shape(...)&quot;</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    source : Symbol or String</span>
+<span class="sd">    kind : expr</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.printing import fcode</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.codegen.fnodes import shape</span>
+<span class="sd">    &gt;&gt;&gt; shp = shape(&#39;x&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; fcode(shp, source_format=&#39;free&#39;)</span>
+<span class="sd">    &#39;shape(x)&#39;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">FunctionCall</span><span class="p">(</span>
+        <span class="s1">&#39;shape&#39;</span><span class="p">,</span>
+        <span class="p">[</span><span class="n">_printable</span><span class="p">(</span><span class="n">source</span><span class="p">)]</span> <span class="o">+</span>
+        <span class="p">([</span><span class="n">_printable</span><span class="p">(</span><span class="n">kind</span><span class="p">)]</span> <span class="k">if</span> <span class="n">kind</span> <span class="k">else</span> <span class="p">[])</span>
+    <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="size"><a class="viewcode-back" href="../../../modules/codegen.html#sympy.codegen.fnodes.size">[docs]</a><span class="k">def</span> <span class="nf">size</span><span class="p">(</span><span class="n">array</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">kind</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Creates an AST node for a function call to Fortran&#39;s &quot;size(...)&quot;</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy import Symbol</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.printing import fcode</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.codegen.ast import FunctionDefinition, real, Return, Variable</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.codegen.fnodes import array, sum_, size</span>
+<span class="sd">    &gt;&gt;&gt; a = Symbol(&#39;a&#39;, real=True)</span>
+<span class="sd">    &gt;&gt;&gt; body = [Return((sum_(a**2)/size(a))**.5)]</span>
+<span class="sd">    &gt;&gt;&gt; arr = array(a, dim=[&#39;:&#39;], intent=&#39;in&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; fd = FunctionDefinition(real, &#39;rms&#39;, [arr], body)</span>
+<span class="sd">    &gt;&gt;&gt; print(fcode(fd, source_format=&#39;free&#39;, standard=2003))</span>
+<span class="sd">    real*8 function rms(a)</span>
+<span class="sd">    real*8, dimension(:), intent(in) :: a</span>
+<span class="sd">    rms = sqrt(sum(a**2)*1d0/size(a))</span>
+<span class="sd">    end function</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">FunctionCall</span><span class="p">(</span>
+        <span class="s1">&#39;size&#39;</span><span class="p">,</span>
+        <span class="p">[</span><span class="n">_printable</span><span class="p">(</span><span class="n">array</span><span class="p">)]</span> <span class="o">+</span>
+        <span class="p">([</span><span class="n">_printable</span><span class="p">(</span><span class="n">dim</span><span class="p">)]</span> <span class="k">if</span> <span class="n">dim</span> <span class="k">else</span> <span class="p">[])</span> <span class="o">+</span>
+        <span class="p">([</span><span class="n">_printable</span><span class="p">(</span><span class="n">kind</span><span class="p">)]</span> <span class="k">if</span> <span class="n">kind</span> <span class="k">else</span> <span class="p">[])</span>
+    <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="reshape"><a class="viewcode-back" href="../../../modules/codegen.html#sympy.codegen.fnodes.reshape">[docs]</a><span class="k">def</span> <span class="nf">reshape</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="n">pad</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Creates an AST node for a function call to Fortran&#39;s &quot;reshape(...)&quot;</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    source : Symbol or String</span>
+<span class="sd">    shape : ArrayExpr</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">FunctionCall</span><span class="p">(</span>
+        <span class="s1">&#39;reshape&#39;</span><span class="p">,</span>
+        <span class="p">[</span><span class="n">_printable</span><span class="p">(</span><span class="n">source</span><span class="p">),</span> <span class="n">_printable</span><span class="p">(</span><span class="n">shape</span><span class="p">)]</span> <span class="o">+</span>
+        <span class="p">([</span><span class="n">_printable</span><span class="p">(</span><span class="n">pad</span><span class="p">)]</span> <span class="k">if</span> <span class="n">pad</span> <span class="k">else</span> <span class="p">[])</span> <span class="o">+</span>
+        <span class="p">([</span><span class="n">_printable</span><span class="p">(</span><span class="n">order</span><span class="p">)]</span> <span class="k">if</span> <span class="n">pad</span> <span class="k">else</span> <span class="p">[])</span>
+    <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="bind_C"><a class="viewcode-back" href="../../../modules/codegen.html#sympy.codegen.fnodes.bind_C">[docs]</a><span class="k">def</span> <span class="nf">bind_C</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Creates an Attribute ``bind_C`` with a name</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    name : str</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy import Symbol</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.printing import fcode</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.codegen.ast import FunctionDefinition, real, Return, Variable</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.codegen.fnodes import array, sum_, size, bind_C</span>
+<span class="sd">    &gt;&gt;&gt; a = Symbol(&#39;a&#39;, real=True)</span>
+<span class="sd">    &gt;&gt;&gt; s = Symbol(&#39;s&#39;, integer=True)</span>
+<span class="sd">    &gt;&gt;&gt; arr = array(a, dim=[s], intent=&#39;in&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; body = [Return((sum_(a**2)/s)**.5)]</span>
+<span class="sd">    &gt;&gt;&gt; fd = FunctionDefinition(real, &#39;rms&#39;, [arr, s], body, attrs=[bind_C(&#39;rms&#39;)])</span>
+<span class="sd">    &gt;&gt;&gt; print(fcode(fd, source_format=&#39;free&#39;, standard=2003))</span>
+<span class="sd">    real*8 function rms(a, s) bind(C, name=&quot;rms&quot;)</span>
+<span class="sd">    real*8, dimension(s), intent(in) :: a</span>
+<span class="sd">    integer*4 :: s</span>
+<span class="sd">    rms = sqrt(sum(a**2)/s)</span>
+<span class="sd">    end function</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">Attribute</span><span class="p">(</span><span class="s1">&#39;bind_C&#39;</span><span class="p">,</span> <span class="p">[</span><span class="n">String</span><span class="p">(</span><span class="n">name</span><span class="p">)]</span> <span class="k">if</span> <span class="n">name</span> <span class="k">else</span> <span class="p">[])</span></div>
+
+<div class="viewcode-block" id="GoTo"><a class="viewcode-back" href="../../../modules/codegen.html#sympy.codegen.fnodes.GoTo">[docs]</a><span class="k">class</span> <span class="nc">GoTo</span><span class="p">(</span><span class="n">Token</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Represents a goto statement in Fortran</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.codegen.fnodes import GoTo</span>
+<span class="sd">    &gt;&gt;&gt; go = GoTo([10, 20, 30], &#39;i&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.printing import fcode</span>
+<span class="sd">    &gt;&gt;&gt; fcode(go, source_format=&#39;free&#39;)</span>
+<span class="sd">    &#39;go to (10, 20, 30), i&#39;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="vm">__slots__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;labels&#39;</span><span class="p">,</span> <span class="s1">&#39;expr&#39;</span><span class="p">]</span>
+    <span class="n">defaults</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;expr&#39;</span><span class="p">:</span> <span class="n">none</span><span class="p">}</span>
+    <span class="n">_construct_labels</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">_mk_Tuple</span><span class="p">)</span>
+    <span class="n">_construct_expr</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">sympify</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="FortranReturn"><a class="viewcode-back" href="../../../modules/codegen.html#sympy.codegen.fnodes.FortranReturn">[docs]</a><span class="k">class</span> <span class="nc">FortranReturn</span><span class="p">(</span><span class="n">Token</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; AST node explicitly mapped to a fortran &quot;return&quot;.</span>
+
+<span class="sd">    Because a return statement in fortran is different from C, and</span>
+<span class="sd">    in order to aid reuse of our codegen ASTs the ordinary</span>
+<span class="sd">    ``.codegen.ast.Return`` is interpreted as assignment to</span>
+<span class="sd">    the result variable of the function. If one for some reason needs</span>
+<span class="sd">    to generate a fortran RETURN statement, this node should be used.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.codegen.fnodes import FortranReturn</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.printing import fcode</span>
+<span class="sd">    &gt;&gt;&gt; fcode(FortranReturn(&#39;x&#39;))</span>
+<span class="sd">    &#39;       return x&#39;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="vm">__slots__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;return_value&#39;</span><span class="p">]</span>
+    <span class="n">defaults</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;return_value&#39;</span><span class="p">:</span> <span class="n">none</span><span class="p">}</span>
+    <span class="n">_construct_return_value</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">sympify</span><span class="p">)</span></div>
+
+
+<span class="k">class</span> <span class="nc">FFunction</span><span class="p">(</span><span class="n">Function</span><span class="p">):</span>
+    <span class="n">_required_standard</span> <span class="o">=</span> <span class="mi">77</span>
+
+    <span class="k">def</span> <span class="nf">_fcode</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">printer</span><span class="p">):</span>
+        <span class="n">name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span>
+        <span class="k">if</span> <span class="n">printer</span><span class="o">.</span><span class="n">_settings</span><span class="p">[</span><span class="s1">&#39;standard&#39;</span><span class="p">]</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_required_standard</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2"> requires Fortran </span><span class="si">%d</span><span class="s2"> or newer&quot;</span> <span class="o">%</span>
+                                      <span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_required_standard</span><span class="p">))</span>
+        <span class="k">return</span> <span class="s1">&#39;</span><span class="si">{0}</span><span class="s1">(</span><span class="si">{1}</span><span class="s1">)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="n">printer</span><span class="o">.</span><span class="n">_print</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">)))</span>
+
+
+<span class="k">class</span> <span class="nc">F95Function</span><span class="p">(</span><span class="n">FFunction</span><span class="p">):</span>
+    <span class="n">_required_standard</span> <span class="o">=</span> <span class="mi">95</span>
+
+
+<div class="viewcode-block" id="isign"><a class="viewcode-back" href="../../../modules/codegen.html#sympy.codegen.fnodes.isign">[docs]</a><span class="k">class</span> <span class="nc">isign</span><span class="p">(</span><span class="n">FFunction</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Fortran sign intrinsic for integer arguments. &quot;&quot;&quot;</span>
+    <span class="n">nargs</span> <span class="o">=</span> <span class="mi">2</span></div>
+
+
+<div class="viewcode-block" id="dsign"><a class="viewcode-back" href="../../../modules/codegen.html#sympy.codegen.fnodes.dsign">[docs]</a><span class="k">class</span> <span class="nc">dsign</span><span class="p">(</span><span class="n">FFunction</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Fortran sign intrinsic for double precision arguments. &quot;&quot;&quot;</span>
+    <span class="n">nargs</span> <span class="o">=</span> <span class="mi">2</span></div>
+
+
+<div class="viewcode-block" id="cmplx"><a class="viewcode-back" href="../../../modules/codegen.html#sympy.codegen.fnodes.cmplx">[docs]</a><span class="k">class</span> <span class="nc">cmplx</span><span class="p">(</span><span class="n">FFunction</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Fortran complex conversion function. &quot;&quot;&quot;</span>
+    <span class="n">nargs</span> <span class="o">=</span> <span class="mi">2</span>  <span class="c1"># may be extended to (2, 3) at a later point</span></div>
+
+
+<div class="viewcode-block" id="kind"><a class="viewcode-back" href="../../../modules/codegen.html#sympy.codegen.fnodes.kind">[docs]</a><span class="k">class</span> <span class="nc">kind</span><span class="p">(</span><span class="n">FFunction</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Fortran kind function. &quot;&quot;&quot;</span>
+    <span class="n">nargs</span> <span class="o">=</span> <span class="mi">1</span></div>
+
+
+<div class="viewcode-block" id="merge"><a class="viewcode-back" href="../../../modules/codegen.html#sympy.codegen.fnodes.merge">[docs]</a><span class="k">class</span> <span class="nc">merge</span><span class="p">(</span><span class="n">F95Function</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Fortran merge function &quot;&quot;&quot;</span>
+    <span class="n">nargs</span> <span class="o">=</span> <span class="mi">3</span></div>
+
+
+<span class="k">class</span> <span class="nc">_literal</span><span class="p">(</span><span class="n">Float</span><span class="p">):</span>
+    <span class="n">_token</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">_decimals</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="nf">_fcode</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">printer</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">mantissa</span><span class="p">,</span> <span class="n">sgnd_ex</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;%.</span><span class="si">{0}</span><span class="s1">e&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_decimals</span><span class="p">)</span> <span class="o">%</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;e&#39;</span><span class="p">)</span>
+        <span class="n">mantissa</span> <span class="o">=</span> <span class="n">mantissa</span><span class="o">.</span><span class="n">strip</span><span class="p">(</span><span class="s1">&#39;0&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">)</span>
+        <span class="n">ex_sgn</span><span class="p">,</span> <span class="n">ex_num</span> <span class="o">=</span> <span class="n">sgnd_ex</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">sgnd_ex</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span><span class="o">.</span><span class="n">lstrip</span><span class="p">(</span><span class="s1">&#39;0&#39;</span><span class="p">)</span>
+        <span class="n">ex_sgn</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span> <span class="k">if</span> <span class="n">ex_sgn</span> <span class="o">==</span> <span class="s1">&#39;+&#39;</span> <span class="k">else</span> <span class="n">ex_sgn</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">mantissa</span> <span class="ow">or</span> <span class="s1">&#39;0&#39;</span><span class="p">)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_token</span> <span class="o">+</span> <span class="n">ex_sgn</span> <span class="o">+</span> <span class="p">(</span><span class="n">ex_num</span> <span class="ow">or</span> <span class="s1">&#39;0&#39;</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="literal_sp"><a class="viewcode-back" href="../../../modules/codegen.html#sympy.codegen.fnodes.literal_sp">[docs]</a><span class="k">class</span> <span class="nc">literal_sp</span><span class="p">(</span><span class="n">_literal</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Fortran single precision real literal &quot;&quot;&quot;</span>
+    <span class="n">_token</span> <span class="o">=</span> <span class="s1">&#39;e&#39;</span>
+    <span class="n">_decimals</span> <span class="o">=</span> <span class="mi">9</span></div>
+
+
+<div class="viewcode-block" id="literal_dp"><a class="viewcode-back" href="../../../modules/codegen.html#sympy.codegen.fnodes.literal_dp">[docs]</a><span class="k">class</span> <span class="nc">literal_dp</span><span class="p">(</span><span class="n">_literal</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Fortran double precision real literal &quot;&quot;&quot;</span>
+    <span class="n">_token</span> <span class="o">=</span> <span class="s1">&#39;d&#39;</span>
+    <span class="n">_decimals</span> <span class="o">=</span> <span class="mi">17</span></div>
+
+
+<span class="k">class</span> <span class="nc">sum_</span><span class="p">(</span><span class="n">Token</span><span class="p">,</span> <span class="n">Expr</span><span class="p">):</span>
+    <span class="vm">__slots__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;array&#39;</span><span class="p">,</span> <span class="s1">&#39;dim&#39;</span><span class="p">,</span> <span class="s1">&#39;mask&#39;</span><span class="p">]</span>
+    <span class="n">defaults</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;dim&#39;</span><span class="p">:</span> <span class="n">none</span><span class="p">,</span> <span class="s1">&#39;mask&#39;</span><span class="p">:</span> <span class="n">none</span><span class="p">}</span>
+    <span class="n">_construct_array</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">sympify</span><span class="p">)</span>
+    <span class="n">_construct_dim</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">sympify</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">product_</span><span class="p">(</span><span class="n">Token</span><span class="p">,</span> <span class="n">Expr</span><span class="p">):</span>
+    <span class="vm">__slots__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;array&#39;</span><span class="p">,</span> <span class="s1">&#39;dim&#39;</span><span class="p">,</span> <span class="s1">&#39;mask&#39;</span><span class="p">]</span>
+    <span class="n">defaults</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;dim&#39;</span><span class="p">:</span> <span class="n">none</span><span class="p">,</span> <span class="s1">&#39;mask&#39;</span><span class="p">:</span> <span class="n">none</span><span class="p">}</span>
+    <span class="n">_construct_array</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">sympify</span><span class="p">)</span>
+    <span class="n">_construct_dim</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">sympify</span><span class="p">)</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../../index.html">
+              <img class="logo" src="../../../_static/sympylogo.png" alt="Logo"/>
+            </a></p>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../../index.html">SymPy 1.2 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../../index.html" >Module code</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2018 SymPy Development Team.
+      Last updated on Jul 09, 2018.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.7.5.
+    </div>
+  </body>
+</html>

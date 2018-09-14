@@ -1,8 +1,1257 @@
-<html>
-    <head>
-        <meta http-equiv="refresh" content="0;URL=/latest/_modules/sympy/polys/rootoftools.html" />
-    </head>
-    <body>
-    </body>
-</html>
 
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>sympy.polys.rootoftools &#8212; SymPy 1.2 documentation</title>
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="https://live.sympy.org/static/live-core.css" type="text/css" />
+    <link rel="stylesheet" href="https://live.sympy.org/static/live-autocomplete.css" type="text/css" />
+    <link rel="stylesheet" href="https://live.sympy.org/static/live-sphinx.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="../../../" src="../../../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_HTML-full"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/utilities.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/external/classy.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/live-core.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/live-autocomplete.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/live-sphinx.js"></script>
+    <link rel="shortcut icon" href="../../../_static/sympy-notailtext-favicon.ico"/>
+    <link href="http://docs.sympy.org/latest/_modules/sympy/polys/rootoftools.html" rel="canonical" />
+    
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../../index.html">SymPy 1.2 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for sympy.polys.rootoftools</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Implementation of RootOf class and related tools. &quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">division</span>
+
+<span class="kn">from</span> <span class="nn">sympy.core</span> <span class="k">import</span> <span class="p">(</span><span class="n">S</span><span class="p">,</span> <span class="n">Expr</span><span class="p">,</span> <span class="n">Integer</span><span class="p">,</span> <span class="n">Float</span><span class="p">,</span> <span class="n">I</span><span class="p">,</span> <span class="n">oo</span><span class="p">,</span> <span class="n">Add</span><span class="p">,</span> <span class="n">Lambda</span><span class="p">,</span>
+    <span class="n">symbols</span><span class="p">,</span> <span class="n">sympify</span><span class="p">,</span> <span class="n">Rational</span><span class="p">,</span> <span class="n">Dummy</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">sympy.core.cache</span> <span class="k">import</span> <span class="n">cacheit</span>
+<span class="kn">from</span> <span class="nn">sympy.core.function</span> <span class="k">import</span> <span class="n">AppliedUndef</span>
+<span class="kn">from</span> <span class="nn">sympy.functions.elementary.miscellaneous</span> <span class="k">import</span> <span class="n">root</span> <span class="k">as</span> <span class="n">_root</span>
+
+<span class="kn">from</span> <span class="nn">sympy.polys.polytools</span> <span class="k">import</span> <span class="n">Poly</span><span class="p">,</span> <span class="n">PurePoly</span><span class="p">,</span> <span class="n">factor</span>
+<span class="kn">from</span> <span class="nn">sympy.polys.rationaltools</span> <span class="k">import</span> <span class="n">together</span>
+<span class="kn">from</span> <span class="nn">sympy.polys.polyfuncs</span> <span class="k">import</span> <span class="n">symmetrize</span><span class="p">,</span> <span class="n">viete</span>
+
+<span class="kn">from</span> <span class="nn">sympy.polys.rootisolation</span> <span class="k">import</span> <span class="p">(</span>
+    <span class="n">dup_isolate_complex_roots_sqf</span><span class="p">,</span>
+    <span class="n">dup_isolate_real_roots_sqf</span><span class="p">)</span>
+
+<span class="kn">from</span> <span class="nn">sympy.polys.polyroots</span> <span class="k">import</span> <span class="p">(</span>
+    <span class="n">roots_linear</span><span class="p">,</span> <span class="n">roots_quadratic</span><span class="p">,</span> <span class="n">roots_binomial</span><span class="p">,</span>
+    <span class="n">preprocess_roots</span><span class="p">,</span> <span class="n">roots</span><span class="p">)</span>
+
+<span class="kn">from</span> <span class="nn">sympy.polys.polyerrors</span> <span class="k">import</span> <span class="p">(</span>
+    <span class="n">MultivariatePolynomialError</span><span class="p">,</span>
+    <span class="n">GeneratorsNeeded</span><span class="p">,</span>
+    <span class="n">PolynomialError</span><span class="p">,</span>
+    <span class="n">DomainError</span><span class="p">)</span>
+
+<span class="kn">from</span> <span class="nn">sympy.polys.domains</span> <span class="k">import</span> <span class="n">QQ</span>
+
+<span class="kn">from</span> <span class="nn">mpmath</span> <span class="k">import</span> <span class="n">mpf</span><span class="p">,</span> <span class="n">mpc</span><span class="p">,</span> <span class="n">findroot</span><span class="p">,</span> <span class="n">workprec</span>
+<span class="kn">from</span> <span class="nn">mpmath.libmp.libmpf</span> <span class="k">import</span> <span class="n">dps_to_prec</span><span class="p">,</span> <span class="n">prec_to_dps</span>
+
+<span class="kn">from</span> <span class="nn">sympy.utilities</span> <span class="k">import</span> <span class="n">lambdify</span><span class="p">,</span> <span class="n">public</span><span class="p">,</span> <span class="n">sift</span>
+
+<span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="k">import</span> <span class="nb">range</span><span class="p">,</span> <span class="n">ordered</span>
+
+<span class="kn">from</span> <span class="nn">math</span> <span class="k">import</span> <span class="n">log</span> <span class="k">as</span> <span class="n">mathlog</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;CRootOf&#39;</span><span class="p">]</span>
+
+
+
+<span class="k">class</span> <span class="nc">_pure_key_dict</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A minimal dictionary that makes sure that the key is a</span>
+<span class="sd">    univariate PurePoly instance.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    Only the following actions are guaranteed:</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.polys.rootoftools import _pure_key_dict</span>
+<span class="sd">    &gt;&gt;&gt; from sympy import S, PurePoly</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.abc import x, y</span>
+
+<span class="sd">    1) creation</span>
+
+<span class="sd">    &gt;&gt;&gt; P = _pure_key_dict()</span>
+
+<span class="sd">    2) assignment for a PurePoly or univariate polynomial</span>
+
+<span class="sd">    &gt;&gt;&gt; P[x] = 1</span>
+<span class="sd">    &gt;&gt;&gt; P[PurePoly(x - y, x)] = 2</span>
+
+<span class="sd">    3) retrieval based on PurePoly key comparison (use this</span>
+<span class="sd">       instead of the get method)</span>
+
+<span class="sd">    &gt;&gt;&gt; P[y]</span>
+<span class="sd">    1</span>
+
+<span class="sd">    4) KeyError when trying to retrieve a nonexisting key</span>
+
+<span class="sd">    &gt;&gt;&gt; P[y + 1]</span>
+<span class="sd">    Traceback (most recent call last):</span>
+<span class="sd">    ...</span>
+<span class="sd">    KeyError: PurePoly(y + 1, y, domain=&#39;ZZ&#39;)</span>
+
+<span class="sd">    5) ability to query with ``in``</span>
+
+<span class="sd">    &gt;&gt;&gt; x + 1 in P</span>
+<span class="sd">    False</span>
+
+<span class="sd">    NOTE: this is a *not* a dictionary. It is a very basic object</span>
+<span class="sd">    for internal use that makes sure to always address its cache</span>
+<span class="sd">    via PurePoly instances. It does not, for example, implement</span>
+<span class="sd">    ``get`` or ``setdefault``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_dict</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">PurePoly</span><span class="p">):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">Expr</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">k</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">KeyError</span>
+            <span class="n">k</span> <span class="o">=</span> <span class="n">PurePoly</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">expand</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dict</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">__setitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">PurePoly</span><span class="p">):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">Expr</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">k</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;expecting univariate expression&#39;</span><span class="p">)</span>
+            <span class="n">k</span> <span class="o">=</span> <span class="n">PurePoly</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">expand</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_dict</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span>
+
+    <span class="k">def</span> <span class="nf">__contains__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+<span class="n">_reals_cache</span> <span class="o">=</span> <span class="n">_pure_key_dict</span><span class="p">()</span>
+<span class="n">_complexes_cache</span> <span class="o">=</span> <span class="n">_pure_key_dict</span><span class="p">()</span>
+
+
+<span class="k">def</span> <span class="nf">_pure_factors</span><span class="p">(</span><span class="n">poly</span><span class="p">):</span>
+    <span class="n">_</span><span class="p">,</span> <span class="n">factors</span> <span class="o">=</span> <span class="n">poly</span><span class="o">.</span><span class="n">factor_list</span><span class="p">()</span>
+    <span class="k">return</span> <span class="p">[(</span><span class="n">PurePoly</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">expand</span><span class="o">=</span><span class="kc">False</span><span class="p">),</span> <span class="n">m</span><span class="p">)</span> <span class="k">for</span> <span class="n">f</span><span class="p">,</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">factors</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">_imag_count_of_factor</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Return the number of imaginary roots for irreducible</span>
+<span class="sd">    univariate polynomial ``f``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">terms</span> <span class="o">=</span> <span class="p">[(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">)</span> <span class="k">for</span> <span class="p">(</span><span class="n">i</span><span class="p">,),</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">f</span><span class="o">.</span><span class="n">terms</span><span class="p">()]</span>
+    <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">i</span> <span class="o">%</span> <span class="mi">2</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">terms</span><span class="p">):</span>
+        <span class="k">return</span> <span class="mi">0</span>
+    <span class="c1"># update signs</span>
+    <span class="n">even</span> <span class="o">=</span> <span class="p">[(</span><span class="n">i</span><span class="p">,</span> <span class="n">I</span><span class="o">**</span><span class="n">i</span><span class="o">*</span><span class="n">j</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">terms</span><span class="p">]</span>
+    <span class="n">even</span> <span class="o">=</span> <span class="n">Poly</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="n">even</span><span class="p">),</span> <span class="n">Dummy</span><span class="p">(</span><span class="s1">&#39;x&#39;</span><span class="p">))</span>
+    <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">even</span><span class="o">.</span><span class="n">count_roots</span><span class="p">(</span><span class="o">-</span><span class="n">oo</span><span class="p">,</span> <span class="n">oo</span><span class="p">))</span>
+
+
+<div class="viewcode-block" id="rootof"><a class="viewcode-back" href="../../../modules/polys/reference.html#sympy.polys.rootoftools.rootof">[docs]</a><span class="nd">@public</span>
+<span class="k">def</span> <span class="nf">rootof</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">radicals</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">expand</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;An indexed root of a univariate polynomial.</span>
+
+<span class="sd">    Returns either a ``ComplexRootOf`` object or an explicit</span>
+<span class="sd">    expression involving radicals.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    f : Expr</span>
+<span class="sd">        Univariate polynomial.</span>
+<span class="sd">    x : Symbol, optional</span>
+<span class="sd">        Generator for ``f``.</span>
+<span class="sd">    index : int or Integer</span>
+<span class="sd">    radicals : bool</span>
+<span class="sd">               Return a radical expression if possible.</span>
+<span class="sd">    expand : bool</span>
+<span class="sd">             Expand ``f``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">CRootOf</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="n">index</span><span class="p">,</span> <span class="n">radicals</span><span class="o">=</span><span class="n">radicals</span><span class="p">,</span> <span class="n">expand</span><span class="o">=</span><span class="n">expand</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="RootOf"><a class="viewcode-back" href="../../../modules/polys/reference.html#sympy.polys.rootoftools.RootOf">[docs]</a><span class="nd">@public</span>
+<span class="k">class</span> <span class="nc">RootOf</span><span class="p">(</span><span class="n">Expr</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Represents a root of a univariate polynomial.</span>
+
+<span class="sd">    Base class for roots of different kinds of polynomials.</span>
+<span class="sd">    Only complex roots are currently supported.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="vm">__slots__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;poly&#39;</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">radicals</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">expand</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Construct a new ``CRootOf`` object for ``k``-th root of ``f``.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">rootof</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="n">index</span><span class="p">,</span> <span class="n">radicals</span><span class="o">=</span><span class="n">radicals</span><span class="p">,</span> <span class="n">expand</span><span class="o">=</span><span class="n">expand</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="ComplexRootOf"><a class="viewcode-back" href="../../../modules/polys/reference.html#sympy.polys.rootoftools.ComplexRootOf">[docs]</a><span class="nd">@public</span>
+<span class="k">class</span> <span class="nc">ComplexRootOf</span><span class="p">(</span><span class="n">RootOf</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Represents an indexed complex root of a polynomial.</span>
+
+<span class="sd">    Roots of a univariate polynomial separated into disjoint</span>
+<span class="sd">    real or complex intervals and indexed in a fixed order.</span>
+<span class="sd">    Currently only rational coefficients are allowed.</span>
+<span class="sd">    Can be imported as ``CRootOf``.</span>
+
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy import CRootOf, rootof</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.abc import x</span>
+
+<span class="sd">    CRootOf is a way to reference a particular root of a</span>
+<span class="sd">    polynomial. If there is a rational root, it will be returned:</span>
+
+<span class="sd">    &gt;&gt;&gt; CRootOf(x**2 - 4, 0)</span>
+<span class="sd">    -2</span>
+
+<span class="sd">    Whether roots involving radicals are returned or not</span>
+<span class="sd">    depends on whether the ``radicals`` flag is true (which is</span>
+<span class="sd">    set to True with rootof):</span>
+
+<span class="sd">    &gt;&gt;&gt; CRootOf(x**2 - 3, 0)</span>
+<span class="sd">    CRootOf(x**2 - 3, 0)</span>
+<span class="sd">    &gt;&gt;&gt; CRootOf(x**2 - 3, 0, radicals=True)</span>
+<span class="sd">    -sqrt(3)</span>
+<span class="sd">    &gt;&gt;&gt; rootof(x**2 - 3, 0)</span>
+<span class="sd">    -sqrt(3)</span>
+
+<span class="sd">    The following cannot be expressed in terms of radicals:</span>
+
+<span class="sd">    &gt;&gt;&gt; r = rootof(4*x**5 + 16*x**3 + 12*x**2 + 7, 0); r</span>
+<span class="sd">    CRootOf(4*x**5 + 16*x**3 + 12*x**2 + 7, 0)</span>
+
+<span class="sd">    The root bounds can be seen, however, and they are used by the</span>
+<span class="sd">    evaluation methods to get numerical approximations for the root.</span>
+
+<span class="sd">    &gt;&gt;&gt; interval = r._get_interval(); interval</span>
+<span class="sd">    (-1, 0)</span>
+<span class="sd">    &gt;&gt;&gt; r.evalf(2)</span>
+<span class="sd">    -0.98</span>
+
+<span class="sd">    The evalf method refines the width of the root bounds until it</span>
+<span class="sd">    guarantees that any decimal approximation within those bounds</span>
+<span class="sd">    will satisfy the desired precision. It then stores the refined</span>
+<span class="sd">    interval so subsequent requests at or below the requested</span>
+<span class="sd">    precision will not have to recompute the root bounds and will</span>
+<span class="sd">    return very quickly.</span>
+
+<span class="sd">    Before evaluation above, the interval was</span>
+
+<span class="sd">    &gt;&gt;&gt; interval</span>
+<span class="sd">    (-1, 0)</span>
+
+<span class="sd">    After evaluation it is now</span>
+
+<span class="sd">    &gt;&gt;. r._get_interval()</span>
+<span class="sd">    (-165/169, -206/211)</span>
+
+<span class="sd">    To reset all intervals for a given polynomial, the `_reset` method</span>
+<span class="sd">    can be called from any CRootOf instance of the polynomial:</span>
+
+<span class="sd">    &gt;&gt;&gt; r._reset()</span>
+<span class="sd">    &gt;&gt;&gt; r._get_interval()</span>
+<span class="sd">    (-1, 0)</span>
+
+<span class="sd">    The `eval_approx` method will also find the root to a given</span>
+<span class="sd">    precision but the interval is not modified unless the search</span>
+<span class="sd">    for the root fails to converge within the root bounds. And</span>
+<span class="sd">    the secant method is used to find the root. (The ``evalf``</span>
+<span class="sd">    method uses bisection and will always update the interval.)</span>
+
+<span class="sd">    &gt;&gt;&gt; r.eval_approx(2)</span>
+<span class="sd">    -0.98</span>
+
+<span class="sd">    The interval needed to be slightly updated to find that root:</span>
+
+<span class="sd">    &gt;&gt;&gt; r._get_interval()</span>
+<span class="sd">    (-1, -1/2)</span>
+
+<span class="sd">    The ``evalf_rational`` will compute a rational approximation</span>
+<span class="sd">    of the root to the desired accuracy or precision.</span>
+
+<span class="sd">    &gt;&gt;&gt; r.eval_rational(n=2)</span>
+<span class="sd">    -69629/71318</span>
+
+<span class="sd">    &gt;&gt;&gt; t = CRootOf(x**3 + 10*x + 1, 1)</span>
+<span class="sd">    &gt;&gt;&gt; t.eval_rational(1e-1)</span>
+<span class="sd">    15/256 - 805*I/256</span>
+<span class="sd">    &gt;&gt;&gt; t.eval_rational(1e-1, 1e-4)</span>
+<span class="sd">    3275/65536 - 414645*I/131072</span>
+<span class="sd">    &gt;&gt;&gt; t.eval_rational(1e-4, 1e-4)</span>
+<span class="sd">    6545/131072 - 414645*I/131072</span>
+<span class="sd">    &gt;&gt;&gt; t.eval_rational(n=2)</span>
+<span class="sd">    104755/2097152 - 6634255*I/2097152</span>
+
+<span class="sd">    See Also</span>
+<span class="sd">    ========</span>
+<span class="sd">    eval_approx</span>
+<span class="sd">    eval_rational</span>
+<span class="sd">    _eval_evalf</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="vm">__slots__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;index&#39;</span><span class="p">]</span>
+    <span class="n">is_complex</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">is_number</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">radicals</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">expand</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Construct an indexed complex root of a polynomial.</span>
+
+<span class="sd">        See ``rootof`` for the parameters.</span>
+
+<span class="sd">        The default value of ``radicals`` is ``False`` to satisfy</span>
+<span class="sd">        ``eval(srepr(expr) == expr``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">index</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">x</span><span class="o">.</span><span class="n">is_Integer</span><span class="p">:</span>
+            <span class="n">x</span><span class="p">,</span> <span class="n">index</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">x</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">index</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">index</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">index</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">index</span><span class="o">.</span><span class="n">is_Integer</span><span class="p">:</span>
+            <span class="n">index</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">index</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;expected an integer root index, got </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">index</span><span class="p">)</span>
+
+        <span class="n">poly</span> <span class="o">=</span> <span class="n">PurePoly</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">greedy</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">expand</span><span class="o">=</span><span class="n">expand</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">poly</span><span class="o">.</span><span class="n">is_univariate</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">PolynomialError</span><span class="p">(</span><span class="s2">&quot;only univariate polynomials are allowed&quot;</span><span class="p">)</span>
+
+        <span class="n">degree</span> <span class="o">=</span> <span class="n">poly</span><span class="o">.</span><span class="n">degree</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="n">degree</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">PolynomialError</span><span class="p">(</span><span class="s2">&quot;can&#39;t construct CRootOf object for </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">f</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">index</span> <span class="o">&lt;</span> <span class="o">-</span><span class="n">degree</span> <span class="ow">or</span> <span class="n">index</span> <span class="o">&gt;=</span> <span class="n">degree</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">IndexError</span><span class="p">(</span><span class="s2">&quot;root index out of [</span><span class="si">%d</span><span class="s2">, </span><span class="si">%d</span><span class="s2">] range, got </span><span class="si">%d</span><span class="s2">&quot;</span> <span class="o">%</span>
+                             <span class="p">(</span><span class="o">-</span><span class="n">degree</span><span class="p">,</span> <span class="n">degree</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">index</span><span class="p">))</span>
+        <span class="k">elif</span> <span class="n">index</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">index</span> <span class="o">+=</span> <span class="n">degree</span>
+
+        <span class="n">dom</span> <span class="o">=</span> <span class="n">poly</span><span class="o">.</span><span class="n">get_domain</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">dom</span><span class="o">.</span><span class="n">is_Exact</span><span class="p">:</span>
+            <span class="n">poly</span> <span class="o">=</span> <span class="n">poly</span><span class="o">.</span><span class="n">to_exact</span><span class="p">()</span>
+
+        <span class="n">roots</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_roots_trivial</span><span class="p">(</span><span class="n">poly</span><span class="p">,</span> <span class="n">radicals</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">roots</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">roots</span><span class="p">[</span><span class="n">index</span><span class="p">]</span>
+
+        <span class="n">coeff</span><span class="p">,</span> <span class="n">poly</span> <span class="o">=</span> <span class="n">preprocess_roots</span><span class="p">(</span><span class="n">poly</span><span class="p">)</span>
+        <span class="n">dom</span> <span class="o">=</span> <span class="n">poly</span><span class="o">.</span><span class="n">get_domain</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">dom</span><span class="o">.</span><span class="n">is_ZZ</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;CRootOf is not supported over </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">dom</span><span class="p">)</span>
+
+        <span class="n">root</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_indexed_root</span><span class="p">(</span><span class="n">poly</span><span class="p">,</span> <span class="n">index</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">coeff</span> <span class="o">*</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_postprocess_root</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">radicals</span><span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_new</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">poly</span><span class="p">,</span> <span class="n">index</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Construct new ``CRootOf`` object from raw data. &quot;&quot;&quot;</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="n">Expr</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span>
+
+        <span class="n">obj</span><span class="o">.</span><span class="n">poly</span> <span class="o">=</span> <span class="n">PurePoly</span><span class="p">(</span><span class="n">poly</span><span class="p">)</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">index</span> <span class="o">=</span> <span class="n">index</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">_reals_cache</span><span class="p">[</span><span class="n">obj</span><span class="o">.</span><span class="n">poly</span><span class="p">]</span> <span class="o">=</span> <span class="n">_reals_cache</span><span class="p">[</span><span class="n">poly</span><span class="p">]</span>
+            <span class="n">_complexes_cache</span><span class="p">[</span><span class="n">obj</span><span class="o">.</span><span class="n">poly</span><span class="p">]</span> <span class="o">=</span> <span class="n">_complexes_cache</span><span class="p">[</span><span class="n">poly</span><span class="p">]</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="k">pass</span>
+
+        <span class="k">return</span> <span class="n">obj</span>
+
+    <span class="k">def</span> <span class="nf">_hashable_content</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">poly</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">index</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">expr</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">poly</span><span class="o">.</span><span class="n">as_expr</span><span class="p">()</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">args</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="p">,</span> <span class="n">Integer</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">index</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">free_symbols</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># CRootOf currently only works with univariate expressions</span>
+        <span class="c1"># whose poly attribute should be a PurePoly with no free</span>
+        <span class="c1"># symbols</span>
+        <span class="k">return</span> <span class="nb">set</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">_eval_is_real</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return ``True`` if the root is real. &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">index</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">_reals_cache</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">poly</span><span class="p">])</span>
+
+    <span class="k">def</span> <span class="nf">_eval_is_imaginary</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return ``True`` if the root is imaginary. &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">index</span> <span class="o">&gt;=</span> <span class="nb">len</span><span class="p">(</span><span class="n">_reals_cache</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">poly</span><span class="p">]):</span>
+            <span class="n">ivl</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_interval</span><span class="p">()</span>
+            <span class="k">return</span> <span class="n">ivl</span><span class="o">.</span><span class="n">ax</span><span class="o">*</span><span class="n">ivl</span><span class="o">.</span><span class="n">bx</span> <span class="o">&lt;=</span> <span class="mi">0</span>  <span class="c1"># all others are on one side or the other</span>
+        <span class="k">return</span> <span class="kc">False</span>  <span class="c1"># XXX is this necessary?</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">real_roots</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">poly</span><span class="p">,</span> <span class="n">radicals</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Get real roots of a polynomial. &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_get_roots</span><span class="p">(</span><span class="s2">&quot;_real_roots&quot;</span><span class="p">,</span> <span class="n">poly</span><span class="p">,</span> <span class="n">radicals</span><span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">all_roots</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">poly</span><span class="p">,</span> <span class="n">radicals</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Get real and complex roots of a polynomial. &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_get_roots</span><span class="p">(</span><span class="s2">&quot;_all_roots&quot;</span><span class="p">,</span> <span class="n">poly</span><span class="p">,</span> <span class="n">radicals</span><span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_get_reals_sqf</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">factor</span><span class="p">,</span> <span class="n">use_cache</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Get real root isolating intervals for a square-free factor.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">use_cache</span> <span class="ow">and</span> <span class="n">factor</span> <span class="ow">in</span> <span class="n">_reals_cache</span><span class="p">:</span>
+            <span class="n">real_part</span> <span class="o">=</span> <span class="n">_reals_cache</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">_reals_cache</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span> <span class="o">=</span> <span class="n">real_part</span> <span class="o">=</span> \
+                <span class="n">dup_isolate_real_roots_sqf</span><span class="p">(</span>
+                    <span class="n">factor</span><span class="o">.</span><span class="n">rep</span><span class="o">.</span><span class="n">rep</span><span class="p">,</span> <span class="n">factor</span><span class="o">.</span><span class="n">rep</span><span class="o">.</span><span class="n">dom</span><span class="p">,</span> <span class="n">blackbox</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">real_part</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_get_complexes_sqf</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">factor</span><span class="p">,</span> <span class="n">use_cache</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Get complex root isolating intervals for a square-free factor.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">use_cache</span> <span class="ow">and</span> <span class="n">factor</span> <span class="ow">in</span> <span class="n">_complexes_cache</span><span class="p">:</span>
+            <span class="n">complex_part</span> <span class="o">=</span> <span class="n">_complexes_cache</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">_complexes_cache</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span> <span class="o">=</span> <span class="n">complex_part</span> <span class="o">=</span> \
+                <span class="n">dup_isolate_complex_roots_sqf</span><span class="p">(</span>
+                <span class="n">factor</span><span class="o">.</span><span class="n">rep</span><span class="o">.</span><span class="n">rep</span><span class="p">,</span> <span class="n">factor</span><span class="o">.</span><span class="n">rep</span><span class="o">.</span><span class="n">dom</span><span class="p">,</span> <span class="n">blackbox</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">complex_part</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_get_reals</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">factors</span><span class="p">,</span> <span class="n">use_cache</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Compute real root isolating intervals for a list of factors. &quot;&quot;&quot;</span>
+        <span class="n">reals</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">for</span> <span class="n">factor</span><span class="p">,</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">factors</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">use_cache</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">KeyError</span>
+                <span class="n">r</span> <span class="o">=</span> <span class="n">_reals_cache</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span>
+                <span class="n">reals</span><span class="o">.</span><span class="n">extend</span><span class="p">([(</span><span class="n">i</span><span class="p">,</span> <span class="n">factor</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">r</span><span class="p">])</span>
+            <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                <span class="n">real_part</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_get_reals_sqf</span><span class="p">(</span><span class="n">factor</span><span class="p">,</span> <span class="n">use_cache</span><span class="p">)</span>
+                <span class="n">new</span> <span class="o">=</span> <span class="p">[(</span><span class="n">root</span><span class="p">,</span> <span class="n">factor</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span> <span class="k">for</span> <span class="n">root</span> <span class="ow">in</span> <span class="n">real_part</span><span class="p">]</span>
+                <span class="n">reals</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">new</span><span class="p">)</span>
+
+        <span class="n">reals</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_reals_sorted</span><span class="p">(</span><span class="n">reals</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">reals</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_get_complexes</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">factors</span><span class="p">,</span> <span class="n">use_cache</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Compute complex root isolating intervals for a list of factors. &quot;&quot;&quot;</span>
+        <span class="n">complexes</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">for</span> <span class="n">factor</span><span class="p">,</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">ordered</span><span class="p">(</span><span class="n">factors</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">use_cache</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">KeyError</span>
+                <span class="n">c</span> <span class="o">=</span> <span class="n">_complexes_cache</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span>
+                <span class="n">complexes</span><span class="o">.</span><span class="n">extend</span><span class="p">([(</span><span class="n">i</span><span class="p">,</span> <span class="n">factor</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">c</span><span class="p">])</span>
+            <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                <span class="n">complex_part</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_get_complexes_sqf</span><span class="p">(</span><span class="n">factor</span><span class="p">,</span> <span class="n">use_cache</span><span class="p">)</span>
+                <span class="n">new</span> <span class="o">=</span> <span class="p">[(</span><span class="n">root</span><span class="p">,</span> <span class="n">factor</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span> <span class="k">for</span> <span class="n">root</span> <span class="ow">in</span> <span class="n">complex_part</span><span class="p">]</span>
+                <span class="n">complexes</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">new</span><span class="p">)</span>
+
+        <span class="n">complexes</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_complexes_sorted</span><span class="p">(</span><span class="n">complexes</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">complexes</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_reals_sorted</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">reals</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Make real isolating intervals disjoint and sort roots. &quot;&quot;&quot;</span>
+        <span class="n">cache</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">reals</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">j</span><span class="p">,</span> <span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">g</span><span class="p">,</span> <span class="n">m</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">reals</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:]):</span>
+                <span class="n">u</span><span class="p">,</span> <span class="n">v</span> <span class="o">=</span> <span class="n">u</span><span class="o">.</span><span class="n">refine_disjoint</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+                <span class="n">reals</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="n">j</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">g</span><span class="p">,</span> <span class="n">m</span><span class="p">)</span>
+
+            <span class="n">reals</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span>
+
+        <span class="n">reals</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">reals</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">r</span><span class="p">:</span> <span class="n">r</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">a</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">root</span><span class="p">,</span> <span class="n">factor</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">reals</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">factor</span> <span class="ow">in</span> <span class="n">cache</span><span class="p">:</span>
+                <span class="n">cache</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">cache</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">root</span><span class="p">]</span>
+
+        <span class="k">for</span> <span class="n">factor</span><span class="p">,</span> <span class="n">roots</span> <span class="ow">in</span> <span class="n">cache</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">_reals_cache</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span> <span class="o">=</span> <span class="n">roots</span>
+
+        <span class="k">return</span> <span class="n">reals</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_refine_imaginary</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">complexes</span><span class="p">):</span>
+        <span class="n">sifted</span> <span class="o">=</span> <span class="n">sift</span><span class="p">(</span><span class="n">complexes</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">c</span><span class="p">:</span> <span class="n">c</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="n">complexes</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">ordered</span><span class="p">(</span><span class="n">sifted</span><span class="p">):</span>
+            <span class="n">nimag</span> <span class="o">=</span> <span class="n">_imag_count_of_factor</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">nimag</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="c1"># refine until xbounds are neg or pos</span>
+                <span class="k">for</span> <span class="n">u</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">sifted</span><span class="p">[</span><span class="n">f</span><span class="p">]:</span>
+                    <span class="k">while</span> <span class="n">u</span><span class="o">.</span><span class="n">ax</span><span class="o">*</span><span class="n">u</span><span class="o">.</span><span class="n">bx</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+                        <span class="n">u</span> <span class="o">=</span> <span class="n">u</span><span class="o">.</span><span class="n">_inner_refine</span><span class="p">()</span>
+                    <span class="n">complexes</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">u</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">k</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># refine until all but nimag xbounds are neg or pos</span>
+                <span class="n">potential_imag</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">sifted</span><span class="p">[</span><span class="n">f</span><span class="p">])))</span>
+                <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+                    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">potential_imag</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span>
+                    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">potential_imag</span><span class="p">):</span>
+                        <span class="n">u</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">k</span> <span class="o">=</span> <span class="n">sifted</span><span class="p">[</span><span class="n">f</span><span class="p">][</span><span class="n">i</span><span class="p">]</span>
+                        <span class="k">if</span> <span class="n">u</span><span class="o">.</span><span class="n">ax</span><span class="o">*</span><span class="n">u</span><span class="o">.</span><span class="n">bx</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                            <span class="n">potential_imag</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+                        <span class="k">elif</span> <span class="n">u</span><span class="o">.</span><span class="n">ax</span> <span class="o">!=</span> <span class="n">u</span><span class="o">.</span><span class="n">bx</span><span class="p">:</span>
+                            <span class="n">u</span> <span class="o">=</span> <span class="n">u</span><span class="o">.</span><span class="n">_inner_refine</span><span class="p">()</span>
+                            <span class="n">sifted</span><span class="p">[</span><span class="n">f</span><span class="p">][</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">u</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">k</span>
+                    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">potential_imag</span><span class="p">)</span> <span class="o">==</span> <span class="n">nimag</span><span class="p">:</span>
+                        <span class="k">break</span>
+                <span class="n">complexes</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">sifted</span><span class="p">[</span><span class="n">f</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">complexes</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_refine_complexes</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">complexes</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;return complexes such that no bounding rectangles of non-conjugate</span>
+<span class="sd">        roots would intersect. In addition, assure that neither ay nor by is</span>
+<span class="sd">        0 to guarantee that non-real roots are distinct from real roots in</span>
+<span class="sd">        terms of the y-bounds.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># get the intervals pairwise-disjoint.</span>
+        <span class="c1"># If rectangles were drawn around the coordinates of the bounding</span>
+        <span class="c1"># rectangles, no rectangles would intersect after this procedure.</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">complexes</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">j</span><span class="p">,</span> <span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">g</span><span class="p">,</span> <span class="n">m</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">complexes</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:]):</span>
+                <span class="n">u</span><span class="p">,</span> <span class="n">v</span> <span class="o">=</span> <span class="n">u</span><span class="o">.</span><span class="n">refine_disjoint</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+                <span class="n">complexes</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="n">j</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">g</span><span class="p">,</span> <span class="n">m</span><span class="p">)</span>
+
+            <span class="n">complexes</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span>
+
+        <span class="c1"># refine until the x-bounds are unambiguously positive or negative</span>
+        <span class="c1"># for non-imaginary roots</span>
+        <span class="n">complexes</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_refine_imaginary</span><span class="p">(</span><span class="n">complexes</span><span class="p">)</span>
+
+        <span class="c1"># make sure that all y bounds are off the real axis</span>
+        <span class="c1"># and on the same side of the axis</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">complexes</span><span class="p">):</span>
+            <span class="k">while</span> <span class="n">u</span><span class="o">.</span><span class="n">ay</span><span class="o">*</span><span class="n">u</span><span class="o">.</span><span class="n">by</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">u</span> <span class="o">=</span> <span class="n">u</span><span class="o">.</span><span class="n">refine</span><span class="p">()</span>
+            <span class="n">complexes</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">u</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">k</span>
+        <span class="k">return</span> <span class="n">complexes</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_complexes_sorted</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">complexes</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Make complex isolating intervals disjoint and sort roots. &quot;&quot;&quot;</span>
+        <span class="n">complexes</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_refine_complexes</span><span class="p">(</span><span class="n">complexes</span><span class="p">)</span>
+        <span class="c1"># XXX don&#39;t sort until you are sure that it is compatible</span>
+        <span class="c1"># with the indexing method but assert that the desired state</span>
+        <span class="c1"># is not broken</span>
+        <span class="n">C</span><span class="p">,</span> <span class="n">F</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span>  <span class="c1"># location of ComplexInterval and factor</span>
+        <span class="n">fs</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([</span><span class="n">i</span><span class="p">[</span><span class="n">F</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">complexes</span><span class="p">])</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">complexes</span><span class="p">)):</span>
+            <span class="k">if</span> <span class="n">complexes</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">F</span><span class="p">]</span> <span class="o">!=</span> <span class="n">complexes</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">][</span><span class="n">F</span><span class="p">]:</span>
+                <span class="c1"># if this fails the factors of a root were not</span>
+                <span class="c1"># contiguous because a discontinuity should only</span>
+                <span class="c1"># happen once</span>
+                <span class="n">fs</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">complexes</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">][</span><span class="n">F</span><span class="p">])</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">complexes</span><span class="p">)):</span>
+            <span class="c1"># negative im part (conj=True) comes before</span>
+            <span class="c1"># positive im part (conj=False)</span>
+            <span class="k">assert</span> <span class="n">complexes</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">C</span><span class="p">]</span><span class="o">.</span><span class="n">conj</span> <span class="ow">is</span> <span class="p">(</span><span class="n">i</span> <span class="o">%</span> <span class="mi">2</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span>
+
+        <span class="c1"># update cache</span>
+        <span class="n">cache</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="c1"># -- collate</span>
+        <span class="k">for</span> <span class="n">root</span><span class="p">,</span> <span class="n">factor</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">complexes</span><span class="p">:</span>
+            <span class="n">cache</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">factor</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
+        <span class="c1"># -- store</span>
+        <span class="k">for</span> <span class="n">factor</span><span class="p">,</span> <span class="n">roots</span> <span class="ow">in</span> <span class="n">cache</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">_complexes_cache</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span> <span class="o">=</span> <span class="n">roots</span>
+
+        <span class="k">return</span> <span class="n">complexes</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_reals_index</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">reals</span><span class="p">,</span> <span class="n">index</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Map initial real root index to an index in a factor where</span>
+<span class="sd">        the root belongs.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="k">for</span> <span class="n">j</span><span class="p">,</span> <span class="p">(</span><span class="n">_</span><span class="p">,</span> <span class="n">factor</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">reals</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">index</span> <span class="o">&lt;</span> <span class="n">i</span> <span class="o">+</span> <span class="n">k</span><span class="p">:</span>
+                <span class="n">poly</span><span class="p">,</span> <span class="n">index</span> <span class="o">=</span> <span class="n">factor</span><span class="p">,</span> <span class="mi">0</span>
+
+                <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">factor</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">reals</span><span class="p">[:</span><span class="n">j</span><span class="p">]:</span>
+                    <span class="k">if</span> <span class="n">factor</span> <span class="o">==</span> <span class="n">poly</span><span class="p">:</span>
+                        <span class="n">index</span> <span class="o">+=</span> <span class="mi">1</span>
+
+                <span class="k">return</span> <span class="n">poly</span><span class="p">,</span> <span class="n">index</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">i</span> <span class="o">+=</span> <span class="n">k</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_complexes_index</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">complexes</span><span class="p">,</span> <span class="n">index</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Map initial complex root index to an index in a factor where</span>
+<span class="sd">        the root belongs.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">j</span><span class="p">,</span> <span class="p">(</span><span class="n">_</span><span class="p">,</span> <span class="n">factor</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">complexes</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">index</span> <span class="o">&lt;</span> <span class="n">i</span> <span class="o">+</span> <span class="n">k</span><span class="p">:</span>
+                <span class="n">poly</span><span class="p">,</span> <span class="n">index</span> <span class="o">=</span> <span class="n">factor</span><span class="p">,</span> <span class="mi">0</span>
+
+                <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">factor</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">complexes</span><span class="p">[:</span><span class="n">j</span><span class="p">]:</span>
+                    <span class="k">if</span> <span class="n">factor</span> <span class="o">==</span> <span class="n">poly</span><span class="p">:</span>
+                        <span class="n">index</span> <span class="o">+=</span> <span class="mi">1</span>
+
+                <span class="n">index</span> <span class="o">+=</span> <span class="nb">len</span><span class="p">(</span><span class="n">_reals_cache</span><span class="p">[</span><span class="n">poly</span><span class="p">])</span>
+
+                <span class="k">return</span> <span class="n">poly</span><span class="p">,</span> <span class="n">index</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">i</span> <span class="o">+=</span> <span class="n">k</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_count_roots</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">roots</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Count the number of real or complex roots with multiplicities.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">sum</span><span class="p">([</span><span class="n">k</span> <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">roots</span><span class="p">])</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_indexed_root</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">poly</span><span class="p">,</span> <span class="n">index</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Get a root of a composite polynomial by index. &quot;&quot;&quot;</span>
+        <span class="n">factors</span> <span class="o">=</span> <span class="n">_pure_factors</span><span class="p">(</span><span class="n">poly</span><span class="p">)</span>
+
+        <span class="n">reals</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_get_reals</span><span class="p">(</span><span class="n">factors</span><span class="p">)</span>
+        <span class="n">reals_count</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_count_roots</span><span class="p">(</span><span class="n">reals</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">index</span> <span class="o">&lt;</span> <span class="n">reals_count</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_reals_index</span><span class="p">(</span><span class="n">reals</span><span class="p">,</span> <span class="n">index</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">complexes</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_get_complexes</span><span class="p">(</span><span class="n">factors</span><span class="p">)</span>
+            <span class="k">return</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_complexes_index</span><span class="p">(</span><span class="n">complexes</span><span class="p">,</span> <span class="n">index</span> <span class="o">-</span> <span class="n">reals_count</span><span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_real_roots</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">poly</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Get real roots of a composite polynomial. &quot;&quot;&quot;</span>
+        <span class="n">factors</span> <span class="o">=</span> <span class="n">_pure_factors</span><span class="p">(</span><span class="n">poly</span><span class="p">)</span>
+
+        <span class="n">reals</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_get_reals</span><span class="p">(</span><span class="n">factors</span><span class="p">)</span>
+        <span class="n">reals_count</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_count_roots</span><span class="p">(</span><span class="n">reals</span><span class="p">)</span>
+
+        <span class="n">roots</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">for</span> <span class="n">index</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">reals_count</span><span class="p">):</span>
+            <span class="n">roots</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">cls</span><span class="o">.</span><span class="n">_reals_index</span><span class="p">(</span><span class="n">reals</span><span class="p">,</span> <span class="n">index</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">roots</span>
+
+    <span class="k">def</span> <span class="nf">_reset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_all_roots</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">poly</span><span class="p">,</span> <span class="n">use_cache</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_all_roots</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">poly</span><span class="p">,</span> <span class="n">use_cache</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Get real and complex roots of a composite polynomial. &quot;&quot;&quot;</span>
+        <span class="n">factors</span> <span class="o">=</span> <span class="n">_pure_factors</span><span class="p">(</span><span class="n">poly</span><span class="p">)</span>
+
+        <span class="n">reals</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_get_reals</span><span class="p">(</span><span class="n">factors</span><span class="p">,</span> <span class="n">use_cache</span><span class="o">=</span><span class="n">use_cache</span><span class="p">)</span>
+        <span class="n">reals_count</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_count_roots</span><span class="p">(</span><span class="n">reals</span><span class="p">)</span>
+
+        <span class="n">roots</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">for</span> <span class="n">index</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">reals_count</span><span class="p">):</span>
+            <span class="n">roots</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">cls</span><span class="o">.</span><span class="n">_reals_index</span><span class="p">(</span><span class="n">reals</span><span class="p">,</span> <span class="n">index</span><span class="p">))</span>
+
+        <span class="n">complexes</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_get_complexes</span><span class="p">(</span><span class="n">factors</span><span class="p">,</span> <span class="n">use_cache</span><span class="o">=</span><span class="n">use_cache</span><span class="p">)</span>
+        <span class="n">complexes_count</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_count_roots</span><span class="p">(</span><span class="n">complexes</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">index</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">complexes_count</span><span class="p">):</span>
+            <span class="n">roots</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">cls</span><span class="o">.</span><span class="n">_complexes_index</span><span class="p">(</span><span class="n">complexes</span><span class="p">,</span> <span class="n">index</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">roots</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="nd">@cacheit</span>
+    <span class="k">def</span> <span class="nf">_roots_trivial</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">poly</span><span class="p">,</span> <span class="n">radicals</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Compute roots in linear, quadratic and binomial cases. &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">poly</span><span class="o">.</span><span class="n">degree</span><span class="p">()</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">roots_linear</span><span class="p">(</span><span class="n">poly</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">radicals</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+
+        <span class="k">if</span> <span class="n">poly</span><span class="o">.</span><span class="n">degree</span><span class="p">()</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">roots_quadratic</span><span class="p">(</span><span class="n">poly</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">poly</span><span class="o">.</span><span class="n">length</span><span class="p">()</span> <span class="o">==</span> <span class="mi">2</span> <span class="ow">and</span> <span class="n">poly</span><span class="o">.</span><span class="n">TC</span><span class="p">():</span>
+            <span class="k">return</span> <span class="n">roots_binomial</span><span class="p">(</span><span class="n">poly</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_preprocess_roots</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">poly</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Take heroic measures to make ``poly`` compatible with ``CRootOf``.&quot;&quot;&quot;</span>
+        <span class="n">dom</span> <span class="o">=</span> <span class="n">poly</span><span class="o">.</span><span class="n">get_domain</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">dom</span><span class="o">.</span><span class="n">is_Exact</span><span class="p">:</span>
+            <span class="n">poly</span> <span class="o">=</span> <span class="n">poly</span><span class="o">.</span><span class="n">to_exact</span><span class="p">()</span>
+
+        <span class="n">coeff</span><span class="p">,</span> <span class="n">poly</span> <span class="o">=</span> <span class="n">preprocess_roots</span><span class="p">(</span><span class="n">poly</span><span class="p">)</span>
+        <span class="n">dom</span> <span class="o">=</span> <span class="n">poly</span><span class="o">.</span><span class="n">get_domain</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">dom</span><span class="o">.</span><span class="n">is_ZZ</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span>
+                <span class="s2">&quot;sorted roots not supported over </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">dom</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">coeff</span><span class="p">,</span> <span class="n">poly</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_postprocess_root</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">root</span><span class="p">,</span> <span class="n">radicals</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the root if it is trivial or a ``CRootOf`` object. &quot;&quot;&quot;</span>
+        <span class="n">poly</span><span class="p">,</span> <span class="n">index</span> <span class="o">=</span> <span class="n">root</span>
+        <span class="n">roots</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_roots_trivial</span><span class="p">(</span><span class="n">poly</span><span class="p">,</span> <span class="n">radicals</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">roots</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">roots</span><span class="p">[</span><span class="n">index</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_new</span><span class="p">(</span><span class="n">poly</span><span class="p">,</span> <span class="n">index</span><span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_get_roots</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">method</span><span class="p">,</span> <span class="n">poly</span><span class="p">,</span> <span class="n">radicals</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return postprocessed roots of specified kind. &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">poly</span><span class="o">.</span><span class="n">is_univariate</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">PolynomialError</span><span class="p">(</span><span class="s2">&quot;only univariate polynomials are allowed&quot;</span><span class="p">)</span>
+
+        <span class="n">coeff</span><span class="p">,</span> <span class="n">poly</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_preprocess_roots</span><span class="p">(</span><span class="n">poly</span><span class="p">)</span>
+        <span class="n">roots</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">for</span> <span class="n">root</span> <span class="ow">in</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">method</span><span class="p">)(</span><span class="n">poly</span><span class="p">):</span>
+            <span class="n">roots</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">coeff</span><span class="o">*</span><span class="bp">cls</span><span class="o">.</span><span class="n">_postprocess_root</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">radicals</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">roots</span>
+
+    <span class="k">def</span> <span class="nf">_get_interval</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Internal function for retrieving isolation interval from cache. &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_real</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">_reals_cache</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">poly</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">index</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">reals_count</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">_reals_cache</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">poly</span><span class="p">])</span>
+            <span class="k">return</span> <span class="n">_complexes_cache</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">poly</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">index</span> <span class="o">-</span> <span class="n">reals_count</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">_set_interval</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">interval</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Internal function for updating isolation interval in cache. &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_real</span><span class="p">:</span>
+            <span class="n">_reals_cache</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">poly</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">index</span><span class="p">]</span> <span class="o">=</span> <span class="n">interval</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">reals_count</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">_reals_cache</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">poly</span><span class="p">])</span>
+            <span class="n">_complexes_cache</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">poly</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">index</span> <span class="o">-</span> <span class="n">reals_count</span><span class="p">]</span> <span class="o">=</span> <span class="n">interval</span>
+
+    <span class="k">def</span> <span class="nf">_eval_subs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">):</span>
+        <span class="c1"># don&#39;t allow subs to change anything</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="k">def</span> <span class="nf">_eval_conjugate</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_real</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span>
+        <span class="n">expr</span><span class="p">,</span> <span class="n">i</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">i</span> <span class="o">+</span> <span class="p">(</span><span class="mi">1</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_interval</span><span class="p">()</span><span class="o">.</span><span class="n">conj</span> <span class="k">else</span> <span class="o">-</span><span class="mi">1</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">eval_approx</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Evaluate this complex root to the given precision.</span>
+
+<span class="sd">        This uses secant method and root bounds are used to both</span>
+<span class="sd">        generate an initial guess and to check that the root</span>
+<span class="sd">        returned is valid. If ever the method converges outside the</span>
+<span class="sd">        root bounds, the bounds will be made smaller and updated.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">prec</span> <span class="o">=</span> <span class="n">dps_to_prec</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+        <span class="k">with</span> <span class="n">workprec</span><span class="p">(</span><span class="n">prec</span><span class="p">):</span>
+            <span class="n">g</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">poly</span><span class="o">.</span><span class="n">gen</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">g</span><span class="o">.</span><span class="n">is_Symbol</span><span class="p">:</span>
+                <span class="n">d</span> <span class="o">=</span> <span class="n">Dummy</span><span class="p">(</span><span class="s1">&#39;x&#39;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_imaginary</span><span class="p">:</span>
+                    <span class="n">d</span> <span class="o">*=</span> <span class="n">I</span>
+                <span class="n">func</span> <span class="o">=</span> <span class="n">lambdify</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">d</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">expr</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">expr</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_imaginary</span><span class="p">:</span>
+                    <span class="n">expr</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">I</span><span class="o">*</span><span class="n">g</span><span class="p">)</span>
+                <span class="n">func</span> <span class="o">=</span> <span class="n">lambdify</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">expr</span><span class="p">)</span>
+
+            <span class="n">interval</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_interval</span><span class="p">()</span>
+            <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_real</span><span class="p">:</span>
+                    <span class="n">a</span> <span class="o">=</span> <span class="n">mpf</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">interval</span><span class="o">.</span><span class="n">a</span><span class="p">))</span>
+                    <span class="n">b</span> <span class="o">=</span> <span class="n">mpf</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">interval</span><span class="o">.</span><span class="n">b</span><span class="p">))</span>
+                    <span class="k">if</span> <span class="n">a</span> <span class="o">==</span> <span class="n">b</span><span class="p">:</span>
+                        <span class="n">root</span> <span class="o">=</span> <span class="n">a</span>
+                        <span class="k">break</span>
+                    <span class="n">x0</span> <span class="o">=</span> <span class="n">mpf</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">interval</span><span class="o">.</span><span class="n">center</span><span class="p">))</span>
+                    <span class="n">x1</span> <span class="o">=</span> <span class="n">x0</span> <span class="o">+</span> <span class="n">mpf</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">interval</span><span class="o">.</span><span class="n">dx</span><span class="p">))</span><span class="o">/</span><span class="mi">4</span>
+                <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_imaginary</span><span class="p">:</span>
+                    <span class="n">a</span> <span class="o">=</span> <span class="n">mpf</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">interval</span><span class="o">.</span><span class="n">ay</span><span class="p">))</span>
+                    <span class="n">b</span> <span class="o">=</span> <span class="n">mpf</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">interval</span><span class="o">.</span><span class="n">by</span><span class="p">))</span>
+                    <span class="k">if</span> <span class="n">a</span> <span class="o">==</span> <span class="n">b</span><span class="p">:</span>
+                        <span class="n">root</span> <span class="o">=</span> <span class="n">mpc</span><span class="p">(</span><span class="n">mpf</span><span class="p">(</span><span class="s1">&#39;0&#39;</span><span class="p">),</span> <span class="n">a</span><span class="p">)</span>
+                        <span class="k">break</span>
+                    <span class="n">x0</span> <span class="o">=</span> <span class="n">mpf</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">interval</span><span class="o">.</span><span class="n">center</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+                    <span class="n">x1</span> <span class="o">=</span> <span class="n">x0</span> <span class="o">+</span> <span class="n">mpf</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">interval</span><span class="o">.</span><span class="n">dy</span><span class="p">))</span><span class="o">/</span><span class="mi">4</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">ax</span> <span class="o">=</span> <span class="n">mpf</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">interval</span><span class="o">.</span><span class="n">ax</span><span class="p">))</span>
+                    <span class="n">bx</span> <span class="o">=</span> <span class="n">mpf</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">interval</span><span class="o">.</span><span class="n">bx</span><span class="p">))</span>
+                    <span class="n">ay</span> <span class="o">=</span> <span class="n">mpf</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">interval</span><span class="o">.</span><span class="n">ay</span><span class="p">))</span>
+                    <span class="n">by</span> <span class="o">=</span> <span class="n">mpf</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">interval</span><span class="o">.</span><span class="n">by</span><span class="p">))</span>
+                    <span class="k">if</span> <span class="n">ax</span> <span class="o">==</span> <span class="n">bx</span> <span class="ow">and</span> <span class="n">ay</span> <span class="o">==</span> <span class="n">by</span><span class="p">:</span>
+                        <span class="n">root</span> <span class="o">=</span> <span class="n">mpc</span><span class="p">(</span><span class="n">ax</span><span class="p">,</span> <span class="n">ay</span><span class="p">)</span>
+                        <span class="k">break</span>
+                    <span class="n">x0</span> <span class="o">=</span> <span class="n">mpc</span><span class="p">(</span><span class="o">*</span><span class="nb">map</span><span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="n">interval</span><span class="o">.</span><span class="n">center</span><span class="p">))</span>
+                    <span class="n">x1</span> <span class="o">=</span> <span class="n">x0</span> <span class="o">+</span> <span class="n">mpc</span><span class="p">(</span><span class="o">*</span><span class="nb">map</span><span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="p">(</span><span class="n">interval</span><span class="o">.</span><span class="n">dx</span><span class="p">,</span> <span class="n">interval</span><span class="o">.</span><span class="n">dy</span><span class="p">)))</span><span class="o">/</span><span class="mi">4</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="c1"># without a tolerance, this will return when (to within</span>
+                    <span class="c1"># the given precision) x_i == x_{i-1}</span>
+                    <span class="n">root</span> <span class="o">=</span> <span class="n">findroot</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="p">(</span><span class="n">x0</span><span class="p">,</span> <span class="n">x1</span><span class="p">))</span>
+                    <span class="c1"># If the (real or complex) root is not in the &#39;interval&#39;,</span>
+                    <span class="c1"># then keep refining the interval. This happens if findroot</span>
+                    <span class="c1"># accidentally finds a different root outside of this</span>
+                    <span class="c1"># interval because our initial estimate &#39;x0&#39; was not close</span>
+                    <span class="c1"># enough. It is also possible that the secant method will</span>
+                    <span class="c1"># get trapped by a max/min in the interval; the root</span>
+                    <span class="c1"># verification by findroot will raise a ValueError in this</span>
+                    <span class="c1"># case and the interval will then be tightened -- and</span>
+                    <span class="c1"># eventually the root will be found.</span>
+                    <span class="c1">#</span>
+                    <span class="c1"># It is also possible that findroot will not have any</span>
+                    <span class="c1"># successful iterations to process (in which case it</span>
+                    <span class="c1"># will fail to initialize a variable that is tested</span>
+                    <span class="c1"># after the iterations and raise an UnboundLocalError).</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_real</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_imaginary</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="ow">not</span> <span class="nb">bool</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">imag</span><span class="p">)</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_real</span> <span class="ow">and</span> <span class="p">(</span>
+                                <span class="n">a</span> <span class="o">&lt;=</span> <span class="n">root</span> <span class="o">&lt;=</span> <span class="n">b</span><span class="p">):</span>
+                            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_imaginary</span><span class="p">:</span>
+                                <span class="n">root</span> <span class="o">=</span> <span class="n">mpc</span><span class="p">(</span><span class="n">mpf</span><span class="p">(</span><span class="s1">&#39;0&#39;</span><span class="p">),</span> <span class="n">root</span><span class="o">.</span><span class="n">real</span><span class="p">)</span>
+                            <span class="k">break</span>
+                    <span class="k">elif</span> <span class="p">(</span><span class="n">ax</span> <span class="o">&lt;=</span> <span class="n">root</span><span class="o">.</span><span class="n">real</span> <span class="o">&lt;=</span> <span class="n">bx</span> <span class="ow">and</span> <span class="n">ay</span> <span class="o">&lt;=</span> <span class="n">root</span><span class="o">.</span><span class="n">imag</span> <span class="o">&lt;=</span> <span class="n">by</span><span class="p">):</span>
+                        <span class="k">break</span>
+                <span class="k">except</span> <span class="p">(</span><span class="ne">UnboundLocalError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>
+                    <span class="k">pass</span>
+                <span class="n">interval</span> <span class="o">=</span> <span class="n">interval</span><span class="o">.</span><span class="n">refine</span><span class="p">()</span>
+
+        <span class="c1"># update the interval so we at least (for this precision or</span>
+        <span class="c1"># less) don&#39;t have much work to do to recompute the root</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_set_interval</span><span class="p">(</span><span class="n">interval</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">Float</span><span class="o">.</span><span class="n">_new</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">real</span><span class="o">.</span><span class="n">_mpf_</span><span class="p">,</span> <span class="n">prec</span><span class="p">)</span> <span class="o">+</span>
+            <span class="n">I</span><span class="o">*</span><span class="n">Float</span><span class="o">.</span><span class="n">_new</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">imag</span><span class="o">.</span><span class="n">_mpf_</span><span class="p">,</span> <span class="n">prec</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">_eval_evalf</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">prec</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Evaluate this complex root to the given precision.&quot;&quot;&quot;</span>
+        <span class="c1"># all kwargs are ignored</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">eval_rational</span><span class="p">(</span><span class="n">n</span><span class="o">=</span><span class="n">prec_to_dps</span><span class="p">(</span><span class="n">prec</span><span class="p">))</span><span class="o">.</span><span class="n">_evalf</span><span class="p">(</span><span class="n">prec</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">eval_rational</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dx</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dy</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">15</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a Rational approximation of ``self`` that has real</span>
+<span class="sd">        and imaginary component approximations that are within ``dx``</span>
+<span class="sd">        and ``dy`` of the true values, respectively. Alternatively,</span>
+<span class="sd">        ``n`` digits of precision can be specified.</span>
+
+<span class="sd">        The interval is refined with bisection and is sure to</span>
+<span class="sd">        converge. The root bounds are updated when the refinement</span>
+<span class="sd">        is complete so recalculation at the same or lesser precision</span>
+<span class="sd">        will not have to repeat the refinement and should be much</span>
+<span class="sd">        faster.</span>
+
+<span class="sd">        The following example first obtains Rational approximation to</span>
+<span class="sd">        1e-8 accuracy for all roots of the 4-th order Legendre</span>
+<span class="sd">        polynomial. Since the roots are all less than 1, this will</span>
+<span class="sd">        ensure the decimal representation of the approximation will be</span>
+<span class="sd">        correct (including rounding) to 6 digits:</span>
+
+<span class="sd">        &gt;&gt;&gt; from sympy import S, legendre_poly, Symbol</span>
+<span class="sd">        &gt;&gt;&gt; x = Symbol(&quot;x&quot;)</span>
+<span class="sd">        &gt;&gt;&gt; p = legendre_poly(4, x, polys=True)</span>
+<span class="sd">        &gt;&gt;&gt; r = p.real_roots()[-1]</span>
+<span class="sd">        &gt;&gt;&gt; r.eval_rational(10**-8).n(6)</span>
+<span class="sd">        0.861136</span>
+
+<span class="sd">        It is not necessary to a two-step calculation, however: the</span>
+<span class="sd">        decimal representation can be computed directly:</span>
+
+<span class="sd">        &gt;&gt;&gt; r.evalf(17)</span>
+<span class="sd">        0.86113631159405258</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">dy</span> <span class="o">=</span> <span class="n">dy</span> <span class="ow">or</span> <span class="n">dx</span>
+        <span class="k">if</span> <span class="n">dx</span><span class="p">:</span>
+            <span class="n">rtol</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="n">dx</span> <span class="o">=</span> <span class="n">dx</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">dx</span><span class="p">,</span> <span class="n">Rational</span><span class="p">)</span> <span class="k">else</span> <span class="n">Rational</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">dx</span><span class="p">))</span>
+            <span class="n">dy</span> <span class="o">=</span> <span class="n">dy</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">dy</span><span class="p">,</span> <span class="n">Rational</span><span class="p">)</span> <span class="k">else</span> <span class="n">Rational</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">dy</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># 5 binary (or 2 decimal) digits are needed to ensure that</span>
+            <span class="c1"># a given digit is correctly rounded</span>
+            <span class="c1"># prec_to_dps(dps_to_prec(n) + 5) - n &lt;= 2 (tested for</span>
+            <span class="c1"># n in range(1000000)</span>
+            <span class="n">rtol</span> <span class="o">=</span> <span class="n">S</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span><span class="o">**-</span><span class="p">(</span><span class="n">n</span> <span class="o">+</span> <span class="mi">2</span><span class="p">)</span>  <span class="c1"># +2 for guard digits</span>
+        <span class="n">interval</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_interval</span><span class="p">()</span>
+        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_real</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">rtol</span><span class="p">:</span>
+                    <span class="n">dx</span> <span class="o">=</span> <span class="nb">abs</span><span class="p">(</span><span class="n">interval</span><span class="o">.</span><span class="n">center</span><span class="o">*</span><span class="n">rtol</span><span class="p">)</span>
+                <span class="n">interval</span> <span class="o">=</span> <span class="n">interval</span><span class="o">.</span><span class="n">refine_size</span><span class="p">(</span><span class="n">dx</span><span class="o">=</span><span class="n">dx</span><span class="p">)</span>
+                <span class="n">c</span> <span class="o">=</span> <span class="n">interval</span><span class="o">.</span><span class="n">center</span>
+                <span class="n">real</span> <span class="o">=</span> <span class="n">Rational</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+                <span class="n">imag</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">rtol</span> <span class="ow">or</span> <span class="n">interval</span><span class="o">.</span><span class="n">dx</span> <span class="o">&lt;</span> <span class="nb">abs</span><span class="p">(</span><span class="n">c</span><span class="o">*</span><span class="n">rtol</span><span class="p">):</span>
+                    <span class="k">break</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_imaginary</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">rtol</span><span class="p">:</span>
+                    <span class="n">dy</span> <span class="o">=</span> <span class="nb">abs</span><span class="p">(</span><span class="n">interval</span><span class="o">.</span><span class="n">center</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">rtol</span><span class="p">)</span>
+                    <span class="n">dx</span> <span class="o">=</span> <span class="mi">1</span>
+                <span class="n">interval</span> <span class="o">=</span> <span class="n">interval</span><span class="o">.</span><span class="n">refine_size</span><span class="p">(</span><span class="n">dx</span><span class="o">=</span><span class="n">dx</span><span class="p">,</span> <span class="n">dy</span><span class="o">=</span><span class="n">dy</span><span class="p">)</span>
+                <span class="n">c</span> <span class="o">=</span> <span class="n">interval</span><span class="o">.</span><span class="n">center</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+                <span class="n">imag</span> <span class="o">=</span> <span class="n">Rational</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+                <span class="n">real</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">rtol</span> <span class="ow">or</span> <span class="n">interval</span><span class="o">.</span><span class="n">dy</span> <span class="o">&lt;</span> <span class="nb">abs</span><span class="p">(</span><span class="n">c</span><span class="o">*</span><span class="n">rtol</span><span class="p">):</span>
+                    <span class="k">break</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">rtol</span><span class="p">:</span>
+                    <span class="n">dx</span> <span class="o">=</span> <span class="nb">abs</span><span class="p">(</span><span class="n">interval</span><span class="o">.</span><span class="n">center</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">rtol</span><span class="p">)</span>
+                    <span class="n">dy</span> <span class="o">=</span> <span class="nb">abs</span><span class="p">(</span><span class="n">interval</span><span class="o">.</span><span class="n">center</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">rtol</span><span class="p">)</span>
+                <span class="n">interval</span> <span class="o">=</span> <span class="n">interval</span><span class="o">.</span><span class="n">refine_size</span><span class="p">(</span><span class="n">dx</span><span class="p">,</span> <span class="n">dy</span><span class="p">)</span>
+                <span class="n">c</span> <span class="o">=</span> <span class="n">interval</span><span class="o">.</span><span class="n">center</span>
+                <span class="n">real</span><span class="p">,</span> <span class="n">imag</span> <span class="o">=</span> <span class="nb">map</span><span class="p">(</span><span class="n">Rational</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">rtol</span> <span class="ow">or</span> <span class="p">(</span>
+                        <span class="n">interval</span><span class="o">.</span><span class="n">dx</span> <span class="o">&lt;</span> <span class="nb">abs</span><span class="p">(</span><span class="n">c</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">rtol</span><span class="p">)</span> <span class="ow">and</span>
+                        <span class="n">interval</span><span class="o">.</span><span class="n">dy</span> <span class="o">&lt;</span> <span class="nb">abs</span><span class="p">(</span><span class="n">c</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">rtol</span><span class="p">)):</span>
+                    <span class="k">break</span>
+
+        <span class="c1"># update the interval so we at least (for this precision or</span>
+        <span class="c1"># less) don&#39;t have much work to do to recompute the root</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_set_interval</span><span class="p">(</span><span class="n">interval</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">real</span> <span class="o">+</span> <span class="n">I</span><span class="o">*</span><span class="n">imag</span>
+
+    <span class="k">def</span> <span class="nf">_eval_Eq</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="c1"># CRootOf represents a Root, so if other is that root, it should set</span>
+        <span class="c1"># the expression to zero *and* it should be in the interval of the</span>
+        <span class="c1"># CRootOf instance. It must also be a number that agrees with the</span>
+        <span class="c1"># is_real value of the CRootOf instance.</span>
+        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">==</span> <span class="nb">type</span><span class="p">(</span><span class="n">other</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">sympify</span><span class="p">(</span><span class="bp">self</span> <span class="o">==</span> <span class="n">other</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">other</span><span class="o">.</span><span class="n">is_number</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">other</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">AppliedUndef</span><span class="p">)):</span>
+            <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">false</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">other</span><span class="o">.</span><span class="n">is_finite</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">false</span>
+        <span class="n">z</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">free_symbols</span><span class="o">.</span><span class="n">pop</span><span class="p">(),</span> <span class="n">other</span><span class="p">)</span><span class="o">.</span><span class="n">is_zero</span>
+        <span class="k">if</span> <span class="n">z</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">:</span>  <span class="c1"># all roots will make z True but we don&#39;t know</span>
+                        <span class="c1"># whether this is the right root if z is True</span>
+            <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">false</span>
+        <span class="n">o</span> <span class="o">=</span> <span class="n">other</span><span class="o">.</span><span class="n">is_real</span><span class="p">,</span> <span class="n">other</span><span class="o">.</span><span class="n">is_imaginary</span>
+        <span class="n">s</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_real</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_imaginary</span>
+        <span class="k">assert</span> <span class="kc">None</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">s</span>  <span class="c1"># this is part of initial refinement</span>
+        <span class="k">if</span> <span class="n">o</span> <span class="o">!=</span> <span class="n">s</span> <span class="ow">and</span> <span class="kc">None</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">o</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">false</span>
+        <span class="n">re</span><span class="p">,</span> <span class="n">im</span> <span class="o">=</span> <span class="n">other</span><span class="o">.</span><span class="n">as_real_imag</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_real</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">im</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">false</span>
+            <span class="n">i</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_interval</span><span class="p">()</span>
+            <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="p">[</span><span class="n">Rational</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">_</span><span class="p">))</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">a</span><span class="p">,</span> <span class="n">i</span><span class="o">.</span><span class="n">b</span><span class="p">)]</span>
+            <span class="k">return</span> <span class="n">sympify</span><span class="p">(</span><span class="n">a</span> <span class="o">&lt;=</span> <span class="n">other</span> <span class="ow">and</span> <span class="n">other</span> <span class="o">&lt;=</span> <span class="n">b</span><span class="p">)</span>
+        <span class="n">i</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_interval</span><span class="p">()</span>
+        <span class="n">r1</span><span class="p">,</span> <span class="n">r2</span><span class="p">,</span> <span class="n">i1</span><span class="p">,</span> <span class="n">i2</span> <span class="o">=</span> <span class="p">[</span><span class="n">Rational</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">j</span><span class="p">))</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="p">(</span>
+            <span class="n">i</span><span class="o">.</span><span class="n">ax</span><span class="p">,</span> <span class="n">i</span><span class="o">.</span><span class="n">bx</span><span class="p">,</span> <span class="n">i</span><span class="o">.</span><span class="n">ay</span><span class="p">,</span> <span class="n">i</span><span class="o">.</span><span class="n">by</span><span class="p">)]</span>
+        <span class="k">return</span> <span class="n">sympify</span><span class="p">((</span>
+            <span class="n">r1</span> <span class="o">&lt;=</span> <span class="n">re</span> <span class="ow">and</span> <span class="n">re</span> <span class="o">&lt;=</span> <span class="n">r2</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span>
+            <span class="n">i1</span> <span class="o">&lt;=</span> <span class="n">im</span> <span class="ow">and</span> <span class="n">im</span> <span class="o">&lt;=</span> <span class="n">i2</span><span class="p">))</span></div>
+
+<span class="n">CRootOf</span> <span class="o">=</span> <span class="n">ComplexRootOf</span>
+
+<div class="viewcode-block" id="RootSum"><a class="viewcode-back" href="../../../modules/polys/reference.html#sympy.polys.rootoftools.RootSum">[docs]</a><span class="nd">@public</span>
+<span class="k">class</span> <span class="nc">RootSum</span><span class="p">(</span><span class="n">Expr</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Represents a sum of all roots of a univariate polynomial. &quot;&quot;&quot;</span>
+
+    <span class="vm">__slots__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;poly&#39;</span><span class="p">,</span> <span class="s1">&#39;fun&#39;</span><span class="p">,</span> <span class="s1">&#39;auto&#39;</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">func</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">x</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">auto</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">quadratic</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Construct a new ``RootSum`` instance of roots of a polynomial.&quot;&quot;&quot;</span>
+        <span class="n">coeff</span><span class="p">,</span> <span class="n">poly</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_transform</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">poly</span><span class="o">.</span><span class="n">is_univariate</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">MultivariatePolynomialError</span><span class="p">(</span>
+                <span class="s2">&quot;only univariate polynomials are allowed&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">func</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">func</span> <span class="o">=</span> <span class="n">Lambda</span><span class="p">(</span><span class="n">poly</span><span class="o">.</span><span class="n">gen</span><span class="p">,</span> <span class="n">poly</span><span class="o">.</span><span class="n">gen</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">is_func</span> <span class="o">=</span> <span class="n">func</span><span class="o">.</span><span class="n">is_Function</span>
+            <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+                <span class="n">is_func</span> <span class="o">=</span> <span class="kc">False</span>
+
+            <span class="k">if</span> <span class="n">is_func</span> <span class="ow">and</span> <span class="mi">1</span> <span class="ow">in</span> <span class="n">func</span><span class="o">.</span><span class="n">nargs</span><span class="p">:</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="n">Lambda</span><span class="p">):</span>
+                    <span class="n">func</span> <span class="o">=</span> <span class="n">Lambda</span><span class="p">(</span><span class="n">poly</span><span class="o">.</span><span class="n">gen</span><span class="p">,</span> <span class="n">func</span><span class="p">(</span><span class="n">poly</span><span class="o">.</span><span class="n">gen</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s2">&quot;expected a univariate function, got </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">func</span><span class="p">)</span>
+
+        <span class="n">var</span><span class="p">,</span> <span class="n">expr</span> <span class="o">=</span> <span class="n">func</span><span class="o">.</span><span class="n">variables</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">func</span><span class="o">.</span><span class="n">expr</span>
+
+        <span class="k">if</span> <span class="n">coeff</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">:</span>
+            <span class="n">expr</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">coeff</span><span class="o">*</span><span class="n">var</span><span class="p">)</span>
+
+        <span class="n">deg</span> <span class="o">=</span> <span class="n">poly</span><span class="o">.</span><span class="n">degree</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">expr</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">var</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">deg</span><span class="o">*</span><span class="n">expr</span>
+
+        <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Add</span><span class="p">:</span>
+            <span class="n">add_const</span><span class="p">,</span> <span class="n">expr</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">as_independent</span><span class="p">(</span><span class="n">var</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">add_const</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span>
+
+        <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Mul</span><span class="p">:</span>
+            <span class="n">mul_const</span><span class="p">,</span> <span class="n">expr</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">as_independent</span><span class="p">(</span><span class="n">var</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">mul_const</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span>
+
+        <span class="n">func</span> <span class="o">=</span> <span class="n">Lambda</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">expr</span><span class="p">)</span>
+
+        <span class="n">rational</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_is_func_rational</span><span class="p">(</span><span class="n">poly</span><span class="p">,</span> <span class="n">func</span><span class="p">)</span>
+        <span class="n">factors</span><span class="p">,</span> <span class="n">terms</span> <span class="o">=</span> <span class="n">_pure_factors</span><span class="p">(</span><span class="n">poly</span><span class="p">),</span> <span class="p">[]</span>
+
+        <span class="k">for</span> <span class="n">poly</span><span class="p">,</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">factors</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">poly</span><span class="o">.</span><span class="n">is_linear</span><span class="p">:</span>
+                <span class="n">term</span> <span class="o">=</span> <span class="n">func</span><span class="p">(</span><span class="n">roots_linear</span><span class="p">(</span><span class="n">poly</span><span class="p">)[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="k">elif</span> <span class="n">quadratic</span> <span class="ow">and</span> <span class="n">poly</span><span class="o">.</span><span class="n">is_quadratic</span><span class="p">:</span>
+                <span class="n">term</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="n">roots_quadratic</span><span class="p">(</span><span class="n">poly</span><span class="p">)))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">rational</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">auto</span><span class="p">:</span>
+                    <span class="n">term</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_new</span><span class="p">(</span><span class="n">poly</span><span class="p">,</span> <span class="n">func</span><span class="p">,</span> <span class="n">auto</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">term</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_rational_case</span><span class="p">(</span><span class="n">poly</span><span class="p">,</span> <span class="n">func</span><span class="p">)</span>
+
+            <span class="n">terms</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">k</span><span class="o">*</span><span class="n">term</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">mul_const</span><span class="o">*</span><span class="n">Add</span><span class="p">(</span><span class="o">*</span><span class="n">terms</span><span class="p">)</span> <span class="o">+</span> <span class="n">deg</span><span class="o">*</span><span class="n">add_const</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_new</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">poly</span><span class="p">,</span> <span class="n">func</span><span class="p">,</span> <span class="n">auto</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Construct new raw ``RootSum`` instance. &quot;&quot;&quot;</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="n">Expr</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span>
+
+        <span class="n">obj</span><span class="o">.</span><span class="n">poly</span> <span class="o">=</span> <span class="n">poly</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">fun</span> <span class="o">=</span> <span class="n">func</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">auto</span> <span class="o">=</span> <span class="n">auto</span>
+
+        <span class="k">return</span> <span class="n">obj</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">new</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">poly</span><span class="p">,</span> <span class="n">func</span><span class="p">,</span> <span class="n">auto</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Construct new ``RootSum`` instance. &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">func</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="o">*</span><span class="n">func</span><span class="o">.</span><span class="n">variables</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">func</span><span class="o">.</span><span class="n">expr</span>
+
+        <span class="n">rational</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_is_func_rational</span><span class="p">(</span><span class="n">poly</span><span class="p">,</span> <span class="n">func</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">rational</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">auto</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_new</span><span class="p">(</span><span class="n">poly</span><span class="p">,</span> <span class="n">func</span><span class="p">,</span> <span class="n">auto</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_rational_case</span><span class="p">(</span><span class="n">poly</span><span class="p">,</span> <span class="n">func</span><span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_transform</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Transform an expression to a polynomial. &quot;&quot;&quot;</span>
+        <span class="n">poly</span> <span class="o">=</span> <span class="n">PurePoly</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">greedy</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">preprocess_roots</span><span class="p">(</span><span class="n">poly</span><span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_is_func_rational</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">poly</span><span class="p">,</span> <span class="n">func</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Check if a lambda is a rational function. &quot;&quot;&quot;</span>
+        <span class="n">var</span><span class="p">,</span> <span class="n">expr</span> <span class="o">=</span> <span class="n">func</span><span class="o">.</span><span class="n">variables</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">func</span><span class="o">.</span><span class="n">expr</span>
+        <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_rational_function</span><span class="p">(</span><span class="n">var</span><span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_rational_case</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">poly</span><span class="p">,</span> <span class="n">func</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Handle the rational function case. &quot;&quot;&quot;</span>
+        <span class="n">roots</span> <span class="o">=</span> <span class="n">symbols</span><span class="p">(</span><span class="s1">&#39;r:</span><span class="si">%d</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">poly</span><span class="o">.</span><span class="n">degree</span><span class="p">())</span>
+        <span class="n">var</span><span class="p">,</span> <span class="n">expr</span> <span class="o">=</span> <span class="n">func</span><span class="o">.</span><span class="n">variables</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">func</span><span class="o">.</span><span class="n">expr</span>
+
+        <span class="n">f</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">r</span><span class="p">)</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">roots</span><span class="p">)</span>
+        <span class="n">p</span><span class="p">,</span> <span class="n">q</span> <span class="o">=</span> <span class="n">together</span><span class="p">(</span><span class="n">f</span><span class="p">)</span><span class="o">.</span><span class="n">as_numer_denom</span><span class="p">()</span>
+
+        <span class="n">domain</span> <span class="o">=</span> <span class="n">QQ</span><span class="p">[</span><span class="n">roots</span><span class="p">]</span>
+
+        <span class="n">p</span> <span class="o">=</span> <span class="n">p</span><span class="o">.</span><span class="n">expand</span><span class="p">()</span>
+        <span class="n">q</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">expand</span><span class="p">()</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">p</span> <span class="o">=</span> <span class="n">Poly</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">domain</span><span class="o">=</span><span class="n">domain</span><span class="p">,</span> <span class="n">expand</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">GeneratorsNeeded</span><span class="p">:</span>
+            <span class="n">p</span><span class="p">,</span> <span class="n">p_coeff</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="p">(</span><span class="n">p</span><span class="p">,)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">p_monom</span><span class="p">,</span> <span class="n">p_coeff</span> <span class="o">=</span> <span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="n">p</span><span class="o">.</span><span class="n">terms</span><span class="p">())</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">q</span> <span class="o">=</span> <span class="n">Poly</span><span class="p">(</span><span class="n">q</span><span class="p">,</span> <span class="n">domain</span><span class="o">=</span><span class="n">domain</span><span class="p">,</span> <span class="n">expand</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">GeneratorsNeeded</span><span class="p">:</span>
+            <span class="n">q</span><span class="p">,</span> <span class="n">q_coeff</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="p">(</span><span class="n">q</span><span class="p">,)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">q_monom</span><span class="p">,</span> <span class="n">q_coeff</span> <span class="o">=</span> <span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="n">q</span><span class="o">.</span><span class="n">terms</span><span class="p">())</span>
+
+        <span class="n">coeffs</span><span class="p">,</span> <span class="n">mapping</span> <span class="o">=</span> <span class="n">symmetrize</span><span class="p">(</span><span class="n">p_coeff</span> <span class="o">+</span> <span class="n">q_coeff</span><span class="p">,</span> <span class="n">formal</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">formulas</span><span class="p">,</span> <span class="n">values</span> <span class="o">=</span> <span class="n">viete</span><span class="p">(</span><span class="n">poly</span><span class="p">,</span> <span class="n">roots</span><span class="p">),</span> <span class="p">[]</span>
+
+        <span class="k">for</span> <span class="p">(</span><span class="n">sym</span><span class="p">,</span> <span class="n">_</span><span class="p">),</span> <span class="p">(</span><span class="n">_</span><span class="p">,</span> <span class="n">val</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">mapping</span><span class="p">,</span> <span class="n">formulas</span><span class="p">):</span>
+            <span class="n">values</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">sym</span><span class="p">,</span> <span class="n">val</span><span class="p">))</span>
+
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">coeff</span><span class="p">,</span> <span class="n">_</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">coeffs</span><span class="p">):</span>
+            <span class="n">coeffs</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">coeff</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">values</span><span class="p">)</span>
+
+        <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">p_coeff</span><span class="p">)</span>
+
+        <span class="n">p_coeff</span> <span class="o">=</span> <span class="n">coeffs</span><span class="p">[:</span><span class="n">n</span><span class="p">]</span>
+        <span class="n">q_coeff</span> <span class="o">=</span> <span class="n">coeffs</span><span class="p">[</span><span class="n">n</span><span class="p">:]</span>
+
+        <span class="k">if</span> <span class="n">p</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">p</span> <span class="o">=</span> <span class="n">Poly</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">p_monom</span><span class="p">,</span> <span class="n">p_coeff</span><span class="p">)),</span> <span class="o">*</span><span class="n">p</span><span class="o">.</span><span class="n">gens</span><span class="p">)</span><span class="o">.</span><span class="n">as_expr</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="p">(</span><span class="n">p</span><span class="p">,)</span> <span class="o">=</span> <span class="n">p_coeff</span>
+
+        <span class="k">if</span> <span class="n">q</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">q</span> <span class="o">=</span> <span class="n">Poly</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">q_monom</span><span class="p">,</span> <span class="n">q_coeff</span><span class="p">)),</span> <span class="o">*</span><span class="n">q</span><span class="o">.</span><span class="n">gens</span><span class="p">)</span><span class="o">.</span><span class="n">as_expr</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="p">(</span><span class="n">q</span><span class="p">,)</span> <span class="o">=</span> <span class="n">q_coeff</span>
+
+        <span class="k">return</span> <span class="n">factor</span><span class="p">(</span><span class="n">p</span><span class="o">/</span><span class="n">q</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_hashable_content</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">poly</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">fun</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">expr</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">poly</span><span class="o">.</span><span class="n">as_expr</span><span class="p">()</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">args</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">fun</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">poly</span><span class="o">.</span><span class="n">gen</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">free_symbols</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">poly</span><span class="o">.</span><span class="n">free_symbols</span> <span class="o">|</span> <span class="bp">self</span><span class="o">.</span><span class="n">fun</span><span class="o">.</span><span class="n">free_symbols</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_commutative</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="nf">doit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">hints</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">hints</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;roots&#39;</span><span class="p">,</span> <span class="kc">True</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">self</span>
+
+        <span class="n">_roots</span> <span class="o">=</span> <span class="n">roots</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">poly</span><span class="p">,</span> <span class="n">multiple</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">_roots</span><span class="p">)</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">poly</span><span class="o">.</span><span class="n">degree</span><span class="p">():</span>
+            <span class="k">return</span> <span class="bp">self</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">Add</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">fun</span><span class="p">(</span><span class="n">r</span><span class="p">)</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">_roots</span><span class="p">])</span>
+
+    <span class="k">def</span> <span class="nf">_eval_evalf</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">prec</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">_roots</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">poly</span><span class="o">.</span><span class="n">nroots</span><span class="p">(</span><span class="n">n</span><span class="o">=</span><span class="n">prec_to_dps</span><span class="p">(</span><span class="n">prec</span><span class="p">))</span>
+        <span class="k">except</span> <span class="p">(</span><span class="n">DomainError</span><span class="p">,</span> <span class="n">PolynomialError</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">self</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">Add</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">fun</span><span class="p">(</span><span class="n">r</span><span class="p">)</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">_roots</span><span class="p">])</span>
+
+    <span class="k">def</span> <span class="nf">_eval_derivative</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="n">var</span><span class="p">,</span> <span class="n">expr</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">fun</span><span class="o">.</span><span class="n">args</span>
+        <span class="n">func</span> <span class="o">=</span> <span class="n">Lambda</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">expr</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">new</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">poly</span><span class="p">,</span> <span class="n">func</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">auto</span><span class="p">)</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../../index.html">
+              <img class="logo" src="../../../_static/sympylogo.png" alt="Logo"/>
+            </a></p>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../../index.html">SymPy 1.2 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../../index.html" >Module code</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2018 SymPy Development Team.
+      Last updated on Jul 09, 2018.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.7.5.
+    </div>
+  </body>
+</html>
