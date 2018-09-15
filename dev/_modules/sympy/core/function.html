@@ -102,7 +102,7 @@
 <span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="k">import</span> <span class="n">string_types</span><span class="p">,</span> <span class="n">with_metaclass</span><span class="p">,</span> <span class="nb">range</span>
 <span class="kn">from</span> <span class="nn">sympy.utilities</span> <span class="k">import</span> <span class="n">default_sort_key</span>
 <span class="kn">from</span> <span class="nn">sympy.utilities.misc</span> <span class="k">import</span> <span class="n">filldedent</span>
-<span class="kn">from</span> <span class="nn">sympy.utilities.iterables</span> <span class="k">import</span> <span class="n">uniq</span>
+<span class="kn">from</span> <span class="nn">sympy.utilities.iterables</span> <span class="k">import</span> <span class="n">has_dups</span>
 <span class="kn">from</span> <span class="nn">sympy.core.evaluate</span> <span class="k">import</span> <span class="n">global_evaluate</span>
 
 <span class="kn">import</span> <span class="nn">sys</span>
@@ -181,8 +181,6 @@
         <span class="k">if</span> <span class="ow">not</span> <span class="n">num_with_default</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">num_no_default</span>
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">num_no_default</span><span class="p">,</span> <span class="n">num_no_default</span><span class="o">+</span><span class="n">num_with_default</span><span class="o">+</span><span class="mi">1</span><span class="p">))</span>
-
-
 
 
 <div class="viewcode-block" id="FunctionClass"><a class="viewcode-back" href="../../../modules/core.html#sympy.core.function.FunctionClass">[docs]</a><span class="k">class</span> <span class="nc">FunctionClass</span><span class="p">(</span><span class="n">ManagedProperties</span><span class="p">):</span>
@@ -367,7 +365,7 @@
         <span class="k">if</span> <span class="p">(</span><span class="n">old</span><span class="o">.</span><span class="n">is_Function</span> <span class="ow">and</span> <span class="n">new</span><span class="o">.</span><span class="n">is_Function</span> <span class="ow">and</span>
             <span class="n">callable</span><span class="p">(</span><span class="n">old</span><span class="p">)</span> <span class="ow">and</span> <span class="n">callable</span><span class="p">(</span><span class="n">new</span><span class="p">)</span> <span class="ow">and</span>
             <span class="n">old</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">func</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="ow">in</span> <span class="n">new</span><span class="o">.</span><span class="n">nargs</span><span class="p">):</span>
-            <span class="k">return</span> <span class="n">new</span><span class="p">(</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">new</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">_subs</span><span class="p">(</span><span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">])</span>
 
 
 <div class="viewcode-block" id="Function"><a class="viewcode-back" href="../../../modules/functions/index.html#sympy.core.function.Function">[docs]</a><span class="k">class</span> <span class="nc">Function</span><span class="p">(</span><span class="n">Application</span><span class="p">,</span> <span class="n">Expr</span><span class="p">):</span>
@@ -565,7 +563,7 @@
     <span class="k">def</span> <span class="nf">_eval_evalf</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">prec</span><span class="p">):</span>
         <span class="c1"># Lookup mpmath function based on name</span>
         <span class="k">try</span><span class="p">:</span>
-            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="p">,</span> <span class="n">UndefinedFunction</span><span class="p">):</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">AppliedUndef</span><span class="p">):</span>
                 <span class="c1"># Shouldn&#39;t lookup in mpmath but might have ._imp_</span>
                 <span class="k">raise</span> <span class="ne">AttributeError</span>
             <span class="n">fname</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="vm">__name__</span>
@@ -658,6 +656,7 @@
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        This function does compute series for multivariate functions,</span>
 <span class="sd">        but the expansion is always in terms of *one* variable.</span>
+
 <span class="sd">        Examples</span>
 <span class="sd">        ========</span>
 
@@ -887,6 +886,7 @@
 
     <span class="k">def</span> <span class="nf">__ne__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
         <span class="k">return</span> <span class="ow">not</span> <span class="bp">self</span> <span class="o">==</span> <span class="n">other</span>
+
 
 <div class="viewcode-block" id="WildFunction"><a class="viewcode-back" href="../../../modules/core.html#sympy.core.function.WildFunction">[docs]</a><span class="k">class</span> <span class="nc">WildFunction</span><span class="p">(</span><span class="n">Function</span><span class="p">,</span> <span class="n">AtomicExpr</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
@@ -1809,14 +1809,17 @@
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">variables</span><span class="p">,</span> <span class="n">point</span><span class="p">,</span> <span class="o">**</span><span class="n">assumptions</span><span class="p">):</span>
         <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Symbol</span>
+
         <span class="k">if</span> <span class="ow">not</span> <span class="n">is_sequence</span><span class="p">(</span><span class="n">variables</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">):</span>
             <span class="n">variables</span> <span class="o">=</span> <span class="p">[</span><span class="n">variables</span><span class="p">]</span>
-        <span class="n">variables</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">sympify</span><span class="p">(</span><span class="n">variables</span><span class="p">))</span>
+        <span class="n">variables</span> <span class="o">=</span> <span class="n">Tuple</span><span class="p">(</span><span class="o">*</span><span class="n">variables</span><span class="p">)</span>
 
-        <span class="k">if</span> <span class="nb">list</span><span class="p">(</span><span class="n">uniq</span><span class="p">(</span><span class="n">variables</span><span class="p">))</span> <span class="o">!=</span> <span class="n">variables</span><span class="p">:</span>
-            <span class="n">repeated</span> <span class="o">=</span> <span class="p">[</span> <span class="n">v</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">set</span><span class="p">(</span><span class="n">variables</span><span class="p">)</span> <span class="k">if</span> <span class="n">variables</span><span class="o">.</span><span class="n">count</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="p">]</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;cannot substitute expressions </span><span class="si">%s</span><span class="s1"> more than &#39;</span>
-                             <span class="s1">&#39;once.&#39;</span> <span class="o">%</span> <span class="n">repeated</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">has_dups</span><span class="p">(</span><span class="n">variables</span><span class="p">):</span>
+            <span class="n">repeated</span> <span class="o">=</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">Counter</span><span class="p">(</span><span class="n">variables</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">i</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">]</span>
+            <span class="n">__</span> <span class="o">=</span> <span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">repeated</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">filldedent</span><span class="p">(</span><span class="s1">&#39;&#39;&#39;</span>
+<span class="s1">                The following expressions appear more than once: </span><span class="si">%s</span><span class="s1"></span>
+<span class="s1">                &#39;&#39;&#39;</span> <span class="o">%</span> <span class="n">__</span><span class="p">))</span>
 
         <span class="n">point</span> <span class="o">=</span> <span class="n">Tuple</span><span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="n">point</span> <span class="k">if</span> <span class="n">is_sequence</span><span class="p">(</span><span class="n">point</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">)</span> <span class="k">else</span> <span class="p">[</span><span class="n">point</span><span class="p">]))</span>
 
@@ -1824,7 +1827,16 @@
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Number of point values must be the same as &#39;</span>
                              <span class="s1">&#39;the number of variables.&#39;</span><span class="p">)</span>
 
-        <span class="n">expr</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">point</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">sympify</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+
+        <span class="c1"># denest</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">Subs</span><span class="p">):</span>
+            <span class="n">variables</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">variables</span> <span class="o">+</span> <span class="n">variables</span>
+            <span class="n">point</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">point</span> <span class="o">+</span> <span class="n">point</span>
+            <span class="n">expr</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">expr</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">expr</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
 
         <span class="c1"># use symbols with names equal to the point value (with preppended _)</span>
         <span class="c1"># to give a variable-independent expression</span>
@@ -1895,15 +1907,10 @@
         <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">expr_free_symbols</span> <span class="o">-</span> <span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">variables</span><span class="p">)</span> <span class="o">|</span>
             <span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">point</span><span class="o">.</span><span class="n">expr_free_symbols</span><span class="p">))</span>
 
-    <span class="k">def</span> <span class="nf">_has</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pattern</span><span class="p">):</span>
-        <span class="k">if</span> <span class="n">pattern</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">variables</span> <span class="ow">and</span> <span class="n">pattern</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">point</span><span class="p">:</span>
-            <span class="k">return</span> <span class="kc">False</span>
-        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">Subs</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_has</span><span class="p">(</span><span class="n">pattern</span><span class="p">)</span>
-
     <span class="k">def</span> <span class="nf">__eq__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">Subs</span><span class="p">):</span>
             <span class="k">return</span> <span class="kc">False</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_expr</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">_expr</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_hashable_content</span><span class="p">()</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">_hashable_content</span><span class="p">()</span>
 
     <span class="k">def</span> <span class="nf">__ne__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
         <span class="k">return</span> <span class="ow">not</span><span class="p">(</span><span class="bp">self</span> <span class="o">==</span> <span class="n">other</span><span class="p">)</span>
@@ -1912,14 +1919,29 @@
         <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">Subs</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__hash__</span><span class="p">()</span>
 
     <span class="k">def</span> <span class="nf">_hashable_content</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_expr</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">canonical_variables</span><span class="p">),)</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_expr</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">canonical_variables</span><span class="p">),</span>
+            <span class="p">)</span> <span class="o">+</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">ordered</span><span class="p">([(</span><span class="n">v</span><span class="p">,</span> <span class="n">p</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span><span class="p">,</span> <span class="n">p</span> <span class="ow">in</span>
+            <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">variables</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">point</span><span class="p">)</span> <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">v</span><span class="p">)]))</span>
 
     <span class="k">def</span> <span class="nf">_eval_subs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">):</span>
+        <span class="c1"># Subs doit will do the variables in order; the semantics</span>
+        <span class="c1"># of subs for Subs is have the following invariant for</span>
+        <span class="c1"># Subs object foo:</span>
+        <span class="c1">#    foo.doit().subs(reps) == foo.subs(reps).doit()</span>
+        <span class="n">pt</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">point</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">old</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">variables</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">old</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">point</span><span class="p">:</span>
-                <span class="n">newpoint</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">new</span> <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="n">old</span> <span class="k">else</span> <span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">point</span><span class="p">)</span>
-                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">variables</span><span class="p">,</span> <span class="n">newpoint</span><span class="p">)</span>
-            <span class="k">return</span> <span class="bp">self</span>
+            <span class="n">i</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">variables</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">old</span><span class="p">)</span>
+            <span class="c1"># any occurance of old before this point will get</span>
+            <span class="c1"># handled by replacements from here on</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">variables</span><span class="p">)):</span>
+                <span class="n">pt</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">pt</span><span class="p">[</span><span class="n">j</span><span class="p">]</span><span class="o">.</span><span class="n">_subs</span><span class="p">(</span><span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">)</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">variables</span><span class="p">,</span> <span class="n">pt</span><span class="p">)</span>
+        <span class="n">v</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">_subs</span><span class="p">(</span><span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">variables</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">v</span> <span class="o">!=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">variables</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">variables</span> <span class="o">+</span> <span class="p">(</span><span class="n">old</span><span class="p">,),</span> <span class="n">pt</span> <span class="o">+</span> <span class="p">[</span><span class="n">new</span><span class="p">])</span>
+        <span class="n">expr</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">_subs</span><span class="p">(</span><span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">)</span>
+        <span class="n">pt</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">_subs</span><span class="p">(</span><span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">point</span><span class="p">]</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">pt</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">_eval_derivative</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">s</span><span class="p">):</span>
         <span class="c1"># Apply the chain rule of the derivative on the substitution variables:</span>
