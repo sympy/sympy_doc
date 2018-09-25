@@ -62,6 +62,7 @@
         <span class="n">do_one</span><span class="p">,</span> <span class="n">new</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">sympy.matrices.expressions.matexpr</span> <span class="k">import</span> <span class="p">(</span><span class="n">MatrixExpr</span><span class="p">,</span> <span class="n">ShapeError</span><span class="p">,</span>
         <span class="n">Identity</span><span class="p">,</span> <span class="n">ZeroMatrix</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">sympy.matrices.expressions.matpow</span> <span class="k">import</span> <span class="n">MatPow</span>
 <span class="kn">from</span> <span class="nn">sympy.matrices.matrices</span> <span class="k">import</span> <span class="n">MatrixBase</span>
 
 
@@ -83,7 +84,6 @@
 
     <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="n">check</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;check&#39;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
-
         <span class="n">args</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="n">sympify</span><span class="p">,</span> <span class="n">args</span><span class="p">))</span>
         <span class="n">obj</span> <span class="o">=</span> <span class="n">Basic</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">)</span>
         <span class="n">factor</span><span class="p">,</span> <span class="n">matrices</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">as_coeff_matrices</span><span class="p">()</span>
@@ -174,7 +174,10 @@
             <span class="n">args</span> <span class="o">=</span> <span class="p">[</span><span class="n">arg</span><span class="o">.</span><span class="n">doit</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">]</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span>
-        <span class="k">return</span> <span class="n">canonicalize</span><span class="p">(</span><span class="n">MatMul</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">))</span>
+        <span class="c1"># treat scalar*MatrixSymbol or scalar*MatPow separately</span>
+        <span class="n">mats</span> <span class="o">=</span> <span class="p">[</span><span class="n">arg</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span> <span class="k">if</span> <span class="n">arg</span><span class="o">.</span><span class="n">is_Matrix</span><span class="p">]</span>
+        <span class="n">expr</span> <span class="o">=</span> <span class="n">canonicalize</span><span class="p">(</span><span class="n">MatMul</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">expr</span>
 
     <span class="c1"># Needed for partial compatibility with Mul</span>
     <span class="k">def</span> <span class="nf">args_cnc</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
@@ -252,15 +255,25 @@
 
 <span class="k">def</span> <span class="nf">xxinv</span><span class="p">(</span><span class="n">mul</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot; Y * X * X.I -&gt; Y &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">sympy.matrices.expressions.inverse</span> <span class="k">import</span> <span class="n">Inverse</span>
     <span class="n">factor</span><span class="p">,</span> <span class="n">matrices</span> <span class="o">=</span> <span class="n">mul</span><span class="o">.</span><span class="n">as_coeff_matrices</span><span class="p">()</span>
     <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">Y</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">matrices</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">matrices</span><span class="p">[</span><span class="mi">1</span><span class="p">:])):</span>
         <span class="k">try</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">X</span><span class="o">.</span><span class="n">is_square</span> <span class="ow">and</span> <span class="n">Y</span><span class="o">.</span><span class="n">is_square</span> <span class="ow">and</span> <span class="n">X</span> <span class="o">==</span> <span class="n">Y</span><span class="o">.</span><span class="n">inverse</span><span class="p">():</span>
-                <span class="n">I</span> <span class="o">=</span> <span class="n">Identity</span><span class="p">(</span><span class="n">X</span><span class="o">.</span><span class="n">rows</span><span class="p">)</span>
-                <span class="k">return</span> <span class="n">newmul</span><span class="p">(</span><span class="n">factor</span><span class="p">,</span> <span class="o">*</span><span class="p">(</span><span class="n">matrices</span><span class="p">[:</span><span class="n">i</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="n">I</span><span class="p">]</span> <span class="o">+</span> <span class="n">matrices</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">2</span><span class="p">:]))</span>
+            <span class="k">if</span> <span class="n">X</span><span class="o">.</span><span class="n">is_square</span> <span class="ow">and</span> <span class="n">Y</span><span class="o">.</span><span class="n">is_square</span><span class="p">:</span>
+                <span class="n">_X</span><span class="p">,</span> <span class="n">x_exp</span> <span class="o">=</span> <span class="n">X</span><span class="p">,</span> <span class="mi">1</span>
+                <span class="n">_Y</span><span class="p">,</span> <span class="n">y_exp</span> <span class="o">=</span> <span class="n">Y</span><span class="p">,</span> <span class="mi">1</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">MatPow</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">Inverse</span><span class="p">):</span>
+                    <span class="n">_X</span><span class="p">,</span> <span class="n">x_exp</span> <span class="o">=</span> <span class="n">X</span><span class="o">.</span><span class="n">args</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">Y</span><span class="p">,</span> <span class="n">MatPow</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">Y</span><span class="p">,</span> <span class="n">Inverse</span><span class="p">):</span>
+                    <span class="n">_Y</span><span class="p">,</span> <span class="n">y_exp</span> <span class="o">=</span> <span class="n">Y</span><span class="o">.</span><span class="n">args</span>
+                <span class="k">if</span> <span class="n">_X</span> <span class="o">==</span> <span class="n">_Y</span><span class="o">.</span><span class="n">inverse</span><span class="p">():</span>
+                    <span class="k">if</span> <span class="n">x_exp</span> <span class="o">-</span> <span class="n">y_exp</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                        <span class="n">I</span> <span class="o">=</span> <span class="n">_X</span><span class="o">**</span><span class="p">(</span><span class="n">x_exp</span><span class="o">-</span><span class="n">y_exp</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">I</span> <span class="o">=</span> <span class="n">_Y</span><span class="o">**</span><span class="p">(</span><span class="n">y_exp</span><span class="o">-</span><span class="n">x_exp</span><span class="p">)</span>
+                    <span class="k">return</span> <span class="n">newmul</span><span class="p">(</span><span class="n">factor</span><span class="p">,</span> <span class="o">*</span><span class="p">(</span><span class="n">matrices</span><span class="p">[:</span><span class="n">i</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="n">I</span><span class="p">]</span> <span class="o">+</span> <span class="n">matrices</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">2</span><span class="p">:]))</span>
         <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>  <span class="c1"># Y might not be invertible</span>
             <span class="k">pass</span>
-
     <span class="k">return</span> <span class="n">mul</span>
 
 <span class="k">def</span> <span class="nf">remove_ids</span><span class="p">(</span><span class="n">mul</span><span class="p">):</span>
@@ -289,9 +302,40 @@
         <span class="k">return</span> <span class="n">newmul</span><span class="p">(</span><span class="n">factor</span><span class="p">,</span> <span class="o">*</span><span class="n">matrices</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">mul</span>
 
-<span class="n">rules</span> <span class="o">=</span> <span class="p">(</span><span class="n">any_zeros</span><span class="p">,</span> <span class="n">remove_ids</span><span class="p">,</span> <span class="n">xxinv</span><span class="p">,</span> <span class="n">unpack</span><span class="p">,</span> <span class="n">rm_id</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span> <span class="o">==</span> <span class="mi">1</span><span class="p">),</span>
-         <span class="n">merge_explicit</span><span class="p">,</span> <span class="n">factor_in_front</span><span class="p">,</span> <span class="n">flatten</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">combine_powers</span><span class="p">(</span><span class="n">mul</span><span class="p">):</span>
+    <span class="c1"># combine consecutive powers with the same base into one</span>
+    <span class="c1"># e.g. A*A**2 -&gt; A**3</span>
+    <span class="kn">from</span> <span class="nn">sympy.matrices.expressions</span> <span class="k">import</span> <span class="n">MatPow</span>
+    <span class="n">factor</span><span class="p">,</span> <span class="n">mmul</span> <span class="o">=</span> <span class="n">mul</span><span class="o">.</span><span class="n">as_coeff_mmul</span><span class="p">()</span>
+    <span class="n">args</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">base</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">exp</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">mmul</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">MatPow</span><span class="p">):</span>
+            <span class="n">current_base</span> <span class="o">=</span> <span class="n">arg</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">current_exp</span> <span class="o">=</span> <span class="n">arg</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">current_base</span> <span class="o">=</span> <span class="n">arg</span>
+            <span class="n">current_exp</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="n">current_base</span> <span class="o">==</span> <span class="n">base</span><span class="p">:</span>
+            <span class="n">exp</span> <span class="o">+=</span> <span class="n">current_exp</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">base</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">exp</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="n">args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">base</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">base</span><span class="o">**</span><span class="n">exp</span><span class="p">)</span>
+            <span class="n">exp</span> <span class="o">=</span> <span class="n">current_exp</span>
+            <span class="n">base</span> <span class="o">=</span> <span class="n">current_base</span>
+    <span class="k">if</span> <span class="n">exp</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">base</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">base</span><span class="o">**</span><span class="n">exp</span><span class="p">)</span>
 
+    <span class="k">return</span> <span class="n">newmul</span><span class="p">(</span><span class="n">factor</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">)</span>
+
+<span class="n">rules</span> <span class="o">=</span> <span class="p">(</span><span class="n">any_zeros</span><span class="p">,</span> <span class="n">remove_ids</span><span class="p">,</span> <span class="n">xxinv</span><span class="p">,</span> <span class="n">unpack</span><span class="p">,</span> <span class="n">rm_id</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span> <span class="o">==</span> <span class="mi">1</span><span class="p">),</span>
+         <span class="n">merge_explicit</span><span class="p">,</span> <span class="n">factor_in_front</span><span class="p">,</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">combine_powers</span><span class="p">)</span>
 <span class="n">canonicalize</span> <span class="o">=</span> <span class="n">exhaust</span><span class="p">(</span><span class="n">typed</span><span class="p">({</span><span class="n">MatMul</span><span class="p">:</span> <span class="n">do_one</span><span class="p">(</span><span class="o">*</span><span class="n">rules</span><span class="p">)}))</span>
 
 <span class="k">def</span> <span class="nf">only_squares</span><span class="p">(</span><span class="o">*</span><span class="n">matrices</span><span class="p">):</span>
