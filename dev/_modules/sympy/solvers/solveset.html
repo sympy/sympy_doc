@@ -75,6 +75,7 @@
                                 <span class="n">expand_log</span><span class="p">,</span> <span class="n">_mexpand</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">sympy.core.relational</span> <span class="k">import</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">Ne</span>
 <span class="kn">from</span> <span class="nn">sympy.core.symbol</span> <span class="k">import</span> <span class="n">Symbol</span>
+<span class="kn">from</span> <span class="nn">sympy.core.sympify</span> <span class="k">import</span> <span class="n">_sympify</span>
 <span class="kn">from</span> <span class="nn">sympy.simplify.simplify</span> <span class="k">import</span> <span class="n">simplify</span><span class="p">,</span> <span class="n">fraction</span><span class="p">,</span> <span class="n">trigsimp</span>
 <span class="kn">from</span> <span class="nn">sympy.simplify</span> <span class="k">import</span> <span class="n">powdenest</span><span class="p">,</span> <span class="n">logcombine</span>
 <span class="kn">from</span> <span class="nn">sympy.functions</span> <span class="k">import</span> <span class="p">(</span><span class="n">log</span><span class="p">,</span> <span class="n">Abs</span><span class="p">,</span> <span class="n">tan</span><span class="p">,</span> <span class="n">cot</span><span class="p">,</span> <span class="n">sin</span><span class="p">,</span> <span class="n">cos</span><span class="p">,</span> <span class="n">sec</span><span class="p">,</span> <span class="n">csc</span><span class="p">,</span> <span class="n">exp</span><span class="p">,</span>
@@ -1860,10 +1861,11 @@
 <span class="c1">###############################################################################</span>
 
 
-<span class="k">def</span> <span class="nf">linear_coeffs</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="o">*</span><span class="n">syms</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Return a dictionary with symbols in `syms` keyed to the</span>
-<span class="sd">    coefficient of the corresponding symbol in `eq`. The additive</span>
-<span class="sd">    constant is returned with key 0.</span>
+<span class="k">def</span> <span class="nf">linear_coeffs</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="o">*</span><span class="n">syms</span><span class="p">,</span> <span class="o">**</span><span class="n">_kw</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Return a list whose elements are the coefficients of the</span>
+<span class="sd">    corresponding symbols in the sum of terms in  ``eq``.</span>
+<span class="sd">    The additive constant is returned as the last element of the</span>
+<span class="sd">    list.</span>
 
 <span class="sd">    Examples</span>
 <span class="sd">    ========</span>
@@ -1871,14 +1873,13 @@
 <span class="sd">    &gt;&gt;&gt; from sympy.solvers.solveset import linear_coeffs</span>
 <span class="sd">    &gt;&gt;&gt; from sympy.abc import x, y, z</span>
 
-
-<span class="sd">    &gt;&gt;&gt; linear_coeffs(2*x - 1, x, y)</span>
-<span class="sd">    {0: -1, x: 2}</span>
+<span class="sd">    &gt;&gt;&gt; linear_coeffs(3*x + 2*y - 1, x, y)</span>
+<span class="sd">    [3, 2, -1]</span>
 
 <span class="sd">    It is not necessary to expand the expression:</span>
 
-<span class="sd">    &gt;&gt;&gt; linear_coeffs(x + y*(z*(3*x + 2) + 3), x)</span>
-<span class="sd">    {0: y*(2*z + 3), x: 3*y*z + 1}</span>
+<span class="sd">    &gt;&gt;&gt; linear_coeffs(x + y*(z*(x*3 + 2) + 3), x)</span>
+<span class="sd">    [3*y*z + 1, y*(2*z + 3)]</span>
 
 <span class="sd">    But if there are nonlinear or cross terms -- even if they would</span>
 <span class="sd">    cancel after simplification -- an error is raised so the situation</span>
@@ -1886,7 +1887,7 @@
 
 <span class="sd">    &gt;&gt;&gt; eq = 1/x*(x - 1) + 1/x</span>
 <span class="sd">    &gt;&gt;&gt; linear_coeffs(eq.expand(), x)</span>
-<span class="sd">    {0: 1}</span>
+<span class="sd">    [0, 1]</span>
 <span class="sd">    &gt;&gt;&gt; linear_coeffs(eq, x)</span>
 <span class="sd">    Traceback (most recent call last):</span>
 <span class="sd">    ...</span>
@@ -1898,8 +1899,8 @@
 <span class="sd">    ValueError: nonlinear term encountered: x*(y + 1)</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">d</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
-    <span class="n">c</span><span class="p">,</span> <span class="n">terms</span> <span class="o">=</span> <span class="n">eq</span><span class="o">.</span><span class="n">as_coeff_add</span><span class="p">(</span><span class="o">*</span><span class="n">syms</span><span class="p">)</span>
-    <span class="n">d</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+    <span class="n">c</span><span class="p">,</span> <span class="n">terms</span> <span class="o">=</span> <span class="n">_sympify</span><span class="p">(</span><span class="n">eq</span><span class="p">)</span><span class="o">.</span><span class="n">as_coeff_add</span><span class="p">(</span><span class="o">*</span><span class="n">syms</span><span class="p">)</span>
+    <span class="n">d</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">Add</span><span class="o">.</span><span class="n">make_args</span><span class="p">(</span><span class="n">c</span><span class="p">))</span>
     <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">terms</span><span class="p">:</span>
         <span class="n">m</span><span class="p">,</span> <span class="n">f</span> <span class="o">=</span> <span class="n">t</span><span class="o">.</span><span class="n">as_coeff_mul</span><span class="p">(</span><span class="o">*</span><span class="n">syms</span><span class="p">)</span>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">f</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
@@ -1908,7 +1909,7 @@
         <span class="k">if</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">syms</span><span class="p">:</span>
             <span class="n">d</span><span class="p">[</span><span class="n">f</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">m</span><span class="p">)</span>
         <span class="k">elif</span> <span class="n">f</span><span class="o">.</span><span class="n">is_Add</span><span class="p">:</span>
-            <span class="n">d1</span> <span class="o">=</span> <span class="n">linear_coeffs</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="o">*</span><span class="n">syms</span><span class="p">)</span>
+            <span class="n">d1</span> <span class="o">=</span> <span class="n">linear_coeffs</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="o">*</span><span class="n">syms</span><span class="p">,</span> <span class="o">**</span><span class="p">{</span><span class="s1">&#39;dict&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">})</span>
             <span class="n">d</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">m</span><span class="o">*</span><span class="n">d1</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span>
             <span class="n">xf</span><span class="p">,</span> <span class="n">vf</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">d1</span><span class="o">.</span><span class="n">items</span><span class="p">())[</span><span class="mi">0</span><span class="p">]</span>
             <span class="n">d</span><span class="p">[</span><span class="n">xf</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">m</span><span class="o">*</span><span class="n">vf</span><span class="p">)</span>
@@ -1917,7 +1918,9 @@
     <span class="k">else</span><span class="p">:</span>
         <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">d</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="n">d</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">Add</span><span class="p">(</span><span class="o">*</span><span class="n">v</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">defaultdict</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span><span class="p">,</span> <span class="n">d</span><span class="p">)</span>  <span class="c1"># default now zero</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">_kw</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[</span><span class="n">d</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">syms</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="n">d</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span>
+        <span class="k">return</span> <span class="n">d</span>  <span class="c1"># default is still list but this won&#39;t matter</span>
     <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;nonlinear term encountered: </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">t</span><span class="p">)</span>
 
 
@@ -2028,15 +2031,9 @@
     <span class="n">A</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">[]</span>
     <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">f</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">equations</span><span class="p">):</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">Equality</span><span class="p">):</span>
-            <span class="c1"># non-cancelling method of creating expr; we</span>
-            <span class="c1"># don&#39;t care about the order of the args or</span>
-            <span class="c1"># else we would use _unevaluated_Add</span>
-            <span class="n">f</span> <span class="o">=</span> <span class="n">Add</span><span class="o">.</span><span class="n">_from_args</span><span class="p">(</span>
-                <span class="n">Add</span><span class="o">.</span><span class="n">make_args</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">lhs</span><span class="p">)</span> <span class="o">+</span>
-                <span class="n">Add</span><span class="o">.</span><span class="n">make_args</span><span class="p">(</span><span class="o">-</span><span class="n">f</span><span class="o">.</span><span class="n">rhs</span><span class="p">))</span>
-        <span class="n">co</span> <span class="o">=</span> <span class="n">linear_coeffs</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="o">*</span><span class="n">symbols</span><span class="p">)</span>
-        <span class="n">coeff_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">co</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">symbols</span><span class="p">]</span>
-        <span class="n">b</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="o">-</span><span class="n">co</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="n">f</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">rewrite</span><span class="p">(</span><span class="n">Add</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="n">coeff_list</span> <span class="o">=</span> <span class="n">linear_coeffs</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="o">*</span><span class="n">symbols</span><span class="p">)</span>
+        <span class="n">b</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="o">-</span><span class="n">coeff_list</span><span class="o">.</span><span class="n">pop</span><span class="p">())</span>
         <span class="n">A</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">coeff_list</span><span class="p">)</span>
     <span class="n">A</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="nb">map</span><span class="p">(</span><span class="n">Matrix</span><span class="p">,</span> <span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">))</span>
     <span class="k">return</span> <span class="n">A</span><span class="p">,</span> <span class="n">b</span></div>
@@ -2044,12 +2041,12 @@
 
 <div class="viewcode-block" id="linsolve"><a class="viewcode-back" href="../../../modules/solvers/solveset.html#sympy.solvers.solveset.linsolve">[docs]</a><span class="k">def</span> <span class="nf">linsolve</span><span class="p">(</span><span class="n">system</span><span class="p">,</span> <span class="o">*</span><span class="n">symbols</span><span class="p">):</span>
     <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Solve system of N linear equations with M variables, which</span>
-<span class="sd">    means both under - and overdetermined systems are supported.</span>
+<span class="sd">    Solve system of N linear equations with M variables; both</span>
+<span class="sd">    underdetermined and overdetermined systems are supported.</span>
 <span class="sd">    The possible number of solutions is zero, one or infinite.</span>
-<span class="sd">    Zero solutions throws a ValueError, where as infinite</span>
-<span class="sd">    solutions are represented parametrically in terms of given</span>
-<span class="sd">    symbols. For unique solution a FiniteSet of ordered tuple</span>
+<span class="sd">    Zero solutions throws a ValueError, whereas infinite</span>
+<span class="sd">    solutions are represented parametrically in terms of the given</span>
+<span class="sd">    symbols. For unique solution a FiniteSet of ordered tuples</span>
 <span class="sd">    is returned.</span>
 
 <span class="sd">    All Standard input formats are supported:</span>
@@ -3156,7 +3153,7 @@
     </div>
     <div class="footer" role="contentinfo">
         &#169; Copyright 2018 SymPy Development Team.
-      Last updated on Oct 02, 2018.
+      Last updated on Oct 03, 2018.
       Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.8.1.
     </div>
   </body>

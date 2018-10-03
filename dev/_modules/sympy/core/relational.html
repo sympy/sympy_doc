@@ -53,6 +53,7 @@
   <h1>Source code for sympy.core.relational</h1><div class="highlight"><pre>
 <span></span><span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">division</span>
 
+<span class="kn">from</span> <span class="nn">.add</span> <span class="k">import</span> <span class="n">_unevaluated_Add</span><span class="p">,</span> <span class="n">Add</span>
 <span class="kn">from</span> <span class="nn">.basic</span> <span class="k">import</span> <span class="n">S</span>
 <span class="kn">from</span> <span class="nn">.compatibility</span> <span class="k">import</span> <span class="n">ordered</span>
 <span class="kn">from</span> <span class="nn">.expr</span> <span class="k">import</span> <span class="n">Expr</span>
@@ -348,6 +349,9 @@
 <span class="sd">    the Equality.  If None is returned by `_eval_Eq`, an Equality object will</span>
 <span class="sd">    be created as usual.</span>
 
+<span class="sd">    Since this object is already an expression, it does not respond to</span>
+<span class="sd">    the method `as_expr` if one tries to create `x - y` from Eq(x, y).</span>
+<span class="sd">    This can be done with the `rewrite(Add)` method.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">rel_op</span> <span class="o">=</span> <span class="s1">&#39;==&#39;</span>
 
@@ -440,6 +444,38 @@
     <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">_eval_relation</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">_sympify</span><span class="p">(</span><span class="n">lhs</span> <span class="o">==</span> <span class="n">rhs</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_eval_rewrite_as_Add</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;return Eq(L, R) as L - R. To control the evaluation of</span>
+<span class="sd">        the result set pass `evaluate=True` to give L - R;</span>
+<span class="sd">        if `evaluate=None` then terms in L and R will not cancel</span>
+<span class="sd">        but they will be listed in canonical order; otherwise</span>
+<span class="sd">        non-canonical args will be returned.</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        ========</span>
+
+<span class="sd">        &gt;&gt;&gt; from sympy import Eq, Add</span>
+<span class="sd">        &gt;&gt;&gt; from sympy.abc import b, x</span>
+<span class="sd">        &gt;&gt;&gt; eq = Eq(x + b, x - b)</span>
+<span class="sd">        &gt;&gt;&gt; eq.rewrite(Add)</span>
+<span class="sd">        2*b</span>
+<span class="sd">        &gt;&gt;&gt; eq.rewrite(Add, evaluate=None).args</span>
+<span class="sd">        (b, b, x, -x)</span>
+<span class="sd">        &gt;&gt;&gt; eq.rewrite(Add, evaluate=False).args</span>
+<span class="sd">        (b, x, b, -x)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">L</span><span class="p">,</span> <span class="n">R</span> <span class="o">=</span> <span class="n">args</span>
+        <span class="n">evaluate</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;evaluate&#39;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">evaluate</span><span class="p">:</span>
+            <span class="c1"># allow cancellation of args</span>
+            <span class="k">return</span> <span class="n">L</span> <span class="o">-</span> <span class="n">R</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="n">Add</span><span class="o">.</span><span class="n">make_args</span><span class="p">(</span><span class="n">L</span><span class="p">)</span> <span class="o">+</span> <span class="n">Add</span><span class="o">.</span><span class="n">make_args</span><span class="p">(</span><span class="o">-</span><span class="n">R</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">evaluate</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># no cancellation, but canonical</span>
+            <span class="k">return</span> <span class="n">_unevaluated_Add</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">)</span>
+        <span class="c1"># no cancellation, not canonical</span>
+        <span class="k">return</span> <span class="n">Add</span><span class="o">.</span><span class="n">_from_args</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">binary_symbols</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -926,7 +962,7 @@
     </div>
     <div class="footer" role="contentinfo">
         &#169; Copyright 2018 SymPy Development Team.
-      Last updated on Oct 02, 2018.
+      Last updated on Oct 03, 2018.
       Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.8.1.
     </div>
   </body>
