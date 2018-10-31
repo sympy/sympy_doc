@@ -302,7 +302,8 @@
 <span class="kn">from</span> <span class="nn">sympy.core.symbol</span> <span class="k">import</span> <span class="n">Symbol</span><span class="p">,</span> <span class="n">Wild</span><span class="p">,</span> <span class="n">Dummy</span><span class="p">,</span> <span class="n">symbols</span>
 <span class="kn">from</span> <span class="nn">sympy.core.sympify</span> <span class="k">import</span> <span class="n">sympify</span>
 
-<span class="kn">from</span> <span class="nn">sympy.logic.boolalg</span> <span class="k">import</span> <span class="n">BooleanAtom</span><span class="p">,</span> <span class="n">And</span><span class="p">,</span> <span class="n">Or</span><span class="p">,</span> <span class="n">Not</span>
+<span class="kn">from</span> <span class="nn">sympy.logic.boolalg</span> <span class="k">import</span> <span class="p">(</span><span class="n">BooleanAtom</span><span class="p">,</span> <span class="n">And</span><span class="p">,</span> <span class="n">Or</span><span class="p">,</span> <span class="n">Not</span><span class="p">,</span> <span class="n">BooleanTrue</span><span class="p">,</span>
+                                <span class="n">BooleanFalse</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">sympy.functions</span> <span class="k">import</span> <span class="n">cos</span><span class="p">,</span> <span class="n">exp</span><span class="p">,</span> <span class="n">im</span><span class="p">,</span> <span class="n">log</span><span class="p">,</span> <span class="n">re</span><span class="p">,</span> <span class="n">sin</span><span class="p">,</span> <span class="n">tan</span><span class="p">,</span> <span class="n">sqrt</span><span class="p">,</span> \
     <span class="n">atan2</span><span class="p">,</span> <span class="n">conjugate</span><span class="p">,</span> <span class="n">Piecewise</span>
 <span class="kn">from</span> <span class="nn">sympy.functions.combinatorial.factorials</span> <span class="k">import</span> <span class="n">factorial</span>
@@ -4155,60 +4156,77 @@
 <span class="sd">    f(x) = -x + C1 and in this case the two solutions are not equivalent wrt</span>
 <span class="sd">    initial conditions so both should be returned.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="c1"># I believe that any algebraic solutions can only emerge before *any*</span>
-    <span class="c1"># integrations occur (although I haven&#39;t proved this and it depends on the</span>
-    <span class="c1"># particular way that diffx is defined at the time of writing). This means</span>
-    <span class="c1"># that an algebraic solution for f(x) will not have any integration</span>
-    <span class="c1"># constants and any integral solution will have a number of constants that</span>
-    <span class="c1"># matches the order of the ODE.</span>
-    <span class="n">solns_algebraic</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="n">solns_integral</span> <span class="o">=</span> <span class="p">{}</span> <span class="c1"># {soln1: constants1, ...}</span>
-    <span class="k">for</span> <span class="n">soln</span> <span class="ow">in</span> <span class="n">solns</span><span class="p">:</span>
-        <span class="n">constants</span> <span class="o">=</span> <span class="n">soln</span><span class="o">.</span><span class="n">free_symbols</span> <span class="o">-</span> <span class="n">eq</span><span class="o">.</span><span class="n">free_symbols</span>
-        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">constants</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-            <span class="n">solns_algebraic</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">soln</span><span class="p">)</span>
-        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">constants</span><span class="p">)</span> <span class="o">==</span> <span class="n">order</span><span class="p">:</span>
-            <span class="n">solns_integral</span><span class="p">[</span><span class="n">soln</span><span class="p">]</span> <span class="o">=</span> <span class="n">constants</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">assert</span> <span class="kc">False</span><span class="p">,</span> <span class="s2">&quot;Solution should have 0 or order constants...&quot;</span>
+    <span class="k">def</span> <span class="nf">is_special_case_of</span><span class="p">(</span><span class="n">soln1</span><span class="p">,</span> <span class="n">soln2</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">_nth_algebraic_is_special_case_of</span><span class="p">(</span><span class="n">soln1</span><span class="p">,</span> <span class="n">soln2</span><span class="p">,</span> <span class="n">eq</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">var</span><span class="p">)</span>
 
-    <span class="c1"># Compare each algebraic solution with each integral solution to remove</span>
-    <span class="c1"># redundant algebraic solutions.</span>
-    <span class="n">solns</span> <span class="o">=</span> <span class="n">solns</span><span class="p">[:]</span>
-    <span class="k">for</span> <span class="n">soln</span> <span class="ow">in</span> <span class="n">solns_algebraic</span><span class="p">:</span>
-        <span class="k">for</span> <span class="n">soln_integral</span><span class="p">,</span> <span class="n">constants</span> <span class="ow">in</span> <span class="n">solns_integral</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-            <span class="k">if</span> <span class="n">_nth_algebraic_is_special_case_of</span><span class="p">(</span><span class="n">soln</span><span class="p">,</span> <span class="n">soln_integral</span><span class="p">,</span> <span class="n">constants</span><span class="p">,</span> <span class="n">var</span><span class="p">):</span>
-                <span class="n">solns</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">soln</span><span class="p">)</span>
+    <span class="n">unique_solns</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">soln1</span> <span class="ow">in</span> <span class="n">solns</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">soln2</span> <span class="ow">in</span> <span class="n">unique_solns</span><span class="p">[:]:</span>
+            <span class="k">if</span> <span class="n">is_special_case_of</span><span class="p">(</span><span class="n">soln1</span><span class="p">,</span> <span class="n">soln2</span><span class="p">):</span>
                 <span class="k">break</span>
+            <span class="k">elif</span> <span class="n">is_special_case_of</span><span class="p">(</span><span class="n">soln2</span><span class="p">,</span> <span class="n">soln1</span><span class="p">):</span>
+                <span class="n">unique_solns</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">soln2</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">unique_solns</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">soln1</span><span class="p">)</span>
 
-    <span class="k">return</span> <span class="n">solns</span>
+    <span class="k">return</span> <span class="n">unique_solns</span>
 
-<span class="k">def</span> <span class="nf">_nth_algebraic_is_special_case_of</span><span class="p">(</span><span class="n">soln1</span><span class="p">,</span> <span class="n">soln2</span><span class="p">,</span> <span class="n">constants2</span><span class="p">,</span> <span class="n">var</span><span class="p">):</span>
+<span class="k">def</span> <span class="nf">_nth_algebraic_is_special_case_of</span><span class="p">(</span><span class="n">soln1</span><span class="p">,</span> <span class="n">soln2</span><span class="p">,</span> <span class="n">eq</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">var</span><span class="p">):</span>
     <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    True if soln1 is found to be a special case of soln2 wrt some value of the</span>
 <span class="sd">    constants that appear in soln2. False otherwise.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="c1"># The solutions returned by nth_algebraic should be given explicitly as in</span>
-    <span class="c1"># Eq(f(x), expr). We will equate the RHSs and try to solve for the</span>
-    <span class="c1"># integration constants. If we get any solutions for the constants that</span>
-    <span class="c1"># don&#39;t depend on x then that shows that those values of the constants</span>
-    <span class="c1"># make soln1 a special case of soln2 impying that soln1 is redundant.</span>
+    <span class="c1"># Eq(f(x), expr). We will equate the RHSs of the two solutions giving an</span>
+    <span class="c1"># equation f1(x) = f2(x).</span>
+    <span class="c1">#</span>
+    <span class="c1"># Since this is supposed to hold for all x it also holds for derivatives</span>
+    <span class="c1"># f1&#39;(x) and f2&#39;(x). For an order n ode we should be able to differentiate</span>
+    <span class="c1"># each solution n times to get n+1 equations.</span>
+    <span class="c1">#</span>
+    <span class="c1"># We then try to solve those n+1 equations for the integrations constants</span>
+    <span class="c1"># in f2(x). If we can find a solution that doesn&#39;t depend on x then it</span>
+    <span class="c1"># means that some value of the constants in f1(x) is a special case of</span>
+    <span class="c1"># f2(x) corresponding to a paritcular choice of the integration constants.</span>
 
-    <span class="n">constant_solns</span> <span class="o">=</span> <span class="n">solve</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="n">soln1</span><span class="o">.</span><span class="n">rhs</span><span class="p">,</span> <span class="n">soln2</span><span class="o">.</span><span class="n">rhs</span><span class="p">),</span> <span class="n">constants2</span><span class="p">)</span>
+    <span class="n">constants1</span> <span class="o">=</span> <span class="n">soln1</span><span class="o">.</span><span class="n">free_symbols</span><span class="o">.</span><span class="n">difference</span><span class="p">(</span><span class="n">eq</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">)</span>
+    <span class="n">constants2</span> <span class="o">=</span> <span class="n">soln2</span><span class="o">.</span><span class="n">free_symbols</span><span class="o">.</span><span class="n">difference</span><span class="p">(</span><span class="n">eq</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">)</span>
 
-    <span class="c1"># Handling all the types potentially returned by solve is awkward...</span>
+    <span class="n">constants1_new</span> <span class="o">=</span> <span class="n">get_numbered_constants</span><span class="p">(</span><span class="n">soln1</span><span class="o">.</span><span class="n">rhs</span> <span class="o">-</span> <span class="n">soln2</span><span class="o">.</span><span class="n">rhs</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">constants1</span><span class="p">))</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">constants1</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">constants1_new</span> <span class="o">=</span> <span class="p">{</span><span class="n">constants1_new</span><span class="p">}</span>
+    <span class="k">for</span> <span class="n">c_old</span><span class="p">,</span> <span class="n">c_new</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">constants1</span><span class="p">,</span> <span class="n">constants1_new</span><span class="p">):</span>
+        <span class="n">soln1</span> <span class="o">=</span> <span class="n">soln1</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">c_old</span><span class="p">,</span> <span class="n">c_new</span><span class="p">)</span>
+
+    <span class="c1"># n equations for f1(x)=f2(x), f1&#39;(x)=f2&#39;(x), ...</span>
+    <span class="n">lhs</span> <span class="o">=</span> <span class="n">soln1</span><span class="o">.</span><span class="n">rhs</span><span class="o">.</span><span class="n">doit</span><span class="p">()</span>
+    <span class="n">rhs</span> <span class="o">=</span> <span class="n">soln2</span><span class="o">.</span><span class="n">rhs</span><span class="o">.</span><span class="n">doit</span><span class="p">()</span>
+    <span class="n">eqns</span> <span class="o">=</span> <span class="p">[</span><span class="n">Eq</span><span class="p">(</span><span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">)]</span>
+    <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">order</span><span class="p">):</span>
+        <span class="n">lhs</span> <span class="o">=</span> <span class="n">lhs</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">var</span><span class="p">)</span>
+        <span class="n">rhs</span> <span class="o">=</span> <span class="n">rhs</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">var</span><span class="p">)</span>
+        <span class="n">eq</span> <span class="o">=</span> <span class="n">Eq</span><span class="p">(</span><span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">)</span>
+        <span class="n">eqns</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">eq</span><span class="p">)</span>
+
+    <span class="c1"># BooleanTrue/False awkwardly show up for trivial equations</span>
+    <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">BooleanFalse</span><span class="p">)</span> <span class="k">for</span> <span class="n">eq</span> <span class="ow">in</span> <span class="n">eqns</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="n">eqns</span> <span class="o">=</span> <span class="p">[</span><span class="n">eq</span> <span class="k">for</span> <span class="n">eq</span> <span class="ow">in</span> <span class="n">eqns</span> <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">BooleanTrue</span><span class="p">)]</span>
+
+    <span class="n">constant_solns</span> <span class="o">=</span> <span class="n">solve</span><span class="p">(</span><span class="n">eqns</span><span class="p">,</span> <span class="n">constants2</span><span class="p">)</span>
+
+    <span class="c1"># Sometimes returns a dict and sometimes a list of dicts</span>
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">constant_solns</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
-        <span class="n">constant_solns</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">constant_solns</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
-    <span class="k">elif</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">constant_solns</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
         <span class="n">constant_solns</span> <span class="o">=</span> <span class="p">[</span><span class="n">constant_solns</span><span class="p">]</span>
-    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">constants2</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
-        <span class="n">constant_solns</span> <span class="o">=</span> <span class="p">[[</span><span class="n">soln</span><span class="p">]</span> <span class="k">for</span> <span class="n">soln</span> <span class="ow">in</span> <span class="n">constant_solns</span><span class="p">]</span>
 
+    <span class="c1"># If any solution gives all constants as expressions that don&#39;t depend on</span>
+    <span class="c1"># x then there exists constants for soln2 that give soln1</span>
     <span class="k">for</span> <span class="n">constant_soln</span> <span class="ow">in</span> <span class="n">constant_solns</span><span class="p">:</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">var</span><span class="p">)</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">constant_soln</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">var</span><span class="p">)</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">constant_soln</span><span class="o">.</span><span class="n">values</span><span class="p">()):</span>
             <span class="k">return</span> <span class="kc">True</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="k">return</span> <span class="kc">False</span>
+
 
 <span class="k">def</span> <span class="nf">_nth_linear_match</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">func</span><span class="p">,</span> <span class="n">order</span><span class="p">):</span>
     <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
@@ -8731,7 +8749,7 @@
     </div>
     <div class="footer" role="contentinfo">
         &#169; Copyright 2018 SymPy Development Team.
-      Last updated on Oct 26, 2018.
+      Last updated on Oct 31, 2018.
       Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.8.1.
     </div>
   </body>
