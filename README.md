@@ -1,5 +1,12 @@
 # SymPy Docs Repository
 
+**NOTE: The contents of this repository are generated automatically. To make
+modifications to the SymPy documentation, edit the RST sources in the `doc`
+directory of the [main SymPy
+repo](https://github.com/sympy/sympy/tree/master/doc). Pull requests should
+only be made to this repo if you are modifying old version builds of the docs,
+or for emergency hotfixes.**
+
 This git repository contains all the generated SymPy documentation. It is
 hosted at http://docs.sympy.org/ automatically by github.
 
@@ -24,7 +31,7 @@ Then
 
     git add -A dev/
 
-Finally, you need to make sure the index of the different docs on the the left
+Finally, you need to make sure the index of the different docs on the left
 of index.html remains intact. Run
 
     ./generate_indexes.py
