@@ -1591,7 +1591,7 @@
             <span class="k">return</span> <span class="n">mat_cache</span><span class="p">[(</span><span class="n">val</span><span class="p">,</span> <span class="nb">pow</span><span class="p">)]</span>
 
         <span class="c1"># helper functions</span>
-        <span class="k">def</span> <span class="nf">nullity_chain</span><span class="p">(</span><span class="n">val</span><span class="p">):</span>
+        <span class="k">def</span> <span class="nf">nullity_chain</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="n">algebraic_multiplicity</span><span class="p">):</span>
             <span class="sd">&quot;&quot;&quot;Calculate the sequence  [0, nullity(E), nullity(E**2), ...]</span>
 <span class="sd">            until it is constant where ``E = self - val*I``&quot;&quot;&quot;</span>
             <span class="c1"># mat.rank() is faster than computing the null space,</span>
@@ -1602,8 +1602,20 @@
             <span class="n">i</span> <span class="o">=</span> <span class="mi">2</span>
             <span class="k">while</span> <span class="n">nullity</span> <span class="o">!=</span> <span class="n">ret</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span>
                 <span class="n">ret</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nullity</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">nullity</span> <span class="o">==</span> <span class="n">algebraic_multiplicity</span><span class="p">:</span>
+                    <span class="k">break</span>
                 <span class="n">nullity</span> <span class="o">=</span> <span class="n">cols</span> <span class="o">-</span> <span class="n">eig_mat</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span><span class="o">.</span><span class="n">rank</span><span class="p">()</span>
                 <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+
+                <span class="c1"># Due to issues like #7146 and #15872, SymPy sometimes</span>
+                <span class="c1"># gives the wrong rank. In this case, raise an error</span>
+                <span class="c1"># instead of returning an incorrect matrix</span>
+                <span class="k">if</span> <span class="n">nullity</span> <span class="o">&lt;</span> <span class="n">ret</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="ow">or</span> <span class="n">nullity</span> <span class="o">&gt;</span> <span class="n">algebraic_multiplicity</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="n">MatrixError</span><span class="p">(</span>
+                        <span class="s2">&quot;SymPy had encountered an inconsistent &quot;</span>
+                        <span class="s2">&quot;result while computing Jordan block: &quot;</span>
+                        <span class="s2">&quot;</span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="p">))</span>
+
             <span class="k">return</span> <span class="n">ret</span>
 
         <span class="k">def</span> <span class="nf">blocks_from_nullity_chain</span><span class="p">(</span><span class="n">d</span><span class="p">):</span>
@@ -1655,7 +1667,8 @@
 
         <span class="n">block_structure</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">for</span> <span class="n">eig</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">eigs</span><span class="o">.</span><span class="n">keys</span><span class="p">(),</span> <span class="n">key</span><span class="o">=</span><span class="n">default_sort_key</span><span class="p">):</span>
-            <span class="n">chain</span> <span class="o">=</span> <span class="n">nullity_chain</span><span class="p">(</span><span class="n">eig</span><span class="p">)</span>
+            <span class="n">algebraic_multiplicity</span> <span class="o">=</span> <span class="n">eigs</span><span class="p">[</span><span class="n">eig</span><span class="p">]</span>
+            <span class="n">chain</span> <span class="o">=</span> <span class="n">nullity_chain</span><span class="p">(</span><span class="n">eig</span><span class="p">,</span> <span class="n">algebraic_multiplicity</span><span class="p">)</span>
             <span class="n">block_sizes</span> <span class="o">=</span> <span class="n">blocks_from_nullity_chain</span><span class="p">(</span><span class="n">chain</span><span class="p">)</span>
             <span class="c1"># if block_sizes == [a, b, c, ...], then the number of</span>
             <span class="c1"># Jordan blocks of size 1 is a, of size 2 is b, etc.</span>
@@ -1667,6 +1680,14 @@
 
             <span class="n">block_structure</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span>
                 <span class="p">(</span><span class="n">eig</span><span class="p">,</span> <span class="n">size</span><span class="p">)</span> <span class="k">for</span> <span class="n">size</span><span class="p">,</span> <span class="n">num</span> <span class="ow">in</span> <span class="n">size_nums</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num</span><span class="p">))</span>
+
+        <span class="n">jordan_form_size</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">size</span> <span class="k">for</span> <span class="n">eig</span><span class="p">,</span> <span class="n">size</span> <span class="ow">in</span> <span class="n">block_structure</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">jordan_form_size</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rows</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">MatrixError</span><span class="p">(</span>
+                <span class="s2">&quot;SymPy had encountered an inconsistent result while &quot;</span>
+                <span class="s2">&quot;computing Jordan block. : </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="p">))</span>
+
         <span class="n">blocks</span> <span class="o">=</span> <span class="p">(</span><span class="n">mat</span><span class="o">.</span><span class="n">jordan_block</span><span class="p">(</span><span class="n">size</span><span class="o">=</span><span class="n">size</span><span class="p">,</span> <span class="n">eigenvalue</span><span class="o">=</span><span class="n">eig</span><span class="p">)</span> <span class="k">for</span> <span class="n">eig</span><span class="p">,</span> <span class="n">size</span> <span class="ow">in</span> <span class="n">block_structure</span><span class="p">)</span>
         <span class="n">jordan_mat</span> <span class="o">=</span> <span class="n">mat</span><span class="o">.</span><span class="n">diag</span><span class="p">(</span><span class="o">*</span><span class="n">blocks</span><span class="p">)</span>
 
