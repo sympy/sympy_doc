@@ -56,8 +56,10 @@
 <span class="sd">**Contains**</span>
 
 <span class="sd">* refraction_angle</span>
+<span class="sd">* fresnel_coefficients</span>
 <span class="sd">* deviation</span>
 <span class="sd">* brewster_angle</span>
+<span class="sd">* critical_angle</span>
 <span class="sd">* lens_makers_formula</span>
 <span class="sd">* mirror_formula</span>
 <span class="sd">* lens_formula</span>
@@ -69,7 +71,9 @@
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;refraction_angle&#39;</span><span class="p">,</span>
            <span class="s1">&#39;deviation&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;fresnel_coefficients&#39;</span><span class="p">,</span>
            <span class="s1">&#39;brewster_angle&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;critical_angle&#39;</span><span class="p">,</span>
            <span class="s1">&#39;lens_makers_formula&#39;</span><span class="p">,</span>
            <span class="s1">&#39;mirror_formula&#39;</span><span class="p">,</span>
            <span class="s1">&#39;lens_formula&#39;</span><span class="p">,</span>
@@ -77,9 +81,10 @@
            <span class="s1">&#39;transverse_magnification&#39;</span>
            <span class="p">]</span>
 
-<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Symbol</span><span class="p">,</span> <span class="n">sympify</span><span class="p">,</span> <span class="n">sqrt</span><span class="p">,</span> <span class="n">Matrix</span><span class="p">,</span> <span class="n">acos</span><span class="p">,</span> <span class="n">oo</span><span class="p">,</span> <span class="n">Limit</span><span class="p">,</span> <span class="n">atan2</span>
+<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Symbol</span><span class="p">,</span> <span class="n">sympify</span><span class="p">,</span> <span class="n">sqrt</span><span class="p">,</span> <span class="n">Matrix</span><span class="p">,</span> <span class="n">acos</span><span class="p">,</span> <span class="n">oo</span><span class="p">,</span> <span class="n">Limit</span><span class="p">,</span> <span class="n">atan2</span><span class="p">,</span> <span class="n">asin</span><span class="p">,</span>\
+<span class="n">cos</span><span class="p">,</span> <span class="n">sin</span><span class="p">,</span> <span class="n">tan</span><span class="p">,</span> <span class="n">I</span><span class="p">,</span> <span class="n">cancel</span>
 <span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="k">import</span> <span class="n">is_sequence</span>
-<span class="kn">from</span> <span class="nn">sympy.geometry.line</span> <span class="k">import</span> <span class="n">Ray3D</span>
+<span class="kn">from</span> <span class="nn">sympy.geometry.line</span> <span class="k">import</span> <span class="n">Ray3D</span><span class="p">,</span> <span class="n">Point3D</span>
 <span class="kn">from</span> <span class="nn">sympy.geometry.util</span> <span class="k">import</span> <span class="n">intersection</span>
 <span class="kn">from</span> <span class="nn">sympy.geometry.plane</span> <span class="k">import</span> <span class="n">Plane</span>
 <span class="kn">from</span> <span class="nn">.medium</span> <span class="k">import</span> <span class="n">Medium</span>
@@ -225,6 +230,94 @@
         <span class="k">return</span> <span class="n">Ray3D</span><span class="p">(</span><span class="n">intersection_pt</span><span class="p">,</span> <span class="n">direction_ratio</span><span class="o">=</span><span class="n">drs</span><span class="p">)</span></div>
 
 
+<div class="viewcode-block" id="fresnel_coefficients"><a class="viewcode-back" href="../../../../modules/physics/optics/utils.html#sympy.physics.optics.utils.fresnel_coefficients">[docs]</a><span class="k">def</span> <span class="nf">fresnel_coefficients</span><span class="p">(</span><span class="n">angle_of_incidence</span><span class="p">,</span> <span class="n">medium1</span><span class="p">,</span> <span class="n">medium2</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This function uses Fresnel equations to calculate reflection and</span>
+<span class="sd">    transmission coefficients. Those are obtained for both polarisations</span>
+<span class="sd">    when the electric field vector is in the plane of incidence (labelled &#39;p&#39;)</span>
+<span class="sd">    and when the electric field vector is perpendicular to the plane of</span>
+<span class="sd">    incidence (labelled &#39;s&#39;). There are four real coefficients unless the</span>
+<span class="sd">    incident ray reflects in total internal in which case there are two complex</span>
+<span class="sd">    ones. Angle of incidence is the angle between the incident ray and the</span>
+<span class="sd">    surface normal. ``medium1`` and ``medium2`` can be ``Medium`` or any</span>
+<span class="sd">    sympifiable object.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    angle_of_incidence : sympifiable</span>
+
+<span class="sd">    medium1 : Medium or sympifiable</span>
+<span class="sd">        Medium 1 or its refractive index</span>
+
+<span class="sd">    medium2 : Medium or sympifiable</span>
+<span class="sd">        Medium 2 or its refractive index</span>
+
+<span class="sd">    Returns a list with four real Fresnel coefficients:</span>
+<span class="sd">    [reflection p (TM), reflection s (TE),</span>
+<span class="sd">    transmission p (TM), transmission s (TE)]</span>
+<span class="sd">    If the ray is undergoes total internal reflection then returns a</span>
+<span class="sd">    list of two complex Fresnel coefficients:</span>
+<span class="sd">    [reflection p (TM), reflection s (TE)]</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.physics.optics import fresnel_coefficients</span>
+<span class="sd">    &gt;&gt;&gt; fresnel_coefficients(0.3, 1, 2)</span>
+<span class="sd">    [0.317843553417859, -0.348645229818821,</span>
+<span class="sd">            0.658921776708929, 0.651354770181179]</span>
+<span class="sd">    &gt;&gt;&gt; fresnel_coefficients(0.6, 2, 1)</span>
+<span class="sd">    [-0.235625382192159 - 0.971843958291041*I,</span>
+<span class="sd">             0.816477005968898 - 0.577377951366403*I]</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    https://en.wikipedia.org/wiki/Fresnel_equations</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">medium1</span><span class="p">,</span> <span class="n">Medium</span><span class="p">):</span>
+        <span class="n">n1</span> <span class="o">=</span> <span class="n">medium1</span><span class="o">.</span><span class="n">refractive_index</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">n1</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">medium1</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">medium2</span><span class="p">,</span> <span class="n">Medium</span><span class="p">):</span>
+        <span class="n">n2</span> <span class="o">=</span> <span class="n">medium2</span><span class="o">.</span><span class="n">refractive_index</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">n2</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">medium2</span><span class="p">)</span>
+
+    <span class="n">angle_of_refraction</span> <span class="o">=</span> <span class="n">asin</span><span class="p">(</span><span class="n">n1</span><span class="o">*</span><span class="n">sin</span><span class="p">(</span><span class="n">angle_of_incidence</span><span class="p">)</span><span class="o">/</span><span class="n">n2</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">angle_of_total_internal_reflection_onset</span> <span class="o">=</span> <span class="n">critical_angle</span><span class="p">(</span><span class="n">n1</span><span class="p">,</span> <span class="n">n2</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+        <span class="n">angle_of_total_internal_reflection_onset</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">if</span> <span class="n">angle_of_total_internal_reflection_onset</span> <span class="o">==</span> <span class="kc">None</span> <span class="ow">or</span>\
+    <span class="n">angle_of_total_internal_reflection_onset</span> <span class="o">&gt;</span> <span class="n">angle_of_incidence</span><span class="p">:</span>
+        <span class="n">R_s</span> <span class="o">=</span> <span class="o">-</span><span class="n">sin</span><span class="p">(</span><span class="n">angle_of_incidence</span> <span class="o">-</span> <span class="n">angle_of_refraction</span><span class="p">)</span>\
+                <span class="o">/</span><span class="n">sin</span><span class="p">(</span><span class="n">angle_of_incidence</span> <span class="o">+</span> <span class="n">angle_of_refraction</span><span class="p">)</span>
+        <span class="n">R_p</span> <span class="o">=</span> <span class="n">tan</span><span class="p">(</span><span class="n">angle_of_incidence</span> <span class="o">-</span> <span class="n">angle_of_refraction</span><span class="p">)</span>\
+                <span class="o">/</span><span class="n">tan</span><span class="p">(</span><span class="n">angle_of_incidence</span> <span class="o">+</span> <span class="n">angle_of_refraction</span><span class="p">)</span>
+        <span class="n">T_s</span> <span class="o">=</span> <span class="mi">2</span><span class="o">*</span><span class="n">sin</span><span class="p">(</span><span class="n">angle_of_refraction</span><span class="p">)</span><span class="o">*</span><span class="n">cos</span><span class="p">(</span><span class="n">angle_of_incidence</span><span class="p">)</span>\
+                <span class="o">/</span><span class="n">sin</span><span class="p">(</span><span class="n">angle_of_incidence</span> <span class="o">+</span> <span class="n">angle_of_refraction</span><span class="p">)</span>
+        <span class="n">T_p</span> <span class="o">=</span> <span class="mi">2</span><span class="o">*</span><span class="n">sin</span><span class="p">(</span><span class="n">angle_of_refraction</span><span class="p">)</span><span class="o">*</span><span class="n">cos</span><span class="p">(</span><span class="n">angle_of_incidence</span><span class="p">)</span>\
+                <span class="o">/</span><span class="p">(</span><span class="n">sin</span><span class="p">(</span><span class="n">angle_of_incidence</span> <span class="o">+</span> <span class="n">angle_of_refraction</span><span class="p">)</span>\
+                <span class="o">*</span><span class="n">cos</span><span class="p">(</span><span class="n">angle_of_incidence</span> <span class="o">-</span> <span class="n">angle_of_refraction</span><span class="p">))</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">R_p</span><span class="p">,</span> <span class="n">R_s</span><span class="p">,</span> <span class="n">T_p</span><span class="p">,</span> <span class="n">T_s</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="n">n2</span><span class="o">/</span><span class="n">n1</span>
+        <span class="n">R_s</span> <span class="o">=</span> <span class="n">cancel</span><span class="p">((</span><span class="n">cos</span><span class="p">(</span><span class="n">angle_of_incidence</span><span class="p">)</span><span class="o">-</span>\
+                <span class="n">I</span><span class="o">*</span><span class="n">sqrt</span><span class="p">(</span><span class="n">sin</span><span class="p">(</span><span class="n">angle_of_incidence</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span> <span class="o">-</span> <span class="n">n</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span>\
+                <span class="o">/</span><span class="p">(</span><span class="n">cos</span><span class="p">(</span><span class="n">angle_of_incidence</span><span class="p">)</span><span class="o">+</span>\
+                <span class="n">I</span><span class="o">*</span><span class="n">sqrt</span><span class="p">(</span><span class="n">sin</span><span class="p">(</span><span class="n">angle_of_incidence</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span> <span class="o">-</span> <span class="n">n</span><span class="o">**</span><span class="mi">2</span><span class="p">)))</span>
+        <span class="n">R_p</span> <span class="o">=</span> <span class="n">cancel</span><span class="p">((</span><span class="n">n</span><span class="o">**</span><span class="mi">2</span><span class="o">*</span><span class="n">cos</span><span class="p">(</span><span class="n">angle_of_incidence</span><span class="p">)</span><span class="o">-</span>\
+                <span class="n">I</span><span class="o">*</span><span class="n">sqrt</span><span class="p">(</span><span class="n">sin</span><span class="p">(</span><span class="n">angle_of_incidence</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span> <span class="o">-</span> <span class="n">n</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span>\
+                <span class="o">/</span><span class="p">(</span><span class="n">n</span><span class="o">**</span><span class="mi">2</span><span class="o">*</span><span class="n">cos</span><span class="p">(</span><span class="n">angle_of_incidence</span><span class="p">)</span><span class="o">+</span>\
+                <span class="n">I</span><span class="o">*</span><span class="n">sqrt</span><span class="p">(</span><span class="n">sin</span><span class="p">(</span><span class="n">angle_of_incidence</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span> <span class="o">-</span> <span class="n">n</span><span class="o">**</span><span class="mi">2</span><span class="p">)))</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">R_p</span><span class="p">,</span> <span class="n">R_s</span><span class="p">]</span></div>
+
+
 <div class="viewcode-block" id="deviation"><a class="viewcode-back" href="../../../../modules/physics/optics/utils.html#sympy.physics.optics.utils.deviation">[docs]</a><span class="k">def</span> <span class="nf">deviation</span><span class="p">(</span><span class="n">incident</span><span class="p">,</span> <span class="n">medium1</span><span class="p">,</span> <span class="n">medium2</span><span class="p">,</span> <span class="n">normal</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">plane</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    This function calculates the angle of deviation of a ray</span>
@@ -340,6 +433,45 @@
         <span class="n">n2</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">medium2</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">atan2</span><span class="p">(</span><span class="n">n2</span><span class="p">,</span> <span class="n">n1</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="critical_angle"><a class="viewcode-back" href="../../../../modules/physics/optics/utils.html#sympy.physics.optics.utils.critical_angle">[docs]</a><span class="k">def</span> <span class="nf">critical_angle</span><span class="p">(</span><span class="n">medium1</span><span class="p">,</span> <span class="n">medium2</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This function calculates the critical angle of incidence (marking the onset</span>
+<span class="sd">    of total internal) to Medium 2 from Medium 1 in radians.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    medium 1 : Medium or sympifiable</span>
+<span class="sd">        Refractive index of Medium 1</span>
+<span class="sd">    medium 2 : Medium or sympifiable</span>
+<span class="sd">        Refractive index of Medium 1</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.physics.optics import critical_angle</span>
+<span class="sd">    &gt;&gt;&gt; critical_angle(1.33, 1)</span>
+<span class="sd">    0.850908514477849</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">n1</span><span class="p">,</span> <span class="n">n2</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">medium1</span><span class="p">,</span> <span class="n">Medium</span><span class="p">):</span>
+        <span class="n">n1</span> <span class="o">=</span> <span class="n">medium1</span><span class="o">.</span><span class="n">refractive_index</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">n1</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">medium1</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">medium2</span><span class="p">,</span> <span class="n">Medium</span><span class="p">):</span>
+        <span class="n">n2</span> <span class="o">=</span> <span class="n">medium2</span><span class="o">.</span><span class="n">refractive_index</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">n2</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">medium2</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">n2</span> <span class="o">&gt;</span> <span class="n">n1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Total internal reflection impossible for n1 &lt; n2&#39;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">asin</span><span class="p">(</span><span class="n">n2</span><span class="o">/</span><span class="n">n1</span><span class="p">)</span></div>
+
 
 
 <div class="viewcode-block" id="lens_makers_formula"><a class="viewcode-back" href="../../../../modules/physics/optics/utils.html#sympy.physics.optics.utils.lens_makers_formula">[docs]</a><span class="k">def</span> <span class="nf">lens_makers_formula</span><span class="p">(</span><span class="n">n_lens</span><span class="p">,</span> <span class="n">n_surr</span><span class="p">,</span> <span class="n">r1</span><span class="p">,</span> <span class="n">r2</span><span class="p">):</span>
