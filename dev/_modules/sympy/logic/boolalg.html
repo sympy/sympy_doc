@@ -59,7 +59,6 @@
 
 <span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">defaultdict</span>
 <span class="kn">from</span> <span class="nn">itertools</span> <span class="k">import</span> <span class="n">combinations</span><span class="p">,</span> <span class="n">product</span>
-
 <span class="kn">from</span> <span class="nn">sympy.core.add</span> <span class="k">import</span> <span class="n">Add</span>
 <span class="kn">from</span> <span class="nn">sympy.core.basic</span> <span class="k">import</span> <span class="n">Basic</span>
 <span class="kn">from</span> <span class="nn">sympy.core.cache</span> <span class="k">import</span> <span class="n">cacheit</span>
@@ -70,7 +69,7 @@
 <span class="kn">from</span> <span class="nn">sympy.core.operations</span> <span class="k">import</span> <span class="n">LatticeOp</span>
 <span class="kn">from</span> <span class="nn">sympy.core.singleton</span> <span class="k">import</span> <span class="n">Singleton</span><span class="p">,</span> <span class="n">S</span>
 <span class="kn">from</span> <span class="nn">sympy.core.sympify</span> <span class="k">import</span> <span class="n">converter</span><span class="p">,</span> <span class="n">_sympify</span><span class="p">,</span> <span class="n">sympify</span>
-<span class="kn">from</span> <span class="nn">sympy.utilities.iterables</span> <span class="k">import</span> <span class="n">sift</span>
+<span class="kn">from</span> <span class="nn">sympy.utilities.iterables</span> <span class="k">import</span> <span class="n">sift</span><span class="p">,</span> <span class="n">ibin</span>
 <span class="kn">from</span> <span class="nn">sympy.utilities.misc</span> <span class="k">import</span> <span class="n">filldedent</span>
 
 
@@ -1547,7 +1546,8 @@
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Convert a propositional logical sentence s to conjunctive normal form.</span>
 <span class="sd">    That is, of the form ((A | ~B | ...) &amp; (B | C | ...) &amp; ...)</span>
-<span class="sd">    If simplify is True, the expr is evaluated to its simplest CNF form.</span>
+<span class="sd">    If simplify is True, the expr is evaluated to its simplest CNF form  using</span>
+<span class="sd">    the Quine-McCluskey algorithm.</span>
 
 <span class="sd">    Examples</span>
 <span class="sd">    ========</span>
@@ -1579,7 +1579,8 @@
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Convert a propositional logical sentence s to disjunctive normal form.</span>
 <span class="sd">    That is, of the form ((A &amp; ~B &amp; ...) | (B &amp; C &amp; ...) | ...)</span>
-<span class="sd">    If simplify is True, the expr is evaluated to its simplest DNF form.</span>
+<span class="sd">    If simplify is True, the expr is evaluated to its simplest DNF form using</span>
+<span class="sd">    the Quine-McCluskey algorithm.</span>
 
 <span class="sd">    Examples</span>
 <span class="sd">    ========</span>
@@ -2022,28 +2023,71 @@
 <span class="sd">    implicant table method to recognize and eliminate redundant pairs,</span>
 <span class="sd">    and return the essential arguments.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">essential</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">terms</span><span class="p">:</span>
-        <span class="n">temporary</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="k">for</span> <span class="n">y</span> <span class="ow">in</span> <span class="n">l1</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">_compare_term</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
-                <span class="n">temporary</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">y</span><span class="p">)</span>
-        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">temporary</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">temporary</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">essential</span><span class="p">:</span>
-                <span class="n">essential</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">temporary</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
-    <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">terms</span><span class="p">:</span>
-        <span class="k">for</span> <span class="n">y</span> <span class="ow">in</span> <span class="n">essential</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">_compare_term</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
-                <span class="k">break</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">terms</span><span class="p">):</span>
+        <span class="c1"># Create dominating matrix</span>
+        <span class="n">dominationmatrix</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">l1</span><span class="p">)</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">terms</span><span class="p">))]</span>
+        <span class="k">for</span> <span class="n">primei</span><span class="p">,</span> <span class="n">prime</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">l1</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">termi</span><span class="p">,</span> <span class="n">term</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">terms</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">_compare_term</span><span class="p">(</span><span class="n">term</span><span class="p">,</span> <span class="n">prime</span><span class="p">):</span>
+                    <span class="n">dominationmatrix</span><span class="p">[</span><span class="n">termi</span><span class="p">][</span><span class="n">primei</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+
+        <span class="n">nondominatedprimeimplicants</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">l1</span><span class="p">)))</span>
+        <span class="n">nondominatedterms</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">terms</span><span class="p">)))</span>
+
+        <span class="c1"># Mark dominated rows and columns</span>
+        <span class="n">oldnondominatedterms</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">oldnondominatedprimeimplicants</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">while</span> <span class="n">nondominatedterms</span> <span class="o">!=</span> <span class="n">oldnondominatedterms</span> <span class="ow">or</span> <span class="n">nondominatedprimeimplicants</span> <span class="o">!=</span> <span class="n">oldnondominatedprimeimplicants</span><span class="p">:</span>
+            <span class="n">oldnondominatedterms</span> <span class="o">=</span> <span class="n">nondominatedterms</span><span class="p">[:]</span>
+            <span class="n">oldnondominatedprimeimplicants</span> <span class="o">=</span> <span class="n">nondominatedprimeimplicants</span><span class="p">[:]</span>
+            <span class="k">for</span> <span class="n">rowi</span><span class="p">,</span> <span class="n">row</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">dominationmatrix</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">nondominatedterms</span><span class="p">[</span><span class="n">rowi</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">row</span> <span class="o">=</span> <span class="p">[</span><span class="n">row</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">[</span><span class="n">_</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">nondominatedprimeimplicants</span> <span class="k">if</span> <span class="n">_</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">]]</span>
+                    <span class="k">for</span> <span class="n">row2i</span><span class="p">,</span> <span class="n">row2</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">dominationmatrix</span><span class="p">):</span>
+                        <span class="k">if</span> <span class="n">rowi</span> <span class="o">!=</span> <span class="n">row2i</span> <span class="ow">and</span> <span class="n">nondominatedterms</span><span class="p">[</span><span class="n">row2i</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                            <span class="n">row2</span> <span class="o">=</span> <span class="p">[</span><span class="n">row2</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">[</span><span class="n">_</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">nondominatedprimeimplicants</span> <span class="k">if</span> <span class="n">_</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">]]</span>
+                            <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">a</span> <span class="o">&gt;=</span> <span class="n">b</span> <span class="k">for</span> <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">row2</span><span class="p">,</span> <span class="n">row</span><span class="p">)):</span>
+                                <span class="c1"># row2 dominating row, keep row</span>
+                                <span class="n">nondominatedterms</span><span class="p">[</span><span class="n">row2i</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="k">for</span> <span class="n">coli</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">l1</span><span class="p">)):</span>
+                <span class="k">if</span> <span class="n">nondominatedprimeimplicants</span><span class="p">[</span><span class="n">coli</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">col</span> <span class="o">=</span> <span class="p">[</span><span class="n">dominationmatrix</span><span class="p">[</span><span class="n">a</span><span class="p">][</span><span class="n">coli</span><span class="p">]</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">terms</span><span class="p">))]</span>
+                    <span class="n">col</span> <span class="o">=</span> <span class="p">[</span><span class="n">col</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">[</span><span class="n">_</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">oldnondominatedterms</span> <span class="k">if</span> <span class="n">_</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">]]</span>
+                    <span class="k">for</span> <span class="n">col2i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">l1</span><span class="p">)):</span>
+                        <span class="k">if</span> <span class="n">coli</span> <span class="o">!=</span> <span class="n">col2i</span> <span class="ow">and</span> <span class="n">nondominatedprimeimplicants</span><span class="p">[</span><span class="n">col2i</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                            <span class="n">col2</span> <span class="o">=</span> <span class="p">[</span><span class="n">dominationmatrix</span><span class="p">[</span><span class="n">a</span><span class="p">][</span><span class="n">col2i</span><span class="p">]</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">terms</span><span class="p">))]</span>
+                            <span class="n">col2</span> <span class="o">=</span> <span class="p">[</span><span class="n">col2</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">[</span><span class="n">_</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">oldnondominatedterms</span> <span class="k">if</span> <span class="n">_</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">]]</span>
+                            <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">a</span> <span class="o">&gt;=</span> <span class="n">b</span> <span class="k">for</span> <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">col</span><span class="p">,</span> <span class="n">col2</span><span class="p">)):</span>
+                                <span class="c1"># col dominating col2, keep col</span>
+                                <span class="n">nondominatedprimeimplicants</span><span class="p">[</span><span class="n">col2i</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">l1</span> <span class="o">=</span> <span class="p">[</span><span class="n">l1</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">[</span><span class="n">_</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">nondominatedprimeimplicants</span> <span class="k">if</span> <span class="n">_</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">]]</span>
+
+        <span class="k">return</span> <span class="n">l1</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">[]</span>
+
+<span class="k">def</span> <span class="nf">_input_to_binlist</span><span class="p">(</span><span class="n">inputlist</span><span class="p">,</span> <span class="n">variables</span><span class="p">):</span>
+    <span class="n">binlist</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">bits</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">variables</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">inputlist</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+            <span class="n">binlist</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ibin</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="n">bits</span><span class="p">))</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+            <span class="n">nonspecvars</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">variables</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">val</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                <span class="n">nonspecvars</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">product</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">repeat</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">nonspecvars</span><span class="p">)):</span>
+                <span class="n">d</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">nonspecvars</span><span class="p">,</span> <span class="n">t</span><span class="p">))</span>
+                <span class="n">d</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+                <span class="n">binlist</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="n">d</span><span class="p">[</span><span class="n">v</span><span class="p">]</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">variables</span><span class="p">])</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)):</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">val</span><span class="p">)</span> <span class="o">!=</span> <span class="n">bits</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Each term must contain </span><span class="si">{}</span><span class="s2"> bits as there are </span><span class="si">{}</span><span class="s2"> variables</span><span class="se">\n</span><span class="s2">(or be an integer)&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">bits</span><span class="p">,</span> <span class="n">bits</span><span class="p">))</span>
+            <span class="n">binlist</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">val</span><span class="p">))</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="k">for</span> <span class="n">z</span> <span class="ow">in</span> <span class="n">l1</span><span class="p">:</span>
-                <span class="k">if</span> <span class="n">_compare_term</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">z</span><span class="p">):</span>
-                    <span class="k">if</span> <span class="n">z</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">essential</span><span class="p">:</span>
-                        <span class="n">essential</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">z</span><span class="p">)</span>
-                    <span class="k">break</span>
-
-    <span class="k">return</span> <span class="n">essential</span>
-
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;A term list can only contain lists, ints or dicts.&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">binlist</span>
 
 <div class="viewcode-block" id="SOPform"><a class="viewcode-back" href="../../../modules/logic.html#sympy.logic.boolalg.SOPform">[docs]</a><span class="k">def</span> <span class="nf">SOPform</span><span class="p">(</span><span class="n">variables</span><span class="p">,</span> <span class="n">minterms</span><span class="p">,</span> <span class="n">dontcares</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
@@ -2072,6 +2116,27 @@
 <span class="sd">    &gt;&gt;&gt; SOPform([w, x, y, z], minterms, dontcares)</span>
 <span class="sd">    (y &amp; z) | (z &amp; ~w)</span>
 
+<span class="sd">    The terms can also be represented as integers:</span>
+
+<span class="sd">    &gt;&gt;&gt; minterms = [1, 3, 7, 11, 15]</span>
+<span class="sd">    &gt;&gt;&gt; dontcares = [0, 2, 5]</span>
+<span class="sd">    &gt;&gt;&gt; SOPform([w, x, y, z], minterms, dontcares)</span>
+<span class="sd">    (y &amp; z) | (z &amp; ~w)</span>
+
+<span class="sd">    They can also be specified using dicts, which does not have to be fully</span>
+<span class="sd">    specified:</span>
+
+<span class="sd">    &gt;&gt;&gt; minterms = [{w: 0, x: 1}, {y: 1, z: 1, x: 0}]</span>
+<span class="sd">    &gt;&gt;&gt; SOPform([w, x, y, z], minterms)</span>
+<span class="sd">    (x &amp; ~w) | (y &amp; z &amp; ~x)</span>
+
+<span class="sd">    Or a combination:</span>
+
+<span class="sd">    &gt;&gt;&gt; minterms = [4, 7, 11, [1, 1, 1, 1]]</span>
+<span class="sd">    &gt;&gt;&gt; dontcares = [{w : 0, x : 0, y: 0}, 5]</span>
+<span class="sd">    &gt;&gt;&gt; SOPform([w, x, y, z], minterms, dontcares)</span>
+<span class="sd">    (w &amp; y &amp; z) | (x &amp; y &amp; z) | (~w &amp; ~y)</span>
+
 <span class="sd">    References</span>
 <span class="sd">    ==========</span>
 
@@ -2082,8 +2147,8 @@
     <span class="k">if</span> <span class="n">minterms</span> <span class="o">==</span> <span class="p">[]:</span>
         <span class="k">return</span> <span class="n">false</span>
 
-    <span class="n">minterms</span> <span class="o">=</span> <span class="p">[</span><span class="nb">list</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">minterms</span><span class="p">]</span>
-    <span class="n">dontcares</span> <span class="o">=</span> <span class="p">[</span><span class="nb">list</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">(</span><span class="n">dontcares</span> <span class="ow">or</span> <span class="p">[])]</span>
+    <span class="n">minterms</span> <span class="o">=</span> <span class="n">_input_to_binlist</span><span class="p">(</span><span class="n">minterms</span><span class="p">,</span> <span class="n">variables</span><span class="p">)</span>
+    <span class="n">dontcares</span> <span class="o">=</span> <span class="n">_input_to_binlist</span><span class="p">((</span><span class="n">dontcares</span> <span class="ow">or</span> <span class="p">[]),</span> <span class="n">variables</span><span class="p">)</span>
     <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">dontcares</span><span class="p">:</span>
         <span class="k">if</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">minterms</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1"> in minterms is also in dontcares&#39;</span> <span class="o">%</span> <span class="n">d</span><span class="p">)</span>
@@ -2124,6 +2189,28 @@
 <span class="sd">    &gt;&gt;&gt; POSform([w, x, y, z], minterms, dontcares)</span>
 <span class="sd">    z &amp; (y | ~w)</span>
 
+<span class="sd">    The terms can also be represented as integers:</span>
+
+<span class="sd">    &gt;&gt;&gt; minterms = [1, 3, 7, 11, 15]</span>
+<span class="sd">    &gt;&gt;&gt; dontcares = [0, 2, 5]</span>
+<span class="sd">    &gt;&gt;&gt; POSform([w, x, y, z], minterms, dontcares)</span>
+<span class="sd">    z &amp; (y | ~w)</span>
+
+<span class="sd">    They can also be specified using dicts, which does not have to be fully</span>
+<span class="sd">    specified:</span>
+
+<span class="sd">    &gt;&gt;&gt; minterms = [{w: 0, x: 1}, {y: 1, z: 1, x: 0}]</span>
+<span class="sd">    &gt;&gt;&gt; POSform([w, x, y, z], minterms)</span>
+<span class="sd">    (x | y) &amp; (x | z) &amp; (~w | ~x)</span>
+
+<span class="sd">    Or a combination:</span>
+
+<span class="sd">    &gt;&gt;&gt; minterms = [4, 7, 11, [1, 1, 1, 1]]</span>
+<span class="sd">    &gt;&gt;&gt; dontcares = [{w : 0, x : 0, y: 0}, 5]</span>
+<span class="sd">    &gt;&gt;&gt; POSform([w, x, y, z], minterms, dontcares)</span>
+<span class="sd">    (w | x) &amp; (y | ~w) &amp; (z | ~y)</span>
+
+
 <span class="sd">    References</span>
 <span class="sd">    ==========</span>
 
@@ -2134,8 +2221,8 @@
     <span class="k">if</span> <span class="n">minterms</span> <span class="o">==</span> <span class="p">[]:</span>
         <span class="k">return</span> <span class="n">false</span>
 
-    <span class="n">minterms</span> <span class="o">=</span> <span class="p">[</span><span class="nb">list</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">minterms</span><span class="p">]</span>
-    <span class="n">dontcares</span> <span class="o">=</span> <span class="p">[</span><span class="nb">list</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">(</span><span class="n">dontcares</span> <span class="ow">or</span> <span class="p">[])]</span>
+    <span class="n">minterms</span> <span class="o">=</span> <span class="n">_input_to_binlist</span><span class="p">(</span><span class="n">minterms</span><span class="p">,</span> <span class="n">variables</span><span class="p">)</span>
+    <span class="n">dontcares</span> <span class="o">=</span> <span class="n">_input_to_binlist</span><span class="p">((</span><span class="n">dontcares</span> <span class="ow">or</span> <span class="p">[]),</span> <span class="n">variables</span><span class="p">)</span>
     <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">dontcares</span><span class="p">:</span>
         <span class="k">if</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">minterms</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1"> in minterms is also in dontcares&#39;</span> <span class="o">%</span> <span class="n">d</span><span class="p">)</span>
