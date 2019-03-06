@@ -323,10 +323,9 @@
             <span class="k">return</span> <span class="n">a</span>
     <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span> <span class="c1"># Type of a is unhashable</span>
         <span class="k">pass</span>
-    <span class="k">try</span><span class="p">:</span>
-        <span class="bp">cls</span> <span class="o">=</span> <span class="n">a</span><span class="o">.</span><span class="vm">__class__</span>
-    <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>  <span class="c1"># a is probably an old-style class object</span>
-        <span class="bp">cls</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+    <span class="bp">cls</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="s2">&quot;__class__&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">if</span> <span class="bp">cls</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">cls</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="c1"># Probably an old-style class</span>
     <span class="k">if</span> <span class="bp">cls</span> <span class="ow">in</span> <span class="n">sympy_classes</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">a</span>
     <span class="k">if</span> <span class="bp">cls</span> <span class="ow">is</span> <span class="nb">type</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
@@ -356,25 +355,38 @@
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">CantSympify</span><span class="p">):</span>
         <span class="k">raise</span> <span class="n">SympifyError</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
 
-    <span class="k">try</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">a</span><span class="o">.</span><span class="n">_sympy_</span><span class="p">()</span>
-    <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
-        <span class="k">pass</span>
+    <span class="n">_sympy_</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="s2">&quot;_sympy_&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">_sympy_</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">a</span><span class="o">.</span><span class="n">_sympy_</span><span class="p">()</span>
+        <span class="c1"># XXX: Catches AttributeError: &#39;SympyConverter&#39; object has no</span>
+        <span class="c1"># attribute &#39;tuple&#39;</span>
+        <span class="c1"># This is probably a bug somewhere but for now we catch it here.</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">pass</span>
 
     <span class="k">if</span> <span class="ow">not</span> <span class="n">strict</span><span class="p">:</span>
         <span class="c1"># Put numpy array conversion _before_ float/int, see</span>
         <span class="c1"># &lt;https://github.com/sympy/sympy/issues/13924&gt;.</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="kn">from</span> <span class="nn">..tensor.array</span> <span class="k">import</span> <span class="n">Array</span>
-            <span class="k">return</span> <span class="n">Array</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">flat</span><span class="p">,</span> <span class="n">a</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>  <span class="c1"># works with e.g. NumPy arrays</span>
-        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
-            <span class="k">pass</span>
+        <span class="n">flat</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="s2">&quot;flat&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">flat</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">shape</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="s2">&quot;shape&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">shape</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="kn">from</span> <span class="nn">..tensor.array</span> <span class="k">import</span> <span class="n">Array</span>
+                <span class="k">return</span> <span class="n">Array</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">flat</span><span class="p">,</span> <span class="n">a</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>  <span class="c1"># works with e.g. NumPy arrays</span>
 
     <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">string_types</span><span class="p">):</span>
         <span class="k">for</span> <span class="n">coerce</span> <span class="ow">in</span> <span class="p">(</span><span class="nb">float</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
             <span class="k">try</span><span class="p">:</span>
-                <span class="k">return</span> <span class="n">sympify</span><span class="p">(</span><span class="n">coerce</span><span class="p">(</span><span class="n">a</span><span class="p">))</span>
-            <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">,</span> <span class="ne">AttributeError</span><span class="p">,</span> <span class="n">SympifyError</span><span class="p">):</span>
+                <span class="n">coerced</span> <span class="o">=</span> <span class="n">coerce</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+            <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>
+                <span class="k">continue</span>
+            <span class="c1"># XXX: AttributeError only needed here for Py2</span>
+            <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">sympify</span><span class="p">(</span><span class="n">coerced</span><span class="p">)</span>
+            <span class="k">except</span> <span class="n">SympifyError</span><span class="p">:</span>
                 <span class="k">continue</span>
 
     <span class="k">if</span> <span class="n">strict</span><span class="p">:</span>
@@ -600,7 +612,7 @@
     </div>
     <div class="footer" role="contentinfo">
         &#169; Copyright 2019 SymPy Development Team.
-      Last updated on Mar 05, 2019.
+      Last updated on Mar 06, 2019.
       Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.8.4.
     </div>
   </body>

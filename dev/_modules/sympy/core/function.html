@@ -328,19 +328,21 @@
         <span class="n">obj</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">Application</span><span class="p">,</span> <span class="bp">cls</span><span class="p">)</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">)</span>
 
         <span class="c1"># make nargs uniform here</span>
-        <span class="k">try</span><span class="p">:</span>
+        <span class="n">sentinel</span> <span class="o">=</span> <span class="nb">object</span><span class="p">()</span>
+        <span class="n">objnargs</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="s2">&quot;nargs&quot;</span><span class="p">,</span> <span class="n">sentinel</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">objnargs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">sentinel</span><span class="p">:</span>
             <span class="c1"># things passing through here:</span>
             <span class="c1">#  - functions subclassed from Function (e.g. myfunc(1).nargs)</span>
             <span class="c1">#  - functions like cos(1).nargs</span>
             <span class="c1">#  - AppliedUndef with given nargs like Function(&#39;f&#39;, nargs=1)(1).nargs</span>
             <span class="c1"># Canonicalize nargs here</span>
-            <span class="k">if</span> <span class="n">is_sequence</span><span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">nargs</span><span class="p">):</span>
-                <span class="n">nargs</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">ordered</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">nargs</span><span class="p">)))</span>
-            <span class="k">elif</span> <span class="n">obj</span><span class="o">.</span><span class="n">nargs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="n">nargs</span> <span class="o">=</span> <span class="p">(</span><span class="n">as_int</span><span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">nargs</span><span class="p">),)</span>
+            <span class="k">if</span> <span class="n">is_sequence</span><span class="p">(</span><span class="n">objnargs</span><span class="p">):</span>
+                <span class="n">nargs</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">ordered</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">objnargs</span><span class="p">)))</span>
+            <span class="k">elif</span> <span class="n">objnargs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">nargs</span> <span class="o">=</span> <span class="p">(</span><span class="n">as_int</span><span class="p">(</span><span class="n">objnargs</span><span class="p">),)</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">nargs</span> <span class="o">=</span> <span class="kc">None</span>
-        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+        <span class="k">else</span><span class="p">:</span>
             <span class="c1"># things passing through here:</span>
             <span class="c1">#  - WildFunction(&#39;f&#39;).nargs</span>
             <span class="c1">#  - AppliedUndef with no nargs like Function(&#39;f&#39;)(1).nargs</span>
@@ -571,21 +573,31 @@
             <span class="k">return</span> <span class="kc">False</span>
 
     <span class="k">def</span> <span class="nf">_eval_evalf</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">prec</span><span class="p">):</span>
-        <span class="c1"># Lookup mpmath function based on name</span>
-        <span class="k">try</span><span class="p">:</span>
+
+        <span class="k">def</span> <span class="nf">_get_mpmath_func</span><span class="p">(</span><span class="n">fname</span><span class="p">):</span>
+            <span class="sd">&quot;&quot;&quot;Lookup mpmath function based on name&quot;&quot;&quot;</span>
             <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">AppliedUndef</span><span class="p">):</span>
                 <span class="c1"># Shouldn&#39;t lookup in mpmath but might have ._imp_</span>
-                <span class="k">raise</span> <span class="ne">AttributeError</span>
-            <span class="n">fname</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="vm">__name__</span>
+                <span class="k">return</span> <span class="kc">None</span>
+
             <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">mpmath</span><span class="p">,</span> <span class="n">fname</span><span class="p">):</span>
                 <span class="kn">from</span> <span class="nn">sympy.utilities.lambdify</span> <span class="k">import</span> <span class="n">MPMATH_TRANSLATIONS</span>
-                <span class="n">fname</span> <span class="o">=</span> <span class="n">MPMATH_TRANSLATIONS</span><span class="p">[</span><span class="n">fname</span><span class="p">]</span>
-            <span class="n">func</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">mpmath</span><span class="p">,</span> <span class="n">fname</span><span class="p">)</span>
-        <span class="k">except</span> <span class="p">(</span><span class="ne">AttributeError</span><span class="p">,</span> <span class="ne">KeyError</span><span class="p">):</span>
+                <span class="n">fname</span> <span class="o">=</span> <span class="n">MPMATH_TRANSLATIONS</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">fname</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">fname</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="kc">None</span>
+            <span class="k">return</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">mpmath</span><span class="p">,</span> <span class="n">fname</span><span class="p">)</span>
+
+        <span class="n">func</span> <span class="o">=</span> <span class="n">_get_mpmath_func</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="vm">__name__</span><span class="p">)</span>
+
+        <span class="c1"># Fall-back evaluation</span>
+        <span class="k">if</span> <span class="n">func</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">imp</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;_imp_&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">imp</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">None</span>
             <span class="k">try</span><span class="p">:</span>
-                <span class="k">return</span> <span class="n">Float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_imp_</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">evalf</span><span class="p">(</span><span class="n">prec</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">]),</span> <span class="n">prec</span><span class="p">)</span>
-            <span class="k">except</span> <span class="p">(</span><span class="ne">AttributeError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>
-                <span class="k">return</span>
+                <span class="k">return</span> <span class="n">Float</span><span class="p">(</span><span class="n">imp</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">evalf</span><span class="p">(</span><span class="n">prec</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">]),</span> <span class="n">prec</span><span class="p">)</span>
+            <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">)</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">None</span>
 
         <span class="c1"># Convert all args to mpf or mpc</span>
         <span class="c1"># Convert the arguments to *higher* precision than requested for the</span>
@@ -1224,10 +1236,9 @@
         <span class="kn">from</span> <span class="nn">sympy.utilities.misc</span> <span class="k">import</span> <span class="n">filldedent</span>
 
         <span class="n">expr</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="n">has_symbol_set</span> <span class="o">=</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">,</span> <span class="nb">set</span><span class="p">)</span>
-        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
-            <span class="n">has_symbol_set</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="n">symbols_or_none</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="s2">&quot;free_symbols&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="n">has_symbol_set</span> <span class="o">=</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">symbols_or_none</span><span class="p">,</span> <span class="nb">set</span><span class="p">)</span>
+
         <span class="k">if</span> <span class="ow">not</span> <span class="n">has_symbol_set</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">filldedent</span><span class="p">(</span><span class="s1">&#39;&#39;&#39;</span>
 <span class="s1">                Since there are no variables in the expression </span><span class="si">%s</span><span class="s1">,</span>
@@ -3199,7 +3210,7 @@
     </div>
     <div class="footer" role="contentinfo">
         &#169; Copyright 2019 SymPy Development Team.
-      Last updated on Mar 05, 2019.
+      Last updated on Mar 06, 2019.
       Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.8.4.
     </div>
   </body>
