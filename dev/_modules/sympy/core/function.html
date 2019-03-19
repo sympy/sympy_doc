@@ -100,10 +100,10 @@
 
 <span class="kn">from</span> <span class="nn">sympy.core.containers</span> <span class="k">import</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">Dict</span>
 <span class="kn">from</span> <span class="nn">sympy.core.logic</span> <span class="k">import</span> <span class="n">fuzzy_and</span>
-<span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="k">import</span> <span class="n">string_types</span><span class="p">,</span> <span class="n">with_metaclass</span><span class="p">,</span> <span class="nb">range</span>
+<span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="k">import</span> <span class="n">string_types</span><span class="p">,</span> <span class="n">with_metaclass</span><span class="p">,</span> <span class="n">PY3</span><span class="p">,</span> <span class="nb">range</span>
 <span class="kn">from</span> <span class="nn">sympy.utilities</span> <span class="k">import</span> <span class="n">default_sort_key</span>
 <span class="kn">from</span> <span class="nn">sympy.utilities.misc</span> <span class="k">import</span> <span class="n">filldedent</span>
-<span class="kn">from</span> <span class="nn">sympy.utilities.iterables</span> <span class="k">import</span> <span class="n">has_dups</span>
+<span class="kn">from</span> <span class="nn">sympy.utilities.iterables</span> <span class="k">import</span> <span class="n">has_dups</span><span class="p">,</span> <span class="n">sift</span>
 <span class="kn">from</span> <span class="nn">sympy.core.evaluate</span> <span class="k">import</span> <span class="n">global_evaluate</span>
 
 <span class="kn">import</span> <span class="nn">sys</span>
@@ -157,41 +157,50 @@
         <span class="k">return</span> <span class="p">(</span><span class="s2">&quot;Invalid operation with argument number </span><span class="si">%s</span><span class="s2"> for Function </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span>
                <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
 
-<span class="k">def</span> <span class="nf">_getnargs</span><span class="p">(</span><span class="bp">cls</span><span class="p">):</span>
-    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="s1">&#39;eval&#39;</span><span class="p">):</span>
-        <span class="k">if</span> <span class="n">sys</span><span class="o">.</span><span class="n">version_info</span> <span class="o">&lt;</span> <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="p">):</span>
-            <span class="k">return</span> <span class="n">_getnargs_old</span><span class="p">(</span><span class="bp">cls</span><span class="o">.</span><span class="n">eval</span><span class="p">)</span>
+
+<span class="c1"># Python 2 and 3 compatible version that do not raise a Deprecation warning.</span>
+<span class="k">def</span> <span class="nf">arity</span><span class="p">(</span><span class="bp">cls</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Return the arity of the function if it is known, else None.</span>
+
+<span class="sd">    When default values are specified for some arguments, they are</span>
+<span class="sd">    optional and the arity is reported as a tuple of possible values.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.core.function import arity</span>
+<span class="sd">    &gt;&gt;&gt; from sympy import log</span>
+<span class="sd">    &gt;&gt;&gt; arity(lambda x: x)</span>
+<span class="sd">    1</span>
+<span class="sd">    &gt;&gt;&gt; arity(log)</span>
+<span class="sd">    (1, 2)</span>
+<span class="sd">    &gt;&gt;&gt; arity(lambda *x: sum(x)) is None</span>
+<span class="sd">    True</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">eval_</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="s1">&#39;eval&#39;</span><span class="p">,</span> <span class="bp">cls</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">PY3</span><span class="p">:</span>
+        <span class="n">parameters</span> <span class="o">=</span> <span class="n">inspect</span><span class="o">.</span><span class="n">signature</span><span class="p">(</span><span class="n">eval_</span><span class="p">)</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+        <span class="k">if</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">parameters</span> <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="n">p</span><span class="o">.</span><span class="n">VAR_POSITIONAL</span><span class="p">]:</span>
+            <span class="k">return</span>
+        <span class="n">p_or_k</span> <span class="o">=</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">parameters</span> <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="n">p</span><span class="o">.</span><span class="n">POSITIONAL_OR_KEYWORD</span><span class="p">]</span>
+        <span class="c1"># how many have no default and how many have a default value</span>
+        <span class="n">no</span><span class="p">,</span> <span class="n">yes</span> <span class="o">=</span> <span class="nb">map</span><span class="p">(</span><span class="nb">len</span><span class="p">,</span> <span class="n">sift</span><span class="p">(</span><span class="n">p_or_k</span><span class="p">,</span>
+            <span class="k">lambda</span> <span class="n">p</span><span class="p">:</span><span class="n">p</span><span class="o">.</span><span class="n">default</span> <span class="o">==</span> <span class="n">p</span><span class="o">.</span><span class="n">empty</span><span class="p">,</span> <span class="n">binary</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">no</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">yes</span> <span class="k">else</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">no</span><span class="p">,</span> <span class="n">no</span> <span class="o">+</span> <span class="n">yes</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">cls_</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">hasattr</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="s1">&#39;eval&#39;</span><span class="p">))</span>  <span class="c1"># correction for cls arguments</span>
+        <span class="n">evalargspec</span> <span class="o">=</span> <span class="n">inspect</span><span class="o">.</span><span class="n">getargspec</span><span class="p">(</span><span class="n">eval_</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">evalargspec</span><span class="o">.</span><span class="n">varargs</span><span class="p">:</span>
+            <span class="k">return</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">_getnargs_new</span><span class="p">(</span><span class="bp">cls</span><span class="o">.</span><span class="n">eval</span><span class="p">)</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="k">return</span> <span class="kc">None</span>
-
-<span class="k">def</span> <span class="nf">_getnargs_old</span><span class="p">(</span><span class="n">eval_</span><span class="p">):</span>
-    <span class="n">evalargspec</span> <span class="o">=</span> <span class="n">inspect</span><span class="o">.</span><span class="n">getargspec</span><span class="p">(</span><span class="n">eval_</span><span class="p">)</span>
-    <span class="k">if</span> <span class="n">evalargspec</span><span class="o">.</span><span class="n">varargs</span><span class="p">:</span>
-        <span class="k">return</span> <span class="kc">None</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="n">evalargs</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">evalargspec</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>  <span class="c1"># subtract 1 for cls</span>
-        <span class="k">if</span> <span class="n">evalargspec</span><span class="o">.</span><span class="n">defaults</span><span class="p">:</span>
-            <span class="c1"># if there are default args then they are optional; the</span>
-            <span class="c1"># fewest args will occur when all defaults are used and</span>
-            <span class="c1"># the most when none are used (i.e. all args are given)</span>
-            <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span>
-                <span class="n">evalargs</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">evalargspec</span><span class="o">.</span><span class="n">defaults</span><span class="p">),</span> <span class="n">evalargs</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
-
-        <span class="k">return</span> <span class="n">evalargs</span>
-
-<span class="k">def</span> <span class="nf">_getnargs_new</span><span class="p">(</span><span class="n">eval_</span><span class="p">):</span>
-    <span class="n">parameters</span> <span class="o">=</span> <span class="n">inspect</span><span class="o">.</span><span class="n">signature</span><span class="p">(</span><span class="n">eval_</span><span class="p">)</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
-    <span class="k">if</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">n</span><span class="p">,</span><span class="n">p</span> <span class="ow">in</span> <span class="n">parameters</span> <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="n">p</span><span class="o">.</span><span class="n">VAR_POSITIONAL</span><span class="p">]:</span>
-        <span class="k">return</span> <span class="kc">None</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="n">p_or_k</span> <span class="o">=</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">n</span><span class="p">,</span><span class="n">p</span> <span class="ow">in</span> <span class="n">parameters</span> <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="n">p</span><span class="o">.</span><span class="n">POSITIONAL_OR_KEYWORD</span><span class="p">]</span>
-        <span class="n">num_no_default</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="nb">filter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span><span class="n">p</span><span class="o">.</span><span class="n">default</span> <span class="o">==</span> <span class="n">p</span><span class="o">.</span><span class="n">empty</span><span class="p">,</span> <span class="n">p_or_k</span><span class="p">)))</span>
-        <span class="n">num_with_default</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="nb">filter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">p</span><span class="p">:</span><span class="n">p</span><span class="o">.</span><span class="n">default</span> <span class="o">!=</span> <span class="n">p</span><span class="o">.</span><span class="n">empty</span><span class="p">,</span> <span class="n">p_or_k</span><span class="p">)))</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">num_with_default</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">num_no_default</span>
-        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">num_no_default</span><span class="p">,</span> <span class="n">num_no_default</span><span class="o">+</span><span class="n">num_with_default</span><span class="o">+</span><span class="mi">1</span><span class="p">))</span>
+            <span class="n">evalargs</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">evalargspec</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="o">-</span> <span class="n">cls_</span>
+            <span class="k">if</span> <span class="n">evalargspec</span><span class="o">.</span><span class="n">defaults</span><span class="p">:</span>
+                <span class="c1"># if there are default args then they are optional; the</span>
+                <span class="c1"># fewest args will occur when all defaults are used and</span>
+                <span class="c1"># the most when none are used (i.e. all args are given)</span>
+                <span class="n">fewest</span> <span class="o">=</span> <span class="n">evalargs</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">evalargspec</span><span class="o">.</span><span class="n">defaults</span><span class="p">)</span>
+                <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">fewest</span><span class="p">,</span> <span class="n">evalargs</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+            <span class="k">return</span> <span class="n">evalargs</span>
 
 
 <div class="viewcode-block" id="FunctionClass"><a class="viewcode-back" href="../../../modules/core.html#sympy.core.function.FunctionClass">[docs]</a><span class="k">class</span> <span class="nc">FunctionClass</span><span class="p">(</span><span class="n">ManagedProperties</span><span class="p">):</span>
@@ -206,7 +215,7 @@
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="c1"># honor kwarg value or class-defined value before using</span>
         <span class="c1"># the number of arguments in the eval function (if present)</span>
-        <span class="n">nargs</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;nargs&#39;</span><span class="p">,</span> <span class="bp">cls</span><span class="o">.</span><span class="vm">__dict__</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;nargs&#39;</span><span class="p">,</span> <span class="n">_getnargs</span><span class="p">(</span><span class="bp">cls</span><span class="p">)))</span>
+        <span class="n">nargs</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;nargs&#39;</span><span class="p">,</span> <span class="bp">cls</span><span class="o">.</span><span class="vm">__dict__</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;nargs&#39;</span><span class="p">,</span> <span class="n">arity</span><span class="p">(</span><span class="bp">cls</span><span class="p">)))</span>
 
         <span class="c1"># Canonicalize nargs here; change to set in nargs.</span>
         <span class="k">if</span> <span class="n">is_sequence</span><span class="p">(</span><span class="n">nargs</span><span class="p">):</span>
