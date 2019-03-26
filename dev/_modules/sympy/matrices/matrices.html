@@ -79,6 +79,7 @@
 <span class="kn">from</span> <span class="nn">sympy.simplify</span> <span class="k">import</span> <span class="n">simplify</span> <span class="k">as</span> <span class="n">_simplify</span>
 <span class="kn">from</span> <span class="nn">sympy.utilities.exceptions</span> <span class="k">import</span> <span class="n">SymPyDeprecationWarning</span>
 <span class="kn">from</span> <span class="nn">sympy.utilities.iterables</span> <span class="k">import</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">numbered_symbols</span>
+<span class="kn">from</span> <span class="nn">sympy.utilities.misc</span> <span class="k">import</span> <span class="n">filldedent</span>
 
 <span class="kn">from</span> <span class="nn">.common</span> <span class="k">import</span> <span class="p">(</span>
     <span class="n">MatrixCommon</span><span class="p">,</span> <span class="n">MatrixError</span><span class="p">,</span> <span class="n">NonSquareMatrixError</span><span class="p">,</span> <span class="n">ShapeError</span><span class="p">)</span>
@@ -2359,21 +2360,34 @@
                         <span class="k">try</span><span class="p">:</span>
                             <span class="n">ncol</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">row</span><span class="p">))</span>
                         <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
-                            <span class="n">ncol</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+                            <span class="n">ncol</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
                 <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">ncol</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
-                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Got rows of variable lengths: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span>
-                                     <span class="nb">sorted</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">ncol</span><span class="p">)))</span>
+                    <span class="n">nolen</span> <span class="o">=</span> <span class="kc">False</span>
+                    <span class="k">if</span> <span class="o">-</span><span class="mi">1</span> <span class="ow">in</span> <span class="n">ncol</span><span class="p">:</span>
+                        <span class="n">ncol</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+                        <span class="n">nolen</span> <span class="o">=</span> <span class="kc">True</span>
+                    <span class="n">nums</span> <span class="o">=</span> <span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">sorted</span><span class="p">([</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">ncol</span><span class="p">]))</span>
+                    <span class="k">if</span> <span class="n">nolen</span><span class="p">:</span>
+                        <span class="n">nums</span>  <span class="o">=</span> <span class="s1">&#39;none, &#39;</span> <span class="o">+</span> <span class="n">nums</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="s2">&quot;Got rows of variable lengths: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">nums</span><span class="p">)</span>
+                <span class="k">if</span> <span class="o">-</span><span class="mi">1</span> <span class="ow">in</span> <span class="n">ncol</span><span class="p">:</span>
+                    <span class="n">ncol</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">]</span>
                 <span class="n">cols</span> <span class="o">=</span> <span class="n">ncol</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span> <span class="k">if</span> <span class="n">ncol</span> <span class="k">else</span> <span class="mi">0</span>
                 <span class="n">rows</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">in_mat</span><span class="p">)</span> <span class="k">if</span> <span class="n">cols</span> <span class="k">else</span> <span class="mi">0</span>
-                <span class="k">if</span> <span class="n">rows</span><span class="p">:</span>
-                    <span class="k">if</span> <span class="ow">not</span> <span class="n">is_sequence</span><span class="p">(</span><span class="n">in_mat</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">rows</span><span class="p">:</span>
+                    <span class="n">flat_list</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="c1"># how many of the rows are sequences? All or none are ok.</span>
+                    <span class="n">nseq</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">([</span><span class="n">is_sequence</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">in_mat</span><span class="p">])</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">nseq</span><span class="p">:</span>
                         <span class="n">cols</span> <span class="o">=</span> <span class="mi">1</span>
                         <span class="n">flat_list</span> <span class="o">=</span> <span class="p">[</span><span class="bp">cls</span><span class="o">.</span><span class="n">_sympify</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">in_mat</span><span class="p">]</span>
-                        <span class="k">return</span> <span class="n">rows</span><span class="p">,</span> <span class="n">cols</span><span class="p">,</span> <span class="n">flat_list</span>
-                <span class="n">flat_list</span> <span class="o">=</span> <span class="p">[]</span>
-                <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">rows</span><span class="p">):</span>
-                    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">cols</span><span class="p">):</span>
-                        <span class="n">flat_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">cls</span><span class="o">.</span><span class="n">_sympify</span><span class="p">(</span><span class="n">in_mat</span><span class="p">[</span><span class="n">j</span><span class="p">][</span><span class="n">i</span><span class="p">]))</span>
+                    <span class="k">elif</span> <span class="n">nseq</span> <span class="o">==</span> <span class="n">rows</span><span class="p">:</span>
+                        <span class="n">flat_list</span> <span class="o">=</span> <span class="p">[</span><span class="bp">cls</span><span class="o">.</span><span class="n">_sympify</span><span class="p">(</span><span class="n">in_mat</span><span class="p">[</span><span class="n">j</span><span class="p">][</span><span class="n">i</span><span class="p">])</span> <span class="k">for</span>
+                                     <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">rows</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">cols</span><span class="p">)]</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="k">pass</span>  <span class="c1"># flat_list is still None; error raised below</span>
 
         <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
             <span class="n">rows</span> <span class="o">=</span> <span class="n">as_int</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
@@ -2408,7 +2422,9 @@
             <span class="n">flat_list</span> <span class="o">=</span> <span class="p">[]</span>
 
         <span class="k">if</span> <span class="n">flat_list</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Data type not understood&quot;</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="n">filldedent</span><span class="p">(</span><span class="s1">&#39;&#39;&#39;</span>
+<span class="s1">                Data type not understood; expecting list of lists</span>
+<span class="s1">                or lists of values.&#39;&#39;&#39;</span><span class="p">))</span>
 
         <span class="k">return</span> <span class="n">rows</span><span class="p">,</span> <span class="n">cols</span><span class="p">,</span> <span class="n">flat_list</span>
 
