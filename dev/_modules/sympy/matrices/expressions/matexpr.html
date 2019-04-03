@@ -673,12 +673,36 @@
     <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Derivative</span>
     <span class="n">lines</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">_eval_derivative_matrix_lines</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
 
-    <span class="n">ranks</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">rank</span><span class="p">()</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">lines</span><span class="p">]</span>
-    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">ranks</span><span class="p">))</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="n">parts</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">build</span><span class="p">()</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">lines</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">_get_shape</span><span class="p">(</span><span class="n">elem</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">elem</span><span class="p">,</span> <span class="n">MatrixExpr</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">elem</span><span class="o">.</span><span class="n">shape</span>
+        <span class="k">return</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">get_rank</span><span class="p">(</span><span class="n">parts</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">sum</span><span class="p">([</span><span class="n">j</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">parts</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">_get_shape</span><span class="p">(</span><span class="n">i</span><span class="p">)])</span>
+
+    <span class="n">ranks</span> <span class="o">=</span> <span class="p">[</span><span class="n">get_rank</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">parts</span><span class="p">]</span>
     <span class="n">rank</span> <span class="o">=</span> <span class="n">ranks</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
 
+    <span class="k">def</span> <span class="nf">contract_one_dims</span><span class="p">(</span><span class="n">parts</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">parts</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">parts</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">p1</span><span class="p">,</span> <span class="n">p2</span> <span class="o">=</span> <span class="n">parts</span><span class="p">[:</span><span class="mi">2</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">p2</span><span class="o">.</span><span class="n">is_Matrix</span><span class="p">:</span>
+                <span class="n">p2</span> <span class="o">=</span> <span class="n">p2</span><span class="o">.</span><span class="n">T</span>
+            <span class="n">pbase</span> <span class="o">=</span> <span class="n">p1</span><span class="o">*</span><span class="n">p2</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">parts</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">pbase</span>
+            <span class="k">else</span><span class="p">:</span>  <span class="c1"># len(parts) &gt; 2</span>
+                <span class="k">if</span> <span class="n">pbase</span><span class="o">.</span><span class="n">is_Matrix</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+                <span class="k">return</span> <span class="n">pbase</span><span class="o">*</span><span class="n">Mul</span><span class="o">.</span><span class="n">fromiter</span><span class="p">(</span><span class="n">parts</span><span class="p">[</span><span class="mi">2</span><span class="p">:])</span>
+
     <span class="k">if</span> <span class="n">rank</span> <span class="o">&lt;=</span> <span class="mi">2</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">Add</span><span class="o">.</span><span class="n">fromiter</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">matrix_form</span><span class="p">()</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">lines</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">Add</span><span class="o">.</span><span class="n">fromiter</span><span class="p">([</span><span class="n">contract_one_dims</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">parts</span><span class="p">])</span>
 
     <span class="k">return</span> <span class="n">Derivative</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
 
@@ -804,18 +828,16 @@
 
     <span class="k">def</span> <span class="nf">_eval_derivative_matrix_lines</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
         <span class="k">if</span> <span class="bp">self</span> <span class="o">!=</span> <span class="n">x</span><span class="p">:</span>
+            <span class="n">first</span> <span class="o">=</span> <span class="n">ZeroMatrix</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span>
+            <span class="n">second</span> <span class="o">=</span> <span class="n">ZeroMatrix</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span>
             <span class="k">return</span> <span class="p">[</span><span class="n">_LeftRightArgs</span><span class="p">(</span>
-                <span class="n">ZeroMatrix</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
-                <span class="n">ZeroMatrix</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span>
-                <span class="n">transposed</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                <span class="p">[</span><span class="n">first</span><span class="p">,</span> <span class="n">second</span><span class="p">],</span>
             <span class="p">)]</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">first</span> <span class="o">=</span> <span class="n">Identity</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
-            <span class="n">second</span> <span class="o">=</span> <span class="n">Identity</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+            <span class="n">first</span> <span class="o">=</span> <span class="n">Identity</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span>
+            <span class="n">second</span> <span class="o">=</span> <span class="n">Identity</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span>
             <span class="k">return</span> <span class="p">[</span><span class="n">_LeftRightArgs</span><span class="p">(</span>
-                <span class="n">first</span><span class="o">=</span><span class="n">first</span><span class="p">,</span>
-                <span class="n">second</span><span class="o">=</span><span class="n">second</span><span class="p">,</span>
-                <span class="n">transposed</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                <span class="p">[</span><span class="n">first</span><span class="p">,</span> <span class="n">second</span><span class="p">],</span>
             <span class="p">)]</span></div>
 
 
@@ -997,7 +1019,6 @@
     <span class="k">def</span> <span class="nf">__ne__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
         <span class="k">return</span> <span class="ow">not</span> <span class="p">(</span><span class="bp">self</span> <span class="o">==</span> <span class="n">other</span><span class="p">)</span>
 
-
     <span class="k">def</span> <span class="nf">__hash__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">GenericZeroMatrix</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__hash__</span><span class="p">()</span>
 
@@ -1020,23 +1041,64 @@
 <span class="sd">    The trace connects the end of the two lines.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">first</span><span class="p">,</span> <span class="n">second</span><span class="p">,</span> <span class="n">higher</span><span class="o">=</span><span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">,</span> <span class="n">transposed</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">first</span> <span class="o">=</span> <span class="n">first</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">second</span> <span class="o">=</span> <span class="n">second</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lines</span><span class="p">,</span> <span class="n">higher</span><span class="o">=</span><span class="n">S</span><span class="o">.</span><span class="n">One</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_lines</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">lines</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_first_pointer_parent</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lines</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_first_pointer_index</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_second_pointer_parent</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lines</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_second_pointer_index</span> <span class="o">=</span> <span class="mi">1</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">higher</span> <span class="o">=</span> <span class="n">higher</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">transposed</span> <span class="o">=</span> <span class="n">transposed</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">first_pointer</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+       <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_first_pointer_parent</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_first_pointer_index</span><span class="p">]</span>
+
+    <span class="nd">@first_pointer</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">first_pointer</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_first_pointer_parent</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_first_pointer_index</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">second_pointer</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_second_pointer_parent</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_second_pointer_index</span><span class="p">]</span>
+
+    <span class="nd">@second_pointer</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">second_pointer</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_second_pointer_parent</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_second_pointer_index</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
 
     <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="s2">&quot;_LeftRightArgs(first=</span><span class="si">%s</span><span class="s2">[</span><span class="si">%s</span><span class="s2">], second=</span><span class="si">%s</span><span class="s2">[</span><span class="si">%s</span><span class="s2">], higher=</span><span class="si">%s</span><span class="s2">, transposed=</span><span class="si">%s</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="p">(</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">first</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">first</span><span class="o">.</span><span class="n">shape</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">first</span><span class="p">,</span> <span class="n">MatrixExpr</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">second</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">second</span><span class="o">.</span><span class="n">shape</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">second</span><span class="p">,</span> <span class="n">MatrixExpr</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">built</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_build</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lines</span><span class="p">]</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+            <span class="n">built</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lines</span>
+        <span class="k">return</span> <span class="s2">&quot;_LeftRightArgs(lines=</span><span class="si">%s</span><span class="s2">, higher=</span><span class="si">%s</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="p">(</span>
+            <span class="n">built</span><span class="p">,</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">higher</span><span class="p">,</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">transposed</span><span class="p">,</span>
         <span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">transpose</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">transposed</span> <span class="o">=</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">transposed</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_first_pointer_parent</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_second_pointer_parent</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_second_pointer_parent</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_first_pointer_parent</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_first_pointer_index</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_second_pointer_index</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_second_pointer_index</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_first_pointer_index</span>
         <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_build</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">sympy.core.expr</span> <span class="k">import</span> <span class="n">ExprBuilder</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">ExprBuilder</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">build</span><span class="p">()</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">expr</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">expr</span><span class="p">[</span><span class="mi">0</span><span class="p">](</span><span class="o">*</span><span class="p">[</span><span class="n">_LeftRightArgs</span><span class="o">.</span><span class="n">_build</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expr</span><span class="p">[</span><span class="mi">1</span><span class="p">]])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">expr</span>
+
+    <span class="k">def</span> <span class="nf">build</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_build</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lines</span><span class="p">]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">higher</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">data</span> <span class="o">+=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_build</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">higher</span><span class="p">)]</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">doit</span><span class="p">()</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">data</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">data</span>
 
     <span class="k">def</span> <span class="nf">matrix_form</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">first</span> <span class="o">!=</span> <span class="mi">1</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">higher</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
@@ -1075,18 +1137,18 @@
         <span class="k">return</span> <span class="n">rank</span>
 
     <span class="k">def</span> <span class="nf">append_first</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">first</span> <span class="o">*=</span> <span class="n">other</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">first_pointer</span> <span class="o">*=</span> <span class="n">other</span>
 
     <span class="k">def</span> <span class="nf">append_second</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">second</span> <span class="o">*=</span> <span class="n">other</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">second_pointer</span> <span class="o">*=</span> <span class="n">other</span>
 
     <span class="k">def</span> <span class="nf">__hash__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="nb">hash</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">first</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">second</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">transposed</span><span class="p">))</span>
+        <span class="k">return</span> <span class="nb">hash</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">first</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">second</span><span class="p">))</span>
 
     <span class="k">def</span> <span class="nf">__eq__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">_LeftRightArgs</span><span class="p">):</span>
             <span class="k">return</span> <span class="kc">False</span>
-        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">first</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">first</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">second</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">second</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">transposed</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">transposed</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">first</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">first</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">second</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">second</span><span class="p">)</span>
 
 
 <span class="kn">from</span> <span class="nn">.matmul</span> <span class="k">import</span> <span class="n">MatMul</span>
