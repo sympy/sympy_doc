@@ -58,6 +58,7 @@
 <span class="kn">from</span> <span class="nn">sympy.strategies</span> <span class="k">import</span> <span class="n">typed</span><span class="p">,</span> <span class="n">exhaust</span><span class="p">,</span> <span class="n">condition</span><span class="p">,</span> <span class="n">do_one</span><span class="p">,</span> <span class="n">unpack</span>
 <span class="kn">from</span> <span class="nn">sympy.strategies.traverse</span> <span class="k">import</span> <span class="n">bottom_up</span>
 <span class="kn">from</span> <span class="nn">sympy.utilities</span> <span class="k">import</span> <span class="n">sift</span>
+<span class="kn">from</span> <span class="nn">sympy.utilities.misc</span> <span class="k">import</span> <span class="n">filldedent</span>
 
 <span class="kn">from</span> <span class="nn">sympy.matrices.expressions.matexpr</span> <span class="k">import</span> <span class="n">MatrixExpr</span><span class="p">,</span> <span class="n">ZeroMatrix</span><span class="p">,</span> <span class="n">Identity</span>
 <span class="kn">from</span> <span class="nn">sympy.matrices.expressions.matmul</span> <span class="k">import</span> <span class="n">MatMul</span>
@@ -72,7 +73,7 @@
 <span class="kn">from</span> <span class="nn">sympy.functions.elementary.complexes</span> <span class="k">import</span> <span class="n">re</span><span class="p">,</span> <span class="n">im</span>
 
 <div class="viewcode-block" id="BlockMatrix"><a class="viewcode-back" href="../../../../modules/matrices/expressions.html#sympy.matrices.expressions.blockmatrix.BlockMatrix">[docs]</a><span class="k">class</span> <span class="nc">BlockMatrix</span><span class="p">(</span><span class="n">MatrixExpr</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;A BlockMatrix is a Matrix composed of other smaller, submatrices</span>
+    <span class="sd">&quot;&quot;&quot;A BlockMatrix is a Matrix comprised of other matrices.</span>
 
 <span class="sd">    The submatrices are stored in a SymPy Matrix object but accessed as part of</span>
 <span class="sd">    a Matrix Expression</span>
@@ -96,12 +97,88 @@
 <span class="sd">    &gt;&gt;&gt; print(block_collapse(C*B))</span>
 <span class="sd">    Matrix([[X, Z + Z*Y]])</span>
 
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
-        <span class="kn">from</span> <span class="nn">sympy.matrices.immutable</span> <span class="k">import</span> <span class="n">ImmutableDenseMatrix</span>
-        <span class="n">args</span> <span class="o">=</span> <span class="nb">map</span><span class="p">(</span><span class="n">sympify</span><span class="p">,</span> <span class="n">args</span><span class="p">)</span>
-        <span class="n">mat</span> <span class="o">=</span> <span class="n">ImmutableDenseMatrix</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">)</span>
+<span class="sd">    Some matrices might be comprised of rows of blocks with</span>
+<span class="sd">    the matrices in each row having the same height and the</span>
+<span class="sd">    rows all having the same total number of columns but</span>
+<span class="sd">    not having the same number of columns for each matrix</span>
+<span class="sd">    in each row. In this case, the matrix is not a block</span>
+<span class="sd">    matrix and should be instantiated by Matrix.</span>
 
+<span class="sd">    &gt;&gt;&gt; from sympy import ones, Matrix</span>
+<span class="sd">    &gt;&gt;&gt; dat = [</span>
+<span class="sd">    ... [ones(3,2), ones(3,3)*2],</span>
+<span class="sd">    ... [ones(2,3)*3, ones(2,2)*4]]</span>
+<span class="sd">    ...</span>
+<span class="sd">    &gt;&gt;&gt; BlockMatrix(dat)</span>
+<span class="sd">    Traceback (most recent call last):</span>
+<span class="sd">    ...</span>
+<span class="sd">    ValueError:</span>
+<span class="sd">    Although this matrix is comprised of blocks, the blocks do not fill</span>
+<span class="sd">    the matrix in a size-symmetric fashion. To create a full matrix from</span>
+<span class="sd">    these arguments, pass them directly to Matrix.</span>
+<span class="sd">    &gt;&gt;&gt; Matrix(dat)</span>
+<span class="sd">    Matrix([</span>
+<span class="sd">    [1, 1, 2, 2, 2],</span>
+<span class="sd">    [1, 1, 2, 2, 2],</span>
+<span class="sd">    [1, 1, 2, 2, 2],</span>
+<span class="sd">    [3, 3, 3, 4, 4],</span>
+<span class="sd">    [3, 3, 3, 4, 4]])</span>
+
+<span class="sd">    See Also</span>
+<span class="sd">    ========</span>
+<span class="sd">    sympy.matrices.matrices.MatrixBase.irregular</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">sympy.matrices.immutable</span> <span class="k">import</span> <span class="n">ImmutableDenseMatrix</span>
+        <span class="kn">from</span> <span class="nn">sympy.matrices</span> <span class="k">import</span> <span class="n">zeros</span>
+        <span class="kn">from</span> <span class="nn">sympy.matrices.matrices</span> <span class="k">import</span> <span class="n">MatrixBase</span>
+        <span class="kn">from</span> <span class="nn">sympy.utilities.iterables</span> <span class="k">import</span> <span class="n">is_sequence</span>
+        <span class="n">isMat</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="s1">&#39;is_Matrix&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span> <span class="ow">or</span> \
+                <span class="ow">not</span> <span class="n">is_sequence</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="ow">or</span> \
+                <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">([</span><span class="n">isMat</span><span class="p">(</span><span class="n">r</span><span class="p">)</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]]))</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">filldedent</span><span class="p">(</span><span class="s1">&#39;&#39;&#39;</span>
+<span class="s1">                expecting a sequence of 1 or more rows</span>
+<span class="s1">                containing Matrices.&#39;&#39;&#39;</span><span class="p">))</span>
+        <span class="n">rows</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="n">args</span> <span class="k">else</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">isMat</span><span class="p">(</span><span class="n">rows</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">rows</span> <span class="ow">and</span> <span class="n">isMat</span><span class="p">(</span><span class="n">rows</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+                <span class="n">rows</span> <span class="o">=</span> <span class="p">[</span><span class="n">rows</span><span class="p">]</span>  <span class="c1"># rows is not list of lists or []</span>
+            <span class="c1"># regularity check</span>
+            <span class="c1"># same number of matrices in each row</span>
+            <span class="n">blocky</span> <span class="o">=</span> <span class="n">ok</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">([</span><span class="nb">len</span><span class="p">(</span><span class="n">r</span><span class="p">)</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">]))</span> <span class="o">==</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="n">ok</span><span class="p">:</span>
+                <span class="c1"># same number of rows for each matrix in a row</span>
+                <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">:</span>
+                    <span class="n">ok</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">rows</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">r</span><span class="p">]))</span> <span class="o">==</span> <span class="mi">1</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">ok</span><span class="p">:</span>
+                        <span class="k">break</span>
+                <span class="n">blocky</span> <span class="o">=</span> <span class="n">ok</span>
+                <span class="c1"># same number of cols for each matrix in each col</span>
+                <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">rows</span><span class="p">[</span><span class="mi">0</span><span class="p">])):</span>
+                    <span class="n">ok</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">([</span><span class="n">rows</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">c</span><span class="p">]</span><span class="o">.</span><span class="n">cols</span>
+                        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">rows</span><span class="p">))]))</span> <span class="o">==</span> <span class="mi">1</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">ok</span><span class="p">:</span>
+                        <span class="k">break</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">ok</span><span class="p">:</span>
+                <span class="c1"># same total cols in each row</span>
+                <span class="n">ok</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">([</span>
+                    <span class="nb">sum</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">cols</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">r</span><span class="p">])</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">]))</span> <span class="o">==</span> <span class="mi">1</span>
+                <span class="k">if</span> <span class="n">blocky</span> <span class="ow">and</span> <span class="n">ok</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">filldedent</span><span class="p">(</span><span class="s1">&#39;&#39;&#39;</span>
+<span class="s1">                        Although this matrix is comprised of blocks,</span>
+<span class="s1">                        the blocks do not fill the matrix in a</span>
+<span class="s1">                        size-symmetric fashion. To create a full matrix</span>
+<span class="s1">                        from these arguments, pass them directly to</span>
+<span class="s1">                        Matrix.&#39;&#39;&#39;</span><span class="p">))</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">filldedent</span><span class="p">(</span><span class="s1">&#39;&#39;&#39;</span>
+<span class="s1">                    When there are not the same number of rows in each</span>
+<span class="s1">                    row&#39;s matrices or there are not the same number of</span>
+<span class="s1">                    total columns in each row, the matrix is not a</span>
+<span class="s1">                    block matrix. If this matrix is known to consist of</span>
+<span class="s1">                    blocks fully filling a 2-D space then see</span>
+<span class="s1">                    Matrix.irregular.&#39;&#39;&#39;</span><span class="p">))</span>
+        <span class="n">mat</span> <span class="o">=</span> <span class="n">ImmutableDenseMatrix</span><span class="p">(</span><span class="n">rows</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
         <span class="n">obj</span> <span class="o">=</span> <span class="n">Basic</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">mat</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">obj</span>
 
@@ -247,12 +324,13 @@
             <span class="k">return</span> <span class="kc">True</span>
         <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">BlockMatrix</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">equals</span><span class="p">(</span><span class="n">other</span><span class="p">)</span></div>
 
+
 <div class="viewcode-block" id="BlockDiagMatrix"><a class="viewcode-back" href="../../../../modules/matrices/expressions.html#sympy.matrices.expressions.blockmatrix.BlockDiagMatrix">[docs]</a><span class="k">class</span> <span class="nc">BlockDiagMatrix</span><span class="p">(</span><span class="n">BlockMatrix</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    A BlockDiagMatrix is a BlockMatrix with matrices only along the diagonal</span>
 
 <span class="sd">    &gt;&gt;&gt; from sympy import MatrixSymbol, BlockDiagMatrix, symbols, Identity</span>
-<span class="sd">    &gt;&gt;&gt; n,m,l = symbols(&#39;n m l&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; n, m, l = symbols(&#39;n m l&#39;)</span>
 <span class="sd">    &gt;&gt;&gt; X = MatrixSymbol(&#39;X&#39;, n, n)</span>
 <span class="sd">    &gt;&gt;&gt; Y = MatrixSymbol(&#39;Y&#39;, m ,m)</span>
 <span class="sd">    &gt;&gt;&gt; BlockDiagMatrix(X, Y)</span>
@@ -260,6 +338,9 @@
 <span class="sd">    [X, 0],</span>
 <span class="sd">    [0, Y]])</span>
 
+<span class="sd">    See Also</span>
+<span class="sd">    ========</span>
+<span class="sd">    sympy.matrices.common.diag</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">mats</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">Basic</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="n">BlockDiagMatrix</span><span class="p">,</span> <span class="o">*</span><span class="n">mats</span><span class="p">)</span>
