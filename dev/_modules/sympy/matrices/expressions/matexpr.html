@@ -663,6 +663,7 @@
         <span class="k">return</span> <span class="n">mat_class</span><span class="p">(</span><span class="bp">cls</span><span class="o">.</span><span class="n">_from_args</span><span class="p">(</span><span class="n">nonmatrices</span><span class="p">),</span> <span class="o">*</span><span class="n">matrices</span><span class="p">)</span><span class="o">.</span><span class="n">doit</span><span class="p">(</span><span class="n">deep</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">_postprocessor</span>
 
+
 <span class="n">Basic</span><span class="o">.</span><span class="n">_constructor_postprocessor_mapping</span><span class="p">[</span><span class="n">MatrixExpr</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s2">&quot;Mul&quot;</span><span class="p">:</span> <span class="p">[</span><span class="n">get_postprocessor</span><span class="p">(</span><span class="n">Mul</span><span class="p">)],</span>
     <span class="s2">&quot;Add&quot;</span><span class="p">:</span> <span class="p">[</span><span class="n">get_postprocessor</span><span class="p">(</span><span class="n">Add</span><span class="p">)],</span>
@@ -674,6 +675,10 @@
     <span class="n">lines</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">_eval_derivative_matrix_lines</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
 
     <span class="n">parts</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">build</span><span class="p">()</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">lines</span><span class="p">]</span>
+
+    <span class="kn">from</span> <span class="nn">sympy.codegen.array_utils</span> <span class="k">import</span> <span class="n">recognize_matrix_expression</span>
+
+    <span class="n">parts</span> <span class="o">=</span> <span class="p">[[</span><span class="n">recognize_matrix_expression</span><span class="p">(</span><span class="n">j</span><span class="p">)</span><span class="o">.</span><span class="n">doit</span><span class="p">()</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">parts</span><span class="p">]</span>
 
     <span class="k">def</span> <span class="nf">_get_shape</span><span class="p">(</span><span class="n">elem</span><span class="p">):</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">elem</span><span class="p">,</span> <span class="n">MatrixExpr</span><span class="p">):</span>
@@ -1139,6 +1144,27 @@
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">higher</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
             <span class="n">rank</span> <span class="o">+=</span> <span class="mi">2</span>
         <span class="k">return</span> <span class="n">rank</span>
+
+    <span class="k">def</span> <span class="nf">_multiply_pointer</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pointer</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">sympy.core.expr</span> <span class="k">import</span> <span class="n">ExprBuilder</span>
+        <span class="kn">from</span> <span class="nn">sympy.codegen.array_utils</span> <span class="k">import</span> <span class="n">CodegenArrayContraction</span><span class="p">,</span> <span class="n">CodegenArrayTensorProduct</span>
+
+        <span class="n">subexpr</span> <span class="o">=</span> <span class="n">ExprBuilder</span><span class="p">(</span>
+            <span class="n">CodegenArrayContraction</span><span class="p">,</span>
+            <span class="p">[</span>
+                <span class="n">ExprBuilder</span><span class="p">(</span>
+                    <span class="n">CodegenArrayTensorProduct</span><span class="p">,</span>
+                    <span class="p">[</span>
+                        <span class="n">pointer</span><span class="p">,</span>
+                        <span class="n">other</span>
+                    <span class="p">]</span>
+                <span class="p">),</span>
+                <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+            <span class="p">],</span>
+            <span class="n">validator</span><span class="o">=</span><span class="n">CodegenArrayContraction</span><span class="o">.</span><span class="n">_validate</span>
+        <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">subexpr</span>
 
     <span class="k">def</span> <span class="nf">append_first</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">first_pointer</span> <span class="o">*=</span> <span class="n">other</span>
