@@ -1342,11 +1342,15 @@
 <span class="sd">        subexpressions from the bottom to the top of the tree. The default</span>
 <span class="sd">        approach is to do the replacement in a simultaneous fashion so</span>
 <span class="sd">        changes made are targeted only once. If this is not desired or causes</span>
-<span class="sd">        problems, ``simultaneous`` can be set to False. In addition, if an</span>
-<span class="sd">        expression containing more than one Wild symbol is being used to match</span>
-<span class="sd">        subexpressions and  the ``exact`` flag is True, then the match will only</span>
-<span class="sd">        succeed if non-zero values are received for each Wild that appears in</span>
-<span class="sd">        the match pattern.</span>
+<span class="sd">        problems, ``simultaneous`` can be set to False.</span>
+
+<span class="sd">        In addition, if an expression containing more than one Wild symbol</span>
+<span class="sd">        is being used to match subexpressions and the ``exact`` flag is None</span>
+<span class="sd">        it will be set to True so the match will only succeed if all non-zero</span>
+<span class="sd">        values are received for each Wild that appears in the match pattern.</span>
+<span class="sd">        Setting this to False accepts a match of 0; while setting it True</span>
+<span class="sd">        accepts all matches that have a 0 in them. See example below for</span>
+<span class="sd">        cautions.</span>
 
 <span class="sd">        The list of possible combinations of queries and replacement values</span>
 <span class="sd">        is listed below:</span>
@@ -1441,6 +1445,42 @@
 <span class="sd">            &gt;&gt;&gt; e.replace(lambda x: x.is_Mul, lambda x: 2*x)</span>
 <span class="sd">            2*x*(2*x*y + 1)</span>
 
+<span class="sd">        When matching a single symbol, `exact` will default to True, but</span>
+<span class="sd">        this may or may not be the behavior that is desired:</span>
+
+<span class="sd">        Here, we want `exact=False`:</span>
+
+<span class="sd">            &gt;&gt;&gt; from sympy import Function</span>
+<span class="sd">            &gt;&gt;&gt; f = Function(&#39;f&#39;)</span>
+<span class="sd">            &gt;&gt;&gt; e = f(1) + f(0)</span>
+<span class="sd">            &gt;&gt;&gt; q = f(a), lambda a: f(a + 1)</span>
+<span class="sd">            &gt;&gt;&gt; e.replace(*q, exact=False)</span>
+<span class="sd">            f(1) + f(2)</span>
+<span class="sd">            &gt;&gt;&gt; e.replace(*q, exact=True)</span>
+<span class="sd">            f(0) + f(2)</span>
+
+<span class="sd">        But here, the nature of matching makes selecting</span>
+<span class="sd">        the right setting tricky:</span>
+
+<span class="sd">            &gt;&gt;&gt; e = x**(1 + y)</span>
+<span class="sd">            &gt;&gt;&gt; (x**(1 + y)).replace(x**(1 + a), lambda a: x**-a, exact=False)</span>
+<span class="sd">            1</span>
+<span class="sd">            &gt;&gt;&gt; (x**(1 + y)).replace(x**(1 + a), lambda a: x**-a, exact=True)</span>
+<span class="sd">            x**(-x - y + 1)</span>
+<span class="sd">            &gt;&gt;&gt; (x**y).replace(x**(1 + a), lambda a: x**-a, exact=False)</span>
+<span class="sd">            1</span>
+<span class="sd">            &gt;&gt;&gt; (x**y).replace(x**(1 + a), lambda a: x**-a, exact=True)</span>
+<span class="sd">            x**(1 - y)</span>
+
+<span class="sd">        It is probably better to use a different form of the query</span>
+<span class="sd">        that describes the target expression more precisely:</span>
+
+<span class="sd">            &gt;&gt;&gt; (1 + x**(1 + y)).replace(</span>
+<span class="sd">            ... lambda x: x.is_Pow and x.exp.is_Add and x.exp.args[0] == 1,</span>
+<span class="sd">            ... lambda x: x.base**(1 - (x.exp - 1)))</span>
+<span class="sd">            ...</span>
+<span class="sd">            x**(1 - y) + 1</span>
+
 <span class="sd">        See Also</span>
 <span class="sd">        ========</span>
 <span class="sd">        subs: substitution of subexpressions as defined by the objects</span>
@@ -1473,7 +1513,8 @@
                     <span class="s2">&quot;type or a callable&quot;</span><span class="p">)</span>
         <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">Basic</span><span class="p">):</span>
             <span class="n">_query</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">expr</span><span class="p">:</span> <span class="n">expr</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">query</span><span class="p">)</span>
-            <span class="n">exact</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">query</span><span class="o">.</span><span class="n">atoms</span><span class="p">(</span><span class="n">Wild</span><span class="p">))</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">exact</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">exact</span>
+            <span class="k">if</span> <span class="n">exact</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">exact</span> <span class="o">=</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">query</span><span class="o">.</span><span class="n">atoms</span><span class="p">(</span><span class="n">Wild</span><span class="p">))</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">)</span>
 
             <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">Basic</span><span class="p">):</span>
                 <span class="k">if</span> <span class="n">exact</span><span class="p">:</span>
@@ -2112,7 +2153,7 @@
     </div>
     <div class="footer" role="contentinfo">
         &#169; Copyright 2019 SymPy Development Team.
-      Last updated on May 08, 2019.
+      Last updated on May 09, 2019.
       Created using <a href="http://sphinx-doc.org/">Sphinx</a> 2.0.1.
     </div>
   </body>
