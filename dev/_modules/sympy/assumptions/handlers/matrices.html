@@ -1,0 +1,724 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>sympy.assumptions.handlers.matrices &#8212; SymPy 1.5.dev documentation</title>
+    <link rel="stylesheet" href="../../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/graphviz.css" />
+    <link rel="stylesheet" type="text/css" href="https://live.sympy.org/static/live-core.css" />
+    <link rel="stylesheet" type="text/css" href="https://live.sympy.org/static/live-autocomplete.css" />
+    <link rel="stylesheet" type="text/css" href="https://live.sympy.org/static/live-sphinx.css" />
+    
+    <script type="text/javascript" id="documentation_options" data-url_root="../../../../" src="../../../../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../../_static/language_data.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/utilities.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/external/classy.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/live-core.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/live-autocomplete.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/live-sphinx.js"></script>
+    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS_HTML-full"></script>
+    
+    <link rel="shortcut icon" href="../../../../_static/sympy-notailtext-favicon.ico"/>
+    <link href="https://docs.sympy.org/latest/_modules/sympy/assumptions/handlers/matrices.html" rel="canonical" />
+    
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../../../index.html">SymPy 1.5.dev documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../../../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for sympy.assumptions.handlers.matrices</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">This module contains query handlers responsible for calculus queries:</span>
+<span class="sd">infinitesimal, bounded, etc.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">division</span>
+
+<span class="kn">from</span> <span class="nn">sympy.logic.boolalg</span> <span class="k">import</span> <span class="n">conjuncts</span>
+<span class="kn">from</span> <span class="nn">sympy.assumptions</span> <span class="k">import</span> <span class="n">Q</span><span class="p">,</span> <span class="n">ask</span>
+<span class="kn">from</span> <span class="nn">sympy.assumptions.handlers</span> <span class="k">import</span> <span class="n">CommonHandler</span><span class="p">,</span> <span class="n">test_closed_group</span>
+<span class="kn">from</span> <span class="nn">sympy.matrices.expressions</span> <span class="k">import</span> <span class="n">MatMul</span><span class="p">,</span> <span class="n">MatrixExpr</span>
+<span class="kn">from</span> <span class="nn">sympy.core.logic</span> <span class="k">import</span> <span class="n">fuzzy_and</span>
+<span class="kn">from</span> <span class="nn">sympy.utilities.iterables</span> <span class="k">import</span> <span class="n">sift</span>
+<span class="kn">from</span> <span class="nn">sympy.core</span> <span class="k">import</span> <span class="n">Basic</span>
+<span class="kn">from</span> <span class="nn">functools</span> <span class="k">import</span> <span class="n">partial</span>
+
+
+<span class="k">def</span> <span class="nf">_Factorization</span><span class="p">(</span><span class="n">predicate</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">predicate</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">predicates</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">True</span>
+
+<div class="viewcode-block" id="AskSquareHandler"><a class="viewcode-back" href="../../../../modules/assumptions/handlers/matrices.html#sympy.assumptions.handlers.matrices.AskSquareHandler">[docs]</a><span class="k">class</span> <span class="nc">AskSquareHandler</span><span class="p">(</span><span class="n">CommonHandler</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Handler for key &#39;square&#39;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatrixExpr</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">expr</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="AskSymmetricHandler"><a class="viewcode-back" href="../../../../modules/assumptions/handlers/matrices.html#sympy.assumptions.handlers.matrices.AskSymmetricHandler">[docs]</a><span class="k">class</span> <span class="nc">AskSymmetricHandler</span><span class="p">(</span><span class="n">CommonHandler</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Handler for key &#39;symmetric&#39;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatMul</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="n">factor</span><span class="p">,</span> <span class="n">mmul</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">as_coeff_mmul</span><span class="p">()</span>
+        <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">symmetric</span><span class="p">(</span><span class="n">arg</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">mmul</span><span class="o">.</span><span class="n">args</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="c1"># TODO: implement sathandlers system for the matrices.</span>
+        <span class="c1"># Now it duplicates the general fact: Implies(Q.diagonal, Q.symmetric).</span>
+        <span class="k">if</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">diagonal</span><span class="p">(</span><span class="n">expr</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">mmul</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">2</span> <span class="ow">and</span> <span class="n">mmul</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">mmul</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">T</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">mmul</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">True</span>
+            <span class="k">return</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">symmetric</span><span class="p">(</span><span class="n">MatMul</span><span class="p">(</span><span class="o">*</span><span class="n">mmul</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">])),</span> <span class="n">assumptions</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatPow</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="c1"># only for integer powers</span>
+        <span class="n">base</span><span class="p">,</span> <span class="n">exp</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span>
+        <span class="n">int_exp</span> <span class="o">=</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">integer</span><span class="p">(</span><span class="n">exp</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">int_exp</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="n">non_negative</span> <span class="o">=</span> <span class="n">ask</span><span class="p">(</span><span class="o">~</span><span class="n">Q</span><span class="o">.</span><span class="n">negative</span><span class="p">(</span><span class="n">exp</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">non_negative</span> <span class="ow">or</span> <span class="n">non_negative</span> <span class="o">==</span> <span class="kc">False</span>
+                            <span class="ow">and</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">invertible</span><span class="p">(</span><span class="n">base</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)):</span>
+            <span class="k">return</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">symmetric</span><span class="p">(</span><span class="n">base</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatAdd</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">all</span><span class="p">(</span><span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">symmetric</span><span class="p">(</span><span class="n">arg</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatrixSymbol</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_square</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="c1"># TODO: implement sathandlers system for the matrices.</span>
+        <span class="c1"># Now it duplicates the general fact: Implies(Q.diagonal, Q.symmetric).</span>
+        <span class="k">if</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">diagonal</span><span class="p">(</span><span class="n">expr</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">if</span> <span class="n">Q</span><span class="o">.</span><span class="n">symmetric</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span> <span class="ow">in</span> <span class="n">conjuncts</span><span class="p">(</span><span class="n">assumptions</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">ZeroMatrix</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">square</span><span class="p">(</span><span class="n">expr</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">Transpose</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">symmetric</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">arg</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+
+    <span class="n">Inverse</span> <span class="o">=</span> <span class="n">Transpose</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatrixSlice</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="c1"># TODO: implement sathandlers system for the matrices.</span>
+        <span class="c1"># Now it duplicates the general fact: Implies(Q.diagonal, Q.symmetric).</span>
+        <span class="k">if</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">diagonal</span><span class="p">(</span><span class="n">expr</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">expr</span><span class="o">.</span><span class="n">on_diag</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">symmetric</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">parent</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+
+    <span class="n">Identity</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">CommonHandler</span><span class="o">.</span><span class="n">AlwaysTrue</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="AskInvertibleHandler"><a class="viewcode-back" href="../../../../modules/assumptions/handlers/matrices.html#sympy.assumptions.handlers.matrices.AskInvertibleHandler">[docs]</a><span class="k">class</span> <span class="nc">AskInvertibleHandler</span><span class="p">(</span><span class="n">CommonHandler</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Handler for key &#39;invertible&#39;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatMul</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="n">factor</span><span class="p">,</span> <span class="n">mmul</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">as_coeff_mmul</span><span class="p">()</span>
+        <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">invertible</span><span class="p">(</span><span class="n">arg</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">mmul</span><span class="o">.</span><span class="n">args</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">invertible</span><span class="p">(</span><span class="n">arg</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">False</span>
+               <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">mmul</span><span class="o">.</span><span class="n">args</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatPow</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="c1"># only for integer powers</span>
+        <span class="n">base</span><span class="p">,</span> <span class="n">exp</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span>
+        <span class="n">int_exp</span> <span class="o">=</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">integer</span><span class="p">(</span><span class="n">exp</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">int_exp</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">exp</span><span class="o">.</span><span class="n">is_negative</span> <span class="o">==</span> <span class="kc">False</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">invertible</span><span class="p">(</span><span class="n">base</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatAdd</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatrixSymbol</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_square</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">if</span> <span class="n">Q</span><span class="o">.</span><span class="n">invertible</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span> <span class="ow">in</span> <span class="n">conjuncts</span><span class="p">(</span><span class="n">assumptions</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="n">Identity</span><span class="p">,</span> <span class="n">Inverse</span> <span class="o">=</span> <span class="p">[</span><span class="nb">staticmethod</span><span class="p">(</span><span class="n">CommonHandler</span><span class="o">.</span><span class="n">AlwaysTrue</span><span class="p">)]</span><span class="o">*</span><span class="mi">2</span>
+
+    <span class="n">ZeroMatrix</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">CommonHandler</span><span class="o">.</span><span class="n">AlwaysFalse</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">Transpose</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">invertible</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">arg</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatrixSlice</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">expr</span><span class="o">.</span><span class="n">on_diag</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">invertible</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">parent</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="AskOrthogonalHandler"><a class="viewcode-back" href="../../../../modules/assumptions/handlers/matrices.html#sympy.assumptions.handlers.matrices.AskOrthogonalHandler">[docs]</a><span class="k">class</span> <span class="nc">AskOrthogonalHandler</span><span class="p">(</span><span class="n">CommonHandler</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Handler for key &#39;orthogonal&#39;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">predicate</span> <span class="o">=</span> <span class="n">Q</span><span class="o">.</span><span class="n">orthogonal</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatMul</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="n">factor</span><span class="p">,</span> <span class="n">mmul</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">as_coeff_mmul</span><span class="p">()</span>
+        <span class="k">if</span> <span class="p">(</span><span class="nb">all</span><span class="p">(</span><span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">orthogonal</span><span class="p">(</span><span class="n">arg</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">mmul</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="ow">and</span>
+                <span class="n">factor</span> <span class="o">==</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">invertible</span><span class="p">(</span><span class="n">arg</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">False</span>
+                <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">mmul</span><span class="o">.</span><span class="n">args</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatPow</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="c1"># only for integer powers</span>
+        <span class="n">base</span><span class="p">,</span> <span class="n">exp</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span>
+        <span class="n">int_exp</span> <span class="o">=</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">integer</span><span class="p">(</span><span class="n">exp</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">int_exp</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">orthogonal</span><span class="p">(</span><span class="n">base</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatAdd</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">if</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span>
+                <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">orthogonal</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">assumptions</span><span class="p">)):</span>
+            <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatrixSymbol</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">if</span> <span class="p">(</span><span class="ow">not</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_square</span> <span class="ow">or</span>
+                        <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">invertible</span><span class="p">(</span><span class="n">expr</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">if</span> <span class="n">Q</span><span class="o">.</span><span class="n">orthogonal</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span> <span class="ow">in</span> <span class="n">conjuncts</span><span class="p">(</span><span class="n">assumptions</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="n">Identity</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">CommonHandler</span><span class="o">.</span><span class="n">AlwaysTrue</span><span class="p">)</span>
+
+    <span class="n">ZeroMatrix</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">CommonHandler</span><span class="o">.</span><span class="n">AlwaysFalse</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">Transpose</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">orthogonal</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">arg</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+
+    <span class="n">Inverse</span> <span class="o">=</span> <span class="n">Transpose</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatrixSlice</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">expr</span><span class="o">.</span><span class="n">on_diag</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">orthogonal</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">parent</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+
+    <span class="n">Factorization</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">partial</span><span class="p">(</span><span class="n">_Factorization</span><span class="p">,</span> <span class="n">Q</span><span class="o">.</span><span class="n">orthogonal</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="AskUnitaryHandler"><a class="viewcode-back" href="../../../../modules/assumptions/handlers/matrices.html#sympy.assumptions.handlers.matrices.AskUnitaryHandler">[docs]</a><span class="k">class</span> <span class="nc">AskUnitaryHandler</span><span class="p">(</span><span class="n">CommonHandler</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Handler for key &#39;unitary&#39;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">predicate</span> <span class="o">=</span> <span class="n">Q</span><span class="o">.</span><span class="n">unitary</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatMul</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="n">factor</span><span class="p">,</span> <span class="n">mmul</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">as_coeff_mmul</span><span class="p">()</span>
+        <span class="k">if</span> <span class="p">(</span><span class="nb">all</span><span class="p">(</span><span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">unitary</span><span class="p">(</span><span class="n">arg</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">mmul</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="ow">and</span>
+                <span class="nb">abs</span><span class="p">(</span><span class="n">factor</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">invertible</span><span class="p">(</span><span class="n">arg</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">False</span>
+                <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">mmul</span><span class="o">.</span><span class="n">args</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatPow</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="c1"># only for integer powers</span>
+        <span class="n">base</span><span class="p">,</span> <span class="n">exp</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span>
+        <span class="n">int_exp</span> <span class="o">=</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">integer</span><span class="p">(</span><span class="n">exp</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">int_exp</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">unitary</span><span class="p">(</span><span class="n">base</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatrixSymbol</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">if</span> <span class="p">(</span><span class="ow">not</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_square</span> <span class="ow">or</span>
+                        <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">invertible</span><span class="p">(</span><span class="n">expr</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">if</span> <span class="n">Q</span><span class="o">.</span><span class="n">unitary</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span> <span class="ow">in</span> <span class="n">conjuncts</span><span class="p">(</span><span class="n">assumptions</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">Transpose</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">unitary</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">arg</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+
+    <span class="n">Inverse</span> <span class="o">=</span> <span class="n">Transpose</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatrixSlice</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">expr</span><span class="o">.</span><span class="n">on_diag</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">unitary</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">parent</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">DFT</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="n">Factorization</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">partial</span><span class="p">(</span><span class="n">_Factorization</span><span class="p">,</span> <span class="n">Q</span><span class="o">.</span><span class="n">unitary</span><span class="p">))</span>
+
+    <span class="n">Identity</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">CommonHandler</span><span class="o">.</span><span class="n">AlwaysTrue</span><span class="p">)</span>
+
+    <span class="n">ZeroMatrix</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">CommonHandler</span><span class="o">.</span><span class="n">AlwaysFalse</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="AskFullRankHandler"><a class="viewcode-back" href="../../../../modules/assumptions/handlers/matrices.html#sympy.assumptions.handlers.matrices.AskFullRankHandler">[docs]</a><span class="k">class</span> <span class="nc">AskFullRankHandler</span><span class="p">(</span><span class="n">CommonHandler</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Handler for key &#39;fullrank&#39;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatMul</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">fullrank</span><span class="p">(</span><span class="n">arg</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatPow</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="c1"># only for integer powers</span>
+        <span class="n">base</span><span class="p">,</span> <span class="n">exp</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span>
+        <span class="n">int_exp</span> <span class="o">=</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">integer</span><span class="p">(</span><span class="n">exp</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">int_exp</span> <span class="ow">and</span> <span class="n">ask</span><span class="p">(</span><span class="o">~</span><span class="n">Q</span><span class="o">.</span><span class="n">negative</span><span class="p">(</span><span class="n">exp</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">fullrank</span><span class="p">(</span><span class="n">base</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="n">Identity</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">CommonHandler</span><span class="o">.</span><span class="n">AlwaysTrue</span><span class="p">)</span>
+
+    <span class="n">ZeroMatrix</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">CommonHandler</span><span class="o">.</span><span class="n">AlwaysFalse</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">Transpose</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">fullrank</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">arg</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+
+    <span class="n">Inverse</span> <span class="o">=</span> <span class="n">Transpose</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatrixSlice</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">orthogonal</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">parent</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">True</span></div>
+
+<div class="viewcode-block" id="AskPositiveDefiniteHandler"><a class="viewcode-back" href="../../../../modules/assumptions/handlers/matrices.html#sympy.assumptions.handlers.matrices.AskPositiveDefiniteHandler">[docs]</a><span class="k">class</span> <span class="nc">AskPositiveDefiniteHandler</span><span class="p">(</span><span class="n">CommonHandler</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Handler for key &#39;positive_definite&#39;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatMul</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="n">factor</span><span class="p">,</span> <span class="n">mmul</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">as_coeff_mmul</span><span class="p">()</span>
+        <span class="k">if</span> <span class="p">(</span><span class="nb">all</span><span class="p">(</span><span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">positive_definite</span><span class="p">(</span><span class="n">arg</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">mmul</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="ow">and</span> <span class="n">factor</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">if</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">mmul</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">2</span>
+                <span class="ow">and</span> <span class="n">mmul</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">mmul</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">T</span>
+                <span class="ow">and</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">fullrank</span><span class="p">(</span><span class="n">mmul</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">assumptions</span><span class="p">)):</span>
+            <span class="k">return</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">positive_definite</span><span class="p">(</span>
+                <span class="n">MatMul</span><span class="p">(</span><span class="o">*</span><span class="n">mmul</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">])),</span> <span class="n">assumptions</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatPow</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="c1"># a power of a positive definite matrix is positive definite</span>
+        <span class="k">if</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">positive_definite</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">assumptions</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatAdd</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">positive_definite</span><span class="p">(</span><span class="n">arg</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatrixSymbol</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_square</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">if</span> <span class="n">Q</span><span class="o">.</span><span class="n">positive_definite</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span> <span class="ow">in</span> <span class="n">conjuncts</span><span class="p">(</span><span class="n">assumptions</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="n">Identity</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">CommonHandler</span><span class="o">.</span><span class="n">AlwaysTrue</span><span class="p">)</span>
+
+    <span class="n">ZeroMatrix</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">CommonHandler</span><span class="o">.</span><span class="n">AlwaysFalse</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">Transpose</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">positive_definite</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">arg</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+
+    <span class="n">Inverse</span> <span class="o">=</span> <span class="n">Transpose</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatrixSlice</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">expr</span><span class="o">.</span><span class="n">on_diag</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">positive_definite</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">parent</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="AskUpperTriangularHandler"><a class="viewcode-back" href="../../../../modules/assumptions/handlers/matrices.html#sympy.assumptions.handlers.matrices.AskUpperTriangularHandler">[docs]</a><span class="k">class</span> <span class="nc">AskUpperTriangularHandler</span><span class="p">(</span><span class="n">CommonHandler</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Handler for key &#39;upper_triangular&#39;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatMul</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="n">factor</span><span class="p">,</span> <span class="n">matrices</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">as_coeff_matrices</span><span class="p">()</span>
+        <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">upper_triangular</span><span class="p">(</span><span class="n">m</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span> <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">matrices</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatAdd</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">upper_triangular</span><span class="p">(</span><span class="n">arg</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatPow</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="c1"># only for integer powers</span>
+        <span class="n">base</span><span class="p">,</span> <span class="n">exp</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span>
+        <span class="n">int_exp</span> <span class="o">=</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">integer</span><span class="p">(</span><span class="n">exp</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">int_exp</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="n">non_negative</span> <span class="o">=</span> <span class="n">ask</span><span class="p">(</span><span class="o">~</span><span class="n">Q</span><span class="o">.</span><span class="n">negative</span><span class="p">(</span><span class="n">exp</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">non_negative</span> <span class="ow">or</span> <span class="n">non_negative</span> <span class="o">==</span> <span class="kc">False</span>
+                            <span class="ow">and</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">invertible</span><span class="p">(</span><span class="n">base</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)):</span>
+            <span class="k">return</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">upper_triangular</span><span class="p">(</span><span class="n">base</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatrixSymbol</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">Q</span><span class="o">.</span><span class="n">upper_triangular</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span> <span class="ow">in</span> <span class="n">conjuncts</span><span class="p">(</span><span class="n">assumptions</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="n">Identity</span><span class="p">,</span> <span class="n">ZeroMatrix</span> <span class="o">=</span> <span class="p">[</span><span class="nb">staticmethod</span><span class="p">(</span><span class="n">CommonHandler</span><span class="o">.</span><span class="n">AlwaysTrue</span><span class="p">)]</span><span class="o">*</span><span class="mi">2</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">Transpose</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">lower_triangular</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">arg</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">Inverse</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">upper_triangular</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">arg</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatrixSlice</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">expr</span><span class="o">.</span><span class="n">on_diag</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">upper_triangular</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">parent</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+
+    <span class="n">Factorization</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">partial</span><span class="p">(</span><span class="n">_Factorization</span><span class="p">,</span> <span class="n">Q</span><span class="o">.</span><span class="n">upper_triangular</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="AskLowerTriangularHandler"><a class="viewcode-back" href="../../../../modules/assumptions/handlers/matrices.html#sympy.assumptions.handlers.matrices.AskLowerTriangularHandler">[docs]</a><span class="k">class</span> <span class="nc">AskLowerTriangularHandler</span><span class="p">(</span><span class="n">CommonHandler</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Handler for key &#39;lower_triangular&#39;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatMul</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="n">factor</span><span class="p">,</span> <span class="n">matrices</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">as_coeff_matrices</span><span class="p">()</span>
+        <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">lower_triangular</span><span class="p">(</span><span class="n">m</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span> <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">matrices</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatAdd</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">lower_triangular</span><span class="p">(</span><span class="n">arg</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatPow</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="c1"># only for integer powers</span>
+        <span class="n">base</span><span class="p">,</span> <span class="n">exp</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span>
+        <span class="n">int_exp</span> <span class="o">=</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">integer</span><span class="p">(</span><span class="n">exp</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">int_exp</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="n">non_negative</span> <span class="o">=</span> <span class="n">ask</span><span class="p">(</span><span class="o">~</span><span class="n">Q</span><span class="o">.</span><span class="n">negative</span><span class="p">(</span><span class="n">exp</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">non_negative</span> <span class="ow">or</span> <span class="n">non_negative</span> <span class="o">==</span> <span class="kc">False</span>
+                            <span class="ow">and</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">invertible</span><span class="p">(</span><span class="n">base</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)):</span>
+            <span class="k">return</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">lower_triangular</span><span class="p">(</span><span class="n">base</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatrixSymbol</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">Q</span><span class="o">.</span><span class="n">lower_triangular</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span> <span class="ow">in</span> <span class="n">conjuncts</span><span class="p">(</span><span class="n">assumptions</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="n">Identity</span><span class="p">,</span> <span class="n">ZeroMatrix</span> <span class="o">=</span> <span class="p">[</span><span class="nb">staticmethod</span><span class="p">(</span><span class="n">CommonHandler</span><span class="o">.</span><span class="n">AlwaysTrue</span><span class="p">)]</span><span class="o">*</span><span class="mi">2</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">Transpose</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">upper_triangular</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">arg</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">Inverse</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">lower_triangular</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">arg</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatrixSlice</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">expr</span><span class="o">.</span><span class="n">on_diag</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">lower_triangular</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">parent</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+
+    <span class="n">Factorization</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">partial</span><span class="p">(</span><span class="n">_Factorization</span><span class="p">,</span> <span class="n">Q</span><span class="o">.</span><span class="n">lower_triangular</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="AskDiagonalHandler"><a class="viewcode-back" href="../../../../modules/assumptions/handlers/matrices.html#sympy.assumptions.handlers.matrices.AskDiagonalHandler">[docs]</a><span class="k">class</span> <span class="nc">AskDiagonalHandler</span><span class="p">(</span><span class="n">CommonHandler</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Handler for key &#39;diagonal&#39;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_is_empty_or_1x1</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">or</span> <span class="n">expr</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatMul</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">AskDiagonalHandler</span><span class="o">.</span><span class="n">_is_empty_or_1x1</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="n">factor</span><span class="p">,</span> <span class="n">matrices</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">as_coeff_matrices</span><span class="p">()</span>
+        <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">diagonal</span><span class="p">(</span><span class="n">m</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span> <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">matrices</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatPow</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="c1"># only for integer powers</span>
+        <span class="n">base</span><span class="p">,</span> <span class="n">exp</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span>
+        <span class="n">int_exp</span> <span class="o">=</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">integer</span><span class="p">(</span><span class="n">exp</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">int_exp</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="n">non_negative</span> <span class="o">=</span> <span class="n">ask</span><span class="p">(</span><span class="o">~</span><span class="n">Q</span><span class="o">.</span><span class="n">negative</span><span class="p">(</span><span class="n">exp</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">non_negative</span> <span class="ow">or</span> <span class="n">non_negative</span> <span class="o">==</span> <span class="kc">False</span>
+                            <span class="ow">and</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">invertible</span><span class="p">(</span><span class="n">base</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)):</span>
+            <span class="k">return</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">diagonal</span><span class="p">(</span><span class="n">base</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatAdd</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">diagonal</span><span class="p">(</span><span class="n">arg</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatrixSymbol</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">AskDiagonalHandler</span><span class="o">.</span><span class="n">_is_empty_or_1x1</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">if</span> <span class="n">Q</span><span class="o">.</span><span class="n">diagonal</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span> <span class="ow">in</span> <span class="n">conjuncts</span><span class="p">(</span><span class="n">assumptions</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="n">Identity</span><span class="p">,</span> <span class="n">ZeroMatrix</span> <span class="o">=</span> <span class="p">[</span><span class="nb">staticmethod</span><span class="p">(</span><span class="n">CommonHandler</span><span class="o">.</span><span class="n">AlwaysTrue</span><span class="p">)]</span><span class="o">*</span><span class="mi">2</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">Transpose</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">diagonal</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">arg</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">Inverse</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">diagonal</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">arg</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatrixSlice</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">AskDiagonalHandler</span><span class="o">.</span><span class="n">_is_empty_or_1x1</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">expr</span><span class="o">.</span><span class="n">on_diag</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">diagonal</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">parent</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">DiagonalMatrix</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">DiagonalizeVector</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">Identity</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="n">Factorization</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">partial</span><span class="p">(</span><span class="n">_Factorization</span><span class="p">,</span> <span class="n">Q</span><span class="o">.</span><span class="n">diagonal</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="BM_elements"><a class="viewcode-back" href="../../../../modules/assumptions/handlers/matrices.html#sympy.assumptions.handlers.matrices.BM_elements">[docs]</a><span class="k">def</span> <span class="nf">BM_elements</span><span class="p">(</span><span class="n">predicate</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Block Matrix elements &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="nb">all</span><span class="p">(</span><span class="n">ask</span><span class="p">(</span><span class="n">predicate</span><span class="p">(</span><span class="n">b</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span> <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">blocks</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="MS_elements"><a class="viewcode-back" href="../../../../modules/assumptions/handlers/matrices.html#sympy.assumptions.handlers.matrices.MS_elements">[docs]</a><span class="k">def</span> <span class="nf">MS_elements</span><span class="p">(</span><span class="n">predicate</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Matrix Slice elements &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">ask</span><span class="p">(</span><span class="n">predicate</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">parent</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span></div>
+
+<span class="k">def</span> <span class="nf">MatMul_elements</span><span class="p">(</span><span class="n">matrix_predicate</span><span class="p">,</span> <span class="n">scalar_predicate</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="n">sift</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">MatrixExpr</span><span class="p">))</span>
+    <span class="n">factors</span><span class="p">,</span> <span class="n">matrices</span> <span class="o">=</span> <span class="n">d</span><span class="p">[</span><span class="kc">False</span><span class="p">],</span> <span class="n">d</span><span class="p">[</span><span class="kc">True</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">fuzzy_and</span><span class="p">([</span>
+        <span class="n">test_closed_group</span><span class="p">(</span><span class="n">Basic</span><span class="p">(</span><span class="o">*</span><span class="n">factors</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">,</span> <span class="n">scalar_predicate</span><span class="p">),</span>
+        <span class="n">test_closed_group</span><span class="p">(</span><span class="n">Basic</span><span class="p">(</span><span class="o">*</span><span class="n">matrices</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">,</span> <span class="n">matrix_predicate</span><span class="p">)])</span>
+
+<span class="k">class</span> <span class="nc">AskIntegerElementsHandler</span><span class="p">(</span><span class="n">CommonHandler</span><span class="p">):</span>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatAdd</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">test_closed_group</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">,</span> <span class="n">Q</span><span class="o">.</span><span class="n">integer_elements</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatPow</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="c1"># only for integer powers</span>
+        <span class="n">base</span><span class="p">,</span> <span class="n">exp</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span>
+        <span class="n">int_exp</span> <span class="o">=</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">integer</span><span class="p">(</span><span class="n">exp</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">int_exp</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">exp</span><span class="o">.</span><span class="n">is_negative</span> <span class="o">==</span> <span class="kc">False</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">integer_elements</span><span class="p">(</span><span class="n">base</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="n">HadamardProduct</span><span class="p">,</span> <span class="n">Determinant</span><span class="p">,</span> <span class="n">Trace</span><span class="p">,</span> <span class="n">Transpose</span> <span class="o">=</span> <span class="p">[</span><span class="n">MatAdd</span><span class="p">]</span><span class="o">*</span><span class="mi">4</span>
+
+    <span class="n">ZeroMatrix</span><span class="p">,</span> <span class="n">Identity</span> <span class="o">=</span> <span class="p">[</span><span class="nb">staticmethod</span><span class="p">(</span><span class="n">CommonHandler</span><span class="o">.</span><span class="n">AlwaysTrue</span><span class="p">)]</span><span class="o">*</span><span class="mi">2</span>
+
+    <span class="n">MatMul</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">partial</span><span class="p">(</span><span class="n">MatMul_elements</span><span class="p">,</span> <span class="n">Q</span><span class="o">.</span><span class="n">integer_elements</span><span class="p">,</span>
+                                                   <span class="n">Q</span><span class="o">.</span><span class="n">integer</span><span class="p">))</span>
+    <span class="n">MatrixSlice</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">partial</span><span class="p">(</span><span class="n">MS_elements</span><span class="p">,</span> <span class="n">Q</span><span class="o">.</span><span class="n">integer_elements</span><span class="p">))</span>
+    <span class="n">BlockMatrix</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">partial</span><span class="p">(</span><span class="n">BM_elements</span><span class="p">,</span> <span class="n">Q</span><span class="o">.</span><span class="n">integer_elements</span><span class="p">))</span>
+
+<span class="k">class</span> <span class="nc">AskRealElementsHandler</span><span class="p">(</span><span class="n">CommonHandler</span><span class="p">):</span>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatAdd</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">test_closed_group</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">,</span> <span class="n">Q</span><span class="o">.</span><span class="n">real_elements</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatPow</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="c1"># only for integer powers</span>
+        <span class="n">base</span><span class="p">,</span> <span class="n">exp</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span>
+        <span class="n">int_exp</span> <span class="o">=</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">integer</span><span class="p">(</span><span class="n">exp</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">int_exp</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="n">non_negative</span> <span class="o">=</span> <span class="n">ask</span><span class="p">(</span><span class="o">~</span><span class="n">Q</span><span class="o">.</span><span class="n">negative</span><span class="p">(</span><span class="n">exp</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">non_negative</span> <span class="ow">or</span> <span class="n">non_negative</span> <span class="o">==</span> <span class="kc">False</span>
+                            <span class="ow">and</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">invertible</span><span class="p">(</span><span class="n">base</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)):</span>
+            <span class="k">return</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">real_elements</span><span class="p">(</span><span class="n">base</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="n">HadamardProduct</span><span class="p">,</span> <span class="n">Determinant</span><span class="p">,</span> <span class="n">Trace</span><span class="p">,</span> <span class="n">Transpose</span><span class="p">,</span> \
+            <span class="n">Factorization</span> <span class="o">=</span> <span class="p">[</span><span class="n">MatAdd</span><span class="p">]</span><span class="o">*</span><span class="mi">5</span>
+
+    <span class="n">MatMul</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">partial</span><span class="p">(</span><span class="n">MatMul_elements</span><span class="p">,</span> <span class="n">Q</span><span class="o">.</span><span class="n">real_elements</span><span class="p">,</span> <span class="n">Q</span><span class="o">.</span><span class="n">real</span><span class="p">))</span>
+    <span class="n">MatrixSlice</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">partial</span><span class="p">(</span><span class="n">MS_elements</span><span class="p">,</span> <span class="n">Q</span><span class="o">.</span><span class="n">real_elements</span><span class="p">))</span>
+    <span class="n">BlockMatrix</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">partial</span><span class="p">(</span><span class="n">BM_elements</span><span class="p">,</span> <span class="n">Q</span><span class="o">.</span><span class="n">real_elements</span><span class="p">))</span>
+
+
+<span class="k">class</span> <span class="nc">AskComplexElementsHandler</span><span class="p">(</span><span class="n">CommonHandler</span><span class="p">):</span>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatAdd</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">test_closed_group</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">,</span> <span class="n">Q</span><span class="o">.</span><span class="n">complex_elements</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">MatPow</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="c1"># only for integer powers</span>
+        <span class="n">base</span><span class="p">,</span> <span class="n">exp</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span>
+        <span class="n">int_exp</span> <span class="o">=</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">integer</span><span class="p">(</span><span class="n">exp</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">int_exp</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="n">non_negative</span> <span class="o">=</span> <span class="n">ask</span><span class="p">(</span><span class="o">~</span><span class="n">Q</span><span class="o">.</span><span class="n">negative</span><span class="p">(</span><span class="n">exp</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">non_negative</span> <span class="ow">or</span> <span class="n">non_negative</span> <span class="o">==</span> <span class="kc">False</span>
+                            <span class="ow">and</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">invertible</span><span class="p">(</span><span class="n">base</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)):</span>
+            <span class="k">return</span> <span class="n">ask</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">complex_elements</span><span class="p">(</span><span class="n">base</span><span class="p">),</span> <span class="n">assumptions</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="n">HadamardProduct</span><span class="p">,</span> <span class="n">Determinant</span><span class="p">,</span> <span class="n">Trace</span><span class="p">,</span> <span class="n">Transpose</span><span class="p">,</span> <span class="n">Inverse</span><span class="p">,</span> \
+         <span class="n">Factorization</span> <span class="o">=</span> <span class="p">[</span><span class="n">MatAdd</span><span class="p">]</span><span class="o">*</span><span class="mi">6</span>
+
+    <span class="n">MatMul</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">partial</span><span class="p">(</span><span class="n">MatMul_elements</span><span class="p">,</span> <span class="n">Q</span><span class="o">.</span><span class="n">complex_elements</span><span class="p">,</span>
+                                                   <span class="n">Q</span><span class="o">.</span><span class="n">complex</span><span class="p">))</span>
+    <span class="n">MatrixSlice</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">partial</span><span class="p">(</span><span class="n">MS_elements</span><span class="p">,</span> <span class="n">Q</span><span class="o">.</span><span class="n">complex_elements</span><span class="p">))</span>
+    <span class="n">BlockMatrix</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">partial</span><span class="p">(</span><span class="n">BM_elements</span><span class="p">,</span> <span class="n">Q</span><span class="o">.</span><span class="n">complex_elements</span><span class="p">))</span>
+
+    <span class="n">DFT</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">CommonHandler</span><span class="o">.</span><span class="n">AlwaysTrue</span><span class="p">)</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../../../index.html">
+              <img class="logo" src="../../../../_static/sympylogo.png" alt="Logo"/>
+            </a></p>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../../../index.html">SymPy 1.5.dev documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../../../index.html" >Module code</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2019 SymPy Development Team.
+      Last updated on May 12, 2019.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 2.0.1.
+    </div>
+  </body>
+</html>

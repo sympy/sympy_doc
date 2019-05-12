@@ -1,0 +1,257 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>sympy.ntheory.bbp_pi &#8212; SymPy 1.5.dev documentation</title>
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/graphviz.css" />
+    <link rel="stylesheet" type="text/css" href="https://live.sympy.org/static/live-core.css" />
+    <link rel="stylesheet" type="text/css" href="https://live.sympy.org/static/live-autocomplete.css" />
+    <link rel="stylesheet" type="text/css" href="https://live.sympy.org/static/live-sphinx.css" />
+    
+    <script type="text/javascript" id="documentation_options" data-url_root="../../../" src="../../../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/language_data.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/utilities.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/external/classy.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/live-core.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/live-autocomplete.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/live-sphinx.js"></script>
+    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS_HTML-full"></script>
+    
+    <link rel="shortcut icon" href="../../../_static/sympy-notailtext-favicon.ico"/>
+    <link href="https://docs.sympy.org/latest/_modules/sympy/ntheory/bbp_pi.html" rel="canonical" />
+    
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../../index.html">SymPy 1.5.dev documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for sympy.ntheory.bbp_pi</h1><div class="highlight"><pre>
+<span></span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">This implementation is a heavily modified fixed point implementation of</span>
+<span class="sd">BBP_formula for calculating the nth position of pi. The original hosted</span>
+<span class="sd">at: http://en.literateprograms.org/Pi_with_the_BBP_formula_(Python)</span>
+
+<span class="sd"># Permission is hereby granted, free of charge, to any person obtaining</span>
+<span class="sd"># a copy of this software and associated documentation files (the</span>
+<span class="sd"># &quot;Software&quot;), to deal in the Software without restriction, including</span>
+<span class="sd"># without limitation the rights to use, copy, modify, merge, publish,</span>
+<span class="sd"># distribute, sub-license, and/or sell copies of the Software, and to</span>
+<span class="sd"># permit persons to whom the Software is furnished to do so, subject to</span>
+<span class="sd"># the following conditions:</span>
+<span class="sd">#</span>
+<span class="sd"># The above copyright notice and this permission notice shall be</span>
+<span class="sd"># included in all copies or substantial portions of the Software.</span>
+<span class="sd">#</span>
+<span class="sd"># THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND,</span>
+<span class="sd"># EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF</span>
+<span class="sd"># MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.</span>
+<span class="sd"># IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY</span>
+<span class="sd"># CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,</span>
+<span class="sd"># TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE</span>
+<span class="sd"># SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.</span>
+
+<span class="sd">Modifications:</span>
+
+<span class="sd">1.Once the nth digit and desired number of digits is selected, the</span>
+<span class="sd">number of digits of working precision is calculated to ensure that</span>
+<span class="sd">the hexadecimal digits returned are accurate. This is calculated as</span>
+
+<span class="sd">    int(math.log(start + prec)/math.log(16) + prec + 3)</span>
+<span class="sd">    ---------------------------------------   --------</span>
+<span class="sd">                      /                          /</span>
+<span class="sd">    number of hex digits           additional digits</span>
+
+<span class="sd">This was checked by the following code which completed without</span>
+<span class="sd">errors (and dig are the digits included in the test_bbp.py file):</span>
+
+<span class="sd">    for i in range(0,1000):</span>
+<span class="sd">     for j in range(1,1000):</span>
+<span class="sd">      a, b = pi_hex_digits(i, j), dig[i:i+j]</span>
+<span class="sd">      if a != b:</span>
+<span class="sd">        print(&#39;%s\n%s&#39;%(a,b))</span>
+
+<span class="sd">Deceasing the additional digits by 1 generated errors, so &#39;3&#39; is</span>
+<span class="sd">the smallest additional precision needed to calculate the above</span>
+<span class="sd">loop without errors. The following trailing 10 digits were also</span>
+<span class="sd">checked to be accurate (and the times were slightly faster with</span>
+<span class="sd">some of the constant modifications that were made):</span>
+
+<span class="sd">    &gt;&gt; from time import time</span>
+<span class="sd">    &gt;&gt; t=time();pi_hex_digits(10**2-10 + 1, 10), time()-t</span>
+<span class="sd">    (&#39;e90c6cc0ac&#39;, 0.0)</span>
+<span class="sd">    &gt;&gt; t=time();pi_hex_digits(10**4-10 + 1, 10), time()-t</span>
+<span class="sd">    (&#39;26aab49ec6&#39;, 0.17100000381469727)</span>
+<span class="sd">    &gt;&gt; t=time();pi_hex_digits(10**5-10 + 1, 10), time()-t</span>
+<span class="sd">    (&#39;a22673c1a5&#39;, 4.7109999656677246)</span>
+<span class="sd">    &gt;&gt; t=time();pi_hex_digits(10**6-10 + 1, 10), time()-t</span>
+<span class="sd">    (&#39;9ffd342362&#39;, 59.985999822616577)</span>
+<span class="sd">    &gt;&gt; t=time();pi_hex_digits(10**7-10 + 1, 10), time()-t</span>
+<span class="sd">    (&#39;c1a42e06a1&#39;, 689.51800012588501)</span>
+
+<span class="sd">2. The while loop to evaluate whether the series has converged quits</span>
+<span class="sd">when the addition amount `dt` has dropped to zero.</span>
+
+<span class="sd">3. the formatting string to convert the decimal to hexadecimal is</span>
+<span class="sd">calculated for the given precision.</span>
+
+<span class="sd">4. pi_hex_digits(n) changed to have coefficient to the formula in an</span>
+<span class="sd">array (perhaps just a matter of preference).</span>
+
+<span class="sd">&#39;&#39;&#39;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">division</span>
+
+<span class="kn">import</span> <span class="nn">math</span>
+<span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="k">import</span> <span class="nb">range</span><span class="p">,</span> <span class="n">as_int</span>
+
+
+<span class="k">def</span> <span class="nf">_series</span><span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">prec</span><span class="o">=</span><span class="mi">14</span><span class="p">):</span>
+
+    <span class="c1"># Left sum from the bbp algorithm</span>
+    <span class="n">s</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">D</span> <span class="o">=</span> <span class="n">_dn</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">prec</span><span class="p">)</span>
+    <span class="n">D4</span> <span class="o">=</span> <span class="mi">4</span> <span class="o">*</span> <span class="n">D</span>
+    <span class="n">k</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="mi">8</span> <span class="o">*</span> <span class="n">k</span> <span class="o">+</span> <span class="n">j</span>
+    <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="n">s</span> <span class="o">+=</span> <span class="p">(</span><span class="nb">pow</span><span class="p">(</span><span class="mi">16</span><span class="p">,</span> <span class="n">n</span> <span class="o">-</span> <span class="n">k</span><span class="p">,</span> <span class="n">d</span><span class="p">)</span> <span class="o">&lt;&lt;</span> <span class="n">D4</span><span class="p">)</span> <span class="o">//</span> <span class="n">d</span>
+        <span class="n">d</span> <span class="o">+=</span> <span class="mi">8</span>
+
+    <span class="c1"># Right sum iterates to infinity for full precision, but we</span>
+    <span class="c1"># stop at the point where one iteration is beyond the precision</span>
+    <span class="c1"># specified.</span>
+
+    <span class="n">t</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">k</span> <span class="o">=</span> <span class="n">n</span> <span class="o">+</span> <span class="mi">1</span>
+    <span class="n">e</span> <span class="o">=</span> <span class="mi">4</span><span class="o">*</span><span class="p">(</span><span class="n">D</span> <span class="o">+</span> <span class="n">n</span> <span class="o">-</span> <span class="n">k</span><span class="p">)</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="mi">8</span> <span class="o">*</span> <span class="n">k</span> <span class="o">+</span> <span class="n">j</span>
+    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+        <span class="n">dt</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="n">e</span><span class="p">)</span> <span class="o">//</span> <span class="n">d</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">dt</span><span class="p">:</span>
+            <span class="k">break</span>
+        <span class="n">t</span> <span class="o">+=</span> <span class="n">dt</span>
+        <span class="c1"># k += 1</span>
+        <span class="n">e</span> <span class="o">-=</span> <span class="mi">4</span>
+        <span class="n">d</span> <span class="o">+=</span> <span class="mi">8</span>
+    <span class="n">total</span> <span class="o">=</span> <span class="n">s</span> <span class="o">+</span> <span class="n">t</span>
+
+    <span class="k">return</span> <span class="n">total</span>
+
+
+<div class="viewcode-block" id="pi_hex_digits"><a class="viewcode-back" href="../../../modules/ntheory.html#sympy.ntheory.bbp_pi.pi_hex_digits">[docs]</a><span class="k">def</span> <span class="nf">pi_hex_digits</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">prec</span><span class="o">=</span><span class="mi">14</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Returns a string containing ``prec`` (default 14) digits</span>
+<span class="sd">    starting at the nth digit of pi in hex. Counting of digits</span>
+<span class="sd">    starts at 0 and the decimal is not counted, so for n = 0 the</span>
+<span class="sd">    returned value starts with 3; n = 1 corresponds to the first</span>
+<span class="sd">    digit past the decimal point (which in hex is 2).</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.ntheory.bbp_pi import pi_hex_digits</span>
+<span class="sd">    &gt;&gt;&gt; pi_hex_digits(0)</span>
+<span class="sd">    &#39;3243f6a8885a30&#39;</span>
+<span class="sd">    &gt;&gt;&gt; pi_hex_digits(0, 3)</span>
+<span class="sd">    &#39;324&#39;</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    .. [1] http://www.numberworld.org/digits/Pi/</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">n</span><span class="p">,</span> <span class="n">prec</span> <span class="o">=</span> <span class="n">as_int</span><span class="p">(</span><span class="n">n</span><span class="p">),</span> <span class="n">as_int</span><span class="p">(</span><span class="n">prec</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">n</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;n cannot be negative&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">prec</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s1">&#39;&#39;</span>
+
+    <span class="c1"># main of implementation arrays holding formulae coefficients</span>
+    <span class="n">n</span> <span class="o">-=</span> <span class="mi">1</span>
+    <span class="n">a</span> <span class="o">=</span> <span class="p">[</span><span class="mi">4</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+    <span class="n">j</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">6</span><span class="p">]</span>
+
+    <span class="c1">#formulae</span>
+    <span class="n">D</span> <span class="o">=</span> <span class="n">_dn</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">prec</span><span class="p">)</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="o">+</span> <span class="p">(</span><span class="n">a</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">_series</span><span class="p">(</span><span class="n">j</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">n</span><span class="p">,</span> <span class="n">prec</span><span class="p">)</span>
+         <span class="o">-</span> <span class="n">a</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">_series</span><span class="p">(</span><span class="n">j</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">n</span><span class="p">,</span> <span class="n">prec</span><span class="p">)</span>
+         <span class="o">-</span> <span class="n">a</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="n">_series</span><span class="p">(</span><span class="n">j</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">n</span><span class="p">,</span> <span class="n">prec</span><span class="p">)</span>
+         <span class="o">-</span> <span class="n">a</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="n">_series</span><span class="p">(</span><span class="n">j</span><span class="p">[</span><span class="mi">3</span><span class="p">],</span> <span class="n">n</span><span class="p">,</span> <span class="n">prec</span><span class="p">))</span> <span class="o">&amp;</span> <span class="p">(</span><span class="mi">16</span><span class="o">**</span><span class="n">D</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="n">s</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;%0&quot;</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="si">%i</span><span class="s2">x&quot;</span> <span class="o">%</span> <span class="n">prec</span><span class="p">)</span> <span class="o">%</span> <span class="p">(</span><span class="n">x</span> <span class="o">//</span> <span class="mi">16</span><span class="o">**</span><span class="p">(</span><span class="n">D</span> <span class="o">-</span> <span class="n">prec</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">s</span></div>
+
+
+<span class="k">def</span> <span class="nf">_dn</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">prec</span><span class="p">):</span>
+    <span class="c1"># controller for n dependence on precision</span>
+    <span class="c1"># n = starting digit index</span>
+    <span class="c1"># prec = the number of total digits to compute</span>
+    <span class="n">n</span> <span class="o">+=</span> <span class="mi">1</span>  <span class="c1"># because we subtract 1 for _series</span>
+    <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">math</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">n</span> <span class="o">+</span> <span class="n">prec</span><span class="p">)</span><span class="o">/</span><span class="n">math</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mi">16</span><span class="p">)</span> <span class="o">+</span> <span class="n">prec</span> <span class="o">+</span> <span class="mi">3</span><span class="p">)</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../../index.html">
+              <img class="logo" src="../../../_static/sympylogo.png" alt="Logo"/>
+            </a></p>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../../index.html">SymPy 1.5.dev documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../../index.html" >Module code</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2019 SymPy Development Team.
+      Last updated on May 12, 2019.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 2.0.1.
+    </div>
+  </body>
+</html>
