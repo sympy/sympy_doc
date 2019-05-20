@@ -733,6 +733,7 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="kn">from</span> <span class="nn">sympy.simplify.simplify</span> <span class="k">import</span> <span class="n">nsimplify</span><span class="p">,</span> <span class="n">simplify</span>
         <span class="kn">from</span> <span class="nn">sympy.solvers.solveset</span> <span class="k">import</span> <span class="n">solveset</span>
+        <span class="kn">from</span> <span class="nn">sympy.solvers.solvers</span> <span class="k">import</span> <span class="n">solve</span>
         <span class="kn">from</span> <span class="nn">sympy.polys.polyerrors</span> <span class="k">import</span> <span class="n">NotAlgebraic</span>
         <span class="kn">from</span> <span class="nn">sympy.polys.numberfields</span> <span class="k">import</span> <span class="n">minimal_polynomial</span>
 
@@ -759,15 +760,19 @@
         <span class="k">if</span> <span class="n">constant</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">:</span>
             <span class="k">return</span> <span class="kc">False</span>
 
-        <span class="k">if</span> <span class="n">constant</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">diff</span><span class="o">.</span><span class="n">is_number</span><span class="p">:</span>
-            <span class="c1"># e.g. unless the right simplification is done, a symbolic</span>
-            <span class="c1"># zero is possible (see expression of issue 6829: without</span>
-            <span class="c1"># simplification constant will be None).</span>
-            <span class="k">return</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">diff</span><span class="o">.</span><span class="n">is_number</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">constant</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="c1"># e.g. unless the right simplification is done, a symbolic</span>
+                <span class="c1"># zero is possible (see expression of issue 6829: without</span>
+                <span class="c1"># simplification constant will be None).</span>
+                <span class="k">return</span>
 
         <span class="k">if</span> <span class="n">constant</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="c1"># this gives a number whether there are free symbols or not</span>
             <span class="n">ndiff</span> <span class="o">=</span> <span class="n">diff</span><span class="o">.</span><span class="n">_random</span><span class="p">()</span>
-            <span class="k">if</span> <span class="n">ndiff</span><span class="p">:</span>
+            <span class="c1"># is_comparable will work whether the result is real</span>
+            <span class="c1"># or complex; it could be None, however.</span>
+            <span class="k">if</span> <span class="n">ndiff</span> <span class="ow">and</span> <span class="n">ndiff</span><span class="o">.</span><span class="n">is_comparable</span><span class="p">:</span>
                 <span class="k">return</span> <span class="kc">False</span>
 
         <span class="c1"># sometimes we can use a simplified result to give a clue as to</span>
@@ -775,47 +780,67 @@
         <span class="c1"># then we should have been able to compute that and so now</span>
         <span class="c1"># we can just consider the cases where the approximation appears</span>
         <span class="c1"># to be zero -- we try to prove it via minimal_polynomial.</span>
+        <span class="c1">#</span>
+        <span class="c1"># removed</span>
+        <span class="c1"># ns = nsimplify(diff)</span>
+        <span class="c1"># if diff.is_number and (not ns or ns == diff):</span>
+        <span class="c1">#</span>
+        <span class="c1"># The thought was that if it nsimplifies to 0 that&#39;s a sure sign</span>
+        <span class="c1"># to try the following to prove it; or if it changed but wasn&#39;t</span>
+        <span class="c1"># zero that might be a sign that it&#39;s not going to be easy to</span>
+        <span class="c1"># prove. But tests seem to be working without that logic.</span>
+        <span class="c1">#</span>
         <span class="k">if</span> <span class="n">diff</span><span class="o">.</span><span class="n">is_number</span><span class="p">:</span>
-            <span class="n">approx</span> <span class="o">=</span> <span class="n">diff</span><span class="o">.</span><span class="n">nsimplify</span><span class="p">()</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="n">approx</span><span class="p">:</span>
-                <span class="c1"># try to prove via self-consistency</span>
-                <span class="n">surds</span> <span class="o">=</span> <span class="p">[</span><span class="n">s</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">diff</span><span class="o">.</span><span class="n">atoms</span><span class="p">(</span><span class="n">Pow</span><span class="p">)</span> <span class="k">if</span> <span class="n">s</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">is_Integer</span><span class="p">]</span>
-                <span class="c1"># it seems to work better to try big ones first</span>
-                <span class="n">surds</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="o">-</span><span class="n">x</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
-                <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">surds</span><span class="p">:</span>
-                    <span class="k">try</span><span class="p">:</span>
-                        <span class="c1"># simplify is False here -- this expression has already</span>
-                        <span class="c1"># been identified as being hard to identify as zero;</span>
-                        <span class="c1"># we will handle the checking ourselves using nsimplify</span>
-                        <span class="c1"># to see if we are in the right ballpark or not and if so</span>
-                        <span class="c1"># *then* the simplification will be attempted.</span>
-                        <span class="k">if</span> <span class="n">s</span><span class="o">.</span><span class="n">is_Symbol</span><span class="p">:</span>
-                            <span class="n">sol</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">solveset</span><span class="p">(</span><span class="n">diff</span><span class="p">,</span> <span class="n">s</span><span class="p">))</span>
-                        <span class="k">else</span><span class="p">:</span>
-                            <span class="n">sol</span> <span class="o">=</span> <span class="p">[</span><span class="n">s</span><span class="p">]</span>
-                        <span class="k">if</span> <span class="n">sol</span><span class="p">:</span>
-                            <span class="k">if</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">sol</span><span class="p">:</span>
-                                <span class="k">return</span> <span class="kc">True</span>
-                            <span class="k">if</span> <span class="n">s</span><span class="o">.</span><span class="n">is_real</span><span class="p">:</span>
-                                <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">nsimplify</span><span class="p">(</span><span class="n">si</span><span class="p">,</span> <span class="p">[</span><span class="n">s</span><span class="p">])</span> <span class="o">==</span> <span class="n">s</span> <span class="ow">and</span> <span class="n">simplify</span><span class="p">(</span><span class="n">si</span><span class="p">)</span> <span class="o">==</span> <span class="n">s</span>
-                                        <span class="k">for</span> <span class="n">si</span> <span class="ow">in</span> <span class="n">sol</span><span class="p">):</span>
-                                    <span class="k">return</span> <span class="kc">True</span>
-                    <span class="k">except</span> <span class="ne">NotImplementedError</span><span class="p">:</span>
-                        <span class="k">pass</span>
-
-                <span class="c1"># try to prove with minimal_polynomial but know when</span>
-                <span class="c1"># *not* to use this or else it can take a long time. e.g. issue 8354</span>
-                <span class="k">if</span> <span class="kc">True</span><span class="p">:</span>  <span class="c1"># change True to condition that assures non-hang</span>
-                    <span class="k">try</span><span class="p">:</span>
-                        <span class="n">mp</span> <span class="o">=</span> <span class="n">minimal_polynomial</span><span class="p">(</span><span class="n">diff</span><span class="p">)</span>
-                        <span class="k">if</span> <span class="n">mp</span><span class="o">.</span><span class="n">is_Symbol</span><span class="p">:</span>
+            <span class="c1"># try to prove via self-consistency</span>
+            <span class="n">surds</span> <span class="o">=</span> <span class="p">[</span><span class="n">s</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">diff</span><span class="o">.</span><span class="n">atoms</span><span class="p">(</span><span class="n">Pow</span><span class="p">)</span> <span class="k">if</span> <span class="n">s</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">is_Integer</span><span class="p">]</span>
+            <span class="c1"># it seems to work better to try big ones first</span>
+            <span class="n">surds</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="o">-</span><span class="n">x</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">surds</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="c1"># simplify is False here -- this expression has already</span>
+                    <span class="c1"># been identified as being hard to identify as zero;</span>
+                    <span class="c1"># we will handle the checking ourselves using nsimplify</span>
+                    <span class="c1"># to see if we are in the right ballpark or not and if so</span>
+                    <span class="c1"># *then* the simplification will be attempted.</span>
+                    <span class="n">sol</span> <span class="o">=</span> <span class="n">solve</span><span class="p">(</span><span class="n">diff</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">simplify</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">sol</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">sol</span><span class="p">:</span>
+                            <span class="c1"># the self-consistent result is present</span>
                             <span class="k">return</span> <span class="kc">True</span>
-                        <span class="k">return</span> <span class="kc">False</span>
-                    <span class="k">except</span> <span class="p">(</span><span class="n">NotAlgebraic</span><span class="p">,</span> <span class="ne">NotImplementedError</span><span class="p">):</span>
-                        <span class="k">pass</span>
+                        <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">si</span><span class="o">.</span><span class="n">is_Integer</span> <span class="k">for</span> <span class="n">si</span> <span class="ow">in</span> <span class="n">sol</span><span class="p">):</span>
+                            <span class="c1"># perfect powers are removed at instantiation</span>
+                            <span class="c1"># so surd s cannot be an integer</span>
+                            <span class="k">return</span> <span class="kc">False</span>
+                        <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">is_algebraic</span> <span class="ow">is</span> <span class="kc">False</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">sol</span><span class="p">):</span>
+                            <span class="c1"># a surd is algebraic</span>
+                            <span class="k">return</span> <span class="kc">False</span>
+                        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">si</span> <span class="ow">in</span> <span class="n">surds</span> <span class="k">for</span> <span class="n">si</span> <span class="ow">in</span> <span class="n">sol</span><span class="p">):</span>
+                            <span class="c1"># it wasn&#39;t equal to s but it is in surds</span>
+                            <span class="c1"># and different surds are not equal</span>
+                            <span class="k">return</span> <span class="kc">False</span>
+                        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">nsimplify</span><span class="p">(</span><span class="n">s</span> <span class="o">-</span> <span class="n">si</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span>
+                                <span class="n">simplify</span><span class="p">(</span><span class="n">s</span> <span class="o">-</span> <span class="n">si</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">for</span> <span class="n">si</span> <span class="ow">in</span> <span class="n">sol</span><span class="p">):</span>
+                            <span class="k">return</span> <span class="kc">True</span>
+                        <span class="k">if</span> <span class="n">s</span><span class="o">.</span><span class="n">is_real</span><span class="p">:</span>
+                            <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">nsimplify</span><span class="p">(</span><span class="n">si</span><span class="p">,</span> <span class="p">[</span><span class="n">s</span><span class="p">])</span> <span class="o">==</span> <span class="n">s</span> <span class="ow">and</span> <span class="n">simplify</span><span class="p">(</span><span class="n">si</span><span class="p">)</span> <span class="o">==</span> <span class="n">s</span>
+                                    <span class="k">for</span> <span class="n">si</span> <span class="ow">in</span> <span class="n">sol</span><span class="p">):</span>
+                                <span class="k">return</span> <span class="kc">True</span>
+                <span class="k">except</span> <span class="ne">NotImplementedError</span><span class="p">:</span>
+                    <span class="k">pass</span>
+
+            <span class="c1"># try to prove with minimal_polynomial but know when</span>
+            <span class="c1"># *not* to use this or else it can take a long time. e.g. issue 8354</span>
+            <span class="k">if</span> <span class="kc">True</span><span class="p">:</span>  <span class="c1"># change True to condition that assures non-hang</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">mp</span> <span class="o">=</span> <span class="n">minimal_polynomial</span><span class="p">(</span><span class="n">diff</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">mp</span><span class="o">.</span><span class="n">is_Symbol</span><span class="p">:</span>
+                        <span class="k">return</span> <span class="kc">True</span>
+                    <span class="k">return</span> <span class="kc">False</span>
+                <span class="k">except</span> <span class="p">(</span><span class="n">NotAlgebraic</span><span class="p">,</span> <span class="ne">NotImplementedError</span><span class="p">):</span>
+                    <span class="k">pass</span>
 
         <span class="c1"># diff has not simplified to zero; constant is either None, True</span>
-        <span class="c1"># or the number with significance (prec != 1) that was randomly</span>
+        <span class="c1"># or the number with significance (is_comparable) that was randomly</span>
         <span class="c1"># calculated twice as the same value.</span>
         <span class="k">if</span> <span class="n">constant</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="kc">True</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="n">constant</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
             <span class="k">return</span> <span class="kc">False</span>
@@ -846,12 +871,12 @@
             <span class="k">if</span> <span class="n">n2</span> <span class="o">==</span> <span class="n">S</span><span class="o">.</span><span class="n">NaN</span><span class="p">:</span>
                 <span class="k">return</span> <span class="kc">None</span>
 
-            <span class="n">n</span><span class="p">,</span> <span class="n">i</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">evalf</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">as_real_imag</span><span class="p">()</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Number</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">n</span><span class="o">.</span><span class="n">is_Number</span><span class="p">:</span>
+            <span class="n">r</span><span class="p">,</span> <span class="n">i</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">evalf</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">as_real_imag</span><span class="p">()</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Number</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">r</span><span class="o">.</span><span class="n">is_Number</span><span class="p">:</span>
                 <span class="k">return</span> <span class="kc">False</span>
-            <span class="k">if</span> <span class="n">n</span><span class="o">.</span><span class="n">_prec</span> <span class="o">!=</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">i</span><span class="o">.</span><span class="n">_prec</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
-                <span class="k">return</span> <span class="nb">bool</span><span class="p">(</span><span class="ow">not</span> <span class="n">i</span> <span class="ow">and</span> <span class="n">n</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span>
-            <span class="k">elif</span> <span class="n">n</span><span class="o">.</span><span class="n">_prec</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="p">(</span><span class="ow">not</span> <span class="n">i</span> <span class="ow">or</span> <span class="n">i</span><span class="o">.</span><span class="n">_prec</span> <span class="o">==</span> <span class="mi">1</span><span class="p">)</span> <span class="ow">and</span> \
+            <span class="k">if</span> <span class="n">r</span><span class="o">.</span><span class="n">_prec</span> <span class="o">!=</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">i</span><span class="o">.</span><span class="n">_prec</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">return</span> <span class="nb">bool</span><span class="p">(</span><span class="ow">not</span> <span class="n">i</span> <span class="ow">and</span> <span class="n">r</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">r</span><span class="o">.</span><span class="n">_prec</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="p">(</span><span class="ow">not</span> <span class="n">i</span> <span class="ow">or</span> <span class="n">i</span><span class="o">.</span><span class="n">_prec</span> <span class="o">==</span> <span class="mi">1</span><span class="p">)</span> <span class="ow">and</span> \
                     <span class="bp">self</span><span class="o">.</span><span class="n">is_algebraic</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">Function</span><span class="p">):</span>
                 <span class="k">try</span><span class="p">:</span>
                     <span class="k">if</span> <span class="n">minimal_polynomial</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">is_Symbol</span><span class="p">:</span>
@@ -881,12 +906,12 @@
             <span class="k">if</span> <span class="n">n2</span> <span class="o">==</span> <span class="n">S</span><span class="o">.</span><span class="n">NaN</span><span class="p">:</span>
                 <span class="k">return</span> <span class="kc">None</span>
 
-            <span class="n">n</span><span class="p">,</span> <span class="n">i</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">evalf</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">as_real_imag</span><span class="p">()</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Number</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">n</span><span class="o">.</span><span class="n">is_Number</span><span class="p">:</span>
+            <span class="n">r</span><span class="p">,</span> <span class="n">i</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">evalf</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">as_real_imag</span><span class="p">()</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Number</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">r</span><span class="o">.</span><span class="n">is_Number</span><span class="p">:</span>
                 <span class="k">return</span> <span class="kc">False</span>
-            <span class="k">if</span> <span class="n">n</span><span class="o">.</span><span class="n">_prec</span> <span class="o">!=</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">i</span><span class="o">.</span><span class="n">_prec</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
-                <span class="k">return</span> <span class="nb">bool</span><span class="p">(</span><span class="ow">not</span> <span class="n">i</span> <span class="ow">and</span> <span class="n">n</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span>
-            <span class="k">elif</span> <span class="n">n</span><span class="o">.</span><span class="n">_prec</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="p">(</span><span class="ow">not</span> <span class="n">i</span> <span class="ow">or</span> <span class="n">i</span><span class="o">.</span><span class="n">_prec</span> <span class="o">==</span> <span class="mi">1</span><span class="p">)</span> <span class="ow">and</span> \
+            <span class="k">if</span> <span class="n">r</span><span class="o">.</span><span class="n">_prec</span> <span class="o">!=</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">i</span><span class="o">.</span><span class="n">_prec</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">return</span> <span class="nb">bool</span><span class="p">(</span><span class="ow">not</span> <span class="n">i</span> <span class="ow">and</span> <span class="n">r</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">r</span><span class="o">.</span><span class="n">_prec</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="p">(</span><span class="ow">not</span> <span class="n">i</span> <span class="ow">or</span> <span class="n">i</span><span class="o">.</span><span class="n">_prec</span> <span class="o">==</span> <span class="mi">1</span><span class="p">)</span> <span class="ow">and</span> \
                     <span class="bp">self</span><span class="o">.</span><span class="n">is_algebraic</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">Function</span><span class="p">):</span>
                 <span class="k">try</span><span class="p">:</span>
                     <span class="k">if</span> <span class="n">minimal_polynomial</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">is_Symbol</span><span class="p">:</span>
@@ -3459,7 +3484,7 @@
                 <span class="n">i</span> <span class="o">*=</span> <span class="o">-</span><span class="mi">1</span>
             <span class="k">return</span> <span class="n">i</span><span class="o">*</span><span class="n">m</span>
 
-        <span class="n">digits_to_decimal</span> <span class="o">=</span> <span class="n">_mag</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">digits_to_decimal</span> <span class="o">=</span> <span class="n">_mag</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>  <span class="c1"># _mag(12) = 2, _mag(.012) = -1</span>
         <span class="n">allow</span> <span class="o">=</span> <span class="n">digits_needed</span> <span class="o">=</span> <span class="n">digits_to_decimal</span> <span class="o">+</span> <span class="n">p</span>
         <span class="n">precs</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span><span class="o">.</span><span class="n">_prec</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">x</span><span class="o">.</span><span class="n">atoms</span><span class="p">(</span><span class="n">Float</span><span class="p">)]</span>
         <span class="n">dps</span> <span class="o">=</span> <span class="n">prec_to_dps</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="n">precs</span><span class="p">))</span> <span class="k">if</span> <span class="n">precs</span> <span class="k">else</span> <span class="kc">None</span>
@@ -3543,7 +3568,7 @@
             <span class="k">if</span> <span class="n">n</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>  <span class="c1"># the single-arg case</span>
                 <span class="k">return</span> <span class="n">rv</span>
             <span class="c1"># use str or else it won&#39;t be a float</span>
-            <span class="k">return</span> <span class="n">Float</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">rv</span><span class="p">),</span> <span class="n">digits_needed</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">Float</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">rv</span><span class="p">),</span> <span class="n">dps</span><span class="p">)</span>  <span class="c1"># keep same precision</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">if</span> <span class="ow">not</span> <span class="n">allow</span> <span class="ow">and</span> <span class="n">rv</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="p">:</span>
                 <span class="n">allow</span> <span class="o">+=</span> <span class="mi">1</span>
