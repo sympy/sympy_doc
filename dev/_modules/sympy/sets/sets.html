@@ -53,6 +53,7 @@
 <span></span><span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">division</span>
 
 <span class="kn">from</span> <span class="nn">itertools</span> <span class="k">import</span> <span class="n">product</span>
+<span class="kn">import</span> <span class="nn">inspect</span>
 
 <span class="kn">from</span> <span class="nn">sympy.core.basic</span> <span class="k">import</span> <span class="n">Basic</span>
 <span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="k">import</span> <span class="p">(</span><span class="n">iterable</span><span class="p">,</span> <span class="n">with_metaclass</span><span class="p">,</span>
@@ -359,6 +360,9 @@
 
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">Set</span><span class="p">):</span>
+            <span class="c1"># XXX issue 16873</span>
+            <span class="c1"># self might be an unevaluated form of self</span>
+            <span class="c1"># so the equality test will fail</span>
             <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">intersect</span><span class="p">(</span><span class="n">other</span><span class="p">)</span> <span class="o">==</span> <span class="bp">self</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Unknown argument &#39;</span><span class="si">%s</span><span class="s2">&#39;&quot;</span> <span class="o">%</span> <span class="n">other</span><span class="p">)</span></div>
@@ -1807,7 +1811,7 @@
 <span class="sd">    &gt;&gt;&gt; imageset(sin, Interval(-2, 1))</span>
 <span class="sd">    ImageSet(Lambda(x, sin(x)), Interval(-2, 1))</span>
 <span class="sd">    &gt;&gt;&gt; imageset(lambda y: x + y, Interval(-2, 1))</span>
-<span class="sd">    ImageSet(Lambda(_x, _x + x), Interval(-2, 1))</span>
+<span class="sd">    ImageSet(Lambda(y, x + y), Interval(-2, 1))</span>
 
 <span class="sd">    Expressions applied to the set of Integers are simplified</span>
 <span class="sd">    to show as few negatives as possible and linear expressions</span>
@@ -1837,24 +1841,36 @@
         <span class="n">f</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
         <span class="n">set_list</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>
 
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">Lambda</span><span class="p">):</span>
-            <span class="k">pass</span>
-        <span class="k">elif</span> <span class="p">(</span>
-                <span class="nb">isinstance</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">FunctionClass</span><span class="p">)</span> <span class="c1"># like cos</span>
-                <span class="ow">or</span> <span class="n">func_name</span><span class="p">(</span><span class="n">f</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;&lt;lambda&gt;&#39;</span>
-                <span class="p">):</span>
-            <span class="c1"># TODO: should we support a way to sympify `lambda`?</span>
-            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">set_list</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
-                <span class="n">var</span> <span class="o">=</span> <span class="n">_uniquely_named_symbol</span><span class="p">(</span><span class="n">Symbol</span><span class="p">(</span><span class="s1">&#39;x&#39;</span><span class="p">),</span> <span class="n">f</span><span class="p">(</span><span class="n">Dummy</span><span class="p">()))</span>
-                <span class="n">expr</span> <span class="o">=</span> <span class="n">f</span><span class="p">(</span><span class="n">var</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">Lambda</span><span class="p">):</span>
+        <span class="k">pass</span>
+    <span class="k">elif</span> <span class="n">callable</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>
+        <span class="n">nargs</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="s1">&#39;nargs&#39;</span><span class="p">,</span> <span class="p">{})</span>
+        <span class="k">if</span> <span class="n">nargs</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">nargs</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="bp">NotImplemented</span><span class="p">(</span><span class="n">filldedent</span><span class="p">(</span><span class="s1">&#39;&#39;&#39;</span>
+<span class="s1">                    This function can take more than 1 arg</span>
+<span class="s1">                    but the potentially complicated set input</span>
+<span class="s1">                    has not been analyzed at this point to</span>
+<span class="s1">                    know its dimensions. TODO</span>
+<span class="s1">                    &#39;&#39;&#39;</span><span class="p">))</span>
+            <span class="n">N</span> <span class="o">=</span> <span class="n">nargs</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">N</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">s</span> <span class="o">=</span> <span class="s1">&#39;x&#39;</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="n">var</span> <span class="o">=</span> <span class="p">[</span><span class="n">Symbol</span><span class="p">(</span><span class="s1">&#39;x</span><span class="si">%i</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">))</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">set_list</span><span class="p">))]</span>
-                <span class="n">expr</span> <span class="o">=</span> <span class="n">f</span><span class="p">(</span><span class="o">*</span><span class="n">var</span><span class="p">)</span>
-            <span class="n">f</span> <span class="o">=</span> <span class="n">Lambda</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">expr</span><span class="p">)</span>
+                <span class="n">s</span> <span class="o">=</span> <span class="p">[</span><span class="n">Symbol</span><span class="p">(</span><span class="s1">&#39;x</span><span class="si">%i</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">N</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="n">filldedent</span><span class="p">(</span><span class="s1">&#39;&#39;&#39;</span>
-<span class="s1">        expecting lambda, Lambda, or FunctionClass, not </span><span class="se">\&#39;</span><span class="si">%s</span><span class="se">\&#39;</span><span class="s1">.&#39;&#39;&#39;</span> <span class="o">%</span>
-        <span class="n">func_name</span><span class="p">(</span><span class="n">f</span><span class="p">)))</span>
+            <span class="k">if</span> <span class="n">PY3</span><span class="p">:</span>
+                <span class="n">s</span> <span class="o">=</span> <span class="n">inspect</span><span class="o">.</span><span class="n">signature</span><span class="p">(</span><span class="n">f</span><span class="p">)</span><span class="o">.</span><span class="n">parameters</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">s</span> <span class="o">=</span> <span class="n">inspect</span><span class="o">.</span><span class="n">getargspec</span><span class="p">(</span><span class="n">f</span><span class="p">)</span><span class="o">.</span><span class="n">args</span>
+        <span class="n">dexpr</span> <span class="o">=</span> <span class="n">_sympify</span><span class="p">(</span><span class="n">f</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">Dummy</span><span class="p">()</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">s</span><span class="p">]))</span>
+        <span class="n">var</span> <span class="o">=</span> <span class="p">[</span><span class="n">_uniquely_named_symbol</span><span class="p">(</span><span class="n">Symbol</span><span class="p">(</span><span class="n">i</span><span class="p">),</span> <span class="n">dexpr</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">s</span><span class="p">]</span>
+        <span class="n">expr</span> <span class="o">=</span> <span class="n">f</span><span class="p">(</span><span class="o">*</span><span class="n">var</span><span class="p">)</span>
+        <span class="n">f</span> <span class="o">=</span> <span class="n">Lambda</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">expr</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="n">filldedent</span><span class="p">(</span><span class="s1">&#39;&#39;&#39;</span>
+<span class="s1">            expecting lambda, Lambda, or FunctionClass,</span>
+<span class="s1">            not </span><span class="se">\&#39;</span><span class="si">%s</span><span class="se">\&#39;</span><span class="s1">.&#39;&#39;&#39;</span> <span class="o">%</span> <span class="n">func_name</span><span class="p">(</span><span class="n">f</span><span class="p">)))</span>
 
     <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">Set</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">set_list</span><span class="p">):</span>
         <span class="n">name</span> <span class="o">=</span> <span class="p">[</span><span class="n">func_name</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">set_list</span><span class="p">]</span>
@@ -1863,8 +1879,14 @@
 
     <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">set_list</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
         <span class="nb">set</span> <span class="o">=</span> <span class="n">set_list</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-        <span class="n">r</span> <span class="o">=</span> <span class="n">set_function</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="nb">set</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">r</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="c1"># TypeError if arg count != set dimensions</span>
+            <span class="n">r</span> <span class="o">=</span> <span class="n">set_function</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="nb">set</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">r</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">r</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">r</span>
+        <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
             <span class="n">r</span> <span class="o">=</span> <span class="n">ImageSet</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="nb">set</span><span class="p">)</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">ImageSet</span><span class="p">):</span>
             <span class="n">f</span><span class="p">,</span> <span class="nb">set</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">args</span>
