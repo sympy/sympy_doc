@@ -4224,18 +4224,102 @@
             <span class="n">arbitrary_matrix</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="p">(</span><span class="n">cols</span><span class="p">,</span> <span class="n">rows</span><span class="p">,</span> <span class="n">w</span><span class="p">)</span><span class="o">.</span><span class="n">T</span>
         <span class="k">return</span> <span class="n">A_pinv</span> <span class="o">*</span> <span class="n">B</span> <span class="o">+</span> <span class="p">(</span><span class="n">eye</span><span class="p">(</span><span class="n">A</span><span class="o">.</span><span class="n">cols</span><span class="p">)</span> <span class="o">-</span> <span class="n">A_pinv</span> <span class="o">*</span> <span class="n">A</span><span class="p">)</span> <span class="o">*</span> <span class="n">arbitrary_matrix</span></div>
 
-<div class="viewcode-block" id="MatrixBase.pinv"><a class="viewcode-back" href="../../../modules/matrices/matrices.html#sympy.matrices.matrices.MatrixBase.pinv">[docs]</a>    <span class="k">def</span> <span class="nf">pinv</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_eval_pinv_full_rank</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Subroutine for full row or column rank matrices.</span>
+
+<span class="sd">        For full row rank matrices, inverse of ``A * A.H`` Exists.</span>
+<span class="sd">        For full column rank matrices, inverse of ``A.H * A`` Exists.</span>
+
+<span class="sd">        This routine can apply for both cases by checking the shape</span>
+<span class="sd">        and have small decision.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_zero</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">H</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">rows</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">H</span> <span class="o">*</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">inv</span><span class="p">()</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">H</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">H</span> <span class="o">*</span> <span class="p">(</span><span class="bp">self</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">H</span><span class="p">)</span><span class="o">.</span><span class="n">inv</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">_eval_pinv_rank_decomposition</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Subroutine for rank decomposition</span>
+
+<span class="sd">        With rank decompositions, `A` can be decomposed into two full-</span>
+<span class="sd">        rank matrices, and each matrix can take pseudoinverse</span>
+<span class="sd">        individually.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_zero</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">H</span>
+
+        <span class="n">B</span><span class="p">,</span> <span class="n">C</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rank_decomposition</span><span class="p">()</span>
+
+        <span class="n">Bp</span> <span class="o">=</span> <span class="n">B</span><span class="o">.</span><span class="n">_eval_pinv_full_rank</span><span class="p">()</span>
+        <span class="n">Cp</span> <span class="o">=</span> <span class="n">C</span><span class="o">.</span><span class="n">_eval_pinv_full_rank</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">Cp</span> <span class="o">*</span> <span class="n">Bp</span>
+
+    <span class="k">def</span> <span class="nf">_eval_pinv_diagonalization</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Subroutine using diagonalization</span>
+
+<span class="sd">        This routine can sometimes fail if SymPy&#39;s eigenvalue</span>
+<span class="sd">        computation is not reliable.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_zero</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">H</span>
+
+        <span class="n">A</span> <span class="o">=</span> <span class="bp">self</span>
+        <span class="n">AH</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">H</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">rows</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">:</span>
+                <span class="n">P</span><span class="p">,</span> <span class="n">D</span> <span class="o">=</span> <span class="p">(</span><span class="n">AH</span> <span class="o">*</span> <span class="n">A</span><span class="p">)</span><span class="o">.</span><span class="n">diagonalize</span><span class="p">(</span><span class="n">normalize</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="n">D_pinv</span> <span class="o">=</span> <span class="n">D</span><span class="o">.</span><span class="n">applyfunc</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="mi">0</span> <span class="k">if</span> <span class="n">_iszero</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">else</span> <span class="mi">1</span> <span class="o">/</span> <span class="n">x</span><span class="p">)</span>
+                <span class="k">return</span> <span class="n">P</span> <span class="o">*</span> <span class="n">D_pinv</span> <span class="o">*</span> <span class="n">P</span><span class="o">.</span><span class="n">H</span> <span class="o">*</span> <span class="n">AH</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">P</span><span class="p">,</span> <span class="n">D</span> <span class="o">=</span> <span class="p">(</span><span class="n">A</span> <span class="o">*</span> <span class="n">AH</span><span class="p">)</span><span class="o">.</span><span class="n">diagonalize</span><span class="p">(</span><span class="n">normalize</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="n">D_pinv</span> <span class="o">=</span> <span class="n">D</span><span class="o">.</span><span class="n">applyfunc</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="mi">0</span> <span class="k">if</span> <span class="n">_iszero</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">else</span> <span class="mi">1</span> <span class="o">/</span> <span class="n">x</span><span class="p">)</span>
+                <span class="k">return</span> <span class="n">AH</span> <span class="o">*</span> <span class="n">P</span> <span class="o">*</span> <span class="n">D_pinv</span> <span class="o">*</span> <span class="n">P</span><span class="o">.</span><span class="n">H</span>
+        <span class="k">except</span> <span class="n">MatrixError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span>
+                <span class="s1">&#39;pinv for rank-deficient matrices where &#39;</span>
+                <span class="s1">&#39;diagonalization of A.H*A fails is not supported yet.&#39;</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="MatrixBase.pinv"><a class="viewcode-back" href="../../../modules/matrices/matrices.html#sympy.matrices.matrices.MatrixBase.pinv">[docs]</a>    <span class="k">def</span> <span class="nf">pinv</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">&#39;RD&#39;</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Calculate the Moore-Penrose pseudoinverse of the matrix.</span>
 
 <span class="sd">        The Moore-Penrose pseudoinverse exists and is unique for any matrix.</span>
 <span class="sd">        If the matrix is invertible, the pseudoinverse is the same as the</span>
 <span class="sd">        inverse.</span>
 
+<span class="sd">        Parameters</span>
+<span class="sd">        ==========</span>
+
+<span class="sd">        method : String, optional</span>
+<span class="sd">            Specifies the method for computing the pseudoinverse.</span>
+
+<span class="sd">            If ``&#39;RD&#39;``, Rank-Decomposition will be used.</span>
+
+<span class="sd">            If ``&#39;ED&#39;``, Diagonalization will be used.</span>
+
 <span class="sd">        Examples</span>
 <span class="sd">        ========</span>
 
+<span class="sd">        Computing pseudoinverse by rank decomposition :</span>
+
 <span class="sd">        &gt;&gt;&gt; from sympy import Matrix</span>
-<span class="sd">        &gt;&gt;&gt; Matrix([[1, 2, 3], [4, 5, 6]]).pinv()</span>
+<span class="sd">        &gt;&gt;&gt; A = Matrix([[1, 2, 3], [4, 5, 6]])</span>
+<span class="sd">        &gt;&gt;&gt; A.pinv()</span>
+<span class="sd">        Matrix([</span>
+<span class="sd">        [-17/18,  4/9],</span>
+<span class="sd">        [  -1/9,  1/9],</span>
+<span class="sd">        [ 13/18, -2/9]])</span>
+
+<span class="sd">        Computing pseudoinverse by diagonalization :</span>
+
+<span class="sd">        &gt;&gt;&gt; B = A.pinv(method=&#39;ED&#39;)</span>
+<span class="sd">        &gt;&gt;&gt; B.simplify()</span>
+<span class="sd">        &gt;&gt;&gt; B</span>
 <span class="sd">        Matrix([</span>
 <span class="sd">        [-17/18,  4/9],</span>
 <span class="sd">        [  -1/9,  1/9],</span>
@@ -4253,32 +4337,16 @@
 <span class="sd">        .. [1] https://en.wikipedia.org/wiki/Moore-Penrose_pseudoinverse</span>
 
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">A</span> <span class="o">=</span> <span class="bp">self</span>
-        <span class="n">AH</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">H</span>
         <span class="c1"># Trivial case: pseudoinverse of all-zero matrix is its transpose.</span>
-        <span class="k">if</span> <span class="n">A</span><span class="o">.</span><span class="n">is_zero</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">AH</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">rows</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">:</span>
-                <span class="k">return</span> <span class="p">(</span><span class="n">AH</span> <span class="o">*</span> <span class="n">A</span><span class="p">)</span><span class="o">.</span><span class="n">inv</span><span class="p">()</span> <span class="o">*</span> <span class="n">AH</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="k">return</span> <span class="n">AH</span> <span class="o">*</span> <span class="p">(</span><span class="n">A</span> <span class="o">*</span> <span class="n">AH</span><span class="p">)</span><span class="o">.</span><span class="n">inv</span><span class="p">()</span>
-        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
-            <span class="c1"># Matrix is not full rank, so A*AH cannot be inverted.</span>
-            <span class="k">pass</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="c1"># However, A*AH is Hermitian, so we can diagonalize it.</span>
-            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">rows</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">:</span>
-                <span class="n">P</span><span class="p">,</span> <span class="n">D</span> <span class="o">=</span> <span class="p">(</span><span class="n">AH</span> <span class="o">*</span> <span class="n">A</span><span class="p">)</span><span class="o">.</span><span class="n">diagonalize</span><span class="p">(</span><span class="n">normalize</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-                <span class="n">D_pinv</span> <span class="o">=</span> <span class="n">D</span><span class="o">.</span><span class="n">applyfunc</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="mi">0</span> <span class="k">if</span> <span class="n">_iszero</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">else</span> <span class="mi">1</span> <span class="o">/</span> <span class="n">x</span><span class="p">)</span>
-                <span class="k">return</span> <span class="n">P</span> <span class="o">*</span> <span class="n">D_pinv</span> <span class="o">*</span> <span class="n">P</span><span class="o">.</span><span class="n">H</span> <span class="o">*</span> <span class="n">AH</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="n">P</span><span class="p">,</span> <span class="n">D</span> <span class="o">=</span> <span class="p">(</span><span class="n">A</span> <span class="o">*</span> <span class="n">AH</span><span class="p">)</span><span class="o">.</span><span class="n">diagonalize</span><span class="p">(</span><span class="n">normalize</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-                <span class="n">D_pinv</span> <span class="o">=</span> <span class="n">D</span><span class="o">.</span><span class="n">applyfunc</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="mi">0</span> <span class="k">if</span> <span class="n">_iszero</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">else</span> <span class="mi">1</span> <span class="o">/</span> <span class="n">x</span><span class="p">)</span>
-                <span class="k">return</span> <span class="n">AH</span> <span class="o">*</span> <span class="n">P</span> <span class="o">*</span> <span class="n">D_pinv</span> <span class="o">*</span> <span class="n">P</span><span class="o">.</span><span class="n">H</span>
-        <span class="k">except</span> <span class="n">MatrixError</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s1">&#39;pinv for rank-deficient matrices where diagonalization &#39;</span>
-                                      <span class="s1">&#39;of A.H*A fails is not supported yet.&#39;</span><span class="p">)</span></div>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_zero</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">H</span>
+
+        <span class="k">if</span> <span class="n">method</span> <span class="o">==</span> <span class="s1">&#39;RD&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_eval_pinv_rank_decomposition</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="n">method</span> <span class="o">==</span> <span class="s1">&#39;ED&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_eval_pinv_diagonalization</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">()</span></div>
 
 <div class="viewcode-block" id="MatrixBase.print_nonzero"><a class="viewcode-back" href="../../../modules/matrices/matrices.html#sympy.matrices.matrices.MatrixBase.print_nonzero">[docs]</a>    <span class="k">def</span> <span class="nf">print_nonzero</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">symb</span><span class="o">=</span><span class="s2">&quot;X&quot;</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Shows location of non-zero entries for fast shape lookup.</span>
@@ -5113,7 +5181,7 @@
     </div>
     <div class="footer" role="contentinfo">
         &#169; Copyright 2019 SymPy Development Team.
-      Last updated on May 22, 2019.
+      Last updated on May 23, 2019.
       Created using <a href="http://sphinx-doc.org/">Sphinx</a> 2.0.1.
     </div>
   </body>
