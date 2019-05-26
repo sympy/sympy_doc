@@ -66,10 +66,10 @@
 <span class="kn">from</span> <span class="nn">.expr</span> <span class="k">import</span> <span class="n">Expr</span>
 <span class="kn">from</span> <span class="nn">.evaluate</span> <span class="k">import</span> <span class="n">global_distribute</span>
 
+
+
 <span class="c1"># internal marker to indicate:</span>
 <span class="c1">#   &quot;there are still non-commutative objects -- don&#39;t forget to process them&quot;</span>
-
-
 <span class="k">class</span> <span class="nc">NC_Marker</span><span class="p">:</span>
     <span class="n">is_Order</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_Mul</span> <span class="o">=</span> <span class="kc">False</span>
@@ -1081,9 +1081,11 @@
     <span class="nd">@staticmethod</span>
     <span class="k">def</span> <span class="nf">_combine_inverse</span><span class="p">(</span><span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Returns lhs/rhs, but treats arguments like symbols, so things like</span>
-<span class="sd">        oo/oo return 1, instead of a nan.</span>
+<span class="sd">        Returns lhs/rhs, but treats arguments like symbols, so things</span>
+<span class="sd">        like oo/oo return 1 (instead of a nan) and ``I`` behaves like</span>
+<span class="sd">        a symbol instead of sqrt(-1).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">.symbol</span> <span class="k">import</span> <span class="n">Dummy</span>
         <span class="k">if</span> <span class="n">lhs</span> <span class="o">==</span> <span class="n">rhs</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span>
 
@@ -1096,25 +1098,30 @@
             <span class="k">return</span> <span class="kc">False</span>
         <span class="k">if</span> <span class="n">check</span><span class="p">(</span><span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">)</span> <span class="ow">or</span> <span class="n">check</span><span class="p">(</span><span class="n">rhs</span><span class="p">,</span> <span class="n">lhs</span><span class="p">):</span>
             <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span>
-        <span class="k">if</span> <span class="n">lhs</span><span class="o">.</span><span class="n">is_Mul</span> <span class="ow">and</span> <span class="n">rhs</span><span class="o">.</span><span class="n">is_Mul</span><span class="p">:</span>
-            <span class="n">a</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">lhs</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
-            <span class="n">b</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">]</span>
-            <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">rhs</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
-                <span class="k">if</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">a</span><span class="p">:</span>
-                    <span class="n">a</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
-                <span class="k">elif</span> <span class="o">-</span><span class="n">x</span> <span class="ow">in</span> <span class="n">a</span><span class="p">:</span>
-                    <span class="n">a</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="o">-</span><span class="n">x</span><span class="p">)</span>
-                    <span class="n">b</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
-                <span class="k">else</span><span class="p">:</span>
-                    <span class="n">b</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
-            <span class="k">return</span> <span class="n">lhs</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">a</span><span class="p">)</span><span class="o">/</span><span class="n">rhs</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">b</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">is_Pow</span> <span class="ow">or</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Mul</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">(</span><span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">)):</span>
+            <span class="c1"># gruntz and limit wants a literal I to not combine</span>
+            <span class="c1"># with a power of -1</span>
+            <span class="n">d</span> <span class="o">=</span> <span class="n">Dummy</span><span class="p">(</span><span class="s1">&#39;I&#39;</span><span class="p">)</span>
+            <span class="n">_i</span> <span class="o">=</span> <span class="p">{</span><span class="n">S</span><span class="o">.</span><span class="n">ImaginaryUnit</span><span class="p">:</span> <span class="n">d</span><span class="p">}</span>
+            <span class="n">i_</span> <span class="o">=</span> <span class="p">{</span><span class="n">d</span><span class="p">:</span> <span class="n">S</span><span class="o">.</span><span class="n">ImaginaryUnit</span><span class="p">}</span>
+            <span class="n">a</span> <span class="o">=</span> <span class="n">lhs</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">_i</span><span class="p">)</span><span class="o">.</span><span class="n">as_powers_dict</span><span class="p">()</span>
+            <span class="n">b</span> <span class="o">=</span> <span class="n">rhs</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">_i</span><span class="p">)</span><span class="o">.</span><span class="n">as_powers_dict</span><span class="p">()</span>
+            <span class="n">blen</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">b</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">bi</span> <span class="ow">in</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">b</span><span class="o">.</span><span class="n">keys</span><span class="p">()):</span>
+                <span class="k">if</span> <span class="n">bi</span> <span class="ow">in</span> <span class="n">a</span><span class="p">:</span>
+                    <span class="n">a</span><span class="p">[</span><span class="n">bi</span><span class="p">]</span> <span class="o">-=</span> <span class="n">b</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">bi</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">a</span><span class="p">[</span><span class="n">bi</span><span class="p">]:</span>
+                        <span class="n">a</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">bi</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">b</span><span class="p">)</span> <span class="o">!=</span> <span class="n">blen</span><span class="p">:</span>
+                <span class="n">lhs</span> <span class="o">=</span> <span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">k</span><span class="o">**</span><span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">a</span><span class="o">.</span><span class="n">items</span><span class="p">()])</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">i_</span><span class="p">)</span>
+                <span class="n">rhs</span> <span class="o">=</span> <span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">k</span><span class="o">**</span><span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">b</span><span class="o">.</span><span class="n">items</span><span class="p">()])</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">i_</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">lhs</span><span class="o">/</span><span class="n">rhs</span>
 
     <span class="k">def</span> <span class="nf">as_powers_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="n">d</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">term</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
-            <span class="n">b</span><span class="p">,</span> <span class="n">e</span> <span class="o">=</span> <span class="n">term</span><span class="o">.</span><span class="n">as_base_exp</span><span class="p">()</span>
-            <span class="n">d</span><span class="p">[</span><span class="n">b</span><span class="p">]</span> <span class="o">+=</span> <span class="n">e</span>
+            <span class="k">for</span> <span class="n">b</span><span class="p">,</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">term</span><span class="o">.</span><span class="n">as_powers_dict</span><span class="p">()</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="n">d</span><span class="p">[</span><span class="n">b</span><span class="p">]</span> <span class="o">+=</span> <span class="n">e</span>
         <span class="k">return</span> <span class="n">d</span>
 
     <span class="k">def</span> <span class="nf">as_numer_denom</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
