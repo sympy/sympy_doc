@@ -51,20 +51,94 @@
             
   <h1>Source code for sympy.ntheory.continued_fraction</h1><div class="highlight"><pre>
 <span></span><span class="kn">from</span> <span class="nn">sympy.core.numbers</span> <span class="k">import</span> <span class="n">Integer</span><span class="p">,</span> <span class="n">Rational</span>
+<span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="k">import</span> <span class="n">as_int</span>
+<span class="kn">from</span> <span class="nn">sympy.utilities.misc</span> <span class="k">import</span> <span class="n">filldedent</span>
 
 
 
-<div class="viewcode-block" id="continued_fraction_periodic"><a class="viewcode-back" href="../../../modules/ntheory.html#sympy.ntheory.continued_fraction.continued_fraction_periodic">[docs]</a><span class="k">def</span> <span class="nf">continued_fraction_periodic</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="n">d</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+<div class="viewcode-block" id="continued_fraction"><a class="viewcode-back" href="../../../modules/ntheory.html#sympy.ntheory.continued_fraction.continued_fraction">[docs]</a><span class="k">def</span> <span class="nf">continued_fraction</span><span class="p">(</span><span class="n">a</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Return the continued fraction representation of a Rational or</span>
+<span class="sd">    quadratic irrational.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.ntheory.continued_fraction import continued_fraction</span>
+<span class="sd">    &gt;&gt;&gt; from sympy import sqrt</span>
+<span class="sd">    &gt;&gt;&gt; continued_fraction((1 + 2*sqrt(3))/5)</span>
+<span class="sd">    [0, 1, [8, 3, 34, 3]]</span>
+
+<span class="sd">    See Also</span>
+<span class="sd">    ========</span>
+<span class="sd">    continued_fraction_periodic, continued_fraction_reduce, continued_fraction_convergents</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">sympy.core.singleton</span> <span class="k">import</span> <span class="n">S</span>
+    <span class="kn">from</span> <span class="nn">sympy.core.symbol</span> <span class="k">import</span> <span class="n">Dummy</span>
+    <span class="kn">from</span> <span class="nn">sympy.core.sympify</span> <span class="k">import</span> <span class="n">_sympify</span>
+    <span class="kn">from</span> <span class="nn">sympy.core.power</span> <span class="k">import</span> <span class="n">Pow</span>
+    <span class="kn">from</span> <span class="nn">sympy.polys.polytools</span> <span class="k">import</span> <span class="n">primitive</span>
+    <span class="kn">from</span> <span class="nn">sympy.polys.polyerrors</span> <span class="k">import</span> <span class="n">ComputationFailed</span>
+
+    <span class="n">e</span> <span class="o">=</span> <span class="n">_sympify</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">is_Rational</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">e</span><span class="o">.</span><span class="n">atoms</span><span class="p">()):</span>
+        <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">is_Integer</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">continued_fraction_periodic</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">e</span><span class="o">.</span><span class="n">is_Rational</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">continued_fraction_periodic</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">p</span><span class="p">,</span> <span class="n">e</span><span class="o">.</span><span class="n">q</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">e</span><span class="o">.</span><span class="n">is_Pow</span> <span class="ow">and</span> <span class="n">e</span><span class="o">.</span><span class="n">exp</span> <span class="ow">is</span> <span class="n">S</span><span class="o">.</span><span class="n">Half</span> <span class="ow">and</span> <span class="n">e</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">is_Integer</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">continued_fraction_periodic</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">e</span><span class="o">.</span><span class="n">base</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">e</span><span class="o">.</span><span class="n">is_Mul</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span> <span class="ow">and</span> <span class="p">(</span>
+                <span class="n">e</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">is_Rational</span> <span class="ow">and</span>
+                <span class="n">e</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">is_Pow</span> <span class="ow">and</span>
+                <span class="n">e</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">is_Integer</span> <span class="ow">and</span>
+                <span class="n">e</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">exp</span> <span class="ow">is</span> <span class="n">S</span><span class="o">.</span><span class="n">Half</span><span class="p">):</span>
+            <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="n">e</span><span class="o">.</span><span class="n">args</span>
+            <span class="k">return</span> <span class="n">continued_fraction_periodic</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">a</span><span class="o">.</span><span class="n">q</span><span class="p">,</span> <span class="n">b</span><span class="o">.</span><span class="n">base</span><span class="p">,</span> <span class="n">a</span><span class="o">.</span><span class="n">p</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># this should not have to work very hard- no</span>
+            <span class="c1"># simplification, cancel, etc... which should be</span>
+            <span class="c1"># done by the user.  e.g. This is a fancy 1 but</span>
+            <span class="c1"># the user should simplify it first:</span>
+            <span class="c1"># sqrt(2)*(1 + sqrt(2))/(sqrt(2) + 2)</span>
+            <span class="n">p</span><span class="p">,</span> <span class="n">d</span> <span class="o">=</span> <span class="n">e</span><span class="o">.</span><span class="n">expand</span><span class="p">()</span><span class="o">.</span><span class="n">as_numer_denom</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">d</span><span class="o">.</span><span class="n">is_Integer</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">is_Rational</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">continued_fraction_periodic</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">d</span><span class="p">)</span>
+                <span class="c1"># look for a + b*c</span>
+                <span class="c1"># with c = sqrt(s)</span>
+                <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">is_Add</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+                    <span class="n">a</span><span class="p">,</span> <span class="n">bc</span> <span class="o">=</span> <span class="n">p</span><span class="o">.</span><span class="n">args</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">a</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span>
+                    <span class="n">bc</span> <span class="o">=</span> <span class="n">p</span>
+                <span class="k">if</span> <span class="n">a</span><span class="o">.</span><span class="n">is_Integer</span><span class="p">:</span>
+                    <span class="n">b</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">NaN</span>
+                    <span class="k">if</span> <span class="n">bc</span><span class="o">.</span><span class="n">is_Mul</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">bc</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+                        <span class="n">b</span><span class="p">,</span> <span class="n">c</span> <span class="o">=</span> <span class="n">bc</span><span class="o">.</span><span class="n">args</span>
+                    <span class="k">elif</span> <span class="n">bc</span><span class="o">.</span><span class="n">is_Pow</span><span class="p">:</span>
+                        <span class="n">b</span> <span class="o">=</span> <span class="n">Integer</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+                        <span class="n">c</span> <span class="o">=</span> <span class="n">bc</span>
+                    <span class="k">if</span> <span class="n">b</span><span class="o">.</span><span class="n">is_Integer</span> <span class="ow">and</span> <span class="p">(</span>
+                            <span class="n">c</span><span class="o">.</span><span class="n">is_Pow</span> <span class="ow">and</span> <span class="n">c</span><span class="o">.</span><span class="n">exp</span> <span class="ow">is</span> <span class="n">S</span><span class="o">.</span><span class="n">Half</span> <span class="ow">and</span>
+                            <span class="n">c</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">is_Integer</span><span class="p">):</span>
+                        <span class="c1"># (a + b*sqrt(c))/d</span>
+                        <span class="n">c</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">base</span>
+                        <span class="k">return</span> <span class="n">continued_fraction_periodic</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span>
+    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+        <span class="s1">&#39;expecting a rational or quadratic irrational, not </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">e</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="continued_fraction_periodic"><a class="viewcode-back" href="../../../modules/ntheory.html#sympy.ntheory.continued_fraction.continued_fraction_periodic">[docs]</a><span class="k">def</span> <span class="nf">continued_fraction_periodic</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="n">d</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">s</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
     <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Find the periodic continued fraction expansion of a quadratic irrational.</span>
 
 <span class="sd">    Compute the continued fraction expansion of a rational or a</span>
-<span class="sd">    quadratic irrational number, i.e. `\frac{p + \sqrt{d}}{q}`, where</span>
-<span class="sd">    `p`, `q` and `d \ge 0` are integers.</span>
+<span class="sd">    quadratic irrational number, i.e. `\frac{p + s\sqrt{d}}{q}`, where</span>
+<span class="sd">    `p`, `q \ne 0` and `d \ge 0` are integers.</span>
 
 <span class="sd">    Returns the continued fraction representation (canonical form) as</span>
 <span class="sd">    a list of integers, optionally ending (for quadratic irrationals)</span>
-<span class="sd">    with repeating block as the last term of this list.</span>
+<span class="sd">    with list of integers representing the repeating digits.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ==========</span>
@@ -75,6 +149,8 @@
 <span class="sd">        the denominator of the number</span>
 <span class="sd">    d : int, optional</span>
 <span class="sd">        the irrational part (discriminator) of the number&#39;s numerator</span>
+<span class="sd">    s : int, optional</span>
+<span class="sd">        the coefficient of the irrational part</span>
 
 <span class="sd">    Examples</span>
 <span class="sd">    ========</span>
@@ -110,20 +186,39 @@
 
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="k">import</span> <span class="n">as_int</span>
-    <span class="kn">from</span> <span class="nn">sympy.functions</span> <span class="k">import</span> <span class="n">sqrt</span>
+    <span class="kn">from</span> <span class="nn">sympy.functions</span> <span class="k">import</span> <span class="n">sqrt</span><span class="p">,</span> <span class="n">floor</span>
+    <span class="kn">from</span> <span class="nn">sympy.ntheory.primetest</span> <span class="k">import</span> <span class="n">is_square</span>
 
-    <span class="n">p</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="n">d</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="n">as_int</span><span class="p">,</span> <span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="n">d</span><span class="p">]))</span>
-    <span class="n">sd</span> <span class="o">=</span> <span class="n">sqrt</span><span class="p">(</span><span class="n">d</span><span class="p">)</span>
-
-    <span class="k">if</span> <span class="n">q</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;The denominator is zero.&quot;</span><span class="p">)</span>
+    <span class="n">p</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">s</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="n">as_int</span><span class="p">,</span> <span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">s</span><span class="p">]))</span>
 
     <span class="k">if</span> <span class="n">d</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Delta supposed to be a non-negative &quot;</span>
-                         <span class="s2">&quot;integer, got </span><span class="si">%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">d</span><span class="p">)</span>
-    <span class="k">elif</span> <span class="n">d</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">sd</span><span class="o">.</span><span class="n">is_integer</span><span class="p">:</span>
-        <span class="c1"># the number is a rational number</span>
-        <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="n">continued_fraction_iterator</span><span class="p">(</span><span class="n">Rational</span><span class="p">(</span><span class="n">p</span> <span class="o">+</span> <span class="n">sd</span><span class="p">,</span> <span class="n">q</span><span class="p">)))</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;expected non-negative for `d` but got </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">d</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">q</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;The denominator cannot be 0.&quot;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">s</span><span class="p">:</span>
+        <span class="n">d</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="c1"># check for rational case</span>
+    <span class="n">sd</span> <span class="o">=</span> <span class="n">sqrt</span><span class="p">(</span><span class="n">d</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">sd</span><span class="o">.</span><span class="n">is_Integer</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="n">continued_fraction_iterator</span><span class="p">(</span><span class="n">Rational</span><span class="p">(</span><span class="n">p</span> <span class="o">+</span> <span class="n">s</span><span class="o">*</span><span class="n">sd</span><span class="p">,</span> <span class="n">q</span><span class="p">)))</span>
+
+    <span class="c1"># irrational case with sd != Integer</span>
+    <span class="k">if</span> <span class="n">q</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">p</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="n">s</span> <span class="o">=</span> <span class="o">-</span><span class="n">p</span><span class="p">,</span> <span class="o">-</span><span class="n">q</span><span class="p">,</span> <span class="o">-</span><span class="n">s</span>
+
+    <span class="n">n</span> <span class="o">=</span> <span class="p">(</span><span class="n">p</span> <span class="o">+</span> <span class="n">s</span><span class="o">*</span><span class="n">sd</span><span class="p">)</span><span class="o">/</span><span class="n">q</span>
+    <span class="k">if</span> <span class="n">n</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">w</span> <span class="o">=</span> <span class="n">floor</span><span class="p">(</span><span class="o">-</span><span class="n">n</span><span class="p">)</span>
+        <span class="n">f</span> <span class="o">=</span> <span class="o">-</span><span class="n">n</span> <span class="o">-</span> <span class="n">w</span>
+        <span class="n">one_f</span> <span class="o">=</span> <span class="n">continued_fraction</span><span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">f</span><span class="p">)</span>  <span class="c1"># 1-f &lt; 1 so cf is [0 ... [...]]</span>
+        <span class="n">one_f</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-=</span> <span class="n">w</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="k">return</span> <span class="n">one_f</span>
+
+    <span class="n">d</span> <span class="o">*=</span> <span class="n">s</span><span class="o">**</span><span class="mi">2</span>
+    <span class="n">sd</span> <span class="o">*=</span> <span class="n">s</span>
 
     <span class="k">if</span> <span class="p">(</span><span class="n">d</span> <span class="o">-</span> <span class="n">p</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">%</span><span class="n">q</span><span class="p">:</span>
         <span class="n">d</span> <span class="o">*=</span> <span class="n">q</span><span class="o">**</span><span class="mi">2</span>
@@ -136,9 +231,9 @@
 
     <span class="k">while</span> <span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">q</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">pq</span><span class="p">:</span>
         <span class="n">pq</span><span class="p">[(</span><span class="n">p</span><span class="p">,</span> <span class="n">q</span><span class="p">)]</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">terms</span><span class="p">)</span>
-        <span class="n">terms</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">int</span><span class="p">((</span><span class="n">p</span> <span class="o">+</span> <span class="n">sd</span><span class="p">)</span><span class="o">/</span><span class="n">q</span><span class="p">))</span>
+        <span class="n">terms</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">p</span> <span class="o">+</span> <span class="n">sd</span><span class="p">)</span><span class="o">//</span><span class="n">q</span><span class="p">)</span>
         <span class="n">p</span> <span class="o">=</span> <span class="n">terms</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">q</span> <span class="o">-</span> <span class="n">p</span>
-        <span class="n">q</span> <span class="o">=</span> <span class="p">(</span><span class="n">d</span> <span class="o">-</span> <span class="n">p</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">/</span><span class="n">q</span>
+        <span class="n">q</span> <span class="o">=</span> <span class="p">(</span><span class="n">d</span> <span class="o">-</span> <span class="n">p</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">//</span><span class="n">q</span>
 
     <span class="n">i</span> <span class="o">=</span> <span class="n">pq</span><span class="p">[(</span><span class="n">p</span><span class="p">,</span> <span class="n">q</span><span class="p">)]</span>
     <span class="k">return</span> <span class="n">terms</span><span class="p">[:</span><span class="n">i</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="n">terms</span><span class="p">[</span><span class="n">i</span><span class="p">:]]</span></div>
@@ -176,7 +271,7 @@
 <span class="sd">    &gt;&gt;&gt; continued_fraction_reduce([1, 4, 2, [3, 1]])</span>
 <span class="sd">    (sqrt(21) + 287)/238</span>
 <span class="sd">    &gt;&gt;&gt; continued_fraction_reduce([[1]])</span>
-<span class="sd">    1/2 + sqrt(5)/2</span>
+<span class="sd">    (1 + sqrt(5))/2</span>
 <span class="sd">    &gt;&gt;&gt; from sympy.ntheory.continued_fraction import continued_fraction_periodic</span>
 <span class="sd">    &gt;&gt;&gt; continued_fraction_reduce(continued_fraction_periodic(8, 5, 13))</span>
 <span class="sd">    (sqrt(13) + 8)/5</span>
@@ -187,6 +282,7 @@
 <span class="sd">    continued_fraction_periodic</span>
 
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">sympy.core.exprtools</span> <span class="k">import</span> <span class="n">factor_terms</span>
     <span class="kn">from</span> <span class="nn">sympy.core.symbol</span> <span class="k">import</span> <span class="n">Dummy</span>
     <span class="kn">from</span> <span class="nn">sympy.solvers</span> <span class="k">import</span> <span class="n">solve</span>
 
@@ -210,9 +306,14 @@
         <span class="n">solns</span> <span class="o">=</span> <span class="n">solve</span><span class="p">(</span><span class="n">continued_fraction_reduce</span><span class="p">(</span><span class="n">period</span> <span class="o">+</span> <span class="p">[</span><span class="n">y</span><span class="p">])</span> <span class="o">-</span> <span class="n">y</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
         <span class="n">solns</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
         <span class="n">pure</span> <span class="o">=</span> <span class="n">solns</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
-        <span class="k">return</span> <span class="n">a</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">pure</span><span class="p">)</span><span class="o">.</span><span class="n">radsimp</span><span class="p">()</span>
+        <span class="n">rv</span> <span class="o">=</span> <span class="n">a</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">pure</span><span class="p">)</span><span class="o">.</span><span class="n">radsimp</span><span class="p">()</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">a</span></div>
+        <span class="n">rv</span> <span class="o">=</span> <span class="n">a</span>
+    <span class="k">if</span> <span class="n">rv</span><span class="o">.</span><span class="n">is_Add</span><span class="p">:</span>
+        <span class="n">rv</span> <span class="o">=</span> <span class="n">factor_terms</span><span class="p">(</span><span class="n">rv</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">rv</span><span class="o">.</span><span class="n">is_Mul</span> <span class="ow">and</span> <span class="n">rv</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span><span class="p">:</span>
+            <span class="n">rv</span> <span class="o">=</span> <span class="n">rv</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">rv</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">rv</span></div>
 
 
 <div class="viewcode-block" id="continued_fraction_iterator"><a class="viewcode-back" href="../../../modules/ntheory.html#sympy.ntheory.continued_fraction.continued_fraction_iterator">[docs]</a><span class="k">def</span> <span class="nf">continued_fraction_iterator</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
@@ -348,7 +449,7 @@
     </div>
     <div class="footer" role="contentinfo">
         &#169; Copyright 2019 SymPy Development Team.
-      Last updated on Jun 01, 2019.
+      Last updated on Jun 02, 2019.
       Created using <a href="http://sphinx-doc.org/">Sphinx</a> 2.0.1.
     </div>
   </body>
