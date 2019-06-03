@@ -4141,6 +4141,7 @@
 
     <span class="k">return</span> <span class="n">fsol</span></div>
 
+
 <span class="k">def</span> <span class="nf">_nth_algebraic_match</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">func</span><span class="p">):</span>
     <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Matches any differential equation that nth_algebraic can solve. Uses</span>
@@ -4154,12 +4155,13 @@
     <span class="n">constants</span> <span class="o">=</span> <span class="n">iter_numbered_constants</span><span class="p">(</span><span class="n">eq</span><span class="p">)</span>
     <span class="n">constant</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span> <span class="nb">next</span><span class="p">(</span><span class="n">constants</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
 
-    <span class="c1"># Like Derivative but &quot;invertible&quot;</span>
+    <span class="c1"># A class that behaves like Derivative but is &quot;invertible&quot;</span>
     <span class="k">class</span> <span class="nc">diffx</span><span class="p">(</span><span class="n">Function</span><span class="p">):</span>
+        <span class="n">isadiffx</span> <span class="o">=</span> <span class="kc">True</span>  <span class="c1"># apparently not needed for PY3</span>
         <span class="k">def</span> <span class="nf">inverse</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-            <span class="c1"># We mustn&#39;t use integrate here because fx has been replaced by _t</span>
-            <span class="c1"># in the equation so integrals will not be correct while solve is</span>
-            <span class="c1"># still working.</span>
+            <span class="c1"># don&#39;t use integrate here because fx has been replaced by _t</span>
+            <span class="c1"># in the equation; integrals will not be correct while solve</span>
+            <span class="c1"># is at work.</span>
             <span class="k">return</span> <span class="k">lambda</span> <span class="n">expr</span><span class="p">:</span> <span class="n">Integral</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">var</span><span class="p">)</span> <span class="o">+</span> <span class="n">constant</span><span class="p">()</span>
 
     <span class="c1"># Replace derivatives wrt the independent variable with diffx</span>
@@ -4177,8 +4179,15 @@
         <span class="k">return</span> <span class="n">eq</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">Derivative</span><span class="p">,</span> <span class="n">expand_diffx</span><span class="p">)</span>
 
     <span class="c1"># Restore derivatives in solution afterwards</span>
+    <span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="k">import</span> <span class="n">PY3</span>
     <span class="k">def</span> <span class="nf">unreplace</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">var</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">eq</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">diffx</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">e</span><span class="p">:</span> <span class="n">Derivative</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">var</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">PY3</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">eq</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">diffx</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">e</span><span class="p">:</span> <span class="n">Derivative</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">var</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="kn">from</span> <span class="nn">sympy.core.rules</span> <span class="k">import</span> <span class="n">Transform</span>
+            <span class="k">return</span> <span class="n">eq</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">Transform</span><span class="p">(</span>
+                <span class="k">lambda</span> <span class="n">dx</span><span class="p">:</span> <span class="n">Derivative</span><span class="p">(</span><span class="n">dx</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">var</span><span class="p">),</span>
+                <span class="k">lambda</span> <span class="n">dx</span><span class="p">:</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">dx</span><span class="p">,</span> <span class="s1">&#39;isadiffx&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)))</span>
 
     <span class="c1"># The independent variable</span>
     <span class="n">var</span> <span class="o">=</span> <span class="n">func</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
