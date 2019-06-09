@@ -158,9 +158,11 @@
 
 <span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">division</span>
 
+<span class="kn">from</span> <span class="nn">sympy.core.assumptions</span> <span class="k">import</span> <span class="n">StdFactKB</span><span class="p">,</span> <span class="n">_assume_defined</span>
 <span class="kn">from</span> <span class="nn">sympy.core</span> <span class="k">import</span> <span class="n">Expr</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">Symbol</span><span class="p">,</span> <span class="n">sympify</span><span class="p">,</span> <span class="n">S</span>
 <span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="k">import</span> <span class="p">(</span><span class="n">is_sequence</span><span class="p">,</span> <span class="n">string_types</span><span class="p">,</span> <span class="n">NotIterable</span><span class="p">,</span>
                                       <span class="n">Iterable</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">sympy.core.logic</span> <span class="k">import</span> <span class="n">fuzzy_bool</span>
 <span class="kn">from</span> <span class="nn">sympy.core.sympify</span> <span class="k">import</span> <span class="n">_sympify</span>
 <span class="kn">from</span> <span class="nn">sympy.functions.special.tensor_functions</span> <span class="k">import</span> <span class="n">KroneckerDelta</span>
 
@@ -177,10 +179,13 @@
 <span class="sd">    &gt;&gt;&gt; Indexed(&#39;A&#39;, i, j)</span>
 <span class="sd">    A[i, j]</span>
 
-<span class="sd">    It is recommended that ``Indexed`` objects be created via ``IndexedBase``:</span>
+<span class="sd">    It is recommended that ``Indexed`` objects be created by indexing ``IndexedBase``:</span>
+<span class="sd">    ``IndexedBase(&#39;A&#39;)[i, j]`` instead of ``Indexed(IndexedBase(&#39;A&#39;), i, j)``.</span>
 
 <span class="sd">    &gt;&gt;&gt; A = IndexedBase(&#39;A&#39;)</span>
-<span class="sd">    &gt;&gt;&gt; Indexed(&#39;A&#39;, i, j) == A[i, j]</span>
+<span class="sd">    &gt;&gt;&gt; a_ij = A[i, j]           # Prefer this,</span>
+<span class="sd">    &gt;&gt;&gt; b_ij = Indexed(A, i, j)  # over this.</span>
+<span class="sd">    &gt;&gt;&gt; a_ij == b_ij</span>
 <span class="sd">    True</span>
 
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -188,6 +193,7 @@
     <span class="n">is_Indexed</span> <span class="o">=</span> <span class="kc">True</span>
     <span class="n">is_symbol</span> <span class="o">=</span> <span class="kc">True</span>
     <span class="n">is_Atom</span> <span class="o">=</span> <span class="kc">True</span>
+
 
     <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">base</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kw_args</span><span class="p">):</span>
         <span class="kn">from</span> <span class="nn">sympy.utilities.misc</span> <span class="k">import</span> <span class="n">filldedent</span>
@@ -211,7 +217,16 @@
             <span class="k">else</span><span class="p">:</span>
                 <span class="k">return</span> <span class="n">base</span><span class="p">[</span><span class="n">args</span><span class="p">]</span>
 
-        <span class="k">return</span> <span class="n">Expr</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">base</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kw_args</span><span class="p">)</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="n">Expr</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">base</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kw_args</span><span class="p">)</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">IndexedBase</span><span class="o">.</span><span class="n">_set_assumptions</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">base</span><span class="o">.</span><span class="n">assumptions0</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="n">IndexedBase</span><span class="o">.</span><span class="n">_set_assumptions</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="p">{})</span>
+        <span class="k">return</span> <span class="n">obj</span>
+
+    <span class="k">def</span> <span class="nf">_hashable_content</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">Indexed</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_hashable_content</span><span class="p">()</span> <span class="o">+</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">assumptions0</span><span class="o">.</span><span class="n">items</span><span class="p">()))</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -241,6 +256,10 @@
             <span class="k">if</span> <span class="n">Tuple</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">)</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">wrt</span><span class="p">):</span>
                 <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">NaN</span>
             <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">assumptions0</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_assumptions</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">v</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">}</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">base</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -436,10 +455,35 @@
 <span class="sd">    &gt;&gt;&gt; B[i, j].shape</span>
 <span class="sd">    (o, p)</span>
 
+<span class="sd">    Assumptions can be specified with keyword arguments the same way as for Symbol:</span>
+
+<span class="sd">    &gt;&gt;&gt; A_real = IndexedBase(&#39;A&#39;, real=True)</span>
+<span class="sd">    &gt;&gt;&gt; A_real.is_real</span>
+<span class="sd">    True</span>
+<span class="sd">    &gt;&gt;&gt; A != A_real</span>
+<span class="sd">    True</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">is_commutative</span> <span class="o">=</span> <span class="kc">True</span>
     <span class="n">is_symbol</span> <span class="o">=</span> <span class="kc">True</span>
     <span class="n">is_Atom</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_filter_assumptions</span><span class="p">(</span><span class="n">kw_args</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Split the given dict into two parts: assumptions and not assumptions.</span>
+<span class="sd">           Keys are taken as assumptions if they correspond to an entry in ``_assume_defined``.&quot;&quot;&quot;</span>
+        <span class="n">assumptions</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">kw_args</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">_assume_defined</span><span class="p">}</span>
+        <span class="n">Symbol</span><span class="o">.</span><span class="n">_sanitize</span><span class="p">(</span><span class="n">assumptions</span><span class="p">)</span>
+        <span class="c1"># return assumptions, not assumptions</span>
+        <span class="k">return</span> <span class="n">assumptions</span><span class="p">,</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">kw_args</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">assumptions</span><span class="p">}</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_set_assumptions</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Set assumptions on obj, making sure to apply consistent values.&quot;&quot;&quot;</span>
+        <span class="n">tmp_asm_copy</span> <span class="o">=</span> <span class="n">assumptions</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">is_commutative</span> <span class="o">=</span> <span class="n">fuzzy_bool</span><span class="p">(</span><span class="n">assumptions</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;commutative&#39;</span><span class="p">,</span> <span class="kc">True</span><span class="p">))</span>
+        <span class="n">assumptions</span><span class="p">[</span><span class="s1">&#39;commutative&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">is_commutative</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">_assumptions</span> <span class="o">=</span> <span class="n">StdFactKB</span><span class="p">(</span><span class="n">assumptions</span><span class="p">)</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">_assumptions</span><span class="o">.</span><span class="n">_generator</span> <span class="o">=</span> <span class="n">tmp_asm_copy</span>  <span class="c1"># Issue #8873</span>
 
     <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">label</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kw_args</span><span class="p">):</span>
         <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">MatrixBase</span><span class="p">,</span> <span class="n">NDimArray</span>
@@ -471,11 +515,20 @@
         <span class="n">obj</span><span class="o">.</span><span class="n">_offset</span> <span class="o">=</span> <span class="n">offset</span>
         <span class="n">obj</span><span class="o">.</span><span class="n">_strides</span> <span class="o">=</span> <span class="n">strides</span>
         <span class="n">obj</span><span class="o">.</span><span class="n">_name</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">label</span><span class="p">)</span>
+        <span class="n">assumptions</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">IndexedBase</span><span class="o">.</span><span class="n">_filter_assumptions</span><span class="p">(</span><span class="n">kw_args</span><span class="p">)</span>
+        <span class="n">IndexedBase</span><span class="o">.</span><span class="n">_set_assumptions</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">obj</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_name</span>
+
+    <span class="k">def</span> <span class="nf">_hashable_content</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">IndexedBase</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_hashable_content</span><span class="p">()</span> <span class="o">+</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">assumptions0</span><span class="o">.</span><span class="n">items</span><span class="p">()))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">assumptions0</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_assumptions</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">v</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">}</span>
 
     <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="o">**</span><span class="n">kw_args</span><span class="p">):</span>
         <span class="k">if</span> <span class="n">is_sequence</span><span class="p">(</span><span class="n">indices</span><span class="p">):</span>
@@ -844,7 +897,7 @@
     </div>
     <div class="footer" role="contentinfo">
         &#169; Copyright 2019 SymPy Development Team.
-      Last updated on Jun 08, 2019.
+      Last updated on Jun 09, 2019.
       Created using <a href="http://sphinx-doc.org/">Sphinx</a> 2.1.0.
     </div>
   </body>
