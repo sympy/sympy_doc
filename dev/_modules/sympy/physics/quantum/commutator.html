@@ -54,7 +54,7 @@
 
 <span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">division</span>
 
-<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">S</span><span class="p">,</span> <span class="n">Expr</span><span class="p">,</span> <span class="n">Mul</span><span class="p">,</span> <span class="n">Add</span>
+<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">S</span><span class="p">,</span> <span class="n">Expr</span><span class="p">,</span> <span class="n">Mul</span><span class="p">,</span> <span class="n">Add</span><span class="p">,</span> <span class="n">Pow</span>
 <span class="kn">from</span> <span class="nn">sympy.printing.pretty.stringpict</span> <span class="k">import</span> <span class="n">prettyForm</span>
 
 <span class="kn">from</span> <span class="nn">sympy.physics.quantum.dagger</span> <span class="k">import</span> <span class="n">Dagger</span>
@@ -169,6 +169,22 @@
         <span class="k">if</span> <span class="n">a</span><span class="o">.</span><span class="n">compare</span><span class="p">(</span><span class="n">b</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">NegativeOne</span><span class="o">*</span><span class="bp">cls</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">a</span><span class="p">)</span>
 
+    <span class="k">def</span> <span class="nf">_expand_pow</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">A</span><span class="p">,</span> <span class="n">B</span><span class="p">,</span> <span class="n">sign</span><span class="p">):</span>
+        <span class="n">exp</span> <span class="o">=</span> <span class="n">A</span><span class="o">.</span><span class="n">exp</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">exp</span><span class="o">.</span><span class="n">is_integer</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">exp</span><span class="o">.</span><span class="n">is_constant</span><span class="p">()</span> <span class="ow">or</span> <span class="nb">abs</span><span class="p">(</span><span class="n">exp</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="c1"># nothing to do</span>
+            <span class="k">return</span> <span class="bp">self</span>
+        <span class="n">base</span> <span class="o">=</span> <span class="n">A</span><span class="o">.</span><span class="n">base</span>
+        <span class="k">if</span> <span class="n">exp</span><span class="o">.</span><span class="n">is_negative</span><span class="p">:</span>
+            <span class="n">base</span> <span class="o">=</span> <span class="n">A</span><span class="o">.</span><span class="n">base</span><span class="o">**-</span><span class="mi">1</span>
+            <span class="n">exp</span> <span class="o">=</span> <span class="o">-</span><span class="n">exp</span>
+        <span class="n">comm</span> <span class="o">=</span> <span class="n">Commutator</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="n">B</span><span class="p">)</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">commutator</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="n">result</span> <span class="o">=</span> <span class="n">base</span><span class="o">**</span><span class="p">(</span><span class="n">exp</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">comm</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">exp</span><span class="p">):</span>
+            <span class="n">result</span> <span class="o">+=</span> <span class="n">base</span><span class="o">**</span><span class="p">(</span><span class="n">exp</span> <span class="o">-</span> <span class="mi">1</span> <span class="o">-</span> <span class="n">i</span><span class="p">)</span> <span class="o">*</span> <span class="n">comm</span> <span class="o">*</span> <span class="n">base</span><span class="o">**</span><span class="n">i</span>
+        <span class="k">return</span> <span class="n">sign</span><span class="o">*</span><span class="n">result</span><span class="o">.</span><span class="n">expand</span><span class="p">()</span>
+
     <span class="k">def</span> <span class="nf">_eval_expand_commutator</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">hints</span><span class="p">):</span>
         <span class="n">A</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
         <span class="n">B</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
@@ -219,6 +235,12 @@
             <span class="n">first</span> <span class="o">=</span> <span class="n">Mul</span><span class="p">(</span><span class="n">comm1</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span>
             <span class="n">second</span> <span class="o">=</span> <span class="n">Mul</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">comm2</span><span class="p">)</span>
             <span class="k">return</span> <span class="n">Add</span><span class="p">(</span><span class="n">first</span><span class="p">,</span> <span class="n">second</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">Pow</span><span class="p">):</span>
+            <span class="c1"># [A**n, C] -&gt; A**(n - 1)*[A, C] + A**(n - 2)*[A, C]*A + ... + [A, C]*A**(n-1)</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_expand_pow</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">B</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">B</span><span class="p">,</span> <span class="n">Pow</span><span class="p">):</span>
+            <span class="c1"># [A, C**n] -&gt; C**(n - 1)*[C, A] + C**(n - 2)*[C, A]*C + ... + [C, A]*C**(n-1)</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_expand_pow</span><span class="p">(</span><span class="n">B</span><span class="p">,</span> <span class="n">A</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
 
         <span class="c1"># No changes, so return self</span>
         <span class="k">return</span> <span class="bp">self</span>
@@ -300,7 +322,7 @@
     </div>
     <div class="footer" role="contentinfo">
         &#169; Copyright 2019 SymPy Development Team.
-      Last updated on Jun 11, 2019.
+      Last updated on Jun 12, 2019.
       Created using <a href="http://sphinx-doc.org/">Sphinx</a> 2.1.1.
     </div>
   </body>
