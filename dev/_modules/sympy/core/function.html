@@ -424,10 +424,14 @@
 <span class="sd">    &gt;&gt;&gt; g.diff(x)</span>
 <span class="sd">    Derivative(g(x), x)</span>
 
-<span class="sd">    Assumptions can be passed to Function.</span>
+<span class="sd">    Assumptions can be passed to Function, and if function is initialized with a</span>
+<span class="sd">    Symbol, the function inherits the name and assumptions associated with the Symbol:</span>
 
 <span class="sd">    &gt;&gt;&gt; f_real = Function(&#39;f&#39;, real=True)</span>
 <span class="sd">    &gt;&gt;&gt; f_real(x).is_real</span>
+<span class="sd">    True</span>
+<span class="sd">    &gt;&gt;&gt; f_real_inherit = Function(Symbol(&#39;f&#39;, real=True))</span>
+<span class="sd">    &gt;&gt;&gt; f_real_inherit(x).is_real</span>
 <span class="sd">    True</span>
 
 <span class="sd">    Note that assumptions on a function are unrelated to the assumptions on</span>
@@ -913,32 +917,49 @@
 <span class="sd">    The (meta)class of undefined functions.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="n">mcl</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">bases</span><span class="o">=</span><span class="p">(</span><span class="n">AppliedUndef</span><span class="p">,),</span> <span class="vm">__dict__</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="vm">__dict__</span> <span class="o">=</span> <span class="vm">__dict__</span> <span class="ow">or</span> <span class="p">{}</span>
+        <span class="kn">from</span> <span class="nn">.symbol</span> <span class="k">import</span> <span class="n">_filter_assumptions</span>
         <span class="c1"># Allow Function(&#39;f&#39;, real=True)</span>
-        <span class="vm">__dict__</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s1">&#39;is_&#39;</span> <span class="o">+</span> <span class="n">arg</span><span class="p">:</span> <span class="n">val</span> <span class="k">for</span> <span class="n">arg</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">_assume_defined</span><span class="p">})</span>
+        <span class="c1"># and/or Function(Symbol(&#39;f&#39;, real=True))</span>
+        <span class="n">assumptions</span><span class="p">,</span> <span class="n">kwargs</span> <span class="o">=</span> <span class="n">_filter_assumptions</span><span class="p">(</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">Symbol</span><span class="p">):</span>
+            <span class="n">assumptions</span> <span class="o">=</span> <span class="n">name</span><span class="o">.</span><span class="n">_merge</span><span class="p">(</span><span class="n">assumptions</span><span class="p">)</span>
+            <span class="n">name</span> <span class="o">=</span> <span class="n">name</span><span class="o">.</span><span class="n">name</span>
+        <span class="k">elif</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">string_types</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;expecting string or Symbol for name&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">commutative</span> <span class="o">=</span> <span class="n">assumptions</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;commutative&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="n">assumptions</span> <span class="o">=</span> <span class="n">Symbol</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="o">**</span><span class="n">assumptions</span><span class="p">)</span><span class="o">.</span><span class="n">assumptions0</span>
+            <span class="k">if</span> <span class="n">commutative</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">assumptions</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;commutative&#39;</span><span class="p">)</span>
+        <span class="vm">__dict__</span> <span class="o">=</span> <span class="vm">__dict__</span> <span class="ow">or</span> <span class="p">{}</span>
+        <span class="c1"># put the `is_*` for into __dict__</span>
+        <span class="vm">__dict__</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s1">&#39;is_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">assumptions</span><span class="o">.</span><span class="n">items</span><span class="p">()})</span>
         <span class="c1"># You can add other attributes, although they do have to be hashable</span>
         <span class="c1"># (but seriously, if you want to add anything other than assumptions,</span>
         <span class="c1"># just subclass Function)</span>
         <span class="vm">__dict__</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="c1"># add back the sanitized assumptions without the is_ prefix</span>
+        <span class="n">kwargs</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">assumptions</span><span class="p">)</span>
         <span class="c1"># Save these for __eq__</span>
-        <span class="vm">__dict__</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s1">&#39;_extra_kwargs&#39;</span><span class="p">:</span> <span class="n">kwargs</span><span class="p">})</span>
-        <span class="vm">__dict__</span><span class="p">[</span><span class="s1">&#39;__module__&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span> <span class="c1"># For pickling</span>
-        <span class="n">ret</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">UndefinedFunction</span><span class="p">,</span> <span class="n">mcl</span><span class="p">)</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="n">mcl</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">bases</span><span class="p">,</span> <span class="vm">__dict__</span><span class="p">)</span>
-        <span class="n">ret</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
-        <span class="k">return</span> <span class="n">ret</span>
+        <span class="vm">__dict__</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s1">&#39;_kwargs&#39;</span><span class="p">:</span> <span class="n">kwargs</span><span class="p">})</span>
+        <span class="c1"># do this for pickling</span>
+        <span class="vm">__dict__</span><span class="p">[</span><span class="s1">&#39;__module__&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">UndefinedFunction</span><span class="p">,</span> <span class="n">mcl</span><span class="p">)</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="n">mcl</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">bases</span><span class="p">,</span> <span class="vm">__dict__</span><span class="p">)</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+        <span class="k">return</span> <span class="n">obj</span>
 
     <span class="k">def</span> <span class="nf">__instancecheck__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">instance</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">cls</span> <span class="ow">in</span> <span class="nb">type</span><span class="p">(</span><span class="n">instance</span><span class="p">)</span><span class="o">.</span><span class="vm">__mro__</span>
 
-    <span class="n">_extra_kwargs</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">_kwargs</span> <span class="o">=</span> <span class="p">{}</span>
 
     <span class="k">def</span> <span class="nf">__hash__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="nb">hash</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">class_key</span><span class="p">(),</span> <span class="nb">frozenset</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_extra_kwargs</span><span class="o">.</span><span class="n">items</span><span class="p">())))</span>
+        <span class="k">return</span> <span class="nb">hash</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">class_key</span><span class="p">(),</span> <span class="nb">frozenset</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_kwargs</span><span class="o">.</span><span class="n">items</span><span class="p">())))</span>
 
     <span class="k">def</span> <span class="nf">__eq__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
         <span class="k">return</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="p">)</span> <span class="ow">and</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">class_key</span><span class="p">()</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">class_key</span><span class="p">()</span> <span class="ow">and</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_extra_kwargs</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">_extra_kwargs</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_kwargs</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">_kwargs</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">__ne__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
         <span class="k">return</span> <span class="ow">not</span> <span class="bp">self</span> <span class="o">==</span> <span class="n">other</span>

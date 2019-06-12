@@ -52,7 +52,7 @@
   <h1>Source code for sympy.core.symbol</h1><div class="highlight"><pre>
 <span></span><span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">division</span>
 
-<span class="kn">from</span> <span class="nn">sympy.core.assumptions</span> <span class="k">import</span> <span class="n">StdFactKB</span>
+<span class="kn">from</span> <span class="nn">sympy.core.assumptions</span> <span class="k">import</span> <span class="n">StdFactKB</span><span class="p">,</span> <span class="n">_assume_defined</span>
 <span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="k">import</span> <span class="p">(</span><span class="n">string_types</span><span class="p">,</span> <span class="nb">range</span><span class="p">,</span> <span class="n">is_sequence</span><span class="p">,</span>
     <span class="n">ordered</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">.basic</span> <span class="k">import</span> <span class="n">Basic</span>
@@ -63,13 +63,24 @@
 <span class="kn">from</span> <span class="nn">.function</span> <span class="k">import</span> <span class="n">FunctionClass</span>
 <span class="kn">from</span> <span class="nn">sympy.core.logic</span> <span class="k">import</span> <span class="n">fuzzy_bool</span>
 <span class="kn">from</span> <span class="nn">sympy.logic.boolalg</span> <span class="k">import</span> <span class="n">Boolean</span>
-<span class="kn">from</span> <span class="nn">sympy.utilities.iterables</span> <span class="k">import</span> <span class="n">cartes</span>
+<span class="kn">from</span> <span class="nn">sympy.utilities.iterables</span> <span class="k">import</span> <span class="n">cartes</span><span class="p">,</span> <span class="n">sift</span>
 <span class="kn">from</span> <span class="nn">sympy.core.containers</span> <span class="k">import</span> <span class="n">Tuple</span>
 
 <span class="kn">import</span> <span class="nn">string</span>
 <span class="kn">import</span> <span class="nn">re</span> <span class="k">as</span> <span class="nn">_re</span>
 <span class="kn">import</span> <span class="nn">random</span>
 
+
+<span class="k">def</span> <span class="nf">_filter_assumptions</span><span class="p">(</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Split the given dict into assumptions and non-assumptions.</span>
+<span class="sd">    Keys are taken as assumptions if they correspond to an</span>
+<span class="sd">    entry in ``_assume_defined``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">assumptions</span><span class="p">,</span> <span class="n">nonassumptions</span> <span class="o">=</span> <span class="nb">map</span><span class="p">(</span><span class="nb">dict</span><span class="p">,</span> <span class="n">sift</span><span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">items</span><span class="p">(),</span>
+        <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">i</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">in</span> <span class="n">_assume_defined</span><span class="p">,</span>
+        <span class="n">binary</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+    <span class="n">Symbol</span><span class="o">.</span><span class="n">_sanitize</span><span class="p">(</span><span class="n">assumptions</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">assumptions</span><span class="p">,</span> <span class="n">nonassumptions</span>
 
 <span class="k">def</span> <span class="nf">_symbol</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">matching_symbol</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">assumptions</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Return s if s is a Symbol, else if s is a string, return either</span>
@@ -250,6 +261,17 @@
                 <span class="n">assumptions</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
                 <span class="k">continue</span>
             <span class="n">assumptions</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_merge</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">assumptions</span><span class="p">):</span>
+        <span class="n">base</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">assumptions0</span>
+        <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">set</span><span class="p">(</span><span class="n">assumptions</span><span class="p">)</span> <span class="o">&amp;</span> <span class="nb">set</span><span class="p">(</span><span class="n">base</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">assumptions</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">!=</span> <span class="n">base</span><span class="p">[</span><span class="n">k</span><span class="p">]:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">filldedent</span><span class="p">(</span><span class="s1">&#39;&#39;&#39;</span>
+<span class="s1">                    non-matching assumptions for </span><span class="si">%s</span><span class="s1">: existing value</span>
+<span class="s1">                    is </span><span class="si">%s</span><span class="s1"> and new value is </span><span class="si">%s</span><span class="s1">&#39;&#39;&#39;</span> <span class="o">%</span> <span class="p">(</span>
+                    <span class="n">k</span><span class="p">,</span> <span class="n">base</span><span class="p">[</span><span class="n">k</span><span class="p">],</span> <span class="n">assumptions</span><span class="p">[</span><span class="n">k</span><span class="p">])))</span>
+        <span class="n">base</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">assumptions</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">base</span>
 
     <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="o">**</span><span class="n">assumptions</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Symbols are identified by name and assumptions::</span>
