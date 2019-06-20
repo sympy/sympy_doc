@@ -64,6 +64,7 @@
 <span class="kn">from</span> <span class="nn">sympy.core.decorators</span> <span class="k">import</span> <span class="n">deprecated</span>
 <span class="kn">from</span> <span class="nn">sympy.core.expr</span> <span class="k">import</span> <span class="n">Expr</span>
 <span class="kn">from</span> <span class="nn">sympy.core.function</span> <span class="k">import</span> <span class="n">expand_mul</span>
+<span class="kn">from</span> <span class="nn">sympy.core.logic</span> <span class="k">import</span> <span class="n">fuzzy_and</span><span class="p">,</span> <span class="n">fuzzy_or</span>
 <span class="kn">from</span> <span class="nn">sympy.core.numbers</span> <span class="k">import</span> <span class="n">Float</span><span class="p">,</span> <span class="n">Integer</span><span class="p">,</span> <span class="n">mod_inverse</span>
 <span class="kn">from</span> <span class="nn">sympy.core.power</span> <span class="k">import</span> <span class="n">Pow</span>
 <span class="kn">from</span> <span class="nn">sympy.core.singleton</span> <span class="k">import</span> <span class="n">S</span>
@@ -80,7 +81,8 @@
 <span class="kn">from</span> <span class="nn">sympy.utilities.misc</span> <span class="k">import</span> <span class="n">filldedent</span>
 
 <span class="kn">from</span> <span class="nn">.common</span> <span class="k">import</span> <span class="p">(</span>
-    <span class="n">MatrixCommon</span><span class="p">,</span> <span class="n">MatrixError</span><span class="p">,</span> <span class="n">NonSquareMatrixError</span><span class="p">,</span> <span class="n">ShapeError</span><span class="p">)</span>
+    <span class="n">MatrixCommon</span><span class="p">,</span> <span class="n">MatrixError</span><span class="p">,</span> <span class="n">NonSquareMatrixError</span><span class="p">,</span> <span class="n">ShapeError</span><span class="p">,</span>
+    <span class="n">NonPositiveDefiniteMatrixError</span><span class="p">)</span>
 
 
 <span class="k">def</span> <span class="nf">_iszero</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
@@ -1546,6 +1548,185 @@
             <span class="k">if</span> <span class="n">mult</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">basis</span><span class="p">):</span>
                 <span class="n">ret</span> <span class="o">=</span> <span class="kc">False</span>
         <span class="k">return</span> <span class="n">ret</span></div>
+
+    <span class="k">def</span> <span class="nf">_eval_is_positive_definite</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s2">&quot;eigen&quot;</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Algorithm dump for computing positive-definiteness of a</span>
+<span class="sd">        matrix.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ==========</span>
+
+<span class="sd">        method : str, optional</span>
+<span class="sd">            Specifies the method for computing positive-definiteness of</span>
+<span class="sd">            a matrix.</span>
+
+<span class="sd">            If ``&#39;eigen&#39;``, it computes the full eigenvalues and decides</span>
+<span class="sd">            if the matrix is positive-definite.</span>
+
+<span class="sd">            If ``&#39;CH&#39;``, it attempts computing the Cholesky</span>
+<span class="sd">            decomposition to detect the definitiveness.</span>
+
+<span class="sd">            If ``&#39;LDL&#39;``, it attempts computing the LDL</span>
+<span class="sd">            decomposition to detect the definitiveness.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_hermitian</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">method</span> <span class="o">==</span> <span class="s1">&#39;eigen&#39;</span><span class="p">:</span>
+                <span class="n">eigen</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">eigenvals</span><span class="p">()</span>
+                <span class="n">args</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">is_positive</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">eigen</span><span class="o">.</span><span class="n">keys</span><span class="p">()]</span>
+                <span class="k">return</span> <span class="n">fuzzy_and</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+
+            <span class="k">elif</span> <span class="n">method</span> <span class="o">==</span> <span class="s1">&#39;CH&#39;</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">cholesky</span><span class="p">(</span><span class="n">hermitian</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="k">except</span> <span class="n">NonPositiveDefiniteMatrixError</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="kc">False</span>
+                <span class="k">return</span> <span class="kc">True</span>
+
+            <span class="k">elif</span> <span class="n">method</span> <span class="o">==</span> <span class="s1">&#39;LDL&#39;</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">LDLdecomposition</span><span class="p">(</span><span class="n">hermitian</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="k">except</span> <span class="n">NonPositiveDefiniteMatrixError</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="kc">False</span>
+                <span class="k">return</span> <span class="kc">True</span>
+
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_square</span><span class="p">:</span>
+            <span class="n">M_H</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">H</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span>
+            <span class="k">return</span> <span class="n">M_H</span><span class="o">.</span><span class="n">_eval_is_positive_definite</span><span class="p">(</span><span class="n">method</span><span class="o">=</span><span class="n">method</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">is_positive_definite</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_eval_is_positive_definite</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">is_positive_semidefinite</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_hermitian</span><span class="p">:</span>
+            <span class="n">eigen</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">eigenvals</span><span class="p">()</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">is_nonnegative</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">eigen</span><span class="o">.</span><span class="n">keys</span><span class="p">()]</span>
+            <span class="k">return</span> <span class="n">fuzzy_and</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_square</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">((</span><span class="bp">self</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">H</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">is_positive_semidefinite</span>
+
+    <span class="k">def</span> <span class="nf">is_negative_definite</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_hermitian</span><span class="p">:</span>
+            <span class="n">eigen</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">eigenvals</span><span class="p">()</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">is_negative</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">eigen</span><span class="o">.</span><span class="n">keys</span><span class="p">()]</span>
+            <span class="k">return</span> <span class="n">fuzzy_and</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_square</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">((</span><span class="bp">self</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">H</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">is_negative_definite</span>
+
+    <span class="k">def</span> <span class="nf">is_negative_semidefinite</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_hermitian</span><span class="p">:</span>
+            <span class="n">eigen</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">eigenvals</span><span class="p">()</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">is_nonpositive</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">eigen</span><span class="o">.</span><span class="n">keys</span><span class="p">()]</span>
+            <span class="k">return</span> <span class="n">fuzzy_and</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_square</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">((</span><span class="bp">self</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">H</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">is_negative_semidefinite</span>
+
+    <span class="k">def</span> <span class="nf">is_indefinite</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_hermitian</span><span class="p">:</span>
+            <span class="n">eigen</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">eigenvals</span><span class="p">()</span>
+
+            <span class="n">args1</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">is_positive</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">eigen</span><span class="o">.</span><span class="n">keys</span><span class="p">()]</span>
+            <span class="n">any_positive</span> <span class="o">=</span> <span class="n">fuzzy_or</span><span class="p">(</span><span class="n">args1</span><span class="p">)</span>
+            <span class="n">args2</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">is_negative</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">eigen</span><span class="o">.</span><span class="n">keys</span><span class="p">()]</span>
+            <span class="n">any_negative</span> <span class="o">=</span> <span class="n">fuzzy_or</span><span class="p">(</span><span class="n">args2</span><span class="p">)</span>
+
+            <span class="k">return</span> <span class="n">fuzzy_and</span><span class="p">([</span><span class="n">any_positive</span><span class="p">,</span> <span class="n">any_negative</span><span class="p">])</span>
+
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_square</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">((</span><span class="bp">self</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">H</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">is_indefinite</span>
+
+    <span class="n">_doc_positive_definite</span> <span class="o">=</span> \
+        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;Finds out the definiteness of a matrix.</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        ========</span>
+
+<span class="sd">        An example of numeric positive definite matrix:</span>
+
+<span class="sd">        &gt;&gt;&gt; from sympy import Matrix</span>
+<span class="sd">        &gt;&gt;&gt; A = Matrix([[1, -2], [-2, 6]])</span>
+<span class="sd">        &gt;&gt;&gt; A.is_positive_definite</span>
+<span class="sd">        True</span>
+<span class="sd">        &gt;&gt;&gt; A.is_positive_semidefinite</span>
+<span class="sd">        True</span>
+<span class="sd">        &gt;&gt;&gt; A.is_negative_definite</span>
+<span class="sd">        False</span>
+<span class="sd">        &gt;&gt;&gt; A.is_negative_semidefinite</span>
+<span class="sd">        False</span>
+<span class="sd">        &gt;&gt;&gt; A.is_indefinite</span>
+<span class="sd">        False</span>
+
+<span class="sd">        An example of numeric negative definite matrix:</span>
+
+<span class="sd">        &gt;&gt;&gt; A = Matrix([[-1, 2], [2, -6]])</span>
+<span class="sd">        &gt;&gt;&gt; A.is_positive_definite</span>
+<span class="sd">        False</span>
+<span class="sd">        &gt;&gt;&gt; A.is_positive_semidefinite</span>
+<span class="sd">        False</span>
+<span class="sd">        &gt;&gt;&gt; A.is_negative_definite</span>
+<span class="sd">        True</span>
+<span class="sd">        &gt;&gt;&gt; A.is_negative_semidefinite</span>
+<span class="sd">        True</span>
+<span class="sd">        &gt;&gt;&gt; A.is_indefinite</span>
+<span class="sd">        False</span>
+
+<span class="sd">        An example of numeric indefinite matrix:</span>
+
+<span class="sd">        &gt;&gt;&gt; A = Matrix([[1, 2], [2, 1]])</span>
+<span class="sd">        &gt;&gt;&gt; A.is_positive_definite</span>
+<span class="sd">        False</span>
+<span class="sd">        &gt;&gt;&gt; A.is_positive_semidefinite</span>
+<span class="sd">        False</span>
+<span class="sd">        &gt;&gt;&gt; A.is_negative_definite</span>
+<span class="sd">        True</span>
+<span class="sd">        &gt;&gt;&gt; A.is_negative_semidefinite</span>
+<span class="sd">        True</span>
+<span class="sd">        &gt;&gt;&gt; A.is_indefinite</span>
+<span class="sd">        False</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        =====</span>
+
+<span class="sd">        Definitiveness is not very commonly discussed for non-hermitian</span>
+<span class="sd">        matrices.</span>
+
+<span class="sd">        However, computing the definitiveness of a matrix can be</span>
+<span class="sd">        generalized over any real matrix by taking the symmetric part:</span>
+
+<span class="sd">        `A_S = 1/2 (A + A^{T})`</span>
+
+<span class="sd">        Or over any complex matrix by taking the hermitian part:</span>
+
+<span class="sd">        `A_H = 1/2 (A + A^{H})`</span>
+
+<span class="sd">        And computing the eigenvalues.</span>
+
+<span class="sd">        References</span>
+<span class="sd">        ==========</span>
+
+<span class="sd">        .. [1] https://en.wikipedia.org/wiki/Definiteness_of_a_matrix#Eigenvalues</span>
+
+<span class="sd">        .. [2] http://mathworld.wolfram.com/PositiveDefiniteMatrix.html</span>
+
+<span class="sd">        .. [3] Johnson, C. R. &quot;Positive Definite Matrices.&quot; Amer.</span>
+<span class="sd">            Math. Monthly 77, 259-264 1970.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+    <span class="n">is_positive_definite</span> <span class="o">=</span> \
+        <span class="nb">property</span><span class="p">(</span><span class="n">fget</span><span class="o">=</span><span class="n">is_positive_definite</span><span class="p">,</span> <span class="n">doc</span><span class="o">=</span><span class="n">_doc_positive_definite</span><span class="p">)</span>
+    <span class="n">is_positive_semidefinite</span> <span class="o">=</span> \
+        <span class="nb">property</span><span class="p">(</span><span class="n">fget</span><span class="o">=</span><span class="n">is_positive_semidefinite</span><span class="p">,</span> <span class="n">doc</span><span class="o">=</span><span class="n">_doc_positive_definite</span><span class="p">)</span>
+    <span class="n">is_negative_definite</span> <span class="o">=</span> \
+        <span class="nb">property</span><span class="p">(</span><span class="n">fget</span><span class="o">=</span><span class="n">is_negative_definite</span><span class="p">,</span> <span class="n">doc</span><span class="o">=</span><span class="n">_doc_positive_definite</span><span class="p">)</span>
+    <span class="n">is_negative_semidefinite</span> <span class="o">=</span> \
+        <span class="nb">property</span><span class="p">(</span><span class="n">fget</span><span class="o">=</span><span class="n">is_negative_semidefinite</span><span class="p">,</span> <span class="n">doc</span><span class="o">=</span><span class="n">_doc_positive_definite</span><span class="p">)</span>
+    <span class="n">is_indefinite</span> <span class="o">=</span> \
+        <span class="nb">property</span><span class="p">(</span><span class="n">fget</span><span class="o">=</span><span class="n">is_indefinite</span><span class="p">,</span> <span class="n">doc</span><span class="o">=</span><span class="n">_doc_positive_definite</span><span class="p">)</span>
 
 <div class="viewcode-block" id="MatrixEigen.jordan_form"><a class="viewcode-back" href="../../../modules/matrices/matrices.html#sympy.matrices.matrices.MatrixEigen.jordan_form">[docs]</a>    <span class="k">def</span> <span class="nf">jordan_form</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">calc_transform</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Return ``(P, J)`` where `J` is a Jordan block</span>
