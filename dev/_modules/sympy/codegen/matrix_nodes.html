@@ -1,0 +1,161 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>sympy.codegen.matrix_nodes &#8212; SymPy 1.5.dev documentation</title>
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/graphviz.css" />
+    <link rel="stylesheet" type="text/css" href="https://live.sympy.org/static/live-core.css" />
+    <link rel="stylesheet" type="text/css" href="https://live.sympy.org/static/live-autocomplete.css" />
+    <link rel="stylesheet" type="text/css" href="https://live.sympy.org/static/live-sphinx.css" />
+    
+    <script type="text/javascript" id="documentation_options" data-url_root="../../../" src="../../../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/language_data.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/utilities.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/external/classy.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/live-core.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/live-autocomplete.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/live-sphinx.js"></script>
+    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS_HTML-full"></script>
+    
+    <link rel="shortcut icon" href="../../../_static/sympy-notailtext-favicon.ico"/>
+    <link href="https://docs.sympy.org/latest/_modules/sympy/codegen/matrix_nodes.html" rel="canonical" />
+    
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../../index.html">SymPy 1.5.dev documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for sympy.codegen.matrix_nodes</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Additional AST nodes for operations on matrices. The nodes in this module</span>
+<span class="sd">are meant to represent optimization of matrix expressions within codegen&#39;s</span>
+<span class="sd">target languages that cannot be represented by SymPy expressions.</span>
+
+<span class="sd">As an example, we can use :meth:`sympy.codegen.rewriting.optimize` and the</span>
+<span class="sd">``matin_opt`` optimization provided in :mod:`sympy.codegen.rewriting` to</span>
+<span class="sd">transform matrix multiplication under certain assumptions:</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy import symbols, MatrixSymbol</span>
+<span class="sd">    &gt;&gt;&gt; n = symbols(&#39;n&#39;, integer=True)</span>
+<span class="sd">    &gt;&gt;&gt; A = MatrixSymbol(&#39;A&#39;, n, n)</span>
+<span class="sd">    &gt;&gt;&gt; x = MatrixSymbol(&#39;x&#39;, n, 1)</span>
+<span class="sd">    &gt;&gt;&gt; expr = A**(-1) * x</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.assumptions import assuming, Q</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.codegen.rewriting import matinv_opt, optimize</span>
+<span class="sd">    &gt;&gt;&gt; with assuming(Q.fullrank(A)):</span>
+<span class="sd">    ...     optimize(expr, [matinv_opt])</span>
+<span class="sd">    MatrixSolve(A, vector=x)</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">.ast</span> <span class="k">import</span> <span class="n">Token</span>
+<span class="kn">from</span> <span class="nn">sympy.matrices</span> <span class="k">import</span> <span class="n">MatrixExpr</span>
+<span class="kn">from</span> <span class="nn">sympy.core.sympify</span> <span class="k">import</span> <span class="n">sympify</span>
+
+
+<div class="viewcode-block" id="MatrixSolve"><a class="viewcode-back" href="../../../modules/codegen.html#sympy.codegen.matrix_nodes.MatrixSolve">[docs]</a><span class="k">class</span> <span class="nc">MatrixSolve</span><span class="p">(</span><span class="n">Token</span><span class="p">,</span> <span class="n">MatrixExpr</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Represents an operation to solve a linear matrix equation.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    matrix : MatrixSymbol</span>
+
+<span class="sd">      Matrix representing the coefficients of variables in the linear</span>
+<span class="sd">      equation. This matrix must be square and full-rank (i.e. all columns must</span>
+<span class="sd">      be linearly independent) for the solving operation to be valid.</span>
+
+<span class="sd">    vector : MatrixSymbol</span>
+
+<span class="sd">      One-column matrix representing the solutions to the equations</span>
+<span class="sd">      represented in ``matrix``.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy import symbols, MatrixSymbol</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.codegen.matrix_nodes import MatrixSolve</span>
+<span class="sd">    &gt;&gt;&gt; n = symbols(&#39;n&#39;, integer=True)</span>
+<span class="sd">    &gt;&gt;&gt; A = MatrixSymbol(&#39;A&#39;, n, n)</span>
+<span class="sd">    &gt;&gt;&gt; x = MatrixSymbol(&#39;x&#39;, n, 1)</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.printing.pycode import NumPyPrinter</span>
+<span class="sd">    &gt;&gt;&gt; NumPyPrinter().doprint(MatrixSolve(A, x))</span>
+<span class="sd">    &#39;numpy.linalg.solve(A, x)&#39;</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.printing import octave_code</span>
+<span class="sd">    &gt;&gt;&gt; octave_code(MatrixSolve(A, x))</span>
+<span class="sd">    &#39;A \\\\ x&#39;</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="vm">__slots__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;matrix&#39;</span><span class="p">,</span> <span class="s1">&#39;vector&#39;</span><span class="p">]</span>
+
+    <span class="n">_construct_matrix</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">sympify</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">matrix</span><span class="p">,</span> <span class="n">vector</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">shape</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">vector</span><span class="o">.</span><span class="n">shape</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../../index.html">
+              <img class="logo" src="../../../_static/sympylogo.png" alt="Logo"/>
+            </a></p>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../../index.html">SymPy 1.5.dev documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../../index.html" >Module code</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2019 SymPy Development Team.
+      Last updated on Jun 24, 2019.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 2.1.2.
+    </div>
+  </body>
+</html>
