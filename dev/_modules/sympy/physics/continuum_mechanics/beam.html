@@ -65,6 +65,7 @@
 <span class="kn">from</span> <span class="nn">sympy.integrals</span> <span class="k">import</span> <span class="n">integrate</span>
 <span class="kn">from</span> <span class="nn">sympy.series</span> <span class="k">import</span> <span class="n">limit</span>
 <span class="kn">from</span> <span class="nn">sympy.plotting</span> <span class="k">import</span> <span class="n">plot</span><span class="p">,</span> <span class="n">PlotGrid</span>
+<span class="kn">from</span> <span class="nn">sympy.geometry.entity</span> <span class="k">import</span> <span class="n">GeometryEntity</span>
 <span class="kn">from</span> <span class="nn">sympy.external</span> <span class="k">import</span> <span class="n">import_module</span>
 <span class="kn">from</span> <span class="nn">sympy.utilities.decorator</span> <span class="k">import</span> <span class="n">doctest_depends_on</span>
 <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">lambdify</span>
@@ -132,21 +133,32 @@
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ==========</span>
+
 <span class="sd">        length : Sympifyable</span>
 <span class="sd">            A Symbol or value representing the Beam&#39;s length.</span>
+
 <span class="sd">        elastic_modulus : Sympifyable</span>
 <span class="sd">            A SymPy expression representing the Beam&#39;s Modulus of Elasticity.</span>
 <span class="sd">            It is a measure of the stiffness of the Beam material. It can</span>
 <span class="sd">            also be a continuous function of position along the beam.</span>
-<span class="sd">        second_moment : Sympifyable</span>
-<span class="sd">            A SymPy expression representing the Beam&#39;s Second moment of area.</span>
-<span class="sd">            It is a geometrical property of an area which reflects how its</span>
-<span class="sd">            points are distributed with respect to its neutral axis. It can</span>
-<span class="sd">            also be a continuous function of position along the beam.</span>
+
+<span class="sd">        second_moment : Sympifyable or Geometry object</span>
+<span class="sd">            Describes the cross-section of the beam via a SymPy expression</span>
+<span class="sd">            representing the Beam&#39;s second moment of area. It is a geometrical</span>
+<span class="sd">            property of an area which reflects how its points are distributed</span>
+<span class="sd">            with respect to its neutral axis. It can also be a continuous</span>
+<span class="sd">            function of position along the beam. Alternatively ``second_moment``</span>
+<span class="sd">            can be a shape object such as a ``Polygon`` from the geometry module</span>
+<span class="sd">            representing the shape of the cross-section of the beam. In such cases,</span>
+<span class="sd">            it is assumed that the x-axis of the shape object is aligned with the</span>
+<span class="sd">            bending axis of the beam. The second moment of area will be computed</span>
+<span class="sd">            from the shape object internally.</span>
+
 <span class="sd">        variable : Symbol, optional</span>
 <span class="sd">            A Symbol object that will be used as the variable along the beam</span>
 <span class="sd">            while representing the load, shear, moment, slope and deflection</span>
 <span class="sd">            curve. By default, it is set to ``Symbol(&#39;x&#39;)``.</span>
+
 <span class="sd">        base_char : String, optional</span>
 <span class="sd">            A String that will be used as base character to generate sequential</span>
 <span class="sd">            symbols for integration constants in cases where boundary conditions</span>
@@ -154,7 +166,11 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">length</span> <span class="o">=</span> <span class="n">length</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">elastic_modulus</span> <span class="o">=</span> <span class="n">elastic_modulus</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">second_moment</span> <span class="o">=</span> <span class="n">second_moment</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">second_moment</span><span class="p">,</span> <span class="n">GeometryEntity</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">cross_section</span> <span class="o">=</span> <span class="n">second_moment</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">cross_section</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">second_moment</span> <span class="o">=</span> <span class="n">second_moment</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">variable</span> <span class="o">=</span> <span class="n">variable</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_base_char</span> <span class="o">=</span> <span class="n">base_char</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_boundary_conditions</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;deflection&#39;</span><span class="p">:</span> <span class="p">[],</span> <span class="s1">&#39;slope&#39;</span><span class="p">:</span> <span class="p">[]}</span>
@@ -165,7 +181,8 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_hinge_position</span> <span class="o">=</span> <span class="kc">None</span>
 
     <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="n">str_sol</span> <span class="o">=</span> <span class="s1">&#39;Beam(</span><span class="si">{}</span><span class="s1">, </span><span class="si">{}</span><span class="s1">, </span><span class="si">{}</span><span class="s1">)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">sstr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_length</span><span class="p">),</span> <span class="n">sstr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_elastic_modulus</span><span class="p">),</span> <span class="n">sstr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_second_moment</span><span class="p">))</span>
+        <span class="n">shape_description</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cross_section</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cross_section</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">_second_moment</span>
+        <span class="n">str_sol</span> <span class="o">=</span> <span class="s1">&#39;Beam(</span><span class="si">{}</span><span class="s1">, </span><span class="si">{}</span><span class="s1">, </span><span class="si">{}</span><span class="s1">)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">sstr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_length</span><span class="p">),</span> <span class="n">sstr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_elastic_modulus</span><span class="p">),</span> <span class="n">sstr</span><span class="p">(</span><span class="n">shape_description</span><span class="p">))</span>
         <span class="k">return</span> <span class="n">str_sol</span>
 
     <span class="nd">@property</span>
@@ -232,7 +249,22 @@
 
     <span class="nd">@second_moment</span><span class="o">.</span><span class="n">setter</span>
     <span class="k">def</span> <span class="nf">second_moment</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">i</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_second_moment</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cross_section</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">GeometryEntity</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;To update cross-section geometry use `cross_section` attribute&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_second_moment</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">cross_section</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Cross-section of the beam&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cross_section</span>
+
+    <span class="nd">@cross_section</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">cross_section</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">s</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">s</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_second_moment</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">second_moment_of_area</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cross_section</span> <span class="o">=</span> <span class="n">s</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">boundary_conditions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
