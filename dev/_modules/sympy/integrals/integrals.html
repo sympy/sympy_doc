@@ -420,11 +420,11 @@
 <span class="sd">        Examples</span>
 <span class="sd">        ========</span>
 
-<span class="sd">        &gt;&gt;&gt; from sympy import Integral</span>
-<span class="sd">        &gt;&gt;&gt; from sympy.abc import x, i</span>
-<span class="sd">        &gt;&gt;&gt; Integral(x**i, (i, 1, 3)).doit()</span>
-<span class="sd">        Piecewise((x**3/log(x) - x/log(x),</span>
-<span class="sd">            (x &gt; 1) | ((x &gt;= 0) &amp; (x &lt; 1))), (2, True))</span>
+<span class="sd">        &gt;&gt;&gt; from sympy import Integral, Piecewise, S</span>
+<span class="sd">        &gt;&gt;&gt; from sympy.abc import x, t</span>
+<span class="sd">        &gt;&gt;&gt; p = x**2 + Piecewise((0, x/t &lt; 0), (1, True))</span>
+<span class="sd">        &gt;&gt;&gt; p.integrate((t, S(4)/5, 1), (x, -1, 1))</span>
+<span class="sd">        1/3</span>
 
 <span class="sd">        See Also</span>
 <span class="sd">        ========</span>
@@ -491,6 +491,34 @@
         <span class="c1"># There is no trivial answer and special handling</span>
         <span class="c1"># is done so continue</span>
 
+        <span class="c1"># first make sure any definite limits have integration</span>
+        <span class="c1"># variables with matching assumptions</span>
+        <span class="n">reps</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">xab</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">limits</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">xab</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">3</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">x</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="n">xab</span>
+            <span class="n">l</span> <span class="o">=</span> <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">is_nonnegative</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">l</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">x</span><span class="o">.</span><span class="n">is_nonnegative</span><span class="p">:</span>
+                <span class="n">d</span> <span class="o">=</span> <span class="n">Dummy</span><span class="p">(</span><span class="n">positive</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="nb">all</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">is_nonpositive</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">l</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">x</span><span class="o">.</span><span class="n">is_nonpositive</span><span class="p">:</span>
+                <span class="n">d</span> <span class="o">=</span> <span class="n">Dummy</span><span class="p">(</span><span class="n">negative</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="nb">all</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">is_real</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">l</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">x</span><span class="o">.</span><span class="n">is_real</span><span class="p">:</span>
+                <span class="n">d</span> <span class="o">=</span> <span class="n">Dummy</span><span class="p">(</span><span class="n">real</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">d</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="k">if</span> <span class="n">d</span><span class="p">:</span>
+                <span class="n">reps</span><span class="p">[</span><span class="n">x</span><span class="p">]</span> <span class="o">=</span> <span class="n">d</span>
+        <span class="k">if</span> <span class="n">reps</span><span class="p">:</span>
+            <span class="n">undo</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">([(</span><span class="n">v</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">reps</span><span class="o">.</span><span class="n">items</span><span class="p">()])</span>
+            <span class="n">did</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">reps</span><span class="p">)</span><span class="o">.</span><span class="n">doit</span><span class="p">(</span><span class="o">**</span><span class="n">hints</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">did</span><span class="p">)</span> <span class="ow">is</span> <span class="nb">tuple</span><span class="p">:</span>  <span class="c1"># when separate=True</span>
+                <span class="n">did</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">undo</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">did</span><span class="p">])</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">did</span> <span class="o">=</span> <span class="n">did</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">undo</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">did</span>
+
+        <span class="c1"># continue with existing assumptions</span>
         <span class="n">undone_limits</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="c1"># ulj = free symbols of any undone limits&#39; upper and lower limits</span>
         <span class="n">ulj</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
