@@ -1079,7 +1079,66 @@
         <span class="n">last</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>  <span class="c1"># ignore all past ith arg</span>
         <span class="k">for</span> <span class="n">a</span><span class="p">,</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="n">args</span><span class="p">[:</span><span class="n">i</span><span class="p">]):</span>
             <span class="n">last</span> <span class="o">=</span> <span class="n">ITE</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">last</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">_canonical</span><span class="p">(</span><span class="n">last</span><span class="p">)</span></div>
+        <span class="k">return</span> <span class="n">_canonical</span><span class="p">(</span><span class="n">last</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_eval_rewrite_as_KroneckerDelta</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Ne</span><span class="p">,</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">Not</span><span class="p">,</span> <span class="n">KroneckerDelta</span>
+
+        <span class="n">rules</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="n">And</span><span class="p">:</span> <span class="p">[</span><span class="kc">False</span><span class="p">,</span> <span class="kc">False</span><span class="p">],</span>
+            <span class="n">Or</span><span class="p">:</span> <span class="p">[</span><span class="kc">True</span><span class="p">,</span> <span class="kc">True</span><span class="p">],</span>
+            <span class="n">Not</span><span class="p">:</span> <span class="p">[</span><span class="kc">True</span><span class="p">,</span> <span class="kc">False</span><span class="p">],</span>
+            <span class="n">Eq</span><span class="p">:</span> <span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">],</span>
+            <span class="n">Ne</span><span class="p">:</span> <span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>
+        <span class="p">}</span>
+
+        <span class="k">class</span> <span class="nc">UnrecognizedCondition</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+            <span class="k">pass</span>
+
+        <span class="k">def</span> <span class="nf">rewrite</span><span class="p">(</span><span class="n">cond</span><span class="p">):</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cond</span><span class="p">,</span> <span class="n">Eq</span><span class="p">):</span>
+                <span class="k">return</span> <span class="n">KroneckerDelta</span><span class="p">(</span><span class="o">*</span><span class="n">cond</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cond</span><span class="p">,</span> <span class="n">Ne</span><span class="p">):</span>
+                <span class="k">return</span> <span class="mi">1</span> <span class="o">-</span> <span class="n">KroneckerDelta</span><span class="p">(</span><span class="o">*</span><span class="n">cond</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
+
+            <span class="bp">cls</span><span class="p">,</span> <span class="n">args</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="n">cond</span><span class="p">),</span> <span class="n">cond</span><span class="o">.</span><span class="n">args</span>
+            <span class="k">if</span> <span class="bp">cls</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">rules</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">UnrecognizedCondition</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span>
+
+            <span class="n">b1</span><span class="p">,</span> <span class="n">b2</span> <span class="o">=</span> <span class="n">rules</span><span class="p">[</span><span class="bp">cls</span><span class="p">]</span>
+            <span class="n">k</span> <span class="o">=</span> <span class="mi">1</span>
+            <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">args</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">b1</span><span class="p">:</span>
+                    <span class="n">k</span> <span class="o">*=</span> <span class="mi">1</span> <span class="o">-</span> <span class="n">rewrite</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">k</span> <span class="o">*=</span> <span class="n">rewrite</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">b2</span><span class="p">:</span>
+                <span class="k">return</span> <span class="mi">1</span> <span class="o">-</span> <span class="n">k</span>
+            <span class="k">return</span> <span class="n">k</span>
+
+        <span class="n">conditions</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">true_value</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">for</span> <span class="n">value</span><span class="p">,</span> <span class="n">cond</span> <span class="ow">in</span> <span class="n">args</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">cond</span><span class="p">)</span> <span class="ow">in</span> <span class="n">rules</span><span class="p">:</span>
+                <span class="n">conditions</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">value</span><span class="p">,</span> <span class="n">cond</span><span class="p">))</span>
+            <span class="k">elif</span> <span class="n">cond</span> <span class="ow">is</span> <span class="n">S</span><span class="o">.</span><span class="n">true</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">true_value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">true_value</span> <span class="o">=</span> <span class="n">value</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span>
+
+        <span class="k">if</span> <span class="n">true_value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="n">true_value</span>
+
+            <span class="k">for</span> <span class="n">value</span><span class="p">,</span> <span class="n">cond</span> <span class="ow">in</span> <span class="n">conditions</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">k</span> <span class="o">=</span> <span class="n">rewrite</span><span class="p">(</span><span class="n">cond</span><span class="p">)</span>
+                    <span class="n">result</span> <span class="o">=</span> <span class="n">k</span> <span class="o">*</span> <span class="n">value</span> <span class="o">+</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">k</span><span class="p">)</span> <span class="o">*</span> <span class="n">result</span>
+                <span class="k">except</span> <span class="n">UnrecognizedCondition</span><span class="p">:</span>
+                    <span class="k">return</span>
+
+            <span class="k">return</span> <span class="n">result</span></div>
 
 
 <div class="viewcode-block" id="piecewise_fold"><a class="viewcode-back" href="../../../../modules/functions/elementary.html#sympy.functions.elementary.piecewise.piecewise_fold">[docs]</a><span class="k">def</span> <span class="nf">piecewise_fold</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
