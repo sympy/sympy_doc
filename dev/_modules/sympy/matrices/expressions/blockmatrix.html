@@ -379,6 +379,9 @@
     <span class="k">def</span> <span class="nf">_eval_inverse</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expand</span><span class="o">=</span><span class="s1">&#39;ignored&#39;</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">BlockDiagMatrix</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">mat</span><span class="o">.</span><span class="n">inverse</span><span class="p">()</span> <span class="k">for</span> <span class="n">mat</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">])</span>
 
+    <span class="k">def</span> <span class="nf">_eval_transpose</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">BlockDiagMatrix</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">mat</span><span class="o">.</span><span class="n">transpose</span><span class="p">()</span> <span class="k">for</span> <span class="n">mat</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">])</span>
+
     <span class="k">def</span> <span class="nf">_blockmul</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
         <span class="k">if</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">BlockDiagMatrix</span><span class="p">)</span> <span class="ow">and</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">colblocksizes</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">rowblocksizes</span><span class="p">):</span>
@@ -485,11 +488,21 @@
 <span class="k">def</span> <span class="nf">bc_dist</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot; Turn  a*[X, Y] into [a*X, a*Y] &quot;&quot;&quot;</span>
     <span class="n">factor</span><span class="p">,</span> <span class="n">mat</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">as_coeff_mmul</span><span class="p">()</span>
-    <span class="k">if</span> <span class="n">factor</span> <span class="o">!=</span> <span class="mi">1</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">unpack</span><span class="p">(</span><span class="n">mat</span><span class="p">),</span> <span class="n">BlockMatrix</span><span class="p">):</span>
-        <span class="n">B</span> <span class="o">=</span> <span class="n">unpack</span><span class="p">(</span><span class="n">mat</span><span class="p">)</span><span class="o">.</span><span class="n">blocks</span>
-        <span class="k">return</span> <span class="n">BlockMatrix</span><span class="p">([[</span><span class="n">factor</span> <span class="o">*</span> <span class="n">B</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">B</span><span class="o">.</span><span class="n">cols</span><span class="p">)]</span>
-                                              <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">B</span><span class="o">.</span><span class="n">rows</span><span class="p">)])</span>
-    <span class="k">return</span> <span class="n">expr</span>
+    <span class="k">if</span> <span class="n">factor</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">expr</span>
+
+    <span class="n">unpacked</span> <span class="o">=</span> <span class="n">unpack</span><span class="p">(</span><span class="n">mat</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">unpacked</span><span class="p">,</span> <span class="n">BlockDiagMatrix</span><span class="p">):</span>
+        <span class="n">B</span> <span class="o">=</span> <span class="n">unpacked</span><span class="o">.</span><span class="n">diag</span>
+        <span class="n">new_B</span> <span class="o">=</span> <span class="p">[</span><span class="n">factor</span> <span class="o">*</span> <span class="n">mat</span> <span class="k">for</span> <span class="n">mat</span> <span class="ow">in</span> <span class="n">B</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">BlockDiagMatrix</span><span class="p">(</span><span class="o">*</span><span class="n">new_B</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">unpacked</span><span class="p">,</span> <span class="n">BlockMatrix</span><span class="p">):</span>
+        <span class="n">B</span> <span class="o">=</span> <span class="n">unpacked</span><span class="o">.</span><span class="n">blocks</span>
+        <span class="n">new_B</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="p">[</span><span class="n">factor</span> <span class="o">*</span> <span class="n">B</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">B</span><span class="o">.</span><span class="n">cols</span><span class="p">)]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">B</span><span class="o">.</span><span class="n">rows</span><span class="p">)]</span>
+        <span class="k">return</span> <span class="n">BlockMatrix</span><span class="p">(</span><span class="n">new_B</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">unpacked</span>
 
 
 <span class="k">def</span> <span class="nf">bc_matmul</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
@@ -518,10 +531,14 @@
     <span class="k">return</span> <span class="n">MatMul</span><span class="p">(</span><span class="n">factor</span><span class="p">,</span> <span class="o">*</span><span class="n">matrices</span><span class="p">)</span><span class="o">.</span><span class="n">doit</span><span class="p">()</span>
 
 <span class="k">def</span> <span class="nf">bc_transpose</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
-    <span class="k">return</span> <span class="n">BlockMatrix</span><span class="p">(</span><span class="n">block_collapse</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">arg</span><span class="p">)</span><span class="o">.</span><span class="n">blocks</span><span class="o">.</span><span class="n">applyfunc</span><span class="p">(</span><span class="n">transpose</span><span class="p">)</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+    <span class="n">collapse</span> <span class="o">=</span> <span class="n">block_collapse</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">arg</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">collapse</span><span class="o">.</span><span class="n">_eval_transpose</span><span class="p">()</span>
 
 
 <span class="k">def</span> <span class="nf">bc_inverse</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">arg</span><span class="p">,</span> <span class="n">BlockDiagMatrix</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">_eval_inverse</span><span class="p">()</span>
+
     <span class="n">expr2</span> <span class="o">=</span> <span class="n">blockinverse_1x1</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">expr</span> <span class="o">!=</span> <span class="n">expr2</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">expr2</span>
@@ -646,7 +663,7 @@
     </div>
     <div class="footer" role="contentinfo">
         &#169; Copyright 2019 SymPy Development Team.
-      Last updated on Jul 30, 2019.
+      Last updated on Jul 31, 2019.
       Created using <a href="http://sphinx-doc.org/">Sphinx</a> 2.1.2.
     </div>
   </body>
