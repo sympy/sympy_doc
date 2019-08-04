@@ -1033,9 +1033,12 @@
             <span class="n">reps</span> <span class="o">=</span> <span class="p">{}</span>
             <span class="n">rv</span> <span class="o">=</span> <span class="bp">self</span>
             <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;hack2&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
-            <span class="n">m</span> <span class="o">=</span> <span class="n">Dummy</span><span class="p">()</span>
+            <span class="n">m</span> <span class="o">=</span> <span class="n">Dummy</span><span class="p">(</span><span class="s1">&#39;subs_m&#39;</span><span class="p">)</span>
             <span class="k">for</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span> <span class="ow">in</span> <span class="n">sequence</span><span class="p">:</span>
-                <span class="n">d</span> <span class="o">=</span> <span class="n">Dummy</span><span class="p">(</span><span class="n">commutative</span><span class="o">=</span><span class="n">new</span><span class="o">.</span><span class="n">is_commutative</span><span class="p">)</span>
+                <span class="n">com</span> <span class="o">=</span> <span class="n">new</span><span class="o">.</span><span class="n">is_commutative</span>
+                <span class="k">if</span> <span class="n">com</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">com</span> <span class="o">=</span> <span class="kc">True</span>
+                <span class="n">d</span> <span class="o">=</span> <span class="n">Dummy</span><span class="p">(</span><span class="s1">&#39;subs_d&#39;</span><span class="p">,</span> <span class="n">commutative</span><span class="o">=</span><span class="n">com</span><span class="p">)</span>
                 <span class="c1"># using d*m so Subs will be used on dummy variables</span>
                 <span class="c1"># in things like Derivative(f(x, y), x) in which x</span>
                 <span class="c1"># is both free and bound</span>
@@ -1570,11 +1573,15 @@
                 <span class="k">if</span> <span class="n">new</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">new</span> <span class="o">!=</span> <span class="n">expr</span><span class="p">:</span>
                     <span class="n">mapping</span><span class="p">[</span><span class="n">expr</span><span class="p">]</span> <span class="o">=</span> <span class="n">new</span>
                     <span class="k">if</span> <span class="n">simultaneous</span><span class="p">:</span>
-                        <span class="c1"># don&#39;t let this expression be changed during rebuilding</span>
+                        <span class="c1"># don&#39;t let this change during rebuilding;</span>
+                        <span class="c1"># XXX this may fail if the object being replaced</span>
+                        <span class="c1"># cannot be represented as a Dummy in the expression</span>
+                        <span class="c1"># tree, e.g. an ExprConditionPair in Piecewise</span>
+                        <span class="c1"># cannot be represented with a Dummy</span>
                         <span class="n">com</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">new</span><span class="p">,</span> <span class="s1">&#39;is_commutative&#39;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
                         <span class="k">if</span> <span class="n">com</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
                             <span class="n">com</span> <span class="o">=</span> <span class="kc">True</span>
-                        <span class="n">d</span> <span class="o">=</span> <span class="n">Dummy</span><span class="p">(</span><span class="n">commutative</span><span class="o">=</span><span class="n">com</span><span class="p">)</span>
+                        <span class="n">d</span> <span class="o">=</span> <span class="n">Dummy</span><span class="p">(</span><span class="s1">&#39;rec_replace&#39;</span><span class="p">,</span> <span class="n">commutative</span><span class="o">=</span><span class="n">com</span><span class="p">)</span>
                         <span class="n">mask</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">d</span><span class="p">,</span> <span class="n">new</span><span class="p">))</span>
                         <span class="n">expr</span> <span class="o">=</span> <span class="n">d</span>
                     <span class="k">else</span><span class="p">:</span>
@@ -1588,7 +1595,12 @@
             <span class="n">mask</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">reversed</span><span class="p">(</span><span class="n">mask</span><span class="p">))</span>
             <span class="k">for</span> <span class="n">o</span><span class="p">,</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">mask</span><span class="p">:</span>
                 <span class="n">r</span> <span class="o">=</span> <span class="p">{</span><span class="n">o</span><span class="p">:</span> <span class="n">n</span><span class="p">}</span>
-                <span class="n">rv</span> <span class="o">=</span> <span class="n">rv</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">r</span><span class="p">)</span>
+                <span class="c1"># if a sub-expression could not be replaced with</span>
+                <span class="c1"># a Dummy then this will fail; either filter</span>
+                <span class="c1"># against such sub-expressions or figure out a</span>
+                <span class="c1"># way to carry out simultaneous replacement</span>
+                <span class="c1"># in this situation.</span>
+                <span class="n">rv</span> <span class="o">=</span> <span class="n">rv</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">r</span><span class="p">)</span>  <span class="c1"># if this fails, see above</span>
 
         <span class="k">if</span> <span class="ow">not</span> <span class="nb">map</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">rv</span>

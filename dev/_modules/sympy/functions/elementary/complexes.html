@@ -514,6 +514,7 @@
     <span class="k">def</span> <span class="nf">eval</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">arg</span><span class="p">):</span>
         <span class="kn">from</span> <span class="nn">sympy.simplify.simplify</span> <span class="k">import</span> <span class="n">signsimp</span>
         <span class="kn">from</span> <span class="nn">sympy.core.function</span> <span class="k">import</span> <span class="n">expand_mul</span>
+        <span class="kn">from</span> <span class="nn">sympy.core.power</span> <span class="k">import</span> <span class="n">Pow</span>
 
         <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="s1">&#39;_eval_Abs&#39;</span><span class="p">):</span>
             <span class="n">obj</span> <span class="o">=</span> <span class="n">arg</span><span class="o">.</span><span class="n">_eval_Abs</span><span class="p">()</span>
@@ -523,15 +524,26 @@
             <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Bad argument type for Abs(): </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="nb">type</span><span class="p">(</span><span class="n">arg</span><span class="p">))</span>
         <span class="c1"># handle what we can</span>
         <span class="n">arg</span> <span class="o">=</span> <span class="n">signsimp</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="n">n</span><span class="p">,</span> <span class="n">d</span> <span class="o">=</span> <span class="n">arg</span><span class="o">.</span><span class="n">as_numer_denom</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">d</span><span class="o">.</span><span class="n">free_symbols</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">n</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">n</span><span class="p">)</span><span class="o">/</span><span class="bp">cls</span><span class="p">(</span><span class="n">d</span><span class="p">)</span>
+
         <span class="k">if</span> <span class="n">arg</span><span class="o">.</span><span class="n">is_Mul</span><span class="p">:</span>
             <span class="n">known</span> <span class="o">=</span> <span class="p">[]</span>
             <span class="n">unk</span> <span class="o">=</span> <span class="p">[]</span>
             <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">arg</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
-                <span class="n">tnew</span> <span class="o">=</span> <span class="bp">cls</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
-                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">tnew</span><span class="p">,</span> <span class="bp">cls</span><span class="p">):</span>
-                    <span class="n">unk</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">tnew</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+                <span class="k">if</span> <span class="n">t</span><span class="o">.</span><span class="n">is_Pow</span> <span class="ow">and</span> <span class="n">t</span><span class="o">.</span><span class="n">exp</span><span class="o">.</span><span class="n">is_integer</span> <span class="ow">and</span> <span class="n">t</span><span class="o">.</span><span class="n">exp</span><span class="o">.</span><span class="n">is_negative</span><span class="p">:</span>
+                    <span class="n">bnew</span> <span class="o">=</span> <span class="bp">cls</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">base</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">bnew</span><span class="p">,</span> <span class="bp">cls</span><span class="p">):</span>
+                        <span class="n">unk</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">known</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Pow</span><span class="p">(</span><span class="n">bnew</span><span class="p">,</span> <span class="n">t</span><span class="o">.</span><span class="n">exp</span><span class="p">))</span>
                 <span class="k">else</span><span class="p">:</span>
-                    <span class="n">known</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">tnew</span><span class="p">)</span>
+                    <span class="n">tnew</span> <span class="o">=</span> <span class="bp">cls</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">tnew</span><span class="p">,</span> <span class="bp">cls</span><span class="p">):</span>
+                        <span class="n">unk</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">known</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">tnew</span><span class="p">)</span>
             <span class="n">known</span> <span class="o">=</span> <span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">known</span><span class="p">)</span>
             <span class="n">unk</span> <span class="o">=</span> <span class="bp">cls</span><span class="p">(</span><span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">unk</span><span class="p">),</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="k">if</span> <span class="n">unk</span> <span class="k">else</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span>
             <span class="k">return</span> <span class="n">known</span><span class="o">*</span><span class="n">unk</span>
@@ -547,8 +559,6 @@
                         <span class="k">return</span> <span class="n">arg</span>
                     <span class="k">if</span> <span class="n">base</span> <span class="ow">is</span> <span class="n">S</span><span class="o">.</span><span class="n">NegativeOne</span><span class="p">:</span>
                         <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">One</span>
-                    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="bp">cls</span><span class="p">)</span> <span class="ow">and</span> <span class="n">exponent</span> <span class="ow">is</span> <span class="n">S</span><span class="o">.</span><span class="n">NegativeOne</span><span class="p">:</span>
-                        <span class="k">return</span> <span class="n">arg</span>
                     <span class="k">return</span> <span class="n">Abs</span><span class="p">(</span><span class="n">base</span><span class="p">)</span><span class="o">**</span><span class="n">exponent</span>
                 <span class="k">if</span> <span class="n">base</span><span class="o">.</span><span class="n">is_extended_nonnegative</span><span class="p">:</span>
                     <span class="k">return</span> <span class="n">base</span><span class="o">**</span><span class="n">re</span><span class="p">(</span><span class="n">exponent</span><span class="p">)</span>
@@ -560,7 +570,6 @@
                 <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="n">log</span><span class="p">(</span><span class="n">base</span><span class="p">)</span><span class="o">.</span><span class="n">as_real_imag</span><span class="p">()</span>
                 <span class="n">z</span> <span class="o">=</span> <span class="n">a</span> <span class="o">+</span> <span class="n">I</span><span class="o">*</span><span class="n">b</span>
                 <span class="k">return</span> <span class="n">exp</span><span class="p">(</span><span class="n">re</span><span class="p">(</span><span class="n">exponent</span><span class="o">*</span><span class="n">z</span><span class="p">))</span>
-
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">exp</span><span class="p">):</span>
             <span class="k">return</span> <span class="n">exp</span><span class="p">(</span><span class="n">re</span><span class="p">(</span><span class="n">arg</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">AppliedUndef</span><span class="p">):</span>

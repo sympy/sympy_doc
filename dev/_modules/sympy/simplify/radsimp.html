@@ -65,6 +65,7 @@
 <span class="kn">from</span> <span class="nn">sympy.core.mul</span> <span class="k">import</span> <span class="n">_keep_coeff</span><span class="p">,</span> <span class="n">_unevaluated_Mul</span>
 <span class="kn">from</span> <span class="nn">sympy.core.numbers</span> <span class="k">import</span> <span class="n">Rational</span>
 <span class="kn">from</span> <span class="nn">sympy.functions</span> <span class="k">import</span> <span class="n">exp</span><span class="p">,</span> <span class="n">sqrt</span><span class="p">,</span> <span class="n">log</span>
+<span class="kn">from</span> <span class="nn">sympy.functions.elementary.complexes</span> <span class="k">import</span> <span class="n">Abs</span>
 <span class="kn">from</span> <span class="nn">sympy.polys</span> <span class="k">import</span> <span class="n">gcd</span>
 <span class="kn">from</span> <span class="nn">sympy.simplify.sqrtdenest</span> <span class="k">import</span> <span class="n">sqrtdenest</span>
 
@@ -582,6 +583,56 @@
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">args</span><span class="p">),</span> <span class="n">nrad</span>
 
     <span class="k">return</span> <span class="n">coeff</span><span class="o">*</span><span class="n">d</span></div>
+
+
+<span class="k">def</span> <span class="nf">collect_abs</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Return ``expr`` with arguments of multiple Abs in a term collected</span>
+<span class="sd">    under a single instance.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.simplify.radsimp import collect_abs</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.abc import x</span>
+<span class="sd">    &gt;&gt;&gt; collect_abs(abs(x + 1)/abs(x**2 - 1))</span>
+<span class="sd">    Abs((x + 1)/(x**2 - 1))</span>
+<span class="sd">    &gt;&gt;&gt; collect_abs(abs(1/x))</span>
+<span class="sd">    Abs(1/x)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">_abs</span><span class="p">(</span><span class="n">mul</span><span class="p">):</span>
+      <span class="kn">from</span> <span class="nn">sympy.core.mul</span> <span class="k">import</span> <span class="n">_mulsort</span>
+      <span class="n">c</span><span class="p">,</span> <span class="n">nc</span> <span class="o">=</span> <span class="n">mul</span><span class="o">.</span><span class="n">args_cnc</span><span class="p">()</span>
+      <span class="n">a</span> <span class="o">=</span> <span class="p">[]</span>
+      <span class="n">o</span> <span class="o">=</span> <span class="p">[]</span>
+      <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">c</span><span class="p">:</span>
+          <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">Abs</span><span class="p">):</span>
+              <span class="n">a</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+          <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">Pow</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">base</span><span class="p">,</span> <span class="n">Abs</span><span class="p">)</span> <span class="ow">and</span> <span class="n">i</span><span class="o">.</span><span class="n">exp</span><span class="o">.</span><span class="n">is_real</span><span class="p">:</span>
+              <span class="n">a</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">**</span><span class="n">i</span><span class="o">.</span><span class="n">exp</span><span class="p">)</span>
+          <span class="k">else</span><span class="p">:</span>
+              <span class="n">o</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+      <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">2</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">exp</span><span class="o">.</span><span class="n">is_negative</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">a</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">Pow</span><span class="p">)):</span>
+          <span class="k">return</span> <span class="n">mul</span>
+      <span class="n">absarg</span> <span class="o">=</span> <span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">a</span><span class="p">)</span>
+      <span class="n">A</span> <span class="o">=</span> <span class="n">Abs</span><span class="p">(</span><span class="n">absarg</span><span class="p">)</span>
+      <span class="n">args</span> <span class="o">=</span> <span class="p">[</span><span class="n">A</span><span class="p">]</span>
+      <span class="n">args</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">o</span><span class="p">)</span>
+      <span class="k">if</span> <span class="ow">not</span> <span class="n">A</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">Abs</span><span class="p">):</span>
+          <span class="n">args</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">nc</span><span class="p">)</span>
+          <span class="k">return</span> <span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">)</span>
+      <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">Abs</span><span class="p">):</span>
+          <span class="c1"># reevaluate and make it unevaluated</span>
+          <span class="n">A</span> <span class="o">=</span> <span class="n">Abs</span><span class="p">(</span><span class="n">absarg</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+      <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">A</span>
+      <span class="n">_mulsort</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+      <span class="n">args</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">nc</span><span class="p">)</span>  <span class="c1"># nc always go last</span>
+      <span class="k">return</span> <span class="n">Mul</span><span class="o">.</span><span class="n">_from_args</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">is_commutative</span><span class="o">=</span><span class="nb">bool</span><span class="p">(</span><span class="n">nc</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span>
+        <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">Mul</span><span class="p">),</span>
+        <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">_abs</span><span class="p">(</span><span class="n">x</span><span class="p">))</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span>
+            <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">Pow</span><span class="p">),</span>
+            <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">_abs</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
 
 
 <div class="viewcode-block" id="collect_const"><a class="viewcode-back" href="../../../modules/simplify/simplify.html#sympy.simplify.radsimp.collect_const">[docs]</a><span class="k">def</span> <span class="nf">collect_const</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="o">*</span><span class="nb">vars</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>

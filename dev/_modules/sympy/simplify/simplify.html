@@ -77,7 +77,7 @@
 <span class="kn">from</span> <span class="nn">sympy.simplify.combsimp</span> <span class="k">import</span> <span class="n">combsimp</span>
 <span class="kn">from</span> <span class="nn">sympy.simplify.cse_opts</span> <span class="k">import</span> <span class="n">sub_pre</span><span class="p">,</span> <span class="n">sub_post</span>
 <span class="kn">from</span> <span class="nn">sympy.simplify.powsimp</span> <span class="k">import</span> <span class="n">powsimp</span>
-<span class="kn">from</span> <span class="nn">sympy.simplify.radsimp</span> <span class="k">import</span> <span class="n">radsimp</span><span class="p">,</span> <span class="n">fraction</span>
+<span class="kn">from</span> <span class="nn">sympy.simplify.radsimp</span> <span class="k">import</span> <span class="n">radsimp</span><span class="p">,</span> <span class="n">fraction</span><span class="p">,</span> <span class="n">collect_abs</span>
 <span class="kn">from</span> <span class="nn">sympy.simplify.sqrtdenest</span> <span class="k">import</span> <span class="n">sqrtdenest</span>
 <span class="kn">from</span> <span class="nn">sympy.simplify.trigsimp</span> <span class="k">import</span> <span class="n">trigsimp</span><span class="p">,</span> <span class="n">exptrigsimp</span>
 <span class="kn">from</span> <span class="nn">sympy.utilities.iterables</span> <span class="k">import</span> <span class="n">has_variety</span><span class="p">,</span> <span class="n">sift</span>
@@ -159,8 +159,16 @@
 
 
 <span class="k">def</span> <span class="nf">_separatevars</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">force</span><span class="p">):</span>
-    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+    <span class="kn">from</span> <span class="nn">sympy.functions.elementary.complexes</span> <span class="k">import</span> <span class="n">Abs</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">Abs</span><span class="p">):</span>
+        <span class="n">arg</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">arg</span><span class="o">.</span><span class="n">is_Mul</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">arg</span><span class="o">.</span><span class="n">is_number</span><span class="p">:</span>
+            <span class="n">s</span> <span class="o">=</span> <span class="n">separatevars</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="nb">dict</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">force</span><span class="o">=</span><span class="n">force</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="nb">map</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="p">,</span> <span class="n">s</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">expr</span>
+
     <span class="c1"># don&#39;t destroy a Mul since much of the work may already be done</span>
     <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Mul</span><span class="p">:</span>
         <span class="n">args</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
@@ -568,8 +576,16 @@
 <span class="sd">    expression. You can avoid this behavior by passing ``doit=False`` as</span>
 <span class="sd">    an argument.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">shorter</span><span class="p">(</span><span class="o">*</span><span class="n">choices</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Return the choice that has the fewest ops. In case of a tie,</span>
+<span class="sd">        the expression listed first is selected.&#39;&#39;&#39;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">has_variety</span><span class="p">(</span><span class="n">choices</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">choices</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">return</span> <span class="nb">min</span><span class="p">(</span><span class="n">choices</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">measure</span><span class="p">)</span>
+
     <span class="k">def</span> <span class="nf">done</span><span class="p">(</span><span class="n">e</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">e</span><span class="o">.</span><span class="n">doit</span><span class="p">()</span> <span class="k">if</span> <span class="n">doit</span> <span class="k">else</span> <span class="n">e</span>
+        <span class="n">rv</span> <span class="o">=</span> <span class="n">e</span><span class="o">.</span><span class="n">doit</span><span class="p">()</span> <span class="k">if</span> <span class="n">doit</span> <span class="k">else</span> <span class="n">e</span>
+        <span class="k">return</span> <span class="n">shorter</span><span class="p">(</span><span class="n">rv</span><span class="p">,</span> <span class="n">collect_abs</span><span class="p">(</span><span class="n">rv</span><span class="p">))</span>
 
     <span class="n">expr</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
     <span class="n">kwargs</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
@@ -586,7 +602,7 @@
     <span class="k">if</span> <span class="n">_eval_simplify</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">_eval_simplify</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
-    <span class="n">original_expr</span> <span class="o">=</span> <span class="n">expr</span> <span class="o">=</span> <span class="n">signsimp</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+    <span class="n">original_expr</span> <span class="o">=</span> <span class="n">expr</span> <span class="o">=</span> <span class="n">collect_abs</span><span class="p">(</span><span class="n">signsimp</span><span class="p">(</span><span class="n">expr</span><span class="p">))</span>
 
     <span class="kn">from</span> <span class="nn">sympy.simplify.hyperexpand</span> <span class="k">import</span> <span class="n">hyperexpand</span>
     <span class="kn">from</span> <span class="nn">sympy.functions.special.bessel</span> <span class="k">import</span> <span class="n">BesselBase</span>
@@ -600,9 +616,20 @@
         <span class="k">if</span> <span class="ow">not</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>  <span class="c1"># simplified to atomic</span>
             <span class="k">return</span> <span class="n">expr</span>
 
-    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="p">(</span><span class="n">Add</span><span class="p">,</span> <span class="n">Mul</span><span class="p">,</span> <span class="n">Pow</span><span class="p">,</span> <span class="n">ExpBase</span><span class="p">)):</span>
-        <span class="k">return</span> <span class="n">done</span><span class="p">(</span>
-            <span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">simplify</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">]))</span>
+    <span class="c1"># do deep simplification</span>
+    <span class="n">handled</span> <span class="o">=</span> <span class="n">Add</span><span class="p">,</span> <span class="n">Mul</span><span class="p">,</span> <span class="n">Pow</span><span class="p">,</span> <span class="n">ExpBase</span>
+    <span class="n">expr</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span>
+        <span class="c1"># here, checking for x.args is not enough because Basic has</span>
+        <span class="c1"># args but Basic does not always play well with replace, e.g.</span>
+        <span class="c1"># when simultaneous is True found expressions will be masked</span>
+        <span class="c1"># off with a Dummy but not all Basic objects in an expression</span>
+        <span class="c1"># can be replaced with a Dummy</span>
+        <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">Expr</span><span class="p">)</span> <span class="ow">and</span> <span class="n">x</span><span class="o">.</span><span class="n">args</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span>
+            <span class="n">x</span><span class="p">,</span> <span class="n">handled</span><span class="p">),</span>
+        <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">simplify</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">x</span><span class="o">.</span><span class="n">args</span><span class="p">]),</span>
+        <span class="n">simultaneous</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">handled</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">done</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="ow">not</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_commutative</span><span class="p">:</span>
         <span class="n">expr</span> <span class="o">=</span> <span class="n">nc_simplify</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
@@ -610,13 +637,6 @@
     <span class="c1"># TODO: Apply different strategies, considering expression pattern:</span>
     <span class="c1"># is it a purely rational function? Is there any trigonometric function?...</span>
     <span class="c1"># See also https://github.com/sympy/sympy/pull/185.</span>
-
-    <span class="k">def</span> <span class="nf">shorter</span><span class="p">(</span><span class="o">*</span><span class="n">choices</span><span class="p">):</span>
-        <span class="sd">&#39;&#39;&#39;Return the choice that has the fewest ops. In case of a tie,</span>
-<span class="sd">        the expression listed first is selected.&#39;&#39;&#39;</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">has_variety</span><span class="p">(</span><span class="n">choices</span><span class="p">):</span>
-            <span class="k">return</span> <span class="n">choices</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-        <span class="k">return</span> <span class="nb">min</span><span class="p">(</span><span class="n">choices</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">measure</span><span class="p">)</span>
 
     <span class="c1"># rationalize Floats</span>
     <span class="n">floats</span> <span class="o">=</span> <span class="kc">False</span>
