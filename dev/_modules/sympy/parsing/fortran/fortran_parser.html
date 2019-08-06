@@ -1,0 +1,447 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>sympy.parsing.fortran.fortran_parser &#8212; SymPy 1.5.dev documentation</title>
+    <link rel="stylesheet" href="../../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/graphviz.css" />
+    <link rel="stylesheet" type="text/css" href="https://live.sympy.org/static/live-core.css" />
+    <link rel="stylesheet" type="text/css" href="https://live.sympy.org/static/live-autocomplete.css" />
+    <link rel="stylesheet" type="text/css" href="https://live.sympy.org/static/live-sphinx.css" />
+    
+    <script type="text/javascript" id="documentation_options" data-url_root="../../../../" src="../../../../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../../_static/language_data.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/utilities.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/external/classy.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/live-core.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/live-autocomplete.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/live-sphinx.js"></script>
+    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS_HTML-full"></script>
+    
+    <link rel="shortcut icon" href="../../../../_static/sympy-notailtext-favicon.ico"/>
+    <link href="https://docs.sympy.org/latest/_modules/sympy/parsing/fortran/fortran_parser.html" rel="canonical" />
+    
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../../../index.html">SymPy 1.5.dev documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../../../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for sympy.parsing.fortran.fortran_parser</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">sympy.codegen.ast</span> <span class="k">import</span> <span class="p">(</span><span class="n">Variable</span><span class="p">,</span> <span class="n">IntBaseType</span><span class="p">,</span> <span class="n">FloatBaseType</span><span class="p">,</span> <span class="n">String</span><span class="p">,</span>
+                               <span class="n">Return</span><span class="p">,</span> <span class="n">FunctionDefinition</span><span class="p">,</span> <span class="n">Assignment</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">sympy.core</span> <span class="k">import</span> <span class="n">Add</span><span class="p">,</span> <span class="n">Mul</span><span class="p">,</span> <span class="n">Integer</span><span class="p">,</span> <span class="n">Float</span>
+<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Symbol</span>
+<span class="kn">from</span> <span class="nn">sympy.external</span> <span class="k">import</span> <span class="n">import_module</span>
+<span class="n">lfortran</span> <span class="o">=</span> <span class="n">import_module</span><span class="p">(</span><span class="s1">&#39;lfortran&#39;</span><span class="p">)</span>
+
+<span class="k">if</span> <span class="n">lfortran</span><span class="p">:</span>
+    <span class="n">asr_mod</span> <span class="o">=</span> <span class="n">lfortran</span><span class="o">.</span><span class="n">asr</span>
+    <span class="n">asr</span> <span class="o">=</span> <span class="n">lfortran</span><span class="o">.</span><span class="n">asr</span><span class="o">.</span><span class="n">asr</span>
+    <span class="n">src_to_ast</span> <span class="o">=</span> <span class="n">lfortran</span><span class="o">.</span><span class="n">ast</span><span class="o">.</span><span class="n">src_to_ast</span>
+    <span class="n">ast_to_asr</span> <span class="o">=</span> <span class="n">lfortran</span><span class="o">.</span><span class="n">semantic</span><span class="o">.</span><span class="n">ast_to_asr</span><span class="o">.</span><span class="n">ast_to_asr</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This module contains all the necessary Classes and Function used to Parse</span>
+<span class="sd">    Fortran code into SymPy expression</span>
+
+<span class="sd">    The module and its API are currently under development and experimental.</span>
+<span class="sd">    It is also dependent on LFortran for the ASR that is converted to SymPy syntax</span>
+<span class="sd">    which is also under development.</span>
+<span class="sd">    The module only supports the features currently supported by the LFortran ASR</span>
+<span class="sd">    which will be updated as the development of LFortran and this module progresses</span>
+
+<span class="sd">    You might find unexpected bugs and exceptions while using the module, feel free</span>
+<span class="sd">    to report them to the SymPy Issue Tracker</span>
+
+<span class="sd">    The API for the module might also change while in development if better and</span>
+<span class="sd">    more effective ways are discovered for the process</span>
+
+<span class="sd">    Features Supported</span>
+<span class="sd">    ==================</span>
+
+<span class="sd">    - Variable Declarations (integers and reals)</span>
+<span class="sd">    - Function Definitions</span>
+<span class="sd">    - Assignments and Basic Binary Operations</span>
+
+
+<span class="sd">    Notes</span>
+<span class="sd">    =====</span>
+
+<span class="sd">    The module depends on an external dependency</span>
+
+<span class="sd">    LFortran : Required to parse Fortran source code into ASR</span>
+
+
+<span class="sd">    Refrences</span>
+<span class="sd">    =========</span>
+
+<span class="sd">    .. [1] https://github.com/sympy/sympy/issues</span>
+<span class="sd">    .. [2] https://gitlab.com/lfortran/lfortran</span>
+<span class="sd">    .. [3] https://docs.lfortran.org/</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+
+    <span class="k">class</span> <span class="nc">ASR2PyVisitor</span><span class="p">(</span><span class="n">asr</span><span class="o">.</span><span class="n">ASTVisitor</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Visitor Class for LFortran ASR</span>
+
+<span class="sd">        It is a Visitor class derived from asr.ASRVisitor which visits all the</span>
+<span class="sd">        nodes of the LFortran ASR and creates corresponding AST node for each</span>
+<span class="sd">        ASR node</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+            <span class="sd">&quot;&quot;&quot;Initialize the Parser&quot;&quot;&quot;</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_py_ast</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">def</span> <span class="nf">visit_TranslationUnit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+            <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">            Function to visit all the elements of the Translation Unit</span>
+<span class="sd">            created by LFortran ASR</span>
+<span class="sd">            &quot;&quot;&quot;</span>
+            <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">global_scope</span><span class="o">.</span><span class="n">symbols</span><span class="p">:</span>
+                <span class="n">sym</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">global_scope</span><span class="o">.</span><span class="n">symbols</span><span class="p">[</span><span class="n">s</span><span class="p">]</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">sym</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">items</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">item</span><span class="p">)</span>
+
+        <span class="k">def</span> <span class="nf">visit_Assignment</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+            <span class="sd">&quot;&quot;&quot;Visitor Function for Assignment</span>
+
+<span class="sd">            Visits each Assignment is the LFortran ASR and creates corresponding</span>
+<span class="sd">            assignment for SymPy.</span>
+
+<span class="sd">            Notes</span>
+<span class="sd">            =====</span>
+
+<span class="sd">            The function currently only supports variable assignment and binary</span>
+<span class="sd">            operation assignments of varying multitudes. Any type of numberS or</span>
+<span class="sd">            array is not supported.</span>
+
+<span class="sd">            Raises</span>
+<span class="sd">            ======</span>
+
+<span class="sd">            NotImplementedError() when called for Numeric assignments or Arrays</span>
+
+<span class="sd">            &quot;&quot;&quot;</span>
+            <span class="c1"># TODO: Arithmatic Assignment</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">target</span><span class="p">,</span> <span class="n">asr</span><span class="o">.</span><span class="n">Variable</span><span class="p">):</span>
+                <span class="n">target</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">target</span>
+                <span class="n">value</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">value</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">asr</span><span class="o">.</span><span class="n">Variable</span><span class="p">):</span>
+                    <span class="n">new_node</span> <span class="o">=</span> <span class="n">Assignment</span><span class="p">(</span>
+                            <span class="n">Variable</span><span class="p">(</span>
+                                    <span class="n">target</span><span class="o">.</span><span class="n">name</span>
+                                <span class="p">),</span>
+                            <span class="n">Variable</span><span class="p">(</span>
+                                    <span class="n">value</span><span class="o">.</span><span class="n">name</span>
+                                <span class="p">)</span>
+                        <span class="p">)</span>
+                <span class="k">elif</span> <span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="o">==</span> <span class="n">asr</span><span class="o">.</span><span class="n">BinOp</span><span class="p">):</span>
+                    <span class="n">exp_ast</span> <span class="o">=</span> <span class="n">call_visitor</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+                    <span class="k">for</span> <span class="n">expr</span> <span class="ow">in</span> <span class="n">exp_ast</span><span class="p">:</span>
+                        <span class="n">new_node</span> <span class="o">=</span> <span class="n">Assignment</span><span class="p">(</span>
+                                <span class="n">Variable</span><span class="p">(</span><span class="n">target</span><span class="o">.</span><span class="n">name</span><span class="p">),</span>
+                                <span class="n">expr</span>
+                            <span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Numeric assignments not supported&quot;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Arrays not supported&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_py_ast</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">new_node</span><span class="p">)</span>
+
+        <span class="k">def</span> <span class="nf">visit_BinOp</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+            <span class="sd">&quot;&quot;&quot;Visitor Function for Binary Operations</span>
+
+<span class="sd">            Visits each binary operation present in the LFortran ASR like addition,</span>
+<span class="sd">            subtraction, multiplication, division and creates the corresponding</span>
+<span class="sd">            operation node in SymPy&#39;s AST</span>
+
+<span class="sd">            In case of more than one binary operations, the function calls the</span>
+<span class="sd">            call_visitor() function on the child nodes of the binary operations</span>
+<span class="sd">            recursively until all the operations have been processed.</span>
+
+<span class="sd">            Notes</span>
+<span class="sd">            =====</span>
+
+<span class="sd">            The function currently only supports binary operations with Variables</span>
+<span class="sd">            or other binary operations. Numerics are not supported as of yet.</span>
+
+<span class="sd">            Raises</span>
+<span class="sd">            ======</span>
+
+<span class="sd">            NotImplementedError() when called for Numeric assignments</span>
+
+<span class="sd">            &quot;&quot;&quot;</span>
+            <span class="c1"># TODO: Integer Binary Operations</span>
+            <span class="n">op</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">op</span>
+            <span class="n">lhs</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">left</span>
+            <span class="n">rhs</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">right</span>
+
+            <span class="k">if</span> <span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">lhs</span><span class="p">)</span> <span class="o">==</span> <span class="n">asr</span><span class="o">.</span><span class="n">Variable</span><span class="p">):</span>
+                <span class="n">left_value</span> <span class="o">=</span> <span class="n">Symbol</span><span class="p">(</span><span class="n">lhs</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+            <span class="k">elif</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">lhs</span><span class="p">)</span> <span class="o">==</span> <span class="n">asr</span><span class="o">.</span><span class="n">BinOp</span><span class="p">):</span>
+                <span class="n">l_exp_ast</span> <span class="o">=</span> <span class="n">call_visitor</span><span class="p">(</span><span class="n">lhs</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">exp</span> <span class="ow">in</span> <span class="n">l_exp_ast</span><span class="p">:</span>
+                    <span class="n">left_value</span> <span class="o">=</span> <span class="n">exp</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Numbers Currently not supported&quot;</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">rhs</span><span class="p">)</span> <span class="o">==</span> <span class="n">asr</span><span class="o">.</span><span class="n">Variable</span><span class="p">):</span>
+                <span class="n">right_value</span> <span class="o">=</span> <span class="n">Symbol</span><span class="p">(</span><span class="n">rhs</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+            <span class="k">elif</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">rhs</span><span class="p">)</span> <span class="o">==</span> <span class="n">asr</span><span class="o">.</span><span class="n">BinOp</span><span class="p">):</span>
+                <span class="n">r_exp_ast</span> <span class="o">=</span> <span class="n">call_visitor</span><span class="p">(</span><span class="n">rhs</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">exp</span> <span class="ow">in</span> <span class="n">r_exp_ast</span><span class="p">:</span>
+                    <span class="n">right_value</span> <span class="o">=</span> <span class="n">exp</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Numbers Currently not supported&quot;</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">op</span><span class="p">,</span> <span class="n">asr</span><span class="o">.</span><span class="n">Add</span><span class="p">):</span>
+                <span class="n">new_node</span> <span class="o">=</span> <span class="n">Add</span><span class="p">(</span><span class="n">left_value</span><span class="p">,</span> <span class="n">right_value</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">op</span><span class="p">,</span> <span class="n">asr</span><span class="o">.</span><span class="n">Sub</span><span class="p">):</span>
+                <span class="n">new_node</span> <span class="o">=</span> <span class="n">Add</span><span class="p">(</span><span class="n">left_value</span><span class="p">,</span> <span class="o">-</span><span class="n">right_value</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">op</span><span class="p">,</span> <span class="n">asr</span><span class="o">.</span><span class="n">Div</span><span class="p">):</span>
+                <span class="n">new_node</span> <span class="o">=</span> <span class="n">Mul</span><span class="p">(</span><span class="n">left_value</span><span class="p">,</span> <span class="mi">1</span><span class="o">/</span><span class="n">right_value</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">op</span><span class="p">,</span> <span class="n">asr</span><span class="o">.</span><span class="n">Mul</span><span class="p">):</span>
+                <span class="n">new_node</span> <span class="o">=</span> <span class="n">Mul</span><span class="p">(</span><span class="n">left_value</span><span class="p">,</span> <span class="n">right_value</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">_py_ast</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">new_node</span><span class="p">)</span>
+
+        <span class="k">def</span> <span class="nf">visit_Variable</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+            <span class="sd">&quot;&quot;&quot;Visitor Function for Variable Declaration</span>
+
+<span class="sd">            Visits each variable declaration present in the ASR and creates a</span>
+<span class="sd">            Symbol declaration for each variable</span>
+
+<span class="sd">            Notes</span>
+<span class="sd">            =====</span>
+
+<span class="sd">            The functions currently only support declaration of integer and</span>
+<span class="sd">            real variables. Other data types are still under development.</span>
+
+<span class="sd">            Raises</span>
+<span class="sd">            ======</span>
+
+<span class="sd">            NotImplementedError() when called for unsupported data types</span>
+
+<span class="sd">            &quot;&quot;&quot;</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">type</span><span class="p">,</span> <span class="n">asr</span><span class="o">.</span><span class="n">Integer</span><span class="p">):</span>
+                <span class="n">var_type</span> <span class="o">=</span> <span class="n">IntBaseType</span><span class="p">(</span><span class="n">String</span><span class="p">(</span><span class="s1">&#39;integer&#39;</span><span class="p">))</span>
+                <span class="n">value</span> <span class="o">=</span> <span class="n">Integer</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">type</span><span class="p">,</span> <span class="n">asr</span><span class="o">.</span><span class="n">Real</span><span class="p">):</span>
+                <span class="n">var_type</span> <span class="o">=</span> <span class="n">FloatBaseType</span><span class="p">(</span><span class="n">String</span><span class="p">(</span><span class="s1">&#39;real&#39;</span><span class="p">))</span>
+                <span class="n">value</span> <span class="o">=</span> <span class="n">Float</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Data type not supported&quot;</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">intent</span> <span class="o">==</span> <span class="s1">&#39;in&#39;</span><span class="p">):</span>
+                <span class="n">new_node</span> <span class="o">=</span> <span class="n">Variable</span><span class="p">(</span>
+                    <span class="n">node</span><span class="o">.</span><span class="n">name</span>
+                <span class="p">)</span><span class="o">.</span><span class="n">as_Declaration</span><span class="p">(</span>
+                    <span class="nb">type</span> <span class="o">=</span> <span class="n">var_type</span><span class="p">,</span>
+                    <span class="n">value</span> <span class="o">=</span> <span class="n">value</span>
+                <span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_py_ast</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">new_node</span><span class="p">)</span>
+
+        <span class="k">def</span> <span class="nf">visit_Sequence</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">seq</span><span class="p">):</span>
+            <span class="sd">&quot;&quot;&quot;Visitor Function for code sequence</span>
+
+<span class="sd">            Visits a code sequence/ block and calls the visitor function on all the</span>
+<span class="sd">            children of the code block to create corresponding code in python</span>
+
+<span class="sd">            &quot;&quot;&quot;</span>
+            <span class="k">if</span> <span class="n">seq</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">seq</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_py_ast</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">call_visitor</span><span class="p">(</span><span class="n">node</span><span class="p">))</span>
+
+        <span class="k">def</span> <span class="nf">visit_Num</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+            <span class="sd">&quot;&quot;&quot;Visitor Function for Numbers in ASR</span>
+
+<span class="sd">            This function is currently under development and will be updated</span>
+<span class="sd">            with improvements in the LFortran ASR</span>
+
+<span class="sd">            &quot;&quot;&quot;</span>
+            <span class="c1"># TODO:Numbers when the LFortran ASR is updated</span>
+            <span class="c1"># self._py_ast.append(Integer(node.n))</span>
+            <span class="k">pass</span>
+
+        <span class="k">def</span> <span class="nf">visit_Function</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+            <span class="sd">&quot;&quot;&quot;Visitor Function for function Definitions</span>
+
+<span class="sd">            Visits each function definition present in the ASR and creates a</span>
+<span class="sd">            function definition node in the Python AST with all the elements of the</span>
+<span class="sd">            given function</span>
+
+<span class="sd">            The functions declare all the variables required as SymPy symbols in</span>
+<span class="sd">            the function before the function definition</span>
+
+<span class="sd">            This function also the call_visior_function to parse the contents of</span>
+<span class="sd">            the function body</span>
+
+<span class="sd">            &quot;&quot;&quot;</span>
+            <span class="c1"># TODO: Return statement, variable declaration</span>
+            <span class="n">fn_args</span> <span class="o">=</span><span class="p">[]</span>
+            <span class="n">fn_body</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">fn_name</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">name</span>
+            <span class="k">for</span> <span class="n">arg_iter</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
+                <span class="n">fn_args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                    <span class="n">Variable</span><span class="p">(</span>
+                        <span class="n">arg_iter</span><span class="o">.</span><span class="n">name</span>
+                    <span class="p">)</span>
+                <span class="p">)</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">body</span><span class="p">:</span>
+                <span class="n">fn_ast</span> <span class="o">=</span> <span class="n">call_visitor</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">fn_body_expr</span> <span class="o">=</span> <span class="n">fn_ast</span>
+            <span class="k">except</span> <span class="ne">UnboundLocalError</span><span class="p">:</span>
+                <span class="n">fn_body_expr</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">sym</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">symtab</span><span class="o">.</span><span class="n">symbols</span><span class="p">:</span>
+                <span class="n">decl</span> <span class="o">=</span> <span class="n">call_visitor</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">symtab</span><span class="o">.</span><span class="n">symbols</span><span class="p">[</span><span class="n">sym</span><span class="p">])</span>
+                <span class="k">for</span> <span class="n">symbols</span> <span class="ow">in</span> <span class="n">decl</span><span class="p">:</span>
+                    <span class="n">fn_body</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">symbols</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">elem</span> <span class="ow">in</span> <span class="n">fn_body_expr</span><span class="p">:</span>
+                <span class="n">fn_body</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">elem</span><span class="p">)</span>
+            <span class="n">fn_body</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="n">Return</span><span class="p">(</span>
+                    <span class="n">Variable</span><span class="p">(</span>
+                        <span class="n">node</span><span class="o">.</span><span class="n">return_var</span><span class="o">.</span><span class="n">name</span>
+                    <span class="p">)</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">return_var</span><span class="o">.</span><span class="n">type</span><span class="p">,</span> <span class="n">asr</span><span class="o">.</span><span class="n">Integer</span><span class="p">):</span>
+                <span class="n">ret_type</span> <span class="o">=</span> <span class="n">IntBaseType</span><span class="p">(</span><span class="n">String</span><span class="p">(</span><span class="s1">&#39;integer&#39;</span><span class="p">))</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">return_var</span><span class="o">.</span><span class="n">type</span><span class="p">,</span> <span class="n">asr</span><span class="o">.</span><span class="n">Real</span><span class="p">):</span>
+                <span class="n">ret_type</span> <span class="o">=</span> <span class="n">FloatBaseType</span><span class="p">(</span><span class="n">String</span><span class="p">(</span><span class="s1">&#39;real&#39;</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Data type not supported&quot;</span><span class="p">)</span>
+            <span class="n">new_node</span> <span class="o">=</span> <span class="n">FunctionDefinition</span><span class="p">(</span>
+                        <span class="n">return_type</span> <span class="o">=</span> <span class="n">ret_type</span><span class="p">,</span>
+                        <span class="n">name</span> <span class="o">=</span> <span class="n">fn_name</span><span class="p">,</span>
+                        <span class="n">parameters</span> <span class="o">=</span> <span class="n">fn_args</span><span class="p">,</span>
+                        <span class="n">body</span> <span class="o">=</span> <span class="n">fn_body</span>
+                    <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_py_ast</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">new_node</span><span class="p">)</span>
+
+        <span class="k">def</span> <span class="nf">ret_ast</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+            <span class="sd">&quot;&quot;&quot;Returns the AST nodes&quot;&quot;&quot;</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_py_ast</span>
+<span class="k">else</span><span class="p">:</span>
+<div class="viewcode-block" id="ASR2PyVisitor"><a class="viewcode-back" href="../../../../modules/parsing.html#sympy.parsing.fortran.fortran_parser.ASR2PyVisitor">[docs]</a>    <span class="k">class</span> <span class="nc">ASR2PyVisitor</span><span class="p">():</span>
+        <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span><span class="s1">&#39;lfortran not available&#39;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="call_visitor"><a class="viewcode-back" href="../../../../modules/parsing.html#sympy.parsing.fortran.fortran_parser.call_visitor">[docs]</a><span class="k">def</span> <span class="nf">call_visitor</span><span class="p">(</span><span class="n">fort_node</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Calls the AST Visitor on the Module</span>
+
+<span class="sd">    This function is used to call the AST visitor for a program or module</span>
+<span class="sd">    It imports all the required modules and calls the visit() function</span>
+<span class="sd">    on the given node</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    fort_node : LFortran ASR object</span>
+<span class="sd">        Node for the operation for which the NodeVisitor is called</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    =======</span>
+
+<span class="sd">    res_ast : list</span>
+<span class="sd">        list of sympy AST Nodes</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">v</span> <span class="o">=</span> <span class="n">ASR2PyVisitor</span><span class="p">()</span>
+    <span class="n">v</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">fort_node</span><span class="p">)</span>
+    <span class="n">res_ast</span> <span class="o">=</span> <span class="n">v</span><span class="o">.</span><span class="n">ret_ast</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">res_ast</span></div>
+
+
+<div class="viewcode-block" id="src_to_sympy"><a class="viewcode-back" href="../../../../modules/parsing.html#sympy.parsing.fortran.fortran_parser.src_to_sympy">[docs]</a><span class="k">def</span> <span class="nf">src_to_sympy</span><span class="p">(</span><span class="n">src</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Wrapper function to convert the given Fortran source code to SymPy Expressions</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    src : string</span>
+<span class="sd">        A string with the Fortran source code</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    =======</span>
+
+<span class="sd">    py_src : string</span>
+<span class="sd">        A string with the python source code compatible with SymPy</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">a_ast</span> <span class="o">=</span> <span class="n">src_to_ast</span><span class="p">(</span><span class="n">src</span><span class="p">,</span><span class="n">translation_unit</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">a</span> <span class="o">=</span> <span class="n">ast_to_asr</span><span class="p">(</span><span class="n">a_ast</span><span class="p">)</span>
+    <span class="n">py_src</span> <span class="o">=</span> <span class="n">call_visitor</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">py_src</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../../../index.html">
+              <img class="logo" src="../../../../_static/sympylogo.png" alt="Logo"/>
+            </a></p>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../../../index.html">SymPy 1.5.dev documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../../../index.html" >Module code</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2019 SymPy Development Team.
+      Last updated on Aug 06, 2019.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 2.1.2.
+    </div>
+  </body>
+</html>
