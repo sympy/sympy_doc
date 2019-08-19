@@ -69,19 +69,32 @@
 <span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">print_function</span>
 
 <span class="kn">from</span> <span class="nn">string</span> <span class="k">import</span> <span class="n">whitespace</span><span class="p">,</span> <span class="n">ascii_uppercase</span> <span class="k">as</span> <span class="n">uppercase</span><span class="p">,</span> <span class="n">printable</span>
+<span class="kn">from</span> <span class="nn">functools</span> <span class="k">import</span> <span class="n">reduce</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
 
 <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">nextprime</span>
 <span class="kn">from</span> <span class="nn">sympy.core</span> <span class="k">import</span> <span class="n">Rational</span><span class="p">,</span> <span class="n">Symbol</span>
-<span class="kn">from</span> <span class="nn">sympy.core.numbers</span> <span class="k">import</span> <span class="n">igcdex</span><span class="p">,</span> <span class="n">mod_inverse</span>
-<span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="k">import</span> <span class="nb">range</span>
+<span class="kn">from</span> <span class="nn">sympy.core.numbers</span> <span class="k">import</span> <span class="n">igcdex</span><span class="p">,</span> <span class="n">mod_inverse</span><span class="p">,</span> <span class="n">igcd</span>
+<span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="k">import</span> <span class="nb">range</span><span class="p">,</span> <span class="n">as_int</span>
 <span class="kn">from</span> <span class="nn">sympy.matrices</span> <span class="k">import</span> <span class="n">Matrix</span>
-<span class="kn">from</span> <span class="nn">sympy.ntheory</span> <span class="k">import</span> <span class="n">isprime</span><span class="p">,</span> <span class="n">primitive_root</span>
+<span class="kn">from</span> <span class="nn">sympy.ntheory</span> <span class="k">import</span> <span class="n">isprime</span><span class="p">,</span> <span class="n">primitive_root</span><span class="p">,</span> <span class="n">factorint</span>
 <span class="kn">from</span> <span class="nn">sympy.polys.domains</span> <span class="k">import</span> <span class="n">FF</span>
 <span class="kn">from</span> <span class="nn">sympy.polys.polytools</span> <span class="k">import</span> <span class="n">gcd</span><span class="p">,</span> <span class="n">Poly</span>
 <span class="kn">from</span> <span class="nn">sympy.utilities.misc</span> <span class="k">import</span> <span class="n">filldedent</span><span class="p">,</span> <span class="n">translate</span>
-<span class="kn">from</span> <span class="nn">sympy.utilities.iterables</span> <span class="k">import</span> <span class="n">uniq</span>
+<span class="kn">from</span> <span class="nn">sympy.utilities.iterables</span> <span class="k">import</span> <span class="n">uniq</span><span class="p">,</span> <span class="n">multiset</span>
 <span class="kn">from</span> <span class="nn">sympy.utilities.randtest</span> <span class="k">import</span> <span class="n">_randrange</span><span class="p">,</span> <span class="n">_randint</span>
-<span class="kn">from</span> <span class="nn">sympy.utilities.exceptions</span> <span class="k">import</span> <span class="n">SymPyDeprecationWarning</span>
+
+
+<span class="k">class</span> <span class="nc">NonInvertibleCipherWarning</span><span class="p">(</span><span class="ne">RuntimeWarning</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A warning raised if the cipher is not invertible.&quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">msg</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fullMessage</span> <span class="o">=</span> <span class="n">msg</span>
+
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s1">&#39;</span><span class="se">\n\t</span><span class="s1">&#39;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">fullMessage</span>
+
+    <span class="k">def</span> <span class="nf">warn</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">stacklevel</span><span class="o">=</span><span class="mi">2</span><span class="p">):</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">stacklevel</span><span class="o">=</span><span class="n">stacklevel</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="AZ"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.AZ">[docs]</a><span class="k">def</span> <span class="nf">AZ</span><span class="p">(</span><span class="n">s</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
@@ -1435,23 +1448,292 @@
 
 <span class="c1">#################### RSA  #############################</span>
 
+<span class="k">def</span> <span class="nf">_decipher_rsa_crt</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">factors</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Decipher RSA using chinese remainder theorem from the information</span>
+<span class="sd">    of the relatively-prime factors of the modulus.</span>
 
-<div class="viewcode-block" id="rsa_public_key"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.rsa_public_key">[docs]</a><span class="k">def</span> <span class="nf">rsa_public_key</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="n">e</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Return the RSA *public key* pair, `(n, e)`, where `n`</span>
-<span class="sd">    is a product of two primes and `e` is relatively</span>
-<span class="sd">    prime (coprime) to the Euler totient `\phi(n)`. False</span>
-<span class="sd">    is returned if any assumption is violated.</span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    i : integer</span>
+<span class="sd">        Ciphertext</span>
+
+<span class="sd">    d : integer</span>
+<span class="sd">        The exponent component</span>
+
+<span class="sd">    factors : list of relatively-prime integers</span>
+<span class="sd">        The integers given must be coprime and the product must equal</span>
+<span class="sd">        the modulus component of the original RSA key.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    How to decrypt RSA with CRT:</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.crypto.crypto import rsa_public_key, rsa_private_key</span>
+<span class="sd">    &gt;&gt;&gt; primes = [61, 53]</span>
+<span class="sd">    &gt;&gt;&gt; e = 17</span>
+<span class="sd">    &gt;&gt;&gt; args = primes + [e]</span>
+<span class="sd">    &gt;&gt;&gt; puk = rsa_public_key(*args)</span>
+<span class="sd">    &gt;&gt;&gt; prk = rsa_private_key(*args)</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.crypto.crypto import encipher_rsa, _decipher_rsa_crt</span>
+<span class="sd">    &gt;&gt;&gt; msg = 65</span>
+<span class="sd">    &gt;&gt;&gt; crt_primes = primes</span>
+<span class="sd">    &gt;&gt;&gt; encrypted = encipher_rsa(msg, puk)</span>
+<span class="sd">    &gt;&gt;&gt; decrypted = _decipher_rsa_crt(encrypted, prk[1], primes)</span>
+<span class="sd">    &gt;&gt;&gt; decrypted</span>
+<span class="sd">    65</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">sympy.ntheory.modular</span> <span class="k">import</span> <span class="n">crt</span>
+    <span class="n">moduluses</span> <span class="o">=</span> <span class="p">[</span><span class="nb">pow</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">p</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">factors</span><span class="p">]</span>
+
+    <span class="n">result</span> <span class="o">=</span> <span class="n">crt</span><span class="p">(</span><span class="n">factors</span><span class="p">,</span> <span class="n">moduluses</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">result</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;CRT failed&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">result</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">_rsa_key</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;A private subroutine to generate RSA key</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    public, private : bool, optional</span>
+<span class="sd">        Flag to generate either a public key, a private key</span>
+
+<span class="sd">    totient : &#39;Euler&#39; or &#39;Carmichael&#39;</span>
+<span class="sd">        Different notation used for totient.</span>
+
+<span class="sd">    multipower : bool, optional</span>
+<span class="sd">        Flag to bypass warning for multipower RSA.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">sympy.ntheory</span> <span class="k">import</span> <span class="n">totient</span> <span class="k">as</span> <span class="n">_euler</span>
+    <span class="kn">from</span> <span class="nn">sympy.ntheory</span> <span class="k">import</span> <span class="n">reduced_totient</span> <span class="k">as</span> <span class="n">_carmichael</span>
+
+    <span class="n">public</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;public&#39;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+    <span class="n">private</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;private&#39;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+    <span class="n">totient</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;totient&#39;</span><span class="p">,</span> <span class="s1">&#39;Euler&#39;</span><span class="p">)</span>
+    <span class="n">index</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;index&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">multipower</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;multipower&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="k">if</span> <span class="n">totient</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;Euler&#39;</span><span class="p">,</span> <span class="s1">&#39;Carmichael&#39;</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;The argument totient=</span><span class="si">{}</span><span class="s2"> should either be &quot;</span> \
+            <span class="s2">&quot;&#39;Euler&#39;, &#39;Carmichalel&#39;.&quot;</span> \
+            <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">totient</span><span class="p">))</span>
+
+    <span class="k">if</span> <span class="n">totient</span> <span class="o">==</span> <span class="s1">&#39;Euler&#39;</span><span class="p">:</span>
+        <span class="n">_totient</span> <span class="o">=</span> <span class="n">_euler</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">_totient</span> <span class="o">=</span> <span class="n">_carmichael</span>
+
+    <span class="k">if</span> <span class="n">index</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">index</span> <span class="o">=</span> <span class="n">as_int</span><span class="p">(</span><span class="n">index</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">totient</span> <span class="o">!=</span> <span class="s1">&#39;Carmichael&#39;</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;Setting the &#39;index&#39; keyword argument requires totient&quot;</span>
+                <span class="s2">&quot;notation to be specified as &#39;Carmichael&#39;.&quot;</span><span class="p">)</span>
+
+    <span class="n">primes</span><span class="p">,</span> <span class="n">e</span> <span class="o">=</span> <span class="n">args</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">args</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="ow">not</span> <span class="n">isprime</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">primes</span><span class="p">):</span>
+        <span class="n">new_primes</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">primes</span><span class="p">:</span>
+            <span class="n">new_primes</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">factorint</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">multiple</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+        <span class="n">primes</span> <span class="o">=</span> <span class="n">new_primes</span>
+
+    <span class="n">n</span> <span class="o">=</span> <span class="n">reduce</span><span class="p">(</span><span class="k">lambda</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">:</span> <span class="n">i</span><span class="o">*</span><span class="n">j</span><span class="p">,</span> <span class="n">primes</span><span class="p">)</span>
+
+    <span class="n">tally</span> <span class="o">=</span> <span class="n">multiset</span><span class="p">(</span><span class="n">primes</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">v</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">tally</span><span class="o">.</span><span class="n">values</span><span class="p">()):</span>
+        <span class="n">multiple</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">tally</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+        <span class="n">phi</span> <span class="o">=</span> <span class="n">_totient</span><span class="o">.</span><span class="n">_from_distinct_primes</span><span class="p">(</span><span class="o">*</span><span class="n">multiple</span><span class="p">)</span>
+
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">multipower</span><span class="p">:</span>
+            <span class="n">NonInvertibleCipherWarning</span><span class="p">(</span>
+                <span class="s1">&#39;Non-distinctive primes found in the factors </span><span class="si">{}</span><span class="s1">. &#39;</span>
+                <span class="s1">&#39;The cipher may not be decryptable for some numbers &#39;</span>
+                <span class="s1">&#39;in the complete residue system Z[</span><span class="si">{}</span><span class="s1">], but the cipher &#39;</span>
+                <span class="s1">&#39;can still be valid if you restrict the domain to be &#39;</span>
+                <span class="s1">&#39;the reduced residue system Z*[</span><span class="si">{}</span><span class="s1">]. You can pass &#39;</span>
+                <span class="s1">&#39;the flag multipower=True if you want to suppress this &#39;</span>
+                <span class="s1">&#39;warning.&#39;</span>
+                <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">primes</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">n</span><span class="p">)</span>
+                <span class="p">)</span><span class="o">.</span><span class="n">warn</span><span class="p">()</span>
+        <span class="n">phi</span> <span class="o">=</span> <span class="n">_totient</span><span class="o">.</span><span class="n">_from_factors</span><span class="p">(</span><span class="n">tally</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">igcd</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">phi</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">public</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">private</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+                <span class="n">e</span> <span class="o">=</span> <span class="n">e</span> <span class="o">%</span> <span class="n">phi</span>
+                <span class="n">e</span> <span class="o">+=</span> <span class="n">index</span> <span class="o">*</span> <span class="n">phi</span>
+            <span class="k">return</span> <span class="n">n</span><span class="p">,</span> <span class="n">e</span>
+
+        <span class="k">if</span> <span class="n">private</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">public</span><span class="p">:</span>
+            <span class="n">d</span> <span class="o">=</span> <span class="n">mod_inverse</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">phi</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+                <span class="n">d</span> <span class="o">+=</span> <span class="n">index</span> <span class="o">*</span> <span class="n">phi</span>
+            <span class="k">return</span> <span class="n">n</span><span class="p">,</span> <span class="n">d</span>
+
+    <span class="k">return</span> <span class="kc">False</span>
+
+
+<div class="viewcode-block" id="rsa_public_key"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.rsa_public_key">[docs]</a><span class="k">def</span> <span class="nf">rsa_public_key</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;Return the RSA *public key* pair, `(n, e)`</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    args : naturals</span>
+<span class="sd">        If specified as `p, q, e` where `p` and `q` are distinct primes</span>
+<span class="sd">        and `e` is a desired public exponent of the RSA, `n = p q` and</span>
+<span class="sd">        `e` will be verified against the totient</span>
+<span class="sd">        `\phi(n)` (Euler totient) or `\lambda(n)` (Carmichael totient)</span>
+<span class="sd">        to be `\gcd(e, \phi(n)) = 1` or `\gcd(e, \lambda(n)) = 1`.</span>
+
+<span class="sd">        If specified as `p_1, p_2, ..., p_n, e` where</span>
+<span class="sd">        `p_1, p_2, ..., p_n` are specified as primes,</span>
+<span class="sd">        and `e` is specified as a desired public exponent of the RSA,</span>
+<span class="sd">        it will be able to form a multi-prime RSA, which is a more</span>
+<span class="sd">        generalized form of the popular 2-prime RSA.</span>
+
+<span class="sd">        It can also be possible to form a single-prime RSA by specifying</span>
+<span class="sd">        the argument as `p, e`, which can be considered a trivial case</span>
+<span class="sd">        of a multiprime RSA.</span>
+
+<span class="sd">        Furthermore, it can be possible to form a multi-power RSA by</span>
+<span class="sd">        specifying two or more pairs of the primes to be same.</span>
+<span class="sd">        However, unlike the two-distinct prime RSA or multi-prime</span>
+<span class="sd">        RSA, not every numbers in the complete residue system</span>
+<span class="sd">        (`\mathbb{Z}_n`) will be decryptable since the mapping</span>
+<span class="sd">        `\mathbb{Z}_{n} \rightarrow \mathbb{Z}_{n}`</span>
+<span class="sd">        will not be bijective.</span>
+<span class="sd">        (Only except for the trivial case when</span>
+<span class="sd">        `e = 1`</span>
+<span class="sd">        or more generally,</span>
+
+<span class="sd">        .. math::</span>
+<span class="sd">            e \in \left \{ 1 + k \lambda(n)</span>
+<span class="sd">            \mid k \in \mathbb{Z} \land k \geq 0 \right \}</span>
+
+<span class="sd">        when RSA reduces to the identity.)</span>
+<span class="sd">        However, the RSA can still be decryptable for the numbers in the</span>
+<span class="sd">        reduced residue system (`\mathbb{Z}_n^{\times}`), since the</span>
+<span class="sd">        mapping</span>
+<span class="sd">        `\mathbb{Z}_{n}^{\times} \rightarrow \mathbb{Z}_{n}^{\times}`</span>
+<span class="sd">        can still be bijective.</span>
+
+<span class="sd">        If you pass a non-prime integer to the arguments</span>
+<span class="sd">        `p_1, p_2, ..., p_n`, the particular number will be</span>
+<span class="sd">        prime-factored and it will become either a multi-prime RSA or a</span>
+<span class="sd">        multi-power RSA in its canonical form, depending on whether the</span>
+<span class="sd">        product equals its radical or not.</span>
+<span class="sd">        `p_1 p_2 ... p_n = \text{rad}(p_1 p_2 ... p_n)`</span>
+
+<span class="sd">    totient : bool, optional</span>
+<span class="sd">        If ``&#39;Euler&#39;``, it uses Euler&#39;s totient `\phi(n)` which is</span>
+<span class="sd">        :meth:`sympy.ntheory.factor_.totient` in SymPy.</span>
+
+<span class="sd">        If ``&#39;Carmichael&#39;``, it uses Carmichael&#39;s totient `\lambda(n)`</span>
+<span class="sd">        which is :meth:`sympy.ntheory.factor_.reduced_totient` in SymPy.</span>
+
+<span class="sd">        Unlike private key generation, this is a trivial keyword for</span>
+<span class="sd">        public key generation because</span>
+<span class="sd">        `\gcd(e, \phi(n)) = 1 \iff \gcd(e, \lambda(n)) = 1`.</span>
+
+<span class="sd">    index : nonnegative integer, optional</span>
+<span class="sd">        Returns an arbitrary solution of a RSA public key at the index</span>
+<span class="sd">        specified at `0, 1, 2, ...`. This parameter needs to be</span>
+<span class="sd">        specified along with ``totient=&#39;Carmichael&#39;``.</span>
+
+<span class="sd">        Similarly to the non-uniquenss of a RSA private key as described</span>
+<span class="sd">        in the ``index`` parameter documentation in</span>
+<span class="sd">        :meth:`rsa_private_key`, RSA public key is also not unique and</span>
+<span class="sd">        there is an infinite number of RSA public exponents which</span>
+<span class="sd">        can behave in the same manner.</span>
+
+<span class="sd">        From any given RSA public exponent `e`, there are can be an</span>
+<span class="sd">        another RSA public exponent `e + k \lambda(n)` where `k` is an</span>
+<span class="sd">        integer, `\lambda` is a Carmichael&#39;s totient function.</span>
+
+<span class="sd">        However, considering only the positive cases, there can be</span>
+<span class="sd">        a principal solution of a RSA public exponent `e_0` in</span>
+<span class="sd">        `0 &lt; e_0 &lt; \lambda(n)`, and all the other solutions</span>
+<span class="sd">        can be canonicalzed in a form of `e_0 + k \lambda(n)`.</span>
+
+<span class="sd">        ``index`` specifies the `k` notation to yield any possible value</span>
+<span class="sd">        an RSA public key can have.</span>
+
+<span class="sd">        An example of computing any arbitrary RSA public key:</span>
+
+<span class="sd">        &gt;&gt;&gt; from sympy.crypto.crypto import rsa_public_key</span>
+<span class="sd">        &gt;&gt;&gt; rsa_public_key(61, 53, 17, totient=&#39;Carmichael&#39;, index=0)</span>
+<span class="sd">        (3233, 17)</span>
+<span class="sd">        &gt;&gt;&gt; rsa_public_key(61, 53, 17, totient=&#39;Carmichael&#39;, index=1)</span>
+<span class="sd">        (3233, 797)</span>
+<span class="sd">        &gt;&gt;&gt; rsa_public_key(61, 53, 17, totient=&#39;Carmichael&#39;, index=2)</span>
+<span class="sd">        (3233, 1577)</span>
+
+<span class="sd">    multipower : bool, optional</span>
+<span class="sd">        Any pair of non-distinct primes found in the RSA specification</span>
+<span class="sd">        will restrict the domain of the cryptosystem, as noted in the</span>
+<span class="sd">        explaination of the parameter ``args``.</span>
+
+<span class="sd">        SymPy RSA key generator may give a warning before dispatching it</span>
+<span class="sd">        as a multi-power RSA, however, you can disable the warning if</span>
+<span class="sd">        you pass ``True`` to this keyword.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    =======</span>
+
+<span class="sd">    (n, e) : int, int</span>
+<span class="sd">        `n` is a product of any arbitrary number of primes given as</span>
+<span class="sd">        the argument.</span>
+
+<span class="sd">        `e` is relatively prime (coprime) to the Euler totient</span>
+<span class="sd">        `\phi(n)`.</span>
+
+<span class="sd">    False</span>
+<span class="sd">        Returned if less than two arguments are given, or `e` is</span>
+<span class="sd">        not relatively prime to the modulus.</span>
 
 <span class="sd">    Examples</span>
 <span class="sd">    ========</span>
 
 <span class="sd">    &gt;&gt;&gt; from sympy.crypto.crypto import rsa_public_key</span>
+
+<span class="sd">    A public key of a two-prime RSA:</span>
+
 <span class="sd">    &gt;&gt;&gt; p, q, e = 3, 5, 7</span>
 <span class="sd">    &gt;&gt;&gt; rsa_public_key(p, q, e)</span>
 <span class="sd">    (15, 7)</span>
 <span class="sd">    &gt;&gt;&gt; rsa_public_key(p, q, 30)</span>
 <span class="sd">    False</span>
+
+<span class="sd">    A public key of a multiprime RSA:</span>
+
+<span class="sd">    &gt;&gt;&gt; primes = [2, 3, 5, 7, 11, 13]</span>
+<span class="sd">    &gt;&gt;&gt; e = 7</span>
+<span class="sd">    &gt;&gt;&gt; args = primes + [e]</span>
+<span class="sd">    &gt;&gt;&gt; rsa_public_key(*args)</span>
+<span class="sd">    (30030, 7)</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    =====</span>
+
+<span class="sd">    Although the RSA can be generalized over any modulus `n`, using</span>
+<span class="sd">    two large primes had became the most popular specification because a</span>
+<span class="sd">    product of two large primes is usually the hardest to factor</span>
+<span class="sd">    relatively to the digits of `n` can have.</span>
+
+<span class="sd">    However, it may need further understanding of the time complexities</span>
+<span class="sd">    of each prime-factoring algorithms to verify the claim.</span>
 
 <span class="sd">    See Also</span>
 <span class="sd">    ========</span>
@@ -1465,96 +1747,318 @@
 
 <span class="sd">    .. [1] https://en.wikipedia.org/wiki/RSA_%28cryptosystem%29</span>
 
+<span class="sd">    .. [2] http://cacr.uwaterloo.ca/techreports/2006/cacr2006-16.pdf</span>
+
+<span class="sd">    .. [3] https://link.springer.com/content/pdf/10.1007%2FBFb0055738.pdf</span>
+
+<span class="sd">    .. [4] http://www.itiis.org/digital-library/manuscript/1381</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">n</span> <span class="o">=</span> <span class="n">p</span><span class="o">*</span><span class="n">q</span>
-    <span class="k">if</span> <span class="n">isprime</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="ow">and</span> <span class="n">isprime</span><span class="p">(</span><span class="n">q</span><span class="p">):</span>
-        <span class="k">if</span> <span class="n">p</span> <span class="o">==</span> <span class="n">q</span><span class="p">:</span>
-            <span class="n">SymPyDeprecationWarning</span><span class="p">(</span>
-                <span class="n">feature</span><span class="o">=</span><span class="s2">&quot;Using non-distinct primes for rsa_public_key&quot;</span><span class="p">,</span>
-                <span class="n">useinstead</span><span class="o">=</span><span class="s2">&quot;distinct primes&quot;</span><span class="p">,</span>
-                <span class="n">issue</span><span class="o">=</span><span class="mi">16162</span><span class="p">,</span>
-                <span class="n">deprecated_since_version</span><span class="o">=</span><span class="s2">&quot;1.4&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">warn</span><span class="p">()</span>
-            <span class="n">phi</span> <span class="o">=</span> <span class="n">p</span> <span class="o">*</span> <span class="p">(</span><span class="n">p</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">phi</span> <span class="o">=</span> <span class="p">(</span><span class="n">p</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">q</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">gcd</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">phi</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">n</span><span class="p">,</span> <span class="n">e</span>
-    <span class="k">return</span> <span class="kc">False</span></div>
+    <span class="k">return</span> <span class="n">_rsa_key</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">public</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">private</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="rsa_private_key"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.rsa_private_key">[docs]</a><span class="k">def</span> <span class="nf">rsa_private_key</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="n">e</span><span class="p">):</span>
-    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Return the RSA *private key*, `(n,d)`, where `n`</span>
-<span class="sd">    is a product of two primes and `d` is the inverse of</span>
-<span class="sd">    `e` (mod `\phi(n)`). False is returned if any assumption</span>
-<span class="sd">    is violated.</span>
+<div class="viewcode-block" id="rsa_private_key"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.rsa_private_key">[docs]</a><span class="k">def</span> <span class="nf">rsa_private_key</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;Return the RSA *private key* pair, `(n, d)`</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    args : naturals</span>
+<span class="sd">        The keyword is identical to the ``args`` in</span>
+<span class="sd">        :meth:`rsa_public_key`.</span>
+
+<span class="sd">    totient : bool, optional</span>
+<span class="sd">        If ``&#39;Euler&#39;``, it uses Euler&#39;s totient convention `\phi(n)`</span>
+<span class="sd">        which is :meth:`sympy.ntheory.factor_.totient` in SymPy.</span>
+
+<span class="sd">        If ``&#39;Carmichael&#39;``, it uses Carmichael&#39;s totient convention</span>
+<span class="sd">        `\lambda(n)` which is</span>
+<span class="sd">        :meth:`sympy.ntheory.factor_.reduced_totient` in SymPy.</span>
+
+<span class="sd">        There can be some output differences for private key generation</span>
+<span class="sd">        as examples below.</span>
+
+<span class="sd">        Example using Euler&#39;s totient:</span>
+
+<span class="sd">        &gt;&gt;&gt; from sympy.crypto.crypto import rsa_private_key</span>
+<span class="sd">        &gt;&gt;&gt; rsa_private_key(61, 53, 17, totient=&#39;Euler&#39;)</span>
+<span class="sd">        (3233, 2753)</span>
+
+<span class="sd">        Example using Carmichael&#39;s totient:</span>
+
+<span class="sd">        &gt;&gt;&gt; from sympy.crypto.crypto import rsa_private_key</span>
+<span class="sd">        &gt;&gt;&gt; rsa_private_key(61, 53, 17, totient=&#39;Carmichael&#39;)</span>
+<span class="sd">        (3233, 413)</span>
+
+<span class="sd">    index : nonnegative integer, optional</span>
+<span class="sd">        Returns an arbitrary solution of a RSA private key at the index</span>
+<span class="sd">        specified at `0, 1, 2, ...`. This parameter needs to be</span>
+<span class="sd">        specified along with ``totient=&#39;Carmichael&#39;``.</span>
+
+<span class="sd">        RSA private exponent is a non-unique solution of</span>
+<span class="sd">        `e d \mod \lambda(n) = 1` and it is possible in any form of</span>
+<span class="sd">        `d + k \lambda(n)`, where `d` is an another</span>
+<span class="sd">        already-computed private exponent, and `\lambda` is a</span>
+<span class="sd">        Carmichael&#39;s totient function, and `k` is any integer.</span>
+
+<span class="sd">        However, considering only the positive cases, there can be</span>
+<span class="sd">        a principal solution of a RSA private exponent `d_0` in</span>
+<span class="sd">        `0 &lt; d_0 &lt; \lambda(n)`, and all the other solutions</span>
+<span class="sd">        can be canonicalzed in a form of `d_0 + k \lambda(n)`.</span>
+
+<span class="sd">        ``index`` specifies the `k` notation to yield any possible value</span>
+<span class="sd">        an RSA private key can have.</span>
+
+<span class="sd">        An example of computing any arbitrary RSA private key:</span>
+
+<span class="sd">        &gt;&gt;&gt; from sympy.crypto.crypto import rsa_private_key</span>
+<span class="sd">        &gt;&gt;&gt; rsa_private_key(61, 53, 17, totient=&#39;Carmichael&#39;, index=0)</span>
+<span class="sd">        (3233, 413)</span>
+<span class="sd">        &gt;&gt;&gt; rsa_private_key(61, 53, 17, totient=&#39;Carmichael&#39;, index=1)</span>
+<span class="sd">        (3233, 1193)</span>
+<span class="sd">        &gt;&gt;&gt; rsa_private_key(61, 53, 17, totient=&#39;Carmichael&#39;, index=2)</span>
+<span class="sd">        (3233, 1973)</span>
+
+<span class="sd">    multipower : bool, optional</span>
+<span class="sd">        The keyword is identical to the ``multipower`` in</span>
+<span class="sd">        :meth:`rsa_public_key`.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    =======</span>
+
+<span class="sd">    (n, d) : int, int</span>
+<span class="sd">        `n` is a product of any arbitrary number of primes given as</span>
+<span class="sd">        the argument.</span>
+
+<span class="sd">        `d` is the inverse of `e` (mod `\phi(n)`) where `e` is the</span>
+<span class="sd">        exponent given, and `\phi` is a Euler totient.</span>
+
+<span class="sd">    False</span>
+<span class="sd">        Returned if less than two arguments are given, or `e` is</span>
+<span class="sd">        not relatively prime to the totient of the modulus.</span>
 
 <span class="sd">    Examples</span>
 <span class="sd">    ========</span>
 
 <span class="sd">    &gt;&gt;&gt; from sympy.crypto.crypto import rsa_private_key</span>
+
+<span class="sd">    A private key of a two-prime RSA:</span>
+
 <span class="sd">    &gt;&gt;&gt; p, q, e = 3, 5, 7</span>
 <span class="sd">    &gt;&gt;&gt; rsa_private_key(p, q, e)</span>
 <span class="sd">    (15, 7)</span>
 <span class="sd">    &gt;&gt;&gt; rsa_private_key(p, q, 30)</span>
 <span class="sd">    False</span>
 
+<span class="sd">    A private key of a multiprime RSA:</span>
+
+<span class="sd">    &gt;&gt;&gt; primes = [2, 3, 5, 7, 11, 13]</span>
+<span class="sd">    &gt;&gt;&gt; e = 7</span>
+<span class="sd">    &gt;&gt;&gt; args = primes + [e]</span>
+<span class="sd">    &gt;&gt;&gt; rsa_private_key(*args)</span>
+<span class="sd">    (30030, 823)</span>
+
+<span class="sd">    See Also</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    rsa_public_key</span>
+<span class="sd">    encipher_rsa</span>
+<span class="sd">    decipher_rsa</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    .. [1] https://en.wikipedia.org/wiki/RSA_%28cryptosystem%29</span>
+
+<span class="sd">    .. [2] http://cacr.uwaterloo.ca/techreports/2006/cacr2006-16.pdf</span>
+
+<span class="sd">    .. [3] https://link.springer.com/content/pdf/10.1007%2FBFb0055738.pdf</span>
+
+<span class="sd">    .. [4] http://www.itiis.org/digital-library/manuscript/1381</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">n</span> <span class="o">=</span> <span class="n">p</span><span class="o">*</span><span class="n">q</span>
-    <span class="k">if</span> <span class="n">isprime</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="ow">and</span> <span class="n">isprime</span><span class="p">(</span><span class="n">q</span><span class="p">):</span>
-        <span class="k">if</span> <span class="n">p</span> <span class="o">==</span> <span class="n">q</span><span class="p">:</span>
-            <span class="n">SymPyDeprecationWarning</span><span class="p">(</span>
-                <span class="n">feature</span><span class="o">=</span><span class="s2">&quot;Using non-distinct primes for rsa_public_key&quot;</span><span class="p">,</span>
-                <span class="n">useinstead</span><span class="o">=</span><span class="s2">&quot;distinct primes&quot;</span><span class="p">,</span>
-                <span class="n">issue</span><span class="o">=</span><span class="mi">16162</span><span class="p">,</span>
-                <span class="n">deprecated_since_version</span><span class="o">=</span><span class="s2">&quot;1.4&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">warn</span><span class="p">()</span>
-            <span class="n">phi</span> <span class="o">=</span> <span class="n">p</span> <span class="o">*</span> <span class="p">(</span><span class="n">p</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">phi</span> <span class="o">=</span> <span class="p">(</span><span class="n">p</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">q</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">gcd</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">phi</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
-            <span class="n">d</span> <span class="o">=</span> <span class="n">mod_inverse</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">phi</span><span class="p">)</span>
-            <span class="k">return</span> <span class="n">n</span><span class="p">,</span> <span class="n">d</span>
-    <span class="k">return</span> <span class="kc">False</span></div>
+    <span class="k">return</span> <span class="n">_rsa_key</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">public</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">private</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="encipher_rsa"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.encipher_rsa">[docs]</a><span class="k">def</span> <span class="nf">encipher_rsa</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Return encryption of ``i`` by computing `i^e` (mod `n`),</span>
-<span class="sd">    where ``key`` is the public key `(n, e)`.</span>
+<span class="k">def</span> <span class="nf">_encipher_decipher_rsa</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">factors</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="n">n</span><span class="p">,</span> <span class="n">d</span> <span class="o">=</span> <span class="n">key</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">factors</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">pow</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">n</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_is_coprime_set</span><span class="p">(</span><span class="n">l</span><span class="p">):</span>
+        <span class="n">is_coprime_set</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">l</span><span class="p">)):</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">l</span><span class="p">)):</span>
+                <span class="k">if</span> <span class="n">igcd</span><span class="p">(</span><span class="n">l</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">l</span><span class="p">[</span><span class="n">j</span><span class="p">])</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="n">is_coprime_set</span> <span class="o">=</span> <span class="kc">False</span>
+                    <span class="k">break</span>
+        <span class="k">return</span> <span class="n">is_coprime_set</span>
+
+    <span class="n">prod</span> <span class="o">=</span> <span class="n">reduce</span><span class="p">(</span><span class="k">lambda</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">:</span> <span class="n">i</span><span class="o">*</span><span class="n">j</span><span class="p">,</span> <span class="n">factors</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">prod</span> <span class="o">==</span> <span class="n">n</span> <span class="ow">and</span> <span class="n">_is_coprime_set</span><span class="p">(</span><span class="n">factors</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">_decipher_rsa_crt</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">factors</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">_encipher_decipher_rsa</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">factors</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="encipher_rsa"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.encipher_rsa">[docs]</a><span class="k">def</span> <span class="nf">encipher_rsa</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">factors</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;Encrypt the plaintext with RSA.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    i : integer</span>
+<span class="sd">        The plaintext to be encrypted for.</span>
+
+<span class="sd">    key : (n, e) where n, e are integers</span>
+<span class="sd">        `n` is the modulus of the key and `e` is the exponent of the</span>
+<span class="sd">        key. The encryption is computed by `i^e \bmod n`.</span>
+
+<span class="sd">        The key can either be a public key or a private key, however,</span>
+<span class="sd">        the message encrypted by a public key can only be decrypted by</span>
+<span class="sd">        a private key, and vice versa, as RSA is an asymmetric</span>
+<span class="sd">        cryptography system.</span>
+
+<span class="sd">    factors : list of coprime integers</span>
+<span class="sd">        This is identical to the keyword ``factors`` in</span>
+<span class="sd">        :meth:`decipher_rsa`.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    =====</span>
+
+<span class="sd">    Some specifications may make the RSA not cryptographically</span>
+<span class="sd">    meaningful.</span>
+
+<span class="sd">    For example, `0`, `1` will remain always same after taking any</span>
+<span class="sd">    number of exponentiation, thus, should be avoided.</span>
+
+<span class="sd">    Furthermore, if `i^e &lt; n`, `i` may easily be figured out by taking</span>
+<span class="sd">    `e` th root.</span>
+
+<span class="sd">    And also, specifying the exponent as `1` or in more generalized form</span>
+<span class="sd">    as `1 + k \lambda(n)` where `k` is an nonnegative integer,</span>
+<span class="sd">    `\lambda` is a carmichael totient, the RSA becomes an identity</span>
+<span class="sd">    mapping.</span>
 
 <span class="sd">    Examples</span>
 <span class="sd">    ========</span>
 
-<span class="sd">    &gt;&gt;&gt; from sympy.crypto.crypto import encipher_rsa, rsa_public_key</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.crypto.crypto import encipher_rsa</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.crypto.crypto import rsa_public_key, rsa_private_key</span>
+
+<span class="sd">    Public Key Encryption:</span>
+
 <span class="sd">    &gt;&gt;&gt; p, q, e = 3, 5, 7</span>
 <span class="sd">    &gt;&gt;&gt; puk = rsa_public_key(p, q, e)</span>
 <span class="sd">    &gt;&gt;&gt; msg = 12</span>
 <span class="sd">    &gt;&gt;&gt; encipher_rsa(msg, puk)</span>
 <span class="sd">    3</span>
 
+<span class="sd">    Private Key Encryption:</span>
+
+<span class="sd">    &gt;&gt;&gt; p, q, e = 3, 5, 7</span>
+<span class="sd">    &gt;&gt;&gt; prk = rsa_private_key(p, q, e)</span>
+<span class="sd">    &gt;&gt;&gt; msg = 12</span>
+<span class="sd">    &gt;&gt;&gt; encipher_rsa(msg, prk)</span>
+<span class="sd">    3</span>
+
+<span class="sd">    Encryption using chinese remainder theorem:</span>
+
+<span class="sd">    &gt;&gt;&gt; encipher_rsa(msg, prk, factors=[p, q])</span>
+<span class="sd">    3</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">n</span><span class="p">,</span> <span class="n">e</span> <span class="o">=</span> <span class="n">key</span>
-    <span class="k">return</span> <span class="nb">pow</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">e</span><span class="p">,</span> <span class="n">n</span><span class="p">)</span></div>
+    <span class="k">return</span> <span class="n">_encipher_decipher_rsa</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">factors</span><span class="o">=</span><span class="n">factors</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="decipher_rsa"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.decipher_rsa">[docs]</a><span class="k">def</span> <span class="nf">decipher_rsa</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Return decyption of ``i`` by computing `i^d` (mod `n`),</span>
-<span class="sd">    where ``key`` is the private key `(n, d)`.</span>
+<div class="viewcode-block" id="decipher_rsa"><a class="viewcode-back" href="../../../modules/crypto.html#sympy.crypto.crypto.decipher_rsa">[docs]</a><span class="k">def</span> <span class="nf">decipher_rsa</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">factors</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;Decrypt the ciphertext with RSA.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    i : integer</span>
+<span class="sd">        The ciphertext to be decrypted for.</span>
+
+<span class="sd">    key : (n, d) where n, d are integers</span>
+<span class="sd">        `n` is the modulus of the key and `d` is the exponent of the</span>
+<span class="sd">        key. The decryption is computed by `i^d \bmod n`.</span>
+
+<span class="sd">        The key can either be a public key or a private key, however,</span>
+<span class="sd">        the message encrypted by a public key can only be decrypted by</span>
+<span class="sd">        a private key, and vice versa, as RSA is an asymmetric</span>
+<span class="sd">        cryptography system.</span>
+
+<span class="sd">    factors : list of coprime integers</span>
+<span class="sd">        As the modulus `n` created from RSA key generation is composed</span>
+<span class="sd">        of arbitrary prime factors</span>
+<span class="sd">        `n = {p_1}^{k_1}{p_2}^{k_2}...{p_n}^{k_n}` where</span>
+<span class="sd">        `p_1, p_2, ..., p_n` are distinct primes and</span>
+<span class="sd">        `k_1, k_2, ..., k_n` are positive integers, chinese remainder</span>
+<span class="sd">        theorem can be used to compute `i^d \bmod n` from the</span>
+<span class="sd">        fragmented modulo operations like</span>
+
+<span class="sd">        .. math::</span>
+<span class="sd">            i^d \bmod {p_1}^{k_1}, i^d \bmod {p_2}^{k_2}, ... ,</span>
+<span class="sd">            i^d \bmod {p_n}^{k_n}</span>
+
+<span class="sd">        or like</span>
+
+<span class="sd">        .. math::</span>
+<span class="sd">            i^d \bmod {p_1}^{k_1}{p_2}^{k_2},</span>
+<span class="sd">            i^d \bmod {p_3}^{k_3}, ... ,</span>
+<span class="sd">            i^d \bmod {p_n}^{k_n}</span>
+
+<span class="sd">        as long as every moduli does not share any common divisor each</span>
+<span class="sd">        other.</span>
+
+<span class="sd">        The raw primes used in generating the RSA key pair can be a good</span>
+<span class="sd">        option.</span>
+
+<span class="sd">        Note that the speed advantage of using this is only viable for</span>
+<span class="sd">        very large cases (Like 2048-bit RSA keys) since the</span>
+<span class="sd">        overhead of using pure python implementation of</span>
+<span class="sd">        :meth:`sympy.ntheory.modular.crt` may overcompensate the</span>
+<span class="sd">        theoritical speed advantage.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    =====</span>
+
+<span class="sd">    See the ``Notes`` section in the documentation of</span>
+<span class="sd">    :meth:`encipher_rsa`</span>
 
 <span class="sd">    Examples</span>
 <span class="sd">    ========</span>
 
-<span class="sd">    &gt;&gt;&gt; from sympy.crypto.crypto import decipher_rsa, rsa_private_key</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.crypto.crypto import decipher_rsa, encipher_rsa</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.crypto.crypto import rsa_public_key, rsa_private_key</span>
+
+<span class="sd">    Public Key Encryption and Decryption:</span>
+
 <span class="sd">    &gt;&gt;&gt; p, q, e = 3, 5, 7</span>
 <span class="sd">    &gt;&gt;&gt; prk = rsa_private_key(p, q, e)</span>
-<span class="sd">    &gt;&gt;&gt; msg = 3</span>
-<span class="sd">    &gt;&gt;&gt; decipher_rsa(msg, prk)</span>
+<span class="sd">    &gt;&gt;&gt; puk = rsa_public_key(p, q, e)</span>
+<span class="sd">    &gt;&gt;&gt; msg = 12</span>
+<span class="sd">    &gt;&gt;&gt; new_msg = encipher_rsa(msg, prk)</span>
+<span class="sd">    &gt;&gt;&gt; new_msg</span>
+<span class="sd">    3</span>
+<span class="sd">    &gt;&gt;&gt; decipher_rsa(new_msg, puk)</span>
 <span class="sd">    12</span>
 
+<span class="sd">    Private Key Encryption and Decryption:</span>
+
+<span class="sd">    &gt;&gt;&gt; p, q, e = 3, 5, 7</span>
+<span class="sd">    &gt;&gt;&gt; prk = rsa_private_key(p, q, e)</span>
+<span class="sd">    &gt;&gt;&gt; puk = rsa_public_key(p, q, e)</span>
+<span class="sd">    &gt;&gt;&gt; msg = 12</span>
+<span class="sd">    &gt;&gt;&gt; new_msg = encipher_rsa(msg, puk)</span>
+<span class="sd">    &gt;&gt;&gt; new_msg</span>
+<span class="sd">    3</span>
+<span class="sd">    &gt;&gt;&gt; decipher_rsa(new_msg, prk)</span>
+<span class="sd">    12</span>
+
+<span class="sd">    Decryption using chinese remainder theorem:</span>
+
+<span class="sd">    &gt;&gt;&gt; decipher_rsa(new_msg, prk, factors=[p, q])</span>
+<span class="sd">    12</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">n</span><span class="p">,</span> <span class="n">d</span> <span class="o">=</span> <span class="n">key</span>
-    <span class="k">return</span> <span class="nb">pow</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">n</span><span class="p">)</span></div>
+    <span class="k">return</span> <span class="n">_encipher_decipher_rsa</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">factors</span><span class="o">=</span><span class="n">factors</span><span class="p">)</span></div>
 
 
 <span class="c1">#################### kid krypto (kid RSA) #############################</span>
