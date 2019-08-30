@@ -1,0 +1,548 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>sympy.matrices.expressions.hadamard &#8212; SymPy 1.5.dev documentation</title>
+    <link rel="stylesheet" href="../../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/graphviz.css" />
+    <link rel="stylesheet" type="text/css" href="https://live.sympy.org/static/live-core.css" />
+    <link rel="stylesheet" type="text/css" href="https://live.sympy.org/static/live-autocomplete.css" />
+    <link rel="stylesheet" type="text/css" href="https://live.sympy.org/static/live-sphinx.css" />
+    
+    <script type="text/javascript" id="documentation_options" data-url_root="../../../../" src="../../../../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../../_static/language_data.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/utilities.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/external/classy.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/live-core.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/live-autocomplete.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/live-sphinx.js"></script>
+    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS_HTML-full"></script>
+    
+    <link rel="shortcut icon" href="../../../../_static/sympy-notailtext-favicon.ico"/>
+    <link href="https://docs.sympy.org/latest/_modules/sympy/matrices/expressions/hadamard.html" rel="canonical" />
+    
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../../../index.html">SymPy 1.5.dev documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../../../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for sympy.matrices.expressions.hadamard</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">division</span>
+
+<span class="kn">from</span> <span class="nn">sympy.core</span> <span class="k">import</span> <span class="n">Mul</span><span class="p">,</span> <span class="n">sympify</span>
+<span class="kn">from</span> <span class="nn">sympy.matrices.expressions.matexpr</span> <span class="k">import</span> <span class="p">(</span>
+    <span class="n">MatrixExpr</span><span class="p">,</span> <span class="n">ShapeError</span><span class="p">,</span> <span class="n">Identity</span><span class="p">,</span> <span class="n">OneMatrix</span><span class="p">,</span> <span class="n">ZeroMatrix</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">sympy.strategies</span> <span class="k">import</span> <span class="p">(</span>
+    <span class="n">unpack</span><span class="p">,</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">condition</span><span class="p">,</span> <span class="n">exhaust</span><span class="p">,</span> <span class="n">do_one</span><span class="p">,</span> <span class="n">rm_id</span><span class="p">,</span> <span class="n">sort</span>
+<span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">hadamard_product</span><span class="p">(</span><span class="o">*</span><span class="n">matrices</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return the elementwise (aka Hadamard) product of matrices.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.matrices import hadamard_product, MatrixSymbol</span>
+<span class="sd">    &gt;&gt;&gt; A = MatrixSymbol(&#39;A&#39;, 2, 3)</span>
+<span class="sd">    &gt;&gt;&gt; B = MatrixSymbol(&#39;B&#39;, 2, 3)</span>
+<span class="sd">    &gt;&gt;&gt; hadamard_product(A)</span>
+<span class="sd">    A</span>
+<span class="sd">    &gt;&gt;&gt; hadamard_product(A, B)</span>
+<span class="sd">    HadamardProduct(A, B)</span>
+<span class="sd">    &gt;&gt;&gt; hadamard_product(A, B)[0, 1]</span>
+<span class="sd">    A[0, 1]*B[0, 1]</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">matrices</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Empty Hadamard product is undefined&quot;</span><span class="p">)</span>
+    <span class="n">validate</span><span class="p">(</span><span class="o">*</span><span class="n">matrices</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">matrices</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">matrices</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">matrices</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">matrices</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Identity</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">HadamardProduct</span><span class="p">(</span><span class="o">*</span><span class="n">matrices</span><span class="p">)</span><span class="o">.</span><span class="n">doit</span><span class="p">()</span>
+
+
+<div class="viewcode-block" id="HadamardProduct"><a class="viewcode-back" href="../../../../modules/matrices/expressions.html#sympy.matrices.expressions.HadamardProduct">[docs]</a><span class="k">class</span> <span class="nc">HadamardProduct</span><span class="p">(</span><span class="n">MatrixExpr</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Elementwise product of matrix expressions</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    Hadamard product for matrix symbols:</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.matrices import hadamard_product, HadamardProduct, MatrixSymbol</span>
+<span class="sd">    &gt;&gt;&gt; A = MatrixSymbol(&#39;A&#39;, 5, 5)</span>
+<span class="sd">    &gt;&gt;&gt; B = MatrixSymbol(&#39;B&#39;, 5, 5)</span>
+<span class="sd">    &gt;&gt;&gt; isinstance(hadamard_product(A, B), HadamardProduct)</span>
+<span class="sd">    True</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    =====</span>
+
+<span class="sd">    This is a symbolic object that simply stores its argument without</span>
+<span class="sd">    evaluating it. To actually compute the product, use the function</span>
+<span class="sd">    ``hadamard_product()`` or ``HadamardProduct.doit``</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">is_HadamardProduct</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="n">sympify</span><span class="p">,</span> <span class="n">args</span><span class="p">))</span>
+        <span class="n">check</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;check&#39;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">check</span><span class="p">:</span>
+            <span class="n">validate</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">HadamardProduct</span><span class="p">,</span> <span class="bp">cls</span><span class="p">)</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">shape</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span>
+
+    <span class="k">def</span> <span class="nf">_entry</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">arg</span><span class="o">.</span><span class="n">_entry</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">])</span>
+
+    <span class="k">def</span> <span class="nf">_eval_transpose</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">sympy.matrices.expressions.transpose</span> <span class="k">import</span> <span class="n">transpose</span>
+        <span class="k">return</span> <span class="n">HadamardProduct</span><span class="p">(</span><span class="o">*</span><span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="n">transpose</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">)))</span>
+
+    <span class="k">def</span> <span class="nf">doit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">ignored</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">canonicalize</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_eval_derivative</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Add</span>
+        <span class="n">terms</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)):</span>
+            <span class="n">factors</span> <span class="o">=</span> <span class="n">args</span><span class="p">[:</span><span class="n">i</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="n">args</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">x</span><span class="p">)]</span> <span class="o">+</span> <span class="n">args</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">:]</span>
+            <span class="n">terms</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">hadamard_product</span><span class="p">(</span><span class="o">*</span><span class="n">factors</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">Add</span><span class="o">.</span><span class="n">fromiter</span><span class="p">(</span><span class="n">terms</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_eval_derivative_matrix_lines</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">sympy.core.expr</span> <span class="k">import</span> <span class="n">ExprBuilder</span>
+        <span class="kn">from</span> <span class="nn">sympy.codegen.array_utils</span> <span class="k">import</span> <span class="n">CodegenArrayDiagonal</span><span class="p">,</span> <span class="n">CodegenArrayTensorProduct</span>
+        <span class="kn">from</span> <span class="nn">sympy.matrices.expressions.matexpr</span> <span class="k">import</span> <span class="n">_make_matrix</span>
+
+        <span class="n">with_x_ind</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">arg</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="k">if</span> <span class="n">arg</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">x</span><span class="p">)]</span>
+        <span class="n">lines</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">ind</span> <span class="ow">in</span> <span class="n">with_x_ind</span><span class="p">:</span>
+            <span class="n">left_args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[:</span><span class="n">ind</span><span class="p">]</span>
+            <span class="n">right_args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="n">ind</span><span class="o">+</span><span class="mi">1</span><span class="p">:]</span>
+
+            <span class="n">d</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="n">ind</span><span class="p">]</span><span class="o">.</span><span class="n">_eval_derivative_matrix_lines</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+            <span class="n">hadam</span> <span class="o">=</span> <span class="n">hadamard_product</span><span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="n">right_args</span> <span class="o">+</span> <span class="n">left_args</span><span class="p">))</span>
+            <span class="n">diagonal</span> <span class="o">=</span> <span class="p">[(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">)]</span>
+            <span class="n">diagonal</span> <span class="o">=</span> <span class="p">[</span><span class="n">e</span> <span class="k">for</span> <span class="n">j</span><span class="p">,</span> <span class="n">e</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">diagonal</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">d</span><span class="p">:</span>
+                <span class="n">l1</span> <span class="o">=</span> <span class="n">i</span><span class="o">.</span><span class="n">_lines</span><span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">_first_line_index</span><span class="p">]</span>
+                <span class="n">l2</span> <span class="o">=</span> <span class="n">i</span><span class="o">.</span><span class="n">_lines</span><span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">_second_line_index</span><span class="p">]</span>
+                <span class="n">subexpr</span> <span class="o">=</span> <span class="n">ExprBuilder</span><span class="p">(</span>
+                    <span class="n">CodegenArrayDiagonal</span><span class="p">,</span>
+                    <span class="p">[</span>
+                        <span class="n">ExprBuilder</span><span class="p">(</span>
+                            <span class="n">CodegenArrayTensorProduct</span><span class="p">,</span>
+                            <span class="p">[</span>
+                                <span class="n">ExprBuilder</span><span class="p">(</span><span class="n">_make_matrix</span><span class="p">,</span> <span class="p">[</span><span class="n">l1</span><span class="p">]),</span>
+                                <span class="n">hadam</span><span class="p">,</span>
+                                <span class="n">ExprBuilder</span><span class="p">(</span><span class="n">_make_matrix</span><span class="p">,</span> <span class="p">[</span><span class="n">l2</span><span class="p">]),</span>
+                            <span class="p">]</span>
+                        <span class="p">),</span>
+                    <span class="p">]</span> <span class="o">+</span> <span class="n">diagonal</span><span class="p">,</span>  <span class="c1"># turn into *diagonal after dropping Python 2.7</span>
+
+                <span class="p">)</span>
+                <span class="n">i</span><span class="o">.</span><span class="n">_first_pointer_parent</span> <span class="o">=</span> <span class="n">subexpr</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">args</span>
+                <span class="n">i</span><span class="o">.</span><span class="n">_first_pointer_index</span> <span class="o">=</span> <span class="mi">0</span>
+                <span class="n">i</span><span class="o">.</span><span class="n">_second_pointer_parent</span> <span class="o">=</span> <span class="n">subexpr</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">args</span>
+                <span class="n">i</span><span class="o">.</span><span class="n">_second_pointer_index</span> <span class="o">=</span> <span class="mi">0</span>
+                <span class="n">i</span><span class="o">.</span><span class="n">_lines</span> <span class="o">=</span> <span class="p">[</span><span class="n">subexpr</span><span class="p">]</span>
+                <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">lines</span></div>
+
+
+<span class="k">def</span> <span class="nf">validate</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">(</span><span class="n">arg</span><span class="o">.</span><span class="n">is_Matrix</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">args</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Mix of Matrix and Scalar symbols&quot;</span><span class="p">)</span>
+    <span class="n">A</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">for</span> <span class="n">B</span> <span class="ow">in</span> <span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">:]:</span>
+        <span class="k">if</span> <span class="n">A</span><span class="o">.</span><span class="n">shape</span> <span class="o">!=</span> <span class="n">B</span><span class="o">.</span><span class="n">shape</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ShapeError</span><span class="p">(</span><span class="s2">&quot;Matrices </span><span class="si">%s</span><span class="s2"> and </span><span class="si">%s</span><span class="s2"> are not aligned&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">B</span><span class="p">))</span>
+
+
+<span class="c1"># TODO Implement algorithm for rewriting Hadamard product as diagonal matrix</span>
+<span class="c1"># if matmul identy matrix is multiplied.</span>
+<span class="k">def</span> <span class="nf">canonicalize</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Canonicalize the Hadamard product ``x`` with mathematical properties.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.matrices.expressions import MatrixSymbol, HadamardProduct</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.matrices.expressions import OneMatrix, ZeroMatrix</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.matrices.expressions.hadamard import canonicalize</span>
+<span class="sd">    &gt;&gt;&gt; from sympy import init_printing</span>
+<span class="sd">    &gt;&gt;&gt; init_printing(use_unicode=False)</span>
+
+<span class="sd">    &gt;&gt;&gt; A = MatrixSymbol(&#39;A&#39;, 2, 2)</span>
+<span class="sd">    &gt;&gt;&gt; B = MatrixSymbol(&#39;B&#39;, 2, 2)</span>
+<span class="sd">    &gt;&gt;&gt; C = MatrixSymbol(&#39;C&#39;, 2, 2)</span>
+
+<span class="sd">    Hadamard product associativity:</span>
+
+<span class="sd">    &gt;&gt;&gt; X = HadamardProduct(A, HadamardProduct(B, C))</span>
+<span class="sd">    &gt;&gt;&gt; X</span>
+<span class="sd">    A.*(B.*C)</span>
+<span class="sd">    &gt;&gt;&gt; canonicalize(X)</span>
+<span class="sd">    A.*B.*C</span>
+
+<span class="sd">    Hadamard product commutativity:</span>
+
+<span class="sd">    &gt;&gt;&gt; X = HadamardProduct(A, B)</span>
+<span class="sd">    &gt;&gt;&gt; Y = HadamardProduct(B, A)</span>
+<span class="sd">    &gt;&gt;&gt; X</span>
+<span class="sd">    A.*B</span>
+<span class="sd">    &gt;&gt;&gt; Y</span>
+<span class="sd">    B.*A</span>
+<span class="sd">    &gt;&gt;&gt; canonicalize(X)</span>
+<span class="sd">    A.*B</span>
+<span class="sd">    &gt;&gt;&gt; canonicalize(Y)</span>
+<span class="sd">    A.*B</span>
+
+<span class="sd">    Hadamard product identity:</span>
+
+<span class="sd">    &gt;&gt;&gt; X = HadamardProduct(A, OneMatrix(2, 2))</span>
+<span class="sd">    &gt;&gt;&gt; X</span>
+<span class="sd">    A.*1</span>
+<span class="sd">    &gt;&gt;&gt; canonicalize(X)</span>
+<span class="sd">    A</span>
+
+<span class="sd">    Absorbing element of Hadamard product:</span>
+
+<span class="sd">    &gt;&gt;&gt; X = HadamardProduct(A, ZeroMatrix(2, 2))</span>
+<span class="sd">    &gt;&gt;&gt; X</span>
+<span class="sd">    A.*0</span>
+<span class="sd">    &gt;&gt;&gt; canonicalize(X)</span>
+<span class="sd">    0</span>
+
+<span class="sd">    Rewriting to Hadamard Power</span>
+
+<span class="sd">    &gt;&gt;&gt; X = HadamardProduct(A, A, A)</span>
+<span class="sd">    &gt;&gt;&gt; X</span>
+<span class="sd">    A.*A.*A</span>
+<span class="sd">    &gt;&gt;&gt; canonicalize(X)</span>
+<span class="sd">     .3</span>
+<span class="sd">    A</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    =====</span>
+
+<span class="sd">    As the Hadamard product is associative, nested products can be flattened.</span>
+
+<span class="sd">    The Hadamard product is commutative so that factors can be sorted for</span>
+<span class="sd">    canonical form.</span>
+
+<span class="sd">    A matrix of only ones is an identity for Hadamard product,</span>
+<span class="sd">    so every matrices of only ones can be removed.</span>
+
+<span class="sd">    Any zero matrix will make the whole product a zero matrix.</span>
+
+<span class="sd">    Duplicate elements can be collected and rewritten as HadamardPower</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    .. [1] https://en.wikipedia.org/wiki/Hadamard_product_(matrices)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="k">import</span> <span class="n">default_sort_key</span>
+
+    <span class="c1"># Associativity</span>
+    <span class="n">rule</span> <span class="o">=</span> <span class="n">condition</span><span class="p">(</span>
+            <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">HadamardProduct</span><span class="p">),</span>
+            <span class="n">flatten</span>
+        <span class="p">)</span>
+    <span class="n">fun</span> <span class="o">=</span> <span class="n">exhaust</span><span class="p">(</span><span class="n">rule</span><span class="p">)</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">fun</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+
+    <span class="c1"># Identity</span>
+    <span class="n">fun</span> <span class="o">=</span> <span class="n">condition</span><span class="p">(</span>
+            <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">HadamardProduct</span><span class="p">),</span>
+            <span class="n">rm_id</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">OneMatrix</span><span class="p">))</span>
+        <span class="p">)</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">fun</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+
+    <span class="c1"># Absorbing by Zero Matrix</span>
+    <span class="k">def</span> <span class="nf">absorb</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">ZeroMatrix</span><span class="p">)</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">x</span><span class="o">.</span><span class="n">args</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">ZeroMatrix</span><span class="p">(</span><span class="o">*</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">x</span>
+    <span class="n">fun</span> <span class="o">=</span> <span class="n">condition</span><span class="p">(</span>
+            <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">HadamardProduct</span><span class="p">),</span>
+            <span class="n">absorb</span>
+        <span class="p">)</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">fun</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+
+    <span class="c1"># Rewriting with HadamardPower</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">HadamardProduct</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">Counter</span>
+        <span class="n">tally</span> <span class="o">=</span> <span class="n">Counter</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
+
+        <span class="n">new_arg</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">base</span><span class="p">,</span> <span class="n">exp</span> <span class="ow">in</span> <span class="n">tally</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">exp</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">new_arg</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">base</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">new_arg</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">HadamardPower</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="n">exp</span><span class="p">))</span>
+
+        <span class="n">x</span> <span class="o">=</span> <span class="n">HadamardProduct</span><span class="p">(</span><span class="o">*</span><span class="n">new_arg</span><span class="p">)</span>
+
+    <span class="c1"># Commutativity</span>
+    <span class="n">fun</span> <span class="o">=</span> <span class="n">condition</span><span class="p">(</span>
+            <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">HadamardProduct</span><span class="p">),</span>
+            <span class="n">sort</span><span class="p">(</span><span class="n">default_sort_key</span><span class="p">)</span>
+        <span class="p">)</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">fun</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+
+    <span class="c1"># Unpacking</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">unpack</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">x</span>
+
+
+<span class="k">def</span> <span class="nf">hadamard_power</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="n">exp</span><span class="p">):</span>
+    <span class="n">base</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">base</span><span class="p">)</span>
+    <span class="n">exp</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">exp</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">exp</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">base</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">base</span><span class="o">.</span><span class="n">is_Matrix</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">base</span><span class="o">**</span><span class="n">exp</span>
+    <span class="k">if</span> <span class="n">exp</span><span class="o">.</span><span class="n">is_Matrix</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;cannot raise expression to a matrix&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">HadamardPower</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="n">exp</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="HadamardPower"><a class="viewcode-back" href="../../../../modules/matrices/expressions.html#sympy.matrices.expressions.HadamardPower">[docs]</a><span class="k">class</span> <span class="nc">HadamardPower</span><span class="p">(</span><span class="n">MatrixExpr</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Elementwise power of matrix expressions</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    base : scalar or matrix</span>
+
+<span class="sd">    exp : scalar or matrix</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    =====</span>
+
+<span class="sd">    There are four definitions for the hadamard power which can be used.</span>
+<span class="sd">    Let&#39;s consider `A, B` as `(m, n)` matrices, and `a, b` as scalars.</span>
+
+<span class="sd">    Matrix raised to a scalar exponent:</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">        A^{\circ b} = \begin{bmatrix}</span>
+<span class="sd">        A_{0, 0}^b   &amp; A_{0, 1}^b   &amp; \cdots &amp; A_{0, n-1}^b   \\</span>
+<span class="sd">        A_{1, 0}^b   &amp; A_{1, 1}^b   &amp; \cdots &amp; A_{1, n-1}^b   \\</span>
+<span class="sd">        \vdots       &amp; \vdots       &amp; \ddots &amp; \vdots         \\</span>
+<span class="sd">        A_{m-1, 0}^b &amp; A_{m-1, 1}^b &amp; \cdots &amp; A_{m-1, n-1}^b</span>
+<span class="sd">        \end{bmatrix}</span>
+
+<span class="sd">    Scalar raised to a matrix exponent:</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">        a^{\circ B} = \begin{bmatrix}</span>
+<span class="sd">        a^{B_{0, 0}}   &amp; a^{B_{0, 1}}   &amp; \cdots &amp; a^{B_{0, n-1}}   \\</span>
+<span class="sd">        a^{B_{1, 0}}   &amp; a^{B_{1, 1}}   &amp; \cdots &amp; a^{B_{1, n-1}}   \\</span>
+<span class="sd">        \vdots         &amp; \vdots         &amp; \ddots &amp; \vdots           \\</span>
+<span class="sd">        a^{B_{m-1, 0}} &amp; a^{B_{m-1, 1}} &amp; \cdots &amp; a^{B_{m-1, n-1}}</span>
+<span class="sd">        \end{bmatrix}</span>
+
+<span class="sd">    Matrix raised to a matrix exponent:</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">        A^{\circ B} = \begin{bmatrix}</span>
+<span class="sd">        A_{0, 0}^{B_{0, 0}}     &amp; A_{0, 1}^{B_{0, 1}}     &amp;</span>
+<span class="sd">        \cdots &amp; A_{0, n-1}^{B_{0, n-1}}     \\</span>
+<span class="sd">        A_{1, 0}^{B_{1, 0}}     &amp; A_{1, 1}^{B_{1, 1}}     &amp;</span>
+<span class="sd">        \cdots &amp; A_{1, n-1}^{B_{1, n-1}}     \\</span>
+<span class="sd">        \vdots                  &amp; \vdots                  &amp;</span>
+<span class="sd">        \ddots &amp; \vdots                      \\</span>
+<span class="sd">        A_{m-1, 0}^{B_{m-1, 0}} &amp; A_{m-1, 1}^{B_{m-1, 1}} &amp;</span>
+<span class="sd">        \cdots &amp; A_{m-1, n-1}^{B_{m-1, n-1}}</span>
+<span class="sd">        \end{bmatrix}</span>
+
+<span class="sd">    Scalar raised to a scalar exponent:</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">        a^{\circ b} = a^b</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">base</span><span class="p">,</span> <span class="n">exp</span><span class="p">):</span>
+        <span class="n">base</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">base</span><span class="p">)</span>
+        <span class="n">exp</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">exp</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">base</span><span class="o">.</span><span class="n">is_scalar</span> <span class="ow">and</span> <span class="n">exp</span><span class="o">.</span><span class="n">is_scalar</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">base</span> <span class="o">**</span> <span class="n">exp</span>
+
+        <span class="k">if</span> <span class="n">base</span><span class="o">.</span><span class="n">is_Matrix</span> <span class="ow">and</span> <span class="n">exp</span><span class="o">.</span><span class="n">is_Matrix</span> <span class="ow">and</span> <span class="n">base</span><span class="o">.</span><span class="n">shape</span> <span class="o">!=</span> <span class="n">exp</span><span class="o">.</span><span class="n">shape</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s1">&#39;The shape of the base </span><span class="si">{}</span><span class="s1"> and &#39;</span>
+                <span class="s1">&#39;the shape of the exponent </span><span class="si">{}</span><span class="s1"> do not match.&#39;</span>
+                <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">base</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">exp</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+                <span class="p">)</span>
+
+        <span class="n">obj</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">HadamardPower</span><span class="p">,</span> <span class="bp">cls</span><span class="p">)</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">base</span><span class="p">,</span> <span class="n">exp</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">obj</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">base</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">exp</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">shape</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">is_Matrix</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">shape</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">exp</span><span class="o">.</span><span class="n">shape</span>
+
+    <span class="k">def</span> <span class="nf">_entry</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">base</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">base</span>
+        <span class="n">exp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">exp</span>
+
+        <span class="k">if</span> <span class="n">base</span><span class="o">.</span><span class="n">is_Matrix</span><span class="p">:</span>
+            <span class="n">a</span> <span class="o">=</span> <span class="n">base</span><span class="o">.</span><span class="n">_entry</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">base</span><span class="o">.</span><span class="n">is_scalar</span><span class="p">:</span>
+            <span class="n">a</span> <span class="o">=</span> <span class="n">base</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s1">&#39;The base </span><span class="si">{}</span><span class="s1"> must be a scalar or a matrix.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">base</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">exp</span><span class="o">.</span><span class="n">is_Matrix</span><span class="p">:</span>
+            <span class="n">b</span> <span class="o">=</span> <span class="n">exp</span><span class="o">.</span><span class="n">_entry</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">exp</span><span class="o">.</span><span class="n">is_scalar</span><span class="p">:</span>
+            <span class="n">b</span> <span class="o">=</span> <span class="n">exp</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s1">&#39;The exponent </span><span class="si">{}</span><span class="s1"> must be a scalar or a matrix.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">exp</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">a</span> <span class="o">**</span> <span class="n">b</span>
+
+    <span class="k">def</span> <span class="nf">_eval_transpose</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">sympy.matrices.expressions.transpose</span> <span class="k">import</span> <span class="n">transpose</span>
+        <span class="k">return</span> <span class="n">HadamardPower</span><span class="p">(</span><span class="n">transpose</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">base</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">exp</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_eval_derivative</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">log</span>
+        <span class="n">dexp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">exp</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">logbase</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">applyfunc</span><span class="p">(</span><span class="n">log</span><span class="p">)</span>
+        <span class="n">dlbase</span> <span class="o">=</span> <span class="n">logbase</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">hadamard_product</span><span class="p">(</span>
+            <span class="n">dexp</span><span class="o">*</span><span class="n">logbase</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">exp</span><span class="o">*</span><span class="n">dlbase</span><span class="p">,</span>
+            <span class="bp">self</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_eval_derivative_matrix_lines</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">sympy.codegen.array_utils</span> <span class="k">import</span> <span class="n">CodegenArrayTensorProduct</span>
+        <span class="kn">from</span> <span class="nn">sympy.codegen.array_utils</span> <span class="k">import</span> <span class="n">CodegenArrayContraction</span><span class="p">,</span> <span class="n">CodegenArrayDiagonal</span>
+        <span class="kn">from</span> <span class="nn">sympy.core.expr</span> <span class="k">import</span> <span class="n">ExprBuilder</span>
+        <span class="kn">from</span> <span class="nn">sympy.matrices.expressions.matexpr</span> <span class="k">import</span> <span class="n">_make_matrix</span>
+
+        <span class="n">lr</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">_eval_derivative_matrix_lines</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">lr</span><span class="p">:</span>
+            <span class="n">diagonal</span> <span class="o">=</span> <span class="p">[(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">)]</span>
+            <span class="n">diagonal</span> <span class="o">=</span> <span class="p">[</span><span class="n">e</span> <span class="k">for</span> <span class="n">j</span><span class="p">,</span> <span class="n">e</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">diagonal</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">]</span>
+            <span class="n">l1</span> <span class="o">=</span> <span class="n">i</span><span class="o">.</span><span class="n">_lines</span><span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">_first_line_index</span><span class="p">]</span>
+            <span class="n">l2</span> <span class="o">=</span> <span class="n">i</span><span class="o">.</span><span class="n">_lines</span><span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">_second_line_index</span><span class="p">]</span>
+            <span class="n">subexpr</span> <span class="o">=</span> <span class="n">ExprBuilder</span><span class="p">(</span>
+                <span class="n">CodegenArrayDiagonal</span><span class="p">,</span>
+                <span class="p">[</span>
+                    <span class="n">ExprBuilder</span><span class="p">(</span>
+                        <span class="n">CodegenArrayTensorProduct</span><span class="p">,</span>
+                        <span class="p">[</span>
+                            <span class="n">ExprBuilder</span><span class="p">(</span><span class="n">_make_matrix</span><span class="p">,</span> <span class="p">[</span><span class="n">l1</span><span class="p">]),</span>
+                            <span class="bp">self</span><span class="o">.</span><span class="n">exp</span><span class="o">*</span><span class="n">hadamard_power</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">base</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">exp</span><span class="o">-</span><span class="mi">1</span><span class="p">),</span>
+                            <span class="n">ExprBuilder</span><span class="p">(</span><span class="n">_make_matrix</span><span class="p">,</span> <span class="p">[</span><span class="n">l2</span><span class="p">]),</span>
+                        <span class="p">]</span>
+                    <span class="p">),</span>
+                <span class="p">]</span> <span class="o">+</span> <span class="n">diagonal</span><span class="p">,</span>  <span class="c1"># turn into *diagonal after dropping Python 2.7</span>
+                <span class="n">validator</span><span class="o">=</span><span class="n">CodegenArrayDiagonal</span><span class="o">.</span><span class="n">_validate</span>
+            <span class="p">)</span>
+            <span class="n">i</span><span class="o">.</span><span class="n">_first_pointer_parent</span> <span class="o">=</span> <span class="n">subexpr</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">args</span>
+            <span class="n">i</span><span class="o">.</span><span class="n">_first_pointer_index</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">i</span><span class="o">.</span><span class="n">_first_line_index</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">i</span><span class="o">.</span><span class="n">_second_pointer_parent</span> <span class="o">=</span> <span class="n">subexpr</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">args</span>
+            <span class="n">i</span><span class="o">.</span><span class="n">_second_pointer_index</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">i</span><span class="o">.</span><span class="n">_second_line_index</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">i</span><span class="o">.</span><span class="n">_lines</span> <span class="o">=</span> <span class="p">[</span><span class="n">subexpr</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">lr</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../../../index.html">
+              <img class="logo" src="../../../../_static/sympylogo.png" alt="Logo"/>
+            </a></p>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../../../index.html">SymPy 1.5.dev documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../../../index.html" >Module code</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2019 SymPy Development Team.
+      Last updated on Aug 30, 2019.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 2.2.0.
+    </div>
+  </body>
+</html>
