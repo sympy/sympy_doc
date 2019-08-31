@@ -756,7 +756,11 @@
     <span class="k">else</span><span class="p">:</span>
         <span class="c1"># We still want to integrate (you can disable it separately with the hint)</span>
         <span class="n">match</span><span class="p">[</span><span class="s1">&#39;simplify&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>  <span class="c1"># Some hints can take advantage of this option</span>
-        <span class="n">rv</span> <span class="o">=</span> <span class="n">_handle_Integral</span><span class="p">(</span><span class="n">solvefunc</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">func</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">match</span><span class="p">),</span> <span class="n">func</span><span class="p">,</span> <span class="n">hint</span><span class="p">)</span>
+        <span class="n">exprs</span> <span class="o">=</span> <span class="n">solvefunc</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">func</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">match</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+            <span class="n">rv</span> <span class="o">=</span> <span class="p">[</span><span class="n">_handle_Integral</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">func</span><span class="p">,</span> <span class="n">hint</span><span class="p">)</span> <span class="k">for</span> <span class="n">expr</span> <span class="ow">in</span> <span class="n">exprs</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">rv</span> <span class="o">=</span> <span class="n">_handle_Integral</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="n">func</span><span class="p">,</span> <span class="n">hint</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">rv</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
         <span class="n">rv</span> <span class="o">=</span> <span class="n">_remove_redundant_solutions</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">rv</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">func</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
@@ -5772,6 +5776,114 @@
                     <span class="n">soltup</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="kc">True</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
             <span class="k">return</span> <span class="n">soltup</span></div>
 
+<span class="k">def</span> <span class="nf">_ode_lie_group_try_heuristic</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">heuristic</span><span class="p">,</span> <span class="n">func</span><span class="p">,</span> <span class="n">match</span><span class="p">,</span> <span class="n">inf</span><span class="p">):</span>
+
+    <span class="n">xi</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="s2">&quot;xi&quot;</span><span class="p">)</span>
+    <span class="n">eta</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="s2">&quot;eta&quot;</span><span class="p">)</span>
+    <span class="n">f</span> <span class="o">=</span> <span class="n">func</span><span class="o">.</span><span class="n">func</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">func</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">y</span> <span class="o">=</span> <span class="n">match</span><span class="p">[</span><span class="s1">&#39;y&#39;</span><span class="p">]</span>
+    <span class="n">h</span> <span class="o">=</span> <span class="n">match</span><span class="p">[</span><span class="s1">&#39;h&#39;</span><span class="p">]</span>
+    <span class="n">tempsol</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">inf</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">inf</span> <span class="o">=</span> <span class="n">infinitesimals</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">hint</span><span class="o">=</span><span class="n">heuristic</span><span class="p">,</span> <span class="n">func</span><span class="o">=</span><span class="n">func</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">match</span><span class="o">=</span><span class="n">match</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">for</span> <span class="n">infsim</span> <span class="ow">in</span> <span class="n">inf</span><span class="p">:</span>
+        <span class="n">xiinf</span> <span class="o">=</span> <span class="p">(</span><span class="n">infsim</span><span class="p">[</span><span class="n">xi</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">func</span><span class="p">)])</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="n">etainf</span> <span class="o">=</span> <span class="p">(</span><span class="n">infsim</span><span class="p">[</span><span class="n">eta</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">func</span><span class="p">)])</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="c1"># This condition creates recursion while using pdsolve.</span>
+        <span class="c1"># Since the first step while solving a PDE of form</span>
+        <span class="c1"># a*(f(x, y).diff(x)) + b*(f(x, y).diff(y)) + c = 0</span>
+        <span class="c1"># is to solve the ODE dy/dx = b/a</span>
+        <span class="k">if</span> <span class="n">simplify</span><span class="p">(</span><span class="n">etainf</span><span class="o">/</span><span class="n">xiinf</span><span class="p">)</span> <span class="o">==</span> <span class="n">h</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="n">rpde</span> <span class="o">=</span> <span class="n">f</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">*</span><span class="n">xiinf</span> <span class="o">+</span> <span class="n">f</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">y</span><span class="p">)</span><span class="o">*</span><span class="n">etainf</span>
+        <span class="n">r</span> <span class="o">=</span> <span class="n">pdsolve</span><span class="p">(</span><span class="n">rpde</span><span class="p">,</span> <span class="n">func</span><span class="o">=</span><span class="n">f</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">))</span><span class="o">.</span><span class="n">rhs</span>
+        <span class="n">s</span> <span class="o">=</span> <span class="n">pdsolve</span><span class="p">(</span><span class="n">rpde</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">func</span><span class="o">=</span><span class="n">f</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">))</span><span class="o">.</span><span class="n">rhs</span>
+        <span class="n">newcoord</span> <span class="o">=</span> <span class="p">[</span><span class="n">_lie_group_remove</span><span class="p">(</span><span class="n">coord</span><span class="p">)</span> <span class="k">for</span> <span class="n">coord</span> <span class="ow">in</span> <span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">s</span><span class="p">]]</span>
+        <span class="n">r</span> <span class="o">=</span> <span class="n">Dummy</span><span class="p">(</span><span class="s2">&quot;r&quot;</span><span class="p">)</span>
+        <span class="n">s</span> <span class="o">=</span> <span class="n">Dummy</span><span class="p">(</span><span class="s2">&quot;s&quot;</span><span class="p">)</span>
+        <span class="n">C1</span> <span class="o">=</span> <span class="n">Symbol</span><span class="p">(</span><span class="s2">&quot;C1&quot;</span><span class="p">)</span>
+        <span class="n">rcoord</span> <span class="o">=</span> <span class="n">newcoord</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">scoord</span> <span class="o">=</span> <span class="n">newcoord</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">sol</span> <span class="o">=</span> <span class="n">solve</span><span class="p">([</span><span class="n">r</span> <span class="o">-</span> <span class="n">rcoord</span><span class="p">,</span> <span class="n">s</span> <span class="o">-</span> <span class="n">scoord</span><span class="p">],</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="nb">dict</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">sol</span> <span class="o">==</span> <span class="p">[]:</span>
+                <span class="k">continue</span>
+        <span class="k">except</span> <span class="ne">NotImplementedError</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">sol</span> <span class="o">=</span> <span class="n">sol</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">xsub</span> <span class="o">=</span> <span class="n">sol</span><span class="p">[</span><span class="n">x</span><span class="p">]</span>
+            <span class="n">ysub</span> <span class="o">=</span> <span class="n">sol</span><span class="p">[</span><span class="n">y</span><span class="p">]</span>
+            <span class="n">num</span> <span class="o">=</span> <span class="n">simplify</span><span class="p">(</span><span class="n">scoord</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">+</span> <span class="n">scoord</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">y</span><span class="p">)</span><span class="o">*</span><span class="n">h</span><span class="p">)</span>
+            <span class="n">denom</span> <span class="o">=</span> <span class="n">simplify</span><span class="p">(</span><span class="n">rcoord</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">+</span> <span class="n">rcoord</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">y</span><span class="p">)</span><span class="o">*</span><span class="n">h</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">num</span> <span class="ow">and</span> <span class="n">denom</span><span class="p">:</span>
+                <span class="n">diffeq</span> <span class="o">=</span> <span class="n">simplify</span><span class="p">((</span><span class="n">num</span><span class="o">/</span><span class="n">denom</span><span class="p">)</span><span class="o">.</span><span class="n">subs</span><span class="p">([(</span><span class="n">x</span><span class="p">,</span> <span class="n">xsub</span><span class="p">),</span> <span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">ysub</span><span class="p">)]))</span>
+                <span class="n">sep</span> <span class="o">=</span> <span class="n">separatevars</span><span class="p">(</span><span class="n">diffeq</span><span class="p">,</span> <span class="n">symbols</span><span class="o">=</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">s</span><span class="p">],</span> <span class="nb">dict</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">sep</span><span class="p">:</span>
+                    <span class="c1"># Trying to separate, r and s coordinates</span>
+                    <span class="n">deq</span> <span class="o">=</span> <span class="n">integrate</span><span class="p">((</span><span class="mi">1</span><span class="o">/</span><span class="n">sep</span><span class="p">[</span><span class="n">s</span><span class="p">]),</span> <span class="n">s</span><span class="p">)</span> <span class="o">+</span> <span class="n">C1</span> <span class="o">-</span> <span class="n">integrate</span><span class="p">(</span><span class="n">sep</span><span class="p">[</span><span class="s1">&#39;coeff&#39;</span><span class="p">]</span><span class="o">*</span><span class="n">sep</span><span class="p">[</span><span class="n">r</span><span class="p">],</span> <span class="n">r</span><span class="p">)</span>
+                    <span class="c1"># Substituting and reverting back to original coordinates</span>
+                    <span class="n">deq</span> <span class="o">=</span> <span class="n">deq</span><span class="o">.</span><span class="n">subs</span><span class="p">([(</span><span class="n">r</span><span class="p">,</span> <span class="n">rcoord</span><span class="p">),</span> <span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">scoord</span><span class="p">)])</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">sdeq</span> <span class="o">=</span> <span class="n">solve</span><span class="p">(</span><span class="n">deq</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+                    <span class="k">except</span> <span class="ne">NotImplementedError</span><span class="p">:</span>
+                        <span class="n">tempsol</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">deq</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="k">return</span> <span class="p">[</span><span class="n">Eq</span><span class="p">(</span><span class="n">f</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="n">sol</span><span class="p">)</span> <span class="k">for</span> <span class="n">sol</span> <span class="ow">in</span> <span class="n">sdeq</span><span class="p">]</span>
+
+
+            <span class="k">elif</span> <span class="n">denom</span><span class="p">:</span> <span class="c1"># (ds/dr) is zero which means s is constant</span>
+                <span class="k">return</span> <span class="p">[</span><span class="n">Eq</span><span class="p">(</span><span class="n">f</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="n">solve</span><span class="p">(</span><span class="n">scoord</span> <span class="o">-</span> <span class="n">C1</span><span class="p">,</span> <span class="n">y</span><span class="p">)[</span><span class="mi">0</span><span class="p">])]</span>
+
+            <span class="k">elif</span> <span class="n">num</span><span class="p">:</span> <span class="c1"># (dr/ds) is zero which means r is constant</span>
+                <span class="k">return</span> <span class="p">[</span><span class="n">Eq</span><span class="p">(</span><span class="n">f</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="n">solve</span><span class="p">(</span><span class="n">rcoord</span> <span class="o">-</span> <span class="n">C1</span><span class="p">,</span> <span class="n">y</span><span class="p">)[</span><span class="mi">0</span><span class="p">])]</span>
+
+    <span class="c1"># If nothing works, return solution as it is, without solving for y</span>
+    <span class="k">if</span> <span class="n">tempsol</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">Eq</span><span class="p">(</span><span class="n">sol</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">f</span><span class="p">(</span><span class="n">x</span><span class="p">)),</span> <span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">sol</span> <span class="ow">in</span> <span class="n">tempsol</span><span class="p">]</span>
+    <span class="k">return</span> <span class="kc">None</span>
+
+<span class="k">def</span> <span class="nf">_ode_lie_group</span><span class="p">(</span> <span class="n">s</span><span class="p">,</span> <span class="n">func</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">match</span><span class="p">):</span>
+
+    <span class="n">heuristics</span> <span class="o">=</span> <span class="n">lie_heuristics</span>
+    <span class="n">inf</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">f</span> <span class="o">=</span> <span class="n">func</span><span class="o">.</span><span class="n">func</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">func</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">df</span> <span class="o">=</span> <span class="n">func</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+    <span class="n">xi</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="s2">&quot;xi&quot;</span><span class="p">)</span>
+    <span class="n">eta</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="s2">&quot;eta&quot;</span><span class="p">)</span>
+    <span class="n">xis</span> <span class="o">=</span> <span class="n">match</span><span class="p">[</span><span class="s1">&#39;xi&#39;</span><span class="p">]</span>
+    <span class="n">etas</span> <span class="o">=</span> <span class="n">match</span><span class="p">[</span><span class="s1">&#39;eta&#39;</span><span class="p">]</span>
+    <span class="n">y</span> <span class="o">=</span> <span class="n">match</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;y&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">y</span><span class="p">:</span>
+        <span class="n">h</span> <span class="o">=</span> <span class="o">-</span><span class="n">simplify</span><span class="p">(</span><span class="n">match</span><span class="p">[</span><span class="n">match</span><span class="p">[</span><span class="s1">&#39;d&#39;</span><span class="p">]]</span><span class="o">/</span><span class="n">match</span><span class="p">[</span><span class="n">match</span><span class="p">[</span><span class="s1">&#39;e&#39;</span><span class="p">]])</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="n">y</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="n">Dummy</span><span class="p">(</span><span class="s2">&quot;y&quot;</span><span class="p">)</span>
+        <span class="n">h</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">xis</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">etas</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">inf</span> <span class="o">=</span> <span class="p">[{</span><span class="n">xi</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">f</span><span class="p">(</span><span class="n">x</span><span class="p">)):</span> <span class="n">S</span><span class="p">(</span><span class="n">xis</span><span class="p">),</span> <span class="n">eta</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">f</span><span class="p">(</span><span class="n">x</span><span class="p">)):</span> <span class="n">S</span><span class="p">(</span><span class="n">etas</span><span class="p">)}]</span>
+
+        <span class="k">if</span> <span class="n">checkinfsol</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">s</span><span class="p">),</span> <span class="n">inf</span><span class="p">,</span> <span class="n">func</span><span class="o">=</span><span class="n">f</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="n">order</span><span class="o">=</span><span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]:</span>
+            <span class="n">heuristics</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;user_defined&quot;</span><span class="p">]</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">heuristics</span><span class="p">)</span>
+
+    <span class="n">match</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;h&#39;</span><span class="p">:</span> <span class="n">h</span><span class="p">,</span> <span class="s1">&#39;y&#39;</span><span class="p">:</span> <span class="n">y</span><span class="p">}</span>
+
+    <span class="c1"># This is done so that if:</span>
+    <span class="c1"># a] any heuristic raises a ValueError</span>
+    <span class="c1"># another heuristic can be used.</span>
+    <span class="n">sol</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">for</span> <span class="n">heuristic</span> <span class="ow">in</span> <span class="n">heuristics</span><span class="p">:</span>
+        <span class="n">sol</span> <span class="o">=</span> <span class="n">_ode_lie_group_try_heuristic</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">s</span><span class="p">),</span> <span class="n">heuristic</span><span class="p">,</span> <span class="n">func</span><span class="p">,</span> <span class="n">match</span><span class="p">,</span> <span class="n">inf</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">sol</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">sol</span>
+    <span class="k">return</span> <span class="n">sol</span>
+
 <div class="viewcode-block" id="ode_lie_group"><a class="viewcode-back" href="../../../modules/solvers/ode.html#sympy.solvers.ode.ode_lie_group">[docs]</a><span class="k">def</span> <span class="nf">ode_lie_group</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">func</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">match</span><span class="p">):</span>
     <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    This hint implements the Lie group method of solving first order differential</span>
@@ -5822,117 +5934,25 @@
 
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">heuristics</span> <span class="o">=</span> <span class="n">lie_heuristics</span>
-    <span class="n">inf</span> <span class="o">=</span> <span class="p">{}</span>
     <span class="n">f</span> <span class="o">=</span> <span class="n">func</span><span class="o">.</span><span class="n">func</span>
     <span class="n">x</span> <span class="o">=</span> <span class="n">func</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
     <span class="n">df</span> <span class="o">=</span> <span class="n">func</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
-    <span class="n">xi</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="s2">&quot;xi&quot;</span><span class="p">)</span>
-    <span class="n">eta</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="s2">&quot;eta&quot;</span><span class="p">)</span>
-    <span class="n">xis</span> <span class="o">=</span> <span class="n">match</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;xi&#39;</span><span class="p">)</span>
-    <span class="n">etas</span> <span class="o">=</span> <span class="n">match</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;eta&#39;</span><span class="p">)</span>
 
-    <span class="k">if</span> <span class="n">match</span><span class="p">:</span>
-        <span class="n">h</span> <span class="o">=</span> <span class="o">-</span><span class="n">simplify</span><span class="p">(</span><span class="n">match</span><span class="p">[</span><span class="n">match</span><span class="p">[</span><span class="s1">&#39;d&#39;</span><span class="p">]]</span><span class="o">/</span><span class="n">match</span><span class="p">[</span><span class="n">match</span><span class="p">[</span><span class="s1">&#39;e&#39;</span><span class="p">]])</span>
-        <span class="n">y</span> <span class="o">=</span> <span class="n">match</span><span class="p">[</span><span class="s1">&#39;y&#39;</span><span class="p">]</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="n">sol</span> <span class="o">=</span> <span class="n">solve</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">df</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">sol</span> <span class="o">==</span> <span class="p">[]:</span>
-                <span class="k">raise</span> <span class="ne">NotImplementedError</span>
-        <span class="k">except</span> <span class="ne">NotImplementedError</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Unable to solve the differential equation &quot;</span> <span class="o">+</span>
-                <span class="nb">str</span><span class="p">(</span><span class="n">eq</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot; by the lie group method&quot;</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">y</span> <span class="o">=</span> <span class="n">Dummy</span><span class="p">(</span><span class="s2">&quot;y&quot;</span><span class="p">)</span>
-            <span class="n">h</span> <span class="o">=</span> <span class="n">sol</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">eqsol</span> <span class="o">=</span> <span class="n">solve</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">df</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">NotImplementedError</span><span class="p">:</span>
+        <span class="n">eqsol</span> <span class="o">=</span> <span class="p">[]</span>
 
-    <span class="k">if</span> <span class="n">xis</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">etas</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">inf</span> <span class="o">=</span> <span class="p">[{</span><span class="n">xi</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">f</span><span class="p">(</span><span class="n">x</span><span class="p">)):</span> <span class="n">S</span><span class="p">(</span><span class="n">xis</span><span class="p">),</span> <span class="n">eta</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">f</span><span class="p">(</span><span class="n">x</span><span class="p">)):</span> <span class="n">S</span><span class="p">(</span><span class="n">etas</span><span class="p">)}]</span>
+    <span class="n">desols</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">eqsol</span><span class="p">:</span>
+        <span class="n">sol</span> <span class="o">=</span> <span class="n">_ode_lie_group</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">func</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">match</span><span class="o">=</span><span class="n">match</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">sol</span><span class="p">:</span>
+            <span class="n">desols</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">sol</span><span class="p">)</span>
 
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">checkinfsol</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">inf</span><span class="p">,</span> <span class="n">func</span><span class="o">=</span><span class="n">f</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="n">order</span><span class="o">=</span><span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]:</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;The given infinitesimals xi and eta&quot;</span>
-                <span class="s2">&quot; are not the infinitesimals to the given equation&quot;</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">heuristics</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;user_defined&quot;</span><span class="p">]</span>
-
-    <span class="n">match</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;h&#39;</span><span class="p">:</span> <span class="n">h</span><span class="p">,</span> <span class="s1">&#39;y&#39;</span><span class="p">:</span> <span class="n">y</span><span class="p">}</span>
-
-    <span class="c1"># This is done so that if:</span>
-    <span class="c1"># a] solve raises a NotImplementedError.</span>
-    <span class="c1"># b] any heuristic raises a ValueError</span>
-    <span class="c1"># another heuristic can be used.</span>
-    <span class="n">tempsol</span> <span class="o">=</span> <span class="p">[]</span>  <span class="c1"># Used by solve below</span>
-    <span class="k">for</span> <span class="n">heuristic</span> <span class="ow">in</span> <span class="n">heuristics</span><span class="p">:</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="n">inf</span><span class="p">:</span>
-                <span class="n">inf</span> <span class="o">=</span> <span class="n">infinitesimals</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">hint</span><span class="o">=</span><span class="n">heuristic</span><span class="p">,</span> <span class="n">func</span><span class="o">=</span><span class="n">func</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">match</span><span class="o">=</span><span class="n">match</span><span class="p">)</span>
-        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
-            <span class="k">continue</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">for</span> <span class="n">infsim</span> <span class="ow">in</span> <span class="n">inf</span><span class="p">:</span>
-                <span class="n">xiinf</span> <span class="o">=</span> <span class="p">(</span><span class="n">infsim</span><span class="p">[</span><span class="n">xi</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">func</span><span class="p">)])</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
-                <span class="n">etainf</span> <span class="o">=</span> <span class="p">(</span><span class="n">infsim</span><span class="p">[</span><span class="n">eta</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">func</span><span class="p">)])</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
-                <span class="c1"># This condition creates recursion while using pdsolve.</span>
-                <span class="c1"># Since the first step while solving a PDE of form</span>
-                <span class="c1"># a*(f(x, y).diff(x)) + b*(f(x, y).diff(y)) + c = 0</span>
-                <span class="c1"># is to solve the ODE dy/dx = b/a</span>
-                <span class="k">if</span> <span class="n">simplify</span><span class="p">(</span><span class="n">etainf</span><span class="o">/</span><span class="n">xiinf</span><span class="p">)</span> <span class="o">==</span> <span class="n">h</span><span class="p">:</span>
-                    <span class="k">continue</span>
-                <span class="n">rpde</span> <span class="o">=</span> <span class="n">f</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">*</span><span class="n">xiinf</span> <span class="o">+</span> <span class="n">f</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">y</span><span class="p">)</span><span class="o">*</span><span class="n">etainf</span>
-                <span class="n">r</span> <span class="o">=</span> <span class="n">pdsolve</span><span class="p">(</span><span class="n">rpde</span><span class="p">,</span> <span class="n">func</span><span class="o">=</span><span class="n">f</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">))</span><span class="o">.</span><span class="n">rhs</span>
-                <span class="n">s</span> <span class="o">=</span> <span class="n">pdsolve</span><span class="p">(</span><span class="n">rpde</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">func</span><span class="o">=</span><span class="n">f</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">))</span><span class="o">.</span><span class="n">rhs</span>
-                <span class="n">newcoord</span> <span class="o">=</span> <span class="p">[</span><span class="n">_lie_group_remove</span><span class="p">(</span><span class="n">coord</span><span class="p">)</span> <span class="k">for</span> <span class="n">coord</span> <span class="ow">in</span> <span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">s</span><span class="p">]]</span>
-                <span class="n">r</span> <span class="o">=</span> <span class="n">Dummy</span><span class="p">(</span><span class="s2">&quot;r&quot;</span><span class="p">)</span>
-                <span class="n">s</span> <span class="o">=</span> <span class="n">Dummy</span><span class="p">(</span><span class="s2">&quot;s&quot;</span><span class="p">)</span>
-                <span class="n">C1</span> <span class="o">=</span> <span class="n">Symbol</span><span class="p">(</span><span class="s2">&quot;C1&quot;</span><span class="p">)</span>
-                <span class="n">rcoord</span> <span class="o">=</span> <span class="n">newcoord</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-                <span class="n">scoord</span> <span class="o">=</span> <span class="n">newcoord</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
-                <span class="k">try</span><span class="p">:</span>
-                    <span class="n">sol</span> <span class="o">=</span> <span class="n">solve</span><span class="p">([</span><span class="n">r</span> <span class="o">-</span> <span class="n">rcoord</span><span class="p">,</span> <span class="n">s</span> <span class="o">-</span> <span class="n">scoord</span><span class="p">],</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="nb">dict</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-                <span class="k">except</span> <span class="ne">NotImplementedError</span><span class="p">:</span>
-                    <span class="k">continue</span>
-                <span class="k">else</span><span class="p">:</span>
-                    <span class="n">sol</span> <span class="o">=</span> <span class="n">sol</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-                    <span class="n">xsub</span> <span class="o">=</span> <span class="n">sol</span><span class="p">[</span><span class="n">x</span><span class="p">]</span>
-                    <span class="n">ysub</span> <span class="o">=</span> <span class="n">sol</span><span class="p">[</span><span class="n">y</span><span class="p">]</span>
-                    <span class="n">num</span> <span class="o">=</span> <span class="n">simplify</span><span class="p">(</span><span class="n">scoord</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">+</span> <span class="n">scoord</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">y</span><span class="p">)</span><span class="o">*</span><span class="n">h</span><span class="p">)</span>
-                    <span class="n">denom</span> <span class="o">=</span> <span class="n">simplify</span><span class="p">(</span><span class="n">rcoord</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">+</span> <span class="n">rcoord</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">y</span><span class="p">)</span><span class="o">*</span><span class="n">h</span><span class="p">)</span>
-                    <span class="k">if</span> <span class="n">num</span> <span class="ow">and</span> <span class="n">denom</span><span class="p">:</span>
-                        <span class="n">diffeq</span> <span class="o">=</span> <span class="n">simplify</span><span class="p">((</span><span class="n">num</span><span class="o">/</span><span class="n">denom</span><span class="p">)</span><span class="o">.</span><span class="n">subs</span><span class="p">([(</span><span class="n">x</span><span class="p">,</span> <span class="n">xsub</span><span class="p">),</span> <span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">ysub</span><span class="p">)]))</span>
-                        <span class="n">sep</span> <span class="o">=</span> <span class="n">separatevars</span><span class="p">(</span><span class="n">diffeq</span><span class="p">,</span> <span class="n">symbols</span><span class="o">=</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">s</span><span class="p">],</span> <span class="nb">dict</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-                        <span class="k">if</span> <span class="n">sep</span><span class="p">:</span>
-                            <span class="c1"># Trying to separate, r and s coordinates</span>
-                            <span class="n">deq</span> <span class="o">=</span> <span class="n">integrate</span><span class="p">((</span><span class="mi">1</span><span class="o">/</span><span class="n">sep</span><span class="p">[</span><span class="n">s</span><span class="p">]),</span> <span class="n">s</span><span class="p">)</span> <span class="o">+</span> <span class="n">C1</span> <span class="o">-</span> <span class="n">integrate</span><span class="p">(</span><span class="n">sep</span><span class="p">[</span><span class="s1">&#39;coeff&#39;</span><span class="p">]</span><span class="o">*</span><span class="n">sep</span><span class="p">[</span><span class="n">r</span><span class="p">],</span> <span class="n">r</span><span class="p">)</span>
-                            <span class="c1"># Substituting and reverting back to original coordinates</span>
-                            <span class="n">deq</span> <span class="o">=</span> <span class="n">deq</span><span class="o">.</span><span class="n">subs</span><span class="p">([(</span><span class="n">r</span><span class="p">,</span> <span class="n">rcoord</span><span class="p">),</span> <span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">scoord</span><span class="p">)])</span>
-                            <span class="k">try</span><span class="p">:</span>
-                                <span class="n">sdeq</span> <span class="o">=</span> <span class="n">solve</span><span class="p">(</span><span class="n">deq</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
-                            <span class="k">except</span> <span class="ne">NotImplementedError</span><span class="p">:</span>
-                                <span class="n">tempsol</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">deq</span><span class="p">)</span>
-                            <span class="k">else</span><span class="p">:</span>
-                                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">sdeq</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
-                                    <span class="k">return</span> <span class="n">Eq</span><span class="p">(</span><span class="n">f</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="n">sdeq</span><span class="o">.</span><span class="n">pop</span><span class="p">())</span>
-                                <span class="k">else</span><span class="p">:</span>
-                                    <span class="k">return</span> <span class="p">[</span><span class="n">Eq</span><span class="p">(</span><span class="n">f</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="n">sol</span><span class="p">)</span> <span class="k">for</span> <span class="n">sol</span> <span class="ow">in</span> <span class="n">sdeq</span><span class="p">]</span>
-
-
-                    <span class="k">elif</span> <span class="n">denom</span><span class="p">:</span> <span class="c1"># (ds/dr) is zero which means s is constant</span>
-                        <span class="k">return</span> <span class="n">Eq</span><span class="p">(</span><span class="n">f</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="n">solve</span><span class="p">(</span><span class="n">scoord</span> <span class="o">-</span> <span class="n">C1</span><span class="p">,</span> <span class="n">y</span><span class="p">)[</span><span class="mi">0</span><span class="p">])</span>
-
-                    <span class="k">elif</span> <span class="n">num</span><span class="p">:</span> <span class="c1"># (dr/ds) is zero which means r is constant</span>
-                        <span class="k">return</span> <span class="n">Eq</span><span class="p">(</span><span class="n">f</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="n">solve</span><span class="p">(</span><span class="n">rcoord</span> <span class="o">-</span> <span class="n">C1</span><span class="p">,</span> <span class="n">y</span><span class="p">)[</span><span class="mi">0</span><span class="p">])</span>
-
-    <span class="c1"># If nothing works, return solution as it is, without solving for y</span>
-    <span class="k">if</span> <span class="n">tempsol</span><span class="p">:</span>
-        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">tempsol</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">Eq</span><span class="p">(</span><span class="n">tempsol</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">f</span><span class="p">(</span><span class="n">x</span><span class="p">)),</span> <span class="mi">0</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="p">[</span><span class="n">Eq</span><span class="p">(</span><span class="n">sol</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">f</span><span class="p">(</span><span class="n">x</span><span class="p">)),</span> <span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">sol</span> <span class="ow">in</span> <span class="n">tempsol</span><span class="p">]</span>
-
-    <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;The given ODE &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">eq</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot; cannot be solved by&quot;</span>
-        <span class="o">+</span> <span class="s2">&quot; the lie group method&quot;</span><span class="p">)</span></div>
-
+    <span class="k">if</span> <span class="n">desols</span> <span class="o">==</span> <span class="p">[]:</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;The given ODE &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">eq</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot; cannot be solved by&quot;</span>
+            <span class="o">+</span> <span class="s2">&quot; the lie group method&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">desols</span></div>
 
 <span class="k">def</span> <span class="nf">_lie_group_remove</span><span class="p">(</span><span class="n">coords</span><span class="p">):</span>
     <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
@@ -8851,7 +8871,7 @@
     </div>
     <div class="footer" role="contentinfo">
         &#169; Copyright 2019 SymPy Development Team.
-      Last updated on Aug 30, 2019.
+      Last updated on Aug 31, 2019.
       Created using <a href="http://sphinx-doc.org/">Sphinx</a> 2.2.0.
     </div>
   </body>
