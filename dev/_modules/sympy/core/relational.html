@@ -345,7 +345,67 @@
                 <span class="n">v</span> <span class="o">=</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span>
             <span class="k">if</span> <span class="n">v</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="n">r</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="n">_eval_relation</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">S</span><span class="o">.</span><span class="n">Zero</span><span class="p">)</span>
+            <span class="n">r</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">canonical</span>
+            <span class="c1"># If there is only one symbol in the expression,</span>
+            <span class="c1"># try to write it on a simplified form</span>
+            <span class="n">free</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">filter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">is_real</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">False</span><span class="p">,</span> <span class="n">r</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">))</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">free</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="kn">from</span> <span class="nn">sympy.solvers.solveset</span> <span class="k">import</span> <span class="n">linear_coeffs</span>
+                    <span class="n">x</span> <span class="o">=</span> <span class="n">free</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+                    <span class="n">dif</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">lhs</span> <span class="o">-</span> <span class="n">r</span><span class="o">.</span><span class="n">rhs</span>
+                    <span class="n">m</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="n">linear_coeffs</span><span class="p">(</span><span class="n">dif</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">m</span><span class="o">.</span><span class="n">is_zero</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="n">m</span><span class="o">.</span><span class="n">is_negative</span><span class="p">:</span>
+                            <span class="c1"># Dividing with a negative number, so change order of arguments</span>
+                            <span class="c1"># canonical will put the symbol back on the lhs later</span>
+                            <span class="n">r</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">-</span><span class="n">b</span><span class="o">/</span><span class="n">m</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="n">r</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="o">-</span><span class="n">b</span><span class="o">/</span><span class="n">m</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">r</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">S</span><span class="o">.</span><span class="n">zero</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+                    <span class="c1"># maybe not a linear function, try polynomial</span>
+                    <span class="kn">from</span> <span class="nn">sympy.polys</span> <span class="k">import</span> <span class="n">Poly</span><span class="p">,</span> <span class="n">poly</span><span class="p">,</span> <span class="n">PolynomialError</span><span class="p">,</span> <span class="n">gcd</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">p</span> <span class="o">=</span> <span class="n">poly</span><span class="p">(</span><span class="n">dif</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+                        <span class="n">c</span> <span class="o">=</span> <span class="n">p</span><span class="o">.</span><span class="n">all_coeffs</span><span class="p">()</span>
+                        <span class="n">constant</span> <span class="o">=</span> <span class="n">c</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+                        <span class="n">c</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+                        <span class="n">scale</span> <span class="o">=</span> <span class="n">gcd</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+                        <span class="n">c</span> <span class="o">=</span> <span class="p">[</span><span class="n">ctmp</span><span class="o">/</span><span class="n">scale</span> <span class="k">for</span> <span class="n">ctmp</span> <span class="ow">in</span> <span class="n">c</span><span class="p">]</span>
+                        <span class="n">r</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">Poly</span><span class="o">.</span><span class="n">from_list</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">as_expr</span><span class="p">(),</span> <span class="o">-</span><span class="n">constant</span><span class="o">/</span><span class="n">scale</span><span class="p">)</span>
+                    <span class="k">except</span> <span class="n">PolynomialError</span><span class="p">:</span>
+                        <span class="k">pass</span>
+            <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">free</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="kn">from</span> <span class="nn">sympy.solvers.solveset</span> <span class="k">import</span> <span class="n">linear_coeffs</span>
+                    <span class="kn">from</span> <span class="nn">sympy.polys</span> <span class="k">import</span> <span class="n">gcd</span>
+                    <span class="n">free</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">ordered</span><span class="p">(</span><span class="n">free</span><span class="p">))</span>
+                    <span class="n">dif</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">lhs</span> <span class="o">-</span> <span class="n">r</span><span class="o">.</span><span class="n">rhs</span>
+                    <span class="n">m</span> <span class="o">=</span> <span class="n">linear_coeffs</span><span class="p">(</span><span class="n">dif</span><span class="p">,</span> <span class="o">*</span><span class="n">free</span><span class="p">)</span>
+                    <span class="n">constant</span> <span class="o">=</span> <span class="n">m</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+                    <span class="k">del</span> <span class="n">m</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+                    <span class="n">scale</span> <span class="o">=</span> <span class="n">gcd</span><span class="p">(</span><span class="n">m</span><span class="p">)</span>
+                    <span class="n">m</span> <span class="o">=</span> <span class="p">[</span><span class="n">mtmp</span><span class="o">/</span><span class="n">scale</span> <span class="k">for</span> <span class="n">mtmp</span> <span class="ow">in</span> <span class="n">m</span><span class="p">]</span>
+                    <span class="n">nzm</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">filter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">f</span><span class="p">:</span> <span class="n">f</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="n">free</span><span class="p">))))</span>
+                    <span class="k">if</span> <span class="n">scale</span><span class="o">.</span><span class="n">is_zero</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="n">constant</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                            <span class="c1"># lhs: expression, rhs: constant</span>
+                            <span class="n">newexpr</span> <span class="o">=</span> <span class="n">Add</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">i</span><span class="o">*</span><span class="n">j</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">nzm</span><span class="p">])</span>
+                            <span class="n">r</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">newexpr</span><span class="p">,</span> <span class="o">-</span><span class="n">constant</span><span class="o">/</span><span class="n">scale</span><span class="p">)</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="c1"># keep first term on lhs</span>
+                            <span class="n">lhsterm</span> <span class="o">=</span> <span class="n">nzm</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">nzm</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
+                            <span class="k">del</span> <span class="n">nzm</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                            <span class="n">newexpr</span> <span class="o">=</span> <span class="n">Add</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">i</span><span class="o">*</span><span class="n">j</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">nzm</span><span class="p">])</span>
+                            <span class="n">r</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">lhsterm</span><span class="p">,</span> <span class="o">-</span><span class="n">newexpr</span><span class="p">)</span>
 
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">r</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">constant</span><span class="p">,</span> <span class="n">S</span><span class="o">.</span><span class="n">zero</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+                    <span class="k">pass</span>
+        <span class="c1"># Did we get a simplified result?</span>
         <span class="n">r</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">canonical</span>
         <span class="n">measure</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;measure&#39;</span><span class="p">]</span>
         <span class="k">if</span> <span class="n">measure</span><span class="p">(</span><span class="n">r</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;ratio&#39;</span><span class="p">]</span><span class="o">*</span><span class="n">measure</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -356,6 +416,7 @@
     <span class="k">def</span> <span class="nf">_eval_trigsimp</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">opts</span><span class="p">):</span>
         <span class="kn">from</span> <span class="nn">sympy.simplify</span> <span class="k">import</span> <span class="n">trigsimp</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">trigsimp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="o">**</span><span class="n">opts</span><span class="p">),</span> <span class="n">trigsimp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rhs</span><span class="p">,</span> <span class="o">**</span><span class="n">opts</span><span class="p">))</span>
+
 
     <span class="k">def</span> <span class="nf">__nonzero__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;cannot determine truth value of Relational&quot;</span><span class="p">)</span>
@@ -708,7 +769,6 @@
 
         <span class="c1"># make a &quot;non-evaluated&quot; Expr for the inequality</span>
         <span class="k">return</span> <span class="n">Relational</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">)</span>
-
 
 <span class="k">class</span> <span class="nc">_Greater</span><span class="p">(</span><span class="n">_Inequality</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Not intended for general use</span>
