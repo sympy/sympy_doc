@@ -96,13 +96,14 @@
 <span class="kn">from</span> <span class="nn">.singleton</span> <span class="k">import</span> <span class="n">S</span>
 <span class="kn">from</span> <span class="nn">.sympify</span> <span class="k">import</span> <span class="n">sympify</span>
 
-<span class="kn">from</span> <span class="nn">sympy.core.containers</span> <span class="k">import</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">Dict</span>
-<span class="kn">from</span> <span class="nn">sympy.core.logic</span> <span class="k">import</span> <span class="n">fuzzy_and</span>
 <span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="k">import</span> <span class="n">string_types</span><span class="p">,</span> <span class="n">with_metaclass</span><span class="p">,</span> <span class="n">PY3</span><span class="p">,</span> <span class="nb">range</span>
-<span class="kn">from</span> <span class="nn">sympy.utilities</span> <span class="k">import</span> <span class="n">default_sort_key</span>
-<span class="kn">from</span> <span class="nn">sympy.utilities.misc</span> <span class="k">import</span> <span class="n">filldedent</span>
-<span class="kn">from</span> <span class="nn">sympy.utilities.iterables</span> <span class="k">import</span> <span class="n">has_dups</span><span class="p">,</span> <span class="n">sift</span>
+<span class="kn">from</span> <span class="nn">sympy.core.containers</span> <span class="k">import</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">Dict</span>
 <span class="kn">from</span> <span class="nn">sympy.core.evaluate</span> <span class="k">import</span> <span class="n">global_evaluate</span>
+<span class="kn">from</span> <span class="nn">sympy.core.logic</span> <span class="k">import</span> <span class="n">fuzzy_and</span>
+<span class="kn">from</span> <span class="nn">sympy.utilities</span> <span class="k">import</span> <span class="n">default_sort_key</span>
+<span class="kn">from</span> <span class="nn">sympy.utilities.exceptions</span> <span class="k">import</span> <span class="n">SymPyDeprecationWarning</span>
+<span class="kn">from</span> <span class="nn">sympy.utilities.iterables</span> <span class="k">import</span> <span class="n">has_dups</span><span class="p">,</span> <span class="n">sift</span>
+<span class="kn">from</span> <span class="nn">sympy.utilities.misc</span> <span class="k">import</span> <span class="n">filldedent</span>
 
 <span class="kn">import</span> <span class="nn">mpmath</span>
 <span class="kn">import</span> <span class="nn">mpmath.libmp</span> <span class="k">as</span> <span class="nn">mlib</span>
@@ -152,6 +153,16 @@
     <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="p">(</span><span class="s2">&quot;Invalid operation with argument number </span><span class="si">%s</span><span class="s2"> for Function </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span>
                <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+
+
+<span class="k">class</span> <span class="nc">BadSignatureError</span><span class="p">(</span><span class="ne">TypeError</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Raised when a Lambda is created with an invalid signature&#39;&#39;&#39;</span>
+    <span class="k">pass</span>
+
+
+<span class="k">class</span> <span class="nc">BadArgumentsError</span><span class="p">(</span><span class="ne">TypeError</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Raised when a Lambda is called with an incorrect number of arguments&#39;&#39;&#39;</span>
+    <span class="k">pass</span>
 
 
 <span class="c1"># Python 2/3 version that does not raise a Deprecation warning</span>
@@ -1936,6 +1947,12 @@
 <span class="sd">    &gt;&gt;&gt; f2(1, 2, 3, 4)</span>
 <span class="sd">    73</span>
 
+<span class="sd">    It is also possible to unpack tuple arguments:</span>
+
+<span class="sd">    &gt;&gt;&gt; f = Lambda( ((x, y), z) , x + y + z)</span>
+<span class="sd">    &gt;&gt;&gt; f((1, 2), 3)</span>
+<span class="sd">    6</span>
+
 <span class="sd">    A handy shortcut for lots of arguments:</span>
 
 <span class="sd">    &gt;&gt;&gt; p = x, y, z</span>
@@ -1946,33 +1963,72 @@
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">is_Function</span> <span class="o">=</span> <span class="kc">True</span>
 
-    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">variables</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
-        <span class="kn">from</span> <span class="nn">sympy.sets.sets</span> <span class="k">import</span> <span class="n">FiniteSet</span>
-        <span class="n">v</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">variables</span><span class="p">)</span> <span class="k">if</span> <span class="n">iterable</span><span class="p">(</span><span class="n">variables</span><span class="p">)</span> <span class="k">else</span> <span class="p">[</span><span class="n">variables</span><span class="p">]</span>
-        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">v</span><span class="p">:</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="s1">&#39;is_symbol&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
-                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;variable is not a symbol: </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">i</span><span class="p">)</span>
-        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">v</span><span class="p">)):</span>
-            <span class="n">x</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">v</span> <span class="k">if</span> <span class="n">v</span><span class="o">.</span><span class="n">count</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
-            <span class="k">raise</span> <span class="ne">SyntaxError</span><span class="p">(</span><span class="s2">&quot;duplicate argument &#39;</span><span class="si">%s</span><span class="s2">&#39; in Lambda args&quot;</span> <span class="o">%</span> <span class="n">x</span><span class="p">)</span>
-        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">v</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">expr</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">signature</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">iterable</span><span class="p">(</span><span class="n">signature</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">signature</span><span class="p">,</span> <span class="p">(</span><span class="nb">tuple</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">)):</span>
+            <span class="n">SymPyDeprecationWarning</span><span class="p">(</span>
+                <span class="n">feature</span><span class="o">=</span><span class="s2">&quot;non tuple iterable of argument symbols to Lambda&quot;</span><span class="p">,</span>
+                <span class="n">useinstead</span><span class="o">=</span><span class="s2">&quot;tuple of argument symbols&quot;</span><span class="p">,</span>
+                <span class="n">issue</span><span class="o">=</span><span class="mi">17474</span><span class="p">,</span>
+                <span class="n">deprecated_since_version</span><span class="o">=</span><span class="s2">&quot;1.5&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">warn</span><span class="p">()</span>
+            <span class="n">signature</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">signature</span><span class="p">)</span>
+        <span class="n">sig</span> <span class="o">=</span> <span class="n">signature</span> <span class="k">if</span> <span class="n">iterable</span><span class="p">(</span><span class="n">signature</span><span class="p">)</span> <span class="k">else</span> <span class="p">(</span><span class="n">signature</span><span class="p">,)</span>
+        <span class="n">sig</span> <span class="o">=</span> <span class="n">sympify</span><span class="p">(</span><span class="n">sig</span><span class="p">)</span>
+        <span class="bp">cls</span><span class="o">.</span><span class="n">_check_signature</span><span class="p">(</span><span class="n">sig</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">sig</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">sig</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">expr</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">S</span><span class="o">.</span><span class="n">IdentityFunction</span>
 
-        <span class="n">obj</span> <span class="o">=</span> <span class="n">Expr</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">(</span><span class="o">*</span><span class="n">v</span><span class="p">),</span> <span class="n">sympify</span><span class="p">(</span><span class="n">expr</span><span class="p">))</span>
-        <span class="n">obj</span><span class="o">.</span><span class="n">nargs</span> <span class="o">=</span> <span class="n">FiniteSet</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">v</span><span class="p">))</span>
-        <span class="k">return</span> <span class="n">obj</span>
+        <span class="k">return</span> <span class="n">Expr</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">sig</span><span class="p">,</span> <span class="n">sympify</span><span class="p">(</span><span class="n">expr</span><span class="p">))</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_check_signature</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">sig</span><span class="p">):</span>
+        <span class="n">syms</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+
+        <span class="k">def</span> <span class="nf">rcheck</span><span class="p">(</span><span class="n">args</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">args</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">a</span><span class="o">.</span><span class="n">is_symbol</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">syms</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="n">BadSignatureError</span><span class="p">(</span><span class="s2">&quot;Duplicate symbol </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">a</span><span class="p">)</span>
+                    <span class="n">syms</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+                <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">):</span>
+                    <span class="n">rcheck</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="n">BadSignatureError</span><span class="p">(</span><span class="s2">&quot;Lambda signature should be only tuples&quot;</span>
+                        <span class="s2">&quot; and symbols, not </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">a</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">sig</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">BadSignatureError</span><span class="p">(</span><span class="s2">&quot;Lambda signature should be a tuple not </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">sig</span><span class="p">)</span>
+        <span class="c1"># Recurse through the signature:</span>
+        <span class="n">rcheck</span><span class="p">(</span><span class="n">sig</span><span class="p">)</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">variables</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;The variables used in the internal representation of the function&quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">signature</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;The expected form of the arguments to be unpacked into variables&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-
-    <span class="n">bound_symbols</span> <span class="o">=</span> <span class="n">variables</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">expr</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;The return value of the function&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">variables</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;The variables used in the internal representation of the function&quot;&quot;&quot;</span>
+        <span class="k">def</span> <span class="nf">_variables</span><span class="p">(</span><span class="n">args</span><span class="p">):</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">):</span>
+                <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">args</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">_variables</span><span class="p">(</span><span class="n">arg</span><span class="p">):</span>
+                        <span class="k">yield</span> <span class="n">a</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">yield</span> <span class="n">args</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">_variables</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">signature</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">nargs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">sympy.sets.sets</span> <span class="k">import</span> <span class="n">FiniteSet</span>
+        <span class="k">return</span> <span class="n">FiniteSet</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">signature</span><span class="p">))</span>
+
+    <span class="n">bound_symbols</span> <span class="o">=</span> <span class="n">variables</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">free_symbols</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -1989,12 +2045,32 @@
             <span class="c1">## XXX does this apply to Lambda? If not, remove this comment.</span>
             <span class="n">temp</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;</span><span class="si">%(name)s</span><span class="s1"> takes exactly </span><span class="si">%(args)s</span><span class="s1"> &#39;</span>
                    <span class="s1">&#39;argument</span><span class="si">%(plural)s</span><span class="s1"> (</span><span class="si">%(given)s</span><span class="s1"> given)&#39;</span><span class="p">)</span>
-            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="n">temp</span> <span class="o">%</span> <span class="p">{</span>
+            <span class="k">raise</span> <span class="n">BadArgumentsError</span><span class="p">(</span><span class="n">temp</span> <span class="o">%</span> <span class="p">{</span>
                 <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="p">,</span>
                 <span class="s1">&#39;args&#39;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nargs</span><span class="p">)[</span><span class="mi">0</span><span class="p">],</span>
                 <span class="s1">&#39;plural&#39;</span><span class="p">:</span> <span class="s1">&#39;s&#39;</span><span class="o">*</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nargs</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">),</span>
                 <span class="s1">&#39;given&#39;</span><span class="p">:</span> <span class="n">n</span><span class="p">})</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">variables</span><span class="p">,</span> <span class="n">args</span><span class="p">))))</span>
+
+        <span class="n">d</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_match_signature</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">signature</span><span class="p">,</span> <span class="n">args</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">d</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_match_signature</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sig</span><span class="p">,</span> <span class="n">args</span><span class="p">):</span>
+
+        <span class="n">symargmap</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="k">def</span> <span class="nf">rmatch</span><span class="p">(</span><span class="n">pars</span><span class="p">,</span> <span class="n">args</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">par</span><span class="p">,</span> <span class="n">arg</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">pars</span><span class="p">,</span> <span class="n">args</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">par</span><span class="o">.</span><span class="n">is_symbol</span><span class="p">:</span>
+                    <span class="n">symargmap</span><span class="p">[</span><span class="n">par</span><span class="p">]</span> <span class="o">=</span> <span class="n">arg</span>
+                <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">par</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="p">(</span><span class="nb">tuple</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">))</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">pars</span><span class="p">):</span>
+                        <span class="k">raise</span> <span class="n">BadArgumentsError</span><span class="p">(</span><span class="s2">&quot;Can&#39;t match </span><span class="si">%s</span><span class="s2"> and </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">pars</span><span class="p">))</span>
+                    <span class="n">rmatch</span><span class="p">(</span><span class="n">par</span><span class="p">,</span> <span class="n">arg</span><span class="p">)</span>
+
+        <span class="n">rmatch</span><span class="p">(</span><span class="n">sig</span><span class="p">,</span> <span class="n">args</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">symargmap</span>
 
     <span class="k">def</span> <span class="nf">__eq__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">Lambda</span><span class="p">):</span>
@@ -2002,13 +2078,11 @@
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">nargs</span> <span class="o">!=</span> <span class="n">other</span><span class="o">.</span><span class="n">nargs</span><span class="p">:</span>
             <span class="k">return</span> <span class="kc">False</span>
 
-        <span class="n">selfexpr</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
-        <span class="n">otherexpr</span> <span class="o">=</span> <span class="n">other</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
-        <span class="n">otherexpr</span> <span class="o">=</span> <span class="n">otherexpr</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">other</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]))))</span>
-        <span class="k">return</span> <span class="n">selfexpr</span> <span class="o">==</span> <span class="n">otherexpr</span>
-
-    <span class="k">def</span> <span class="nf">__ne__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
-        <span class="k">return</span> <span class="ow">not</span><span class="p">(</span><span class="bp">self</span> <span class="o">==</span> <span class="n">other</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">d</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_match_signature</span><span class="p">(</span><span class="n">other</span><span class="o">.</span><span class="n">signature</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">signature</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">BadArgumentsError</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">d</span><span class="p">)</span><span class="o">.</span><span class="n">args</span>
 
     <span class="k">def</span> <span class="nf">__hash__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">Lambda</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__hash__</span><span class="p">()</span>
@@ -2019,10 +2093,7 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">is_identity</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Return ``True`` if this ``Lambda`` is an identity function. &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="kc">None</span></div>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">signature</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">expr</span></div>
 
 
 <div class="viewcode-block" id="Subs"><a class="viewcode-back" href="../../../modules/core.html#sympy.core.function.Subs">[docs]</a><span class="k">class</span> <span class="nc">Subs</span><span class="p">(</span><span class="n">Expr</span><span class="p">):</span>
@@ -3266,7 +3337,7 @@
     </div>
     <div class="footer" role="contentinfo">
         &#169; Copyright 2019 SymPy Development Team.
-      Last updated on Aug 31, 2019.
+      Last updated on Sep 01, 2019.
       Created using <a href="http://sphinx-doc.org/">Sphinx</a> 2.2.0.
     </div>
   </body>
