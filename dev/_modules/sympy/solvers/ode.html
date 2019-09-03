@@ -310,13 +310,13 @@
 <span class="kn">from</span> <span class="nn">sympy.polys</span> <span class="k">import</span> <span class="p">(</span><span class="n">Poly</span><span class="p">,</span> <span class="n">RootOf</span><span class="p">,</span> <span class="n">rootof</span><span class="p">,</span> <span class="n">terms_gcd</span><span class="p">,</span>
                          <span class="n">PolynomialError</span><span class="p">,</span> <span class="n">lcm</span><span class="p">,</span> <span class="n">roots</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">sympy.polys.polyroots</span> <span class="k">import</span> <span class="n">roots_quartic</span>
-<span class="kn">from</span> <span class="nn">sympy.polys.polytools</span> <span class="k">import</span> <span class="n">cancel</span><span class="p">,</span> <span class="n">degree</span><span class="p">,</span> <span class="n">div</span>
+<span class="kn">from</span> <span class="nn">sympy.polys.polytools</span> <span class="k">import</span> <span class="n">cancel</span><span class="p">,</span> <span class="n">degree</span><span class="p">,</span> <span class="n">div</span><span class="p">,</span> <span class="n">factor</span>
 <span class="kn">from</span> <span class="nn">sympy.series</span> <span class="k">import</span> <span class="n">Order</span>
 <span class="kn">from</span> <span class="nn">sympy.series.series</span> <span class="k">import</span> <span class="n">series</span>
 <span class="kn">from</span> <span class="nn">sympy.simplify</span> <span class="k">import</span> <span class="n">collect</span><span class="p">,</span> <span class="n">logcombine</span><span class="p">,</span> <span class="n">powsimp</span><span class="p">,</span> <span class="n">separatevars</span><span class="p">,</span> \
     <span class="n">simplify</span><span class="p">,</span> <span class="n">trigsimp</span><span class="p">,</span> <span class="n">posify</span><span class="p">,</span> <span class="n">cse</span><span class="p">,</span> <span class="n">besselsimp</span>
 <span class="kn">from</span> <span class="nn">sympy.simplify.powsimp</span> <span class="k">import</span> <span class="n">powdenest</span>
-<span class="kn">from</span> <span class="nn">sympy.simplify.radsimp</span> <span class="k">import</span> <span class="n">collect_const</span>
+<span class="kn">from</span> <span class="nn">sympy.simplify.radsimp</span> <span class="k">import</span> <span class="n">collect_const</span><span class="p">,</span> <span class="n">fraction</span>
 <span class="kn">from</span> <span class="nn">sympy.solvers</span> <span class="k">import</span> <span class="n">checksol</span><span class="p">,</span> <span class="n">solve</span>
 <span class="kn">from</span> <span class="nn">sympy.solvers.pde</span> <span class="k">import</span> <span class="n">pdsolve</span>
 
@@ -338,6 +338,7 @@
 <span class="c1">#: ``best``, and ``all_Integral`` meta-hints should not be included in this</span>
 <span class="c1">#: list, but ``_best`` and ``_Integral`` hints should be included.</span>
 <span class="n">allhints</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="s2">&quot;factorable&quot;</span><span class="p">,</span>
     <span class="s2">&quot;nth_algebraic&quot;</span><span class="p">,</span>
     <span class="s2">&quot;separable&quot;</span><span class="p">,</span>
     <span class="s2">&quot;1st_exact&quot;</span><span class="p">,</span>
@@ -1014,6 +1015,10 @@
     <span class="k">if</span> <span class="n">func</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">func</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;dsolve() and classify_ode() only &quot;</span>
         <span class="s2">&quot;work with functions of one variable, not </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">func</span><span class="p">)</span>
+
+    <span class="c1"># Some methods want the unprocessed equation</span>
+    <span class="n">eq_orig</span> <span class="o">=</span> <span class="n">eq</span>
+
     <span class="k">if</span> <span class="n">prep</span> <span class="ow">or</span> <span class="n">func</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">eq</span><span class="p">,</span> <span class="n">func_</span> <span class="o">=</span> <span class="n">_preprocess</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">func</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">func</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -1030,17 +1035,11 @@
             <span class="k">return</span> <span class="n">classify_ode</span><span class="p">(</span><span class="n">eq</span><span class="o">.</span><span class="n">lhs</span> <span class="o">-</span> <span class="n">eq</span><span class="o">.</span><span class="n">rhs</span><span class="p">,</span> <span class="n">func</span><span class="p">,</span> <span class="nb">dict</span><span class="o">=</span><span class="nb">dict</span><span class="p">,</span> <span class="n">ics</span><span class="o">=</span><span class="n">ics</span><span class="p">,</span> <span class="n">xi</span><span class="o">=</span><span class="n">xi</span><span class="p">,</span>
                 <span class="n">n</span><span class="o">=</span><span class="n">terms</span><span class="p">,</span> <span class="n">eta</span><span class="o">=</span><span class="n">eta</span><span class="p">,</span> <span class="n">prep</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
         <span class="n">eq</span> <span class="o">=</span> <span class="n">eq</span><span class="o">.</span><span class="n">lhs</span>
+
     <span class="n">order</span> <span class="o">=</span> <span class="n">ode_order</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">f</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
     <span class="c1"># hint:matchdict or hint:(tuple of matchdicts)</span>
     <span class="c1"># Also will contain &quot;default&quot;:&lt;default hint&gt; and &quot;order&quot;:order items.</span>
     <span class="n">matching_hints</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;order&quot;</span><span class="p">:</span> <span class="n">order</span><span class="p">}</span>
-
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">order</span><span class="p">:</span>
-        <span class="k">if</span> <span class="nb">dict</span><span class="p">:</span>
-            <span class="n">matching_hints</span><span class="p">[</span><span class="s2">&quot;default&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
-            <span class="k">return</span> <span class="n">matching_hints</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="p">()</span>
 
     <span class="n">df</span> <span class="o">=</span> <span class="n">f</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
     <span class="n">a</span> <span class="o">=</span> <span class="n">Wild</span><span class="p">(</span><span class="s1">&#39;a&#39;</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="p">[</span><span class="n">f</span><span class="p">(</span><span class="n">x</span><span class="p">)])</span>
@@ -1061,7 +1060,6 @@
     <span class="n">r3</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;xi&#39;</span><span class="p">:</span> <span class="n">xi</span><span class="p">,</span> <span class="s1">&#39;eta&#39;</span><span class="p">:</span> <span class="n">eta</span><span class="p">}</span>  <span class="c1"># Used for the lie_group hint</span>
     <span class="n">boundary</span> <span class="o">=</span> <span class="p">{}</span>  <span class="c1"># Used to extract initial conditions</span>
     <span class="n">C1</span> <span class="o">=</span> <span class="n">Symbol</span><span class="p">(</span><span class="s2">&quot;C1&quot;</span><span class="p">)</span>
-    <span class="n">eq</span> <span class="o">=</span> <span class="n">expand</span><span class="p">(</span><span class="n">eq</span><span class="p">)</span>
 
     <span class="c1"># Preprocessing to get the initial conditions out</span>
     <span class="k">if</span> <span class="n">ics</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
@@ -1104,6 +1102,20 @@
             <span class="k">else</span><span class="p">:</span>
                 <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Enter boundary conditions of the form ics={f(point}: value, f(x).diff(x, order).subs(x, point): value}&quot;</span><span class="p">)</span>
 
+    <span class="c1"># Factorable method</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">_ode_factorable_match</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">func</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">r</span><span class="p">:</span>
+        <span class="n">matching_hints</span><span class="p">[</span><span class="s1">&#39;factorable&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">r</span>
+
+    <span class="c1"># Any ODE that can be solved with a combination of algebra and</span>
+    <span class="c1"># integrals e.g.:</span>
+    <span class="c1"># d^3/dx^3(x y) = F(x)</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">_nth_algebraic_match</span><span class="p">(</span><span class="n">eq_orig</span><span class="p">,</span> <span class="n">func</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">r</span><span class="p">[</span><span class="s1">&#39;solutions&#39;</span><span class="p">]:</span>
+        <span class="n">matching_hints</span><span class="p">[</span><span class="s1">&#39;nth_algebraic&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">r</span>
+        <span class="n">matching_hints</span><span class="p">[</span><span class="s1">&#39;nth_algebraic_Integral&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">r</span>
+
+    <span class="n">eq</span> <span class="o">=</span> <span class="n">expand</span><span class="p">(</span><span class="n">eq</span><span class="p">)</span>
     <span class="c1"># Precondition to try remove f(x) from highest order derivative</span>
     <span class="n">reduced_eq</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="k">if</span> <span class="n">eq</span><span class="o">.</span><span class="n">is_Add</span><span class="p">:</span>
@@ -1421,14 +1433,6 @@
         <span class="n">r</span> <span class="o">=</span> <span class="n">_nth_order_reducible_match</span><span class="p">(</span><span class="n">reduced_eq</span><span class="p">,</span> <span class="n">func</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">r</span><span class="p">:</span>
             <span class="n">matching_hints</span><span class="p">[</span><span class="s1">&#39;nth_order_reducible&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">r</span>
-
-        <span class="c1"># Any ODE that can be solved with a combination of algebra and</span>
-        <span class="c1"># integrals e.g.:</span>
-        <span class="c1"># d^3/dx^3(x y) = F(x)</span>
-        <span class="n">r</span> <span class="o">=</span> <span class="n">_nth_algebraic_match</span><span class="p">(</span><span class="n">reduced_eq</span><span class="p">,</span> <span class="n">func</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">r</span><span class="p">[</span><span class="s1">&#39;solutions&#39;</span><span class="p">]:</span>
-            <span class="n">matching_hints</span><span class="p">[</span><span class="s1">&#39;nth_algebraic&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">r</span>
-            <span class="n">matching_hints</span><span class="p">[</span><span class="s1">&#39;nth_algebraic_Integral&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">r</span>
 
         <span class="c1"># nth order linear ODE</span>
         <span class="c1"># a_n(x)y^(n) + ... + a_1(x)y&#39; + a_0(x)y = F(x) = b</span>
@@ -3076,6 +3080,21 @@
         <span class="n">sol</span> <span class="o">=</span> <span class="n">expr</span>
     <span class="k">return</span> <span class="n">sol</span>
 
+<span class="k">def</span> <span class="nf">_ode_factorable_match</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">func</span><span class="p">):</span>
+
+    <span class="kn">from</span> <span class="nn">sympy.polys.polytools</span> <span class="k">import</span> <span class="n">factor</span>
+    <span class="n">eqs</span> <span class="o">=</span> <span class="n">factor</span><span class="p">(</span><span class="n">eq</span><span class="p">)</span>
+    <span class="n">eqs</span> <span class="o">=</span> <span class="n">fraction</span><span class="p">(</span><span class="n">eqs</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="c1"># p/q =0, So we need to solve only p=0</span>
+    <span class="n">eqns</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">eqs</span><span class="p">,</span> <span class="n">Mul</span><span class="p">):</span>
+        <span class="n">fac</span> <span class="o">=</span> <span class="n">eqs</span><span class="o">.</span><span class="n">args</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">fac</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
+                <span class="n">eqns</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">eqns</span><span class="p">)</span><span class="o">&gt;</span><span class="mi">0</span><span class="p">:</span>
+            <span class="n">r</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;eqns&#39;</span> <span class="p">:</span> <span class="n">eqns</span><span class="p">}</span>
+    <span class="k">return</span> <span class="n">r</span>
 
 <span class="c1"># FIXME: replace the general solution in the docstring with</span>
 <span class="c1"># dsolve(equation, hint=&#39;1st_exact_Integral&#39;).  You will need to be able</span>
@@ -4304,19 +4323,32 @@
     <span class="c1"># means that some value of the constants in sol1 is a special case of</span>
     <span class="c1"># sol2 corresponding to a particular choice of the integration constants.</span>
 
+    <span class="c1"># In case the solution is in implicit form we subtract the sides</span>
+    <span class="n">soln1</span> <span class="o">=</span> <span class="n">soln1</span><span class="o">.</span><span class="n">rhs</span> <span class="o">-</span> <span class="n">soln1</span><span class="o">.</span><span class="n">lhs</span>
+    <span class="n">soln2</span> <span class="o">=</span> <span class="n">soln2</span><span class="o">.</span><span class="n">rhs</span> <span class="o">-</span> <span class="n">soln2</span><span class="o">.</span><span class="n">lhs</span>
+
+    <span class="c1"># Work for the series solution</span>
+    <span class="k">if</span> <span class="n">soln1</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">Order</span><span class="p">)</span> <span class="ow">and</span> <span class="n">soln2</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">Order</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">soln1</span><span class="o">.</span><span class="n">getO</span><span class="p">()</span> <span class="o">==</span> <span class="n">soln2</span><span class="o">.</span><span class="n">getO</span><span class="p">():</span>
+            <span class="n">soln1</span> <span class="o">=</span> <span class="n">soln1</span><span class="o">.</span><span class="n">removeO</span><span class="p">()</span>
+            <span class="n">soln2</span> <span class="o">=</span> <span class="n">soln2</span><span class="o">.</span><span class="n">removeO</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">elif</span> <span class="n">soln1</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">Order</span><span class="p">)</span> <span class="ow">or</span> <span class="n">soln2</span><span class="o">.</span><span class="n">has</span><span class="p">(</span><span class="n">Order</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">False</span>
+
     <span class="n">constants1</span> <span class="o">=</span> <span class="n">soln1</span><span class="o">.</span><span class="n">free_symbols</span><span class="o">.</span><span class="n">difference</span><span class="p">(</span><span class="n">eq</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">)</span>
     <span class="n">constants2</span> <span class="o">=</span> <span class="n">soln2</span><span class="o">.</span><span class="n">free_symbols</span><span class="o">.</span><span class="n">difference</span><span class="p">(</span><span class="n">eq</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">)</span>
 
-    <span class="n">constants1_new</span> <span class="o">=</span> <span class="n">get_numbered_constants</span><span class="p">((</span><span class="n">soln1</span><span class="o">.</span><span class="n">rhs</span><span class="o">-</span><span class="n">soln1</span><span class="o">.</span><span class="n">lhs</span><span class="p">)</span> <span class="o">-</span> <span class="p">(</span><span class="n">soln2</span><span class="o">.</span><span class="n">rhs</span><span class="o">-</span><span class="n">soln2</span><span class="o">.</span><span class="n">lhs</span><span class="p">),</span>
-                     <span class="nb">len</span><span class="p">(</span><span class="n">constants1</span><span class="p">))</span>
+    <span class="n">constants1_new</span> <span class="o">=</span> <span class="n">get_numbered_constants</span><span class="p">(</span><span class="n">soln1</span> <span class="o">-</span> <span class="n">soln2</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">constants1</span><span class="p">))</span>
     <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">constants1</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
         <span class="n">constants1_new</span> <span class="o">=</span> <span class="p">{</span><span class="n">constants1_new</span><span class="p">}</span>
     <span class="k">for</span> <span class="n">c_old</span><span class="p">,</span> <span class="n">c_new</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">constants1</span><span class="p">,</span> <span class="n">constants1_new</span><span class="p">):</span>
         <span class="n">soln1</span> <span class="o">=</span> <span class="n">soln1</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">c_old</span><span class="p">,</span> <span class="n">c_new</span><span class="p">)</span>
 
     <span class="c1"># n equations for sol1 = sol2, sol1&#39;=sol2&#39;, ...</span>
-    <span class="n">lhs</span> <span class="o">=</span> <span class="p">(</span><span class="n">soln1</span><span class="o">.</span><span class="n">rhs</span><span class="o">-</span><span class="n">soln1</span><span class="o">.</span><span class="n">lhs</span><span class="p">)</span>
-    <span class="n">rhs</span> <span class="o">=</span> <span class="p">(</span><span class="n">soln2</span><span class="o">.</span><span class="n">rhs</span><span class="o">-</span><span class="n">soln2</span><span class="o">.</span><span class="n">lhs</span><span class="p">)</span>
+    <span class="n">lhs</span> <span class="o">=</span> <span class="n">soln1</span>
+    <span class="n">rhs</span> <span class="o">=</span> <span class="n">soln2</span>
     <span class="n">eqns</span> <span class="o">=</span> <span class="p">[</span><span class="n">Eq</span><span class="p">(</span><span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">)]</span>
     <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">order</span><span class="p">):</span>
         <span class="n">lhs</span> <span class="o">=</span> <span class="n">lhs</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">var</span><span class="p">)</span>
@@ -5634,6 +5666,44 @@
         <span class="n">psol</span> <span class="o">=</span> <span class="n">trigsimp</span><span class="p">(</span><span class="n">psol</span><span class="p">,</span> <span class="n">deep</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">Eq</span><span class="p">(</span><span class="n">f</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="n">gsol</span><span class="o">.</span><span class="n">rhs</span> <span class="o">+</span> <span class="n">psol</span><span class="p">)</span>
 
+<div class="viewcode-block" id="ode_factorable"><a class="viewcode-back" href="../../../modules/solvers/ode.html#sympy.solvers.ode.ode_factorable">[docs]</a><span class="k">def</span> <span class="nf">ode_factorable</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">func</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">match</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Solves equations having a solvable factor.</span>
+
+<span class="sd">    This function is used to solve the equation having factors. Factors may be of type algebraic or ode. It</span>
+<span class="sd">    will try to solve each factor independently. Factors will be solved by calling dsolve. We will return the</span>
+<span class="sd">    list of solutions.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy import Function, dsolve, Eq, pprint, Derivative</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.abc import x</span>
+<span class="sd">    &gt;&gt;&gt; f = Function(&#39;f&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; eq = (f(x)**2-4)*(f(x).diff(x)+f(x))</span>
+<span class="sd">    &gt;&gt;&gt; pprint(dsolve(eq, f(x)))</span>
+<span class="sd">                                     -x</span>
+<span class="sd">    [f(x) = 2, f(x) = -2, f(x) = C1*e  ]</span>
+
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">eqns</span> <span class="o">=</span> <span class="n">match</span><span class="p">[</span><span class="s1">&#39;eqns&#39;</span><span class="p">]</span>
+    <span class="n">sols</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">eq</span> <span class="ow">in</span> <span class="n">eqns</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">sol</span> <span class="o">=</span> <span class="n">dsolve</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">func</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">NotImplementedError</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">sol</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+                <span class="n">sols</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">sol</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">sols</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">sol</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">sols</span> <span class="o">==</span> <span class="p">[]:</span>
+       <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;The given ODE &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">eq</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot; cannot be solved by&quot;</span>
+            <span class="o">+</span> <span class="s2">&quot; the factorable group method&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">sols</span></div>
 
 <div class="viewcode-block" id="ode_separable"><a class="viewcode-back" href="../../../modules/solvers/ode.html#sympy.solvers.ode.ode_separable">[docs]</a><span class="k">def</span> <span class="nf">ode_separable</span><span class="p">(</span><span class="n">eq</span><span class="p">,</span> <span class="n">func</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">match</span><span class="p">):</span>
     <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
@@ -8872,7 +8942,7 @@
     </div>
     <div class="footer" role="contentinfo">
         &#169; Copyright 2019 SymPy Development Team.
-      Last updated on Sep 02, 2019.
+      Last updated on Sep 03, 2019.
       Created using <a href="http://sphinx-doc.org/">Sphinx</a> 2.2.0.
     </div>
   </body>
