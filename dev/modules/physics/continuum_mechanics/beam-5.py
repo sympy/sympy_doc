@@ -8,8 +8,8 @@ b.apply_load(R2, 8, -1)
 b.apply_load(10000, 4, 0, end=8)
 b.bc_deflection = [(0, 0), (8, 0)]
 b.solve_for_reaction_loads(R1, R2)
-b.plot_slope()
+b.plot_shear_force()
 # Plot object containing:
-# [0]: cartesian line: -8.59375e-5*SingularityFunction(x, 0, 2) + 3.125e-5*SingularityFunction(x, 2, 2)
-# + 2.08333333333333e-5*SingularityFunction(x, 4, 3) - 0.0001953125*SingularityFunction(x, 8, 2)
-# - 2.08333333333333e-5*SingularityFunction(x, 8, 3) + 0.00138541666666667 for x over (0.0, 8.0)
+# [0]: cartesian line: -13750*SingularityFunction(x, 0, 0) + 5000*SingularityFunction(x, 2, 0)
+# + 10000*SingularityFunction(x, 4, 1) - 31250*SingularityFunction(x, 8, 0)
+# - 10000*SingularityFunction(x, 8, 1) for x over (0.0, 8.0)
