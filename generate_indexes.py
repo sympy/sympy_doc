@@ -73,6 +73,8 @@ def main():
         # Remove the current table and insert a new one.
         del lines[inserti:endi]
         for insertreleasedir, insertrelease in reversed(releases):
+            if insertreleasedir == releasedir:
+                continue
             lines.insert(inserti, '            <p class="topless"><a href="../{0}/index.html">{1}</a></p>\n'.format(
                 insertreleasedir,
                 insertrelease
