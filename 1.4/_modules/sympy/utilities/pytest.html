@@ -1,8 +1,380 @@
-<html>
-    <head>
-        <meta http-equiv="refresh" content="0;URL=/latest/_modules/sympy/utilities/pytest.html" />
-    </head>
-    <body>
-    </body>
-</html>
 
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>sympy.utilities.pytest &#8212; SymPy 1.4 documentation</title>
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/graphviz.css" />
+    <link rel="stylesheet" type="text/css" href="https://live.sympy.org/static/live-core.css" />
+    <link rel="stylesheet" type="text/css" href="https://live.sympy.org/static/live-autocomplete.css" />
+    <link rel="stylesheet" type="text/css" href="https://live.sympy.org/static/live-sphinx.css" />
+    
+    <script type="text/javascript" id="documentation_options" data-url_root="../../../" src="../../../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/language_data.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/utilities.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/external/classy.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/live-core.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/live-autocomplete.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/live-sphinx.js"></script>
+    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS_HTML-full"></script>
+    
+    <link rel="shortcut icon" href="../../../_static/sympy-notailtext-favicon.ico"/>
+    <link href="https://docs.sympy.org/latest/_modules/sympy/utilities/pytest.html" rel="canonical" />
+    
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../../index.html">SymPy 1.4 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for sympy.utilities.pytest</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;py.test hacks to support XFAIL/XPASS&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">division</span>
+
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">functools</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">contextlib</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+
+<span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="k">import</span> <span class="n">get_function_name</span><span class="p">,</span> <span class="n">string_types</span>
+<span class="kn">from</span> <span class="nn">sympy.utilities.exceptions</span> <span class="k">import</span> <span class="n">SymPyDeprecationWarning</span>
+
+<span class="k">try</span><span class="p">:</span>
+    <span class="kn">import</span> <span class="nn">py</span>
+    <span class="kn">from</span> <span class="nn">_pytest.python_api</span> <span class="k">import</span> <span class="n">raises</span>
+    <span class="kn">from</span> <span class="nn">_pytest.recwarn</span> <span class="k">import</span> <span class="n">warns</span>
+    <span class="kn">from</span> <span class="nn">_pytest.outcomes</span> <span class="k">import</span> <span class="n">skip</span><span class="p">,</span> <span class="n">Failed</span>
+    <span class="n">USE_PYTEST</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">sys</span><span class="p">,</span> <span class="s1">&#39;_running_pytest&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+<span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+    <span class="n">USE_PYTEST</span> <span class="o">=</span> <span class="kc">False</span>
+
+<span class="n">ON_TRAVIS</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s1">&#39;TRAVIS_BUILD_NUMBER&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+<span class="k">if</span> <span class="ow">not</span> <span class="n">USE_PYTEST</span><span class="p">:</span>
+<div class="viewcode-block" id="raises"><a class="viewcode-back" href="../../../modules/utilities/pytest.html#sympy.utilities.pytest.raises">[docs]</a>    <span class="k">def</span> <span class="nf">raises</span><span class="p">(</span><span class="n">expectedException</span><span class="p">,</span> <span class="n">code</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Tests that ``code`` raises the exception ``expectedException``.</span>
+
+<span class="sd">        ``code`` may be a callable, such as a lambda expression or function</span>
+<span class="sd">        name.</span>
+
+<span class="sd">        If ``code`` is not given or None, ``raises`` will return a context</span>
+<span class="sd">        manager for use in ``with`` statements; the code to execute then</span>
+<span class="sd">        comes from the scope of the ``with``.</span>
+
+<span class="sd">        ``raises()`` does nothing if the callable raises the expected exception,</span>
+<span class="sd">        otherwise it raises an AssertionError.</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        ========</span>
+
+<span class="sd">        &gt;&gt;&gt; from sympy.utilities.pytest import raises</span>
+
+<span class="sd">        &gt;&gt;&gt; raises(ZeroDivisionError, lambda: 1/0)</span>
+<span class="sd">        &gt;&gt;&gt; raises(ZeroDivisionError, lambda: 1/2)</span>
+<span class="sd">        Traceback (most recent call last):</span>
+<span class="sd">        ...</span>
+<span class="sd">        Failed: DID NOT RAISE</span>
+
+<span class="sd">        &gt;&gt;&gt; with raises(ZeroDivisionError):</span>
+<span class="sd">        ...     n = 1/0</span>
+<span class="sd">        &gt;&gt;&gt; with raises(ZeroDivisionError):</span>
+<span class="sd">        ...     n = 1/2</span>
+<span class="sd">        Traceback (most recent call last):</span>
+<span class="sd">        ...</span>
+<span class="sd">        Failed: DID NOT RAISE</span>
+
+<span class="sd">        Note that you cannot test multiple statements via</span>
+<span class="sd">        ``with raises``:</span>
+
+<span class="sd">        &gt;&gt;&gt; with raises(ZeroDivisionError):</span>
+<span class="sd">        ...     n = 1/0    # will execute and raise, aborting the ``with``</span>
+<span class="sd">        ...     n = 9999/0 # never executed</span>
+
+<span class="sd">        This is just what ``with`` is supposed to do: abort the</span>
+<span class="sd">        contained statement sequence at the first exception and let</span>
+<span class="sd">        the context manager deal with the exception.</span>
+
+<span class="sd">        To test multiple statements, you&#39;ll need a separate ``with``</span>
+<span class="sd">        for each:</span>
+
+<span class="sd">        &gt;&gt;&gt; with raises(ZeroDivisionError):</span>
+<span class="sd">        ...     n = 1/0    # will execute and raise</span>
+<span class="sd">        &gt;&gt;&gt; with raises(ZeroDivisionError):</span>
+<span class="sd">        ...     n = 9999/0 # will also execute and raise</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">code</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">RaisesContext</span><span class="p">(</span><span class="n">expectedException</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">callable</span><span class="p">(</span><span class="n">code</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">code</span><span class="p">()</span>
+            <span class="k">except</span> <span class="n">expectedException</span><span class="p">:</span>
+                <span class="k">return</span>
+            <span class="k">raise</span> <span class="n">Failed</span><span class="p">(</span><span class="s2">&quot;DID NOT RAISE&quot;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">code</span><span class="p">,</span> <span class="n">string_types</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+                <span class="s1">&#39;</span><span class="se">\&#39;</span><span class="s1">raises(xxx, &quot;code&quot;)</span><span class="se">\&#39;</span><span class="s1"> has been phased out; &#39;</span>
+                <span class="s1">&#39;change </span><span class="se">\&#39;</span><span class="s1">raises(xxx, &quot;expression&quot;)</span><span class="se">\&#39;</span><span class="s1"> &#39;</span>
+                <span class="s1">&#39;to </span><span class="se">\&#39;</span><span class="s1">raises(xxx, lambda: expression)</span><span class="se">\&#39;</span><span class="s1">, &#39;</span>
+                <span class="s1">&#39;</span><span class="se">\&#39;</span><span class="s1">raises(xxx, &quot;statement&quot;)</span><span class="se">\&#39;</span><span class="s1"> &#39;</span>
+                <span class="s1">&#39;to </span><span class="se">\&#39;</span><span class="s1">with raises(xxx): statement</span><span class="se">\&#39;</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+                <span class="s1">&#39;raises() expects a callable for the 2nd argument.&#39;</span><span class="p">)</span></div>
+
+    <span class="k">class</span> <span class="nc">RaisesContext</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+        <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expectedException</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">expectedException</span> <span class="o">=</span> <span class="n">expectedException</span>
+
+        <span class="k">def</span> <span class="nf">__enter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">None</span>
+
+        <span class="k">def</span> <span class="nf">__exit__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exc_type</span><span class="p">,</span> <span class="n">exc_value</span><span class="p">,</span> <span class="n">traceback</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">exc_type</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">Failed</span><span class="p">(</span><span class="s2">&quot;DID NOT RAISE&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="nb">issubclass</span><span class="p">(</span><span class="n">exc_type</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">expectedException</span><span class="p">)</span>
+
+    <span class="k">class</span> <span class="nc">XFail</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+        <span class="k">pass</span>
+
+    <span class="k">class</span> <span class="nc">XPass</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+        <span class="k">pass</span>
+
+    <span class="k">class</span> <span class="nc">Skipped</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+        <span class="k">pass</span>
+
+    <span class="k">class</span> <span class="nc">Failed</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+        <span class="k">pass</span>
+
+    <span class="k">def</span> <span class="nf">XFAIL</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
+        <span class="k">def</span> <span class="nf">wrapper</span><span class="p">():</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">func</span><span class="p">()</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="n">message</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">message</span> <span class="o">!=</span> <span class="s2">&quot;Timeout&quot;</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="n">XFail</span><span class="p">(</span><span class="n">get_function_name</span><span class="p">(</span><span class="n">func</span><span class="p">))</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="n">Skipped</span><span class="p">(</span><span class="s2">&quot;Timeout&quot;</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="n">XPass</span><span class="p">(</span><span class="n">get_function_name</span><span class="p">(</span><span class="n">func</span><span class="p">))</span>
+
+        <span class="n">wrapper</span> <span class="o">=</span> <span class="n">functools</span><span class="o">.</span><span class="n">update_wrapper</span><span class="p">(</span><span class="n">wrapper</span><span class="p">,</span> <span class="n">func</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">wrapper</span>
+
+    <span class="k">def</span> <span class="nf">skip</span><span class="p">(</span><span class="nb">str</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="n">Skipped</span><span class="p">(</span><span class="nb">str</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">SKIP</span><span class="p">(</span><span class="n">reason</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Similar to :func:`skip`, but this is a decorator. &quot;&quot;&quot;</span>
+        <span class="k">def</span> <span class="nf">wrapper</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
+            <span class="k">def</span> <span class="nf">func_wrapper</span><span class="p">():</span>
+                <span class="k">raise</span> <span class="n">Skipped</span><span class="p">(</span><span class="n">reason</span><span class="p">)</span>
+
+            <span class="n">func_wrapper</span> <span class="o">=</span> <span class="n">functools</span><span class="o">.</span><span class="n">update_wrapper</span><span class="p">(</span><span class="n">func_wrapper</span><span class="p">,</span> <span class="n">func</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">func_wrapper</span>
+
+        <span class="k">return</span> <span class="n">wrapper</span>
+
+    <span class="k">def</span> <span class="nf">slow</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
+        <span class="n">func</span><span class="o">.</span><span class="n">_slow</span> <span class="o">=</span> <span class="kc">True</span>
+
+        <span class="k">def</span> <span class="nf">func_wrapper</span><span class="p">():</span>
+            <span class="n">func</span><span class="p">()</span>
+
+        <span class="n">func_wrapper</span> <span class="o">=</span> <span class="n">functools</span><span class="o">.</span><span class="n">update_wrapper</span><span class="p">(</span><span class="n">func_wrapper</span><span class="p">,</span> <span class="n">func</span><span class="p">)</span>
+        <span class="n">func_wrapper</span><span class="o">.</span><span class="n">__wrapped__</span> <span class="o">=</span> <span class="n">func</span>
+        <span class="k">return</span> <span class="n">func_wrapper</span>
+
+<div class="viewcode-block" id="warns"><a class="viewcode-back" href="../../../modules/utilities/pytest.html#sympy.utilities.pytest.warns">[docs]</a>    <span class="nd">@contextlib</span><span class="o">.</span><span class="n">contextmanager</span>
+    <span class="k">def</span> <span class="nf">warns</span><span class="p">(</span><span class="n">warningcls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Like raises but tests that warnings are emitted.</span>
+
+<span class="sd">        &gt;&gt;&gt; from sympy.utilities.pytest import warns</span>
+<span class="sd">        &gt;&gt;&gt; import warnings</span>
+
+<span class="sd">        &gt;&gt;&gt; with warns(UserWarning):</span>
+<span class="sd">        ...     warnings.warn(&#39;deprecated&#39;, UserWarning)</span>
+
+<span class="sd">        &gt;&gt;&gt; with warns(UserWarning):</span>
+<span class="sd">        ...     pass</span>
+<span class="sd">        Traceback (most recent call last):</span>
+<span class="sd">        ...</span>
+<span class="sd">        Failed: DID NOT WARN. No warnings of type UserWarning\</span>
+<span class="sd">        was emitted. The list of emitted warnings is: [].</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="n">match</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;match&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">kwargs</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;Invalid keyword arguments: </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">kwargs</span><span class="p">)</span>
+
+        <span class="c1"># Absorbs all warnings in warnrec</span>
+        <span class="k">with</span> <span class="n">warnings</span><span class="o">.</span><span class="n">catch_warnings</span><span class="p">(</span><span class="n">record</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="k">as</span> <span class="n">warnrec</span><span class="p">:</span>
+            <span class="c1"># Hide all warnings but make sure that our warning is emitted</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">simplefilter</span><span class="p">(</span><span class="s2">&quot;ignore&quot;</span><span class="p">)</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">filterwarnings</span><span class="p">(</span><span class="s2">&quot;always&quot;</span><span class="p">,</span> <span class="n">match</span><span class="p">,</span> <span class="n">warningcls</span><span class="p">)</span>
+            <span class="c1"># Now run the test</span>
+            <span class="k">yield</span>
+
+        <span class="c1"># Raise if expected warning not found</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span><span class="nb">issubclass</span><span class="p">(</span><span class="n">w</span><span class="o">.</span><span class="n">category</span><span class="p">,</span> <span class="n">warningcls</span><span class="p">)</span> <span class="k">for</span> <span class="n">w</span> <span class="ow">in</span> <span class="n">warnrec</span><span class="p">):</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;Failed: DID NOT WARN.&#39;</span>
+                   <span class="s1">&#39; No warnings of type </span><span class="si">%s</span><span class="s1"> was emitted.&#39;</span>
+                   <span class="s1">&#39; The list of emitted warnings is: </span><span class="si">%s</span><span class="s1">.&#39;</span>
+                   <span class="p">)</span> <span class="o">%</span> <span class="p">(</span><span class="n">warningcls</span><span class="p">,</span> <span class="p">[</span><span class="n">w</span><span class="o">.</span><span class="n">message</span> <span class="k">for</span> <span class="n">w</span> <span class="ow">in</span> <span class="n">warnrec</span><span class="p">])</span>
+            <span class="k">raise</span> <span class="n">Failed</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span></div>
+
+
+<span class="k">else</span><span class="p">:</span>
+    <span class="n">XFAIL</span> <span class="o">=</span> <span class="n">py</span><span class="o">.</span><span class="n">test</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">xfail</span>
+    <span class="n">slow</span> <span class="o">=</span> <span class="n">py</span><span class="o">.</span><span class="n">test</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">slow</span>
+
+<div class="viewcode-block" id="SKIP"><a class="viewcode-back" href="../../../modules/utilities/pytest.html#sympy.utilities.pytest.SKIP">[docs]</a>    <span class="k">def</span> <span class="nf">SKIP</span><span class="p">(</span><span class="n">reason</span><span class="p">):</span>
+        <span class="k">def</span> <span class="nf">skipping</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
+            <span class="nd">@functools</span><span class="o">.</span><span class="n">wraps</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>
+            <span class="k">def</span> <span class="nf">inner</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+                <span class="n">skip</span><span class="p">(</span><span class="n">reason</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">inner</span>
+
+        <span class="k">return</span> <span class="n">skipping</span></div>
+
+
+<div class="viewcode-block" id="warns_deprecated_sympy"><a class="viewcode-back" href="../../../modules/utilities/pytest.html#sympy.utilities.pytest.warns_deprecated_sympy">[docs]</a><span class="nd">@contextlib</span><span class="o">.</span><span class="n">contextmanager</span>
+<span class="k">def</span> <span class="nf">warns_deprecated_sympy</span><span class="p">():</span>
+    <span class="sd">&#39;&#39;&#39;Shorthand for ``warns(SymPyDeprecationWarning)``</span>
+
+<span class="sd">    This is the recommended way to test that ``SymPyDeprecationWarning`` is</span>
+<span class="sd">    emitted for deprecated features in SymPy. To test for other warnings use</span>
+<span class="sd">    ``warns``. To suppress warnings without asserting that they are emitted</span>
+<span class="sd">    use ``ignore_warnings``.</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.utilities.pytest import warns_deprecated_sympy</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.utilities.exceptions import SymPyDeprecationWarning</span>
+<span class="sd">    &gt;&gt;&gt; import warnings</span>
+
+<span class="sd">    &gt;&gt;&gt; with warns_deprecated_sympy():</span>
+<span class="sd">    ...     SymPyDeprecationWarning(&quot;Don&#39;t use&quot;, feature=&quot;old thing&quot;,</span>
+<span class="sd">    ...         deprecated_since_version=&quot;1.0&quot;, issue=123).warn()</span>
+
+<span class="sd">    &gt;&gt;&gt; with warns_deprecated_sympy():</span>
+<span class="sd">    ...     pass</span>
+<span class="sd">    Traceback (most recent call last):</span>
+<span class="sd">    ...</span>
+<span class="sd">    Failed: DID NOT WARN. No warnings of type \</span>
+<span class="sd">    SymPyDeprecationWarning was emitted. The list of emitted warnings is: [].</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">with</span> <span class="n">warns</span><span class="p">(</span><span class="n">SymPyDeprecationWarning</span><span class="p">):</span>
+        <span class="k">yield</span></div>
+
+<div class="viewcode-block" id="ignore_warnings"><a class="viewcode-back" href="../../../modules/utilities/pytest.html#sympy.utilities.pytest.ignore_warnings">[docs]</a><span class="nd">@contextlib</span><span class="o">.</span><span class="n">contextmanager</span>
+<span class="k">def</span> <span class="nf">ignore_warnings</span><span class="p">(</span><span class="n">warningcls</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Context manager to suppress warnings during tests.</span>
+
+<span class="sd">    This function is useful for suppressing warnings during tests. The warns</span>
+<span class="sd">    function should be used to assert that a warning is raised. The</span>
+<span class="sd">    ignore_warnings function is useful in situation when the warning is not</span>
+<span class="sd">    guaranteed to be raised (e.g. on importing a module) or if the warning</span>
+<span class="sd">    comes from third-party code.</span>
+
+<span class="sd">    When the warning is coming (reliably) from SymPy the warns function should</span>
+<span class="sd">    be preferred to ignore_warnings.</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.utilities.pytest import ignore_warnings</span>
+<span class="sd">    &gt;&gt;&gt; import warnings</span>
+
+<span class="sd">    Here&#39;s a warning:</span>
+
+<span class="sd">    &gt;&gt;&gt; with warnings.catch_warnings():  # reset warnings in doctest</span>
+<span class="sd">    ...     warnings.simplefilter(&#39;error&#39;)</span>
+<span class="sd">    ...     warnings.warn(&#39;deprecated&#39;, UserWarning)</span>
+<span class="sd">    Traceback (most recent call last):</span>
+<span class="sd">      ...</span>
+<span class="sd">    UserWarning: deprecated</span>
+
+<span class="sd">    Let&#39;s suppress it with ignore_warnings:</span>
+
+<span class="sd">    &gt;&gt;&gt; with warnings.catch_warnings():  # reset warnings in doctest</span>
+<span class="sd">    ...     warnings.simplefilter(&#39;error&#39;)</span>
+<span class="sd">    ...     with ignore_warnings(UserWarning):</span>
+<span class="sd">    ...         warnings.warn(&#39;deprecated&#39;, UserWarning)</span>
+
+<span class="sd">    (No warning emitted)</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="c1"># Absorbs all warnings in warnrec</span>
+    <span class="k">with</span> <span class="n">warnings</span><span class="o">.</span><span class="n">catch_warnings</span><span class="p">(</span><span class="n">record</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="k">as</span> <span class="n">warnrec</span><span class="p">:</span>
+        <span class="c1"># Make sure our warning doesn&#39;t get filtered</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">simplefilter</span><span class="p">(</span><span class="s2">&quot;always&quot;</span><span class="p">,</span> <span class="n">warningcls</span><span class="p">)</span>
+        <span class="c1"># Now run the test</span>
+        <span class="k">yield</span>
+
+    <span class="c1"># Reissue any warnings that we aren&#39;t testing for</span>
+    <span class="k">for</span> <span class="n">w</span> <span class="ow">in</span> <span class="n">warnrec</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">issubclass</span><span class="p">(</span><span class="n">w</span><span class="o">.</span><span class="n">category</span><span class="p">,</span> <span class="n">warningcls</span><span class="p">):</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">warn_explicit</span><span class="p">(</span><span class="n">w</span><span class="o">.</span><span class="n">message</span><span class="p">,</span> <span class="n">w</span><span class="o">.</span><span class="n">category</span><span class="p">,</span> <span class="n">w</span><span class="o">.</span><span class="n">filename</span><span class="p">,</span> <span class="n">w</span><span class="o">.</span><span class="n">lineno</span><span class="p">)</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../../index.html">
+              <img class="logo" src="../../../_static/sympylogo.png" alt="Logo"/>
+            </a></p>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../../index.html">SymPy 1.4 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../../index.html" >Module code</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2019 SymPy Development Team.
+      Last updated on Apr 10, 2019.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 2.0.1.
+    </div>
+  </body>
+</html>
