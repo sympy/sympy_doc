@@ -457,6 +457,79 @@ expensive to calculate.</p>
 </div>
 <div class="section" id="possible-issues">
 <h2>Possible Issues<a class="headerlink" href="#possible-issues" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="controlling-matrix-expression-blowup">
+<h3>Controlling matrix expression blowup<a class="headerlink" href="#controlling-matrix-expression-blowup" title="Permalink to this headline">¶</a></h3>
+<p>Normally a matrix <code class="docutils literal notranslate"><span class="pre">*</span></code> multiplication or <code class="docutils literal notranslate"><span class="pre">**</span></code> power will not simplify
+intermediate terms as they are calcualted to give the best general performance.
+Unfortunately this can lead to an explosion in the size and complexity of matrix
+element symbolic expressions (including complex number expressions), and even
+impair the ability of the calculation to finish, though in the majority of small
+matrices it is much faster. This can be a problem however for larger matrices
+and can even cause multiplication to never end or may be impossible to simplify
+afterwards.</p>
+<p>For this reason two separate functions - <code class="docutils literal notranslate"><span class="pre">multiply</span></code> and <code class="docutils literal notranslate"><span class="pre">pow</span></code> for
+multiplication and exponentiation have been added with a flag which allows you
+to specify that an optimized intermediate simplification step is to be performed
+at each step of calculation. The matrix <code class="docutils literal notranslate"><span class="pre">exp</span></code> function has also been modified
+to take this flag. By default these functions have the flag <code class="docutils literal notranslate"><span class="pre">dotprodsimp</span></code> set
+to None which means that intermediate simplification is not done, set this to
+<code class="docutils literal notranslate"><span class="pre">True</span></code> to use the simplification. This will leave the matrix in a relatively
+simplified state after the operation and permit calculations on some large
+matrices which were not possible or extremely slow previously.</p>
+<p>This flag has also been added to the majority of matrix functions to enable
+this intermedate simplification in order to speed up calculation in many
+instances and return a simplified result. NOTE: It does not work in all cases,
+but so far testing has shown that it helps with the majority.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">x</span> <span class="o">=</span> <span class="n">Symbol</span><span class="p">(</span><span class="s1">&#39;x&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">M</span> <span class="o">=</span> <span class="n">Matrix</span><span class="p">([[</span><span class="mi">1</span><span class="o">+</span><span class="n">x</span><span class="p">,</span> <span class="mi">1</span><span class="o">-</span><span class="n">x</span><span class="p">],</span> <span class="p">[</span><span class="mi">1</span><span class="o">-</span><span class="n">x</span><span class="p">,</span> <span class="mi">1</span><span class="o">+</span><span class="n">x</span><span class="p">]])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">M</span><span class="o">*</span><span class="n">M</span>
+<span class="go">⎡       2          2                     ⎤</span>
+<span class="go">⎢(1 - x)  + (x + 1)    2⋅(1 - x)⋅(x + 1) ⎥</span>
+<span class="go">⎢                                        ⎥</span>
+<span class="go">⎢                            2          2⎥</span>
+<span class="go">⎣ 2⋅(1 - x)⋅(x + 1)   (1 - x)  + (x + 1) ⎦</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">M</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span><span class="n">M</span><span class="p">,</span> <span class="n">dotprodsimp</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="go">⎡   2             2⎤</span>
+<span class="go">⎢2⋅x  + 2  2 - 2⋅x ⎥</span>
+<span class="go">⎢                  ⎥</span>
+<span class="go">⎢       2     2    ⎥</span>
+<span class="go">⎣2 - 2⋅x   2⋅x  + 2⎦</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">M</span><span class="o">**</span><span class="mi">2</span>
+<span class="go">⎡       2          2                     ⎤</span>
+<span class="go">⎢(1 - x)  + (x + 1)    2⋅(1 - x)⋅(x + 1) ⎥</span>
+<span class="go">⎢                                        ⎥</span>
+<span class="go">⎢                            2          2⎥</span>
+<span class="go">⎣ 2⋅(1 - x)⋅(x + 1)   (1 - x)  + (x + 1) ⎦</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">M</span><span class="o">.</span><span class="n">pow</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="n">dotprodsimp</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="go">⎡     8                   8⎤</span>
+<span class="go">⎢128⋅x  + 128  128 - 128⋅x ⎥</span>
+<span class="go">⎢                          ⎥</span>
+<span class="go">⎢           8       8      ⎥</span>
+<span class="go">⎣128 - 128⋅x   128⋅x  + 128⎦</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">M</span><span class="o">.</span><span class="n">exp</span><span class="p">()</span>
+<span class="go">⎡                               ⎛  1 - x      ⎞  2               ⎤</span>
+<span class="go">⎢           2    2⋅x    (1 - x)⋅⎜───────── + 1⎟⋅ℯ             2⋅x⎥</span>
+<span class="go">⎢  (1 - x)⋅ℯ    ℯ               ⎝2⋅(x - 1)    ⎠      (1 - x)⋅ℯ   ⎥</span>
+<span class="go">⎢- ────────── + ────  - ────────────────────────── + ────────────⎥</span>
+<span class="go">⎢  2⋅(x - 1)     2                x - 1               2⋅(x - 1)  ⎥</span>
+<span class="go">⎢                                                                ⎥</span>
+<span class="go">⎢       2⋅x    2                     2⋅x                         ⎥</span>
+<span class="go">⎢      ℯ      ℯ             (1 - x)⋅ℯ      ⎛  1 - x      ⎞  2    ⎥</span>
+<span class="go">⎢    - ──── + ──          - ──────────── + ⎜───────── + 1⎟⋅ℯ     ⎥</span>
+<span class="go">⎣       2     2              2⋅(x - 1)     ⎝2⋅(x - 1)    ⎠       ⎦</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">M</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">dotprodsimp</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="go">⎡  2⋅x    2      2⋅x    2⎤</span>
+<span class="go">⎢ ℯ      ℯ      ℯ      ℯ ⎥</span>
+<span class="go">⎢ ──── + ──   - ──── + ──⎥</span>
+<span class="go">⎢  2     2       2     2 ⎥</span>
+<span class="go">⎢                        ⎥</span>
+<span class="go">⎢   2⋅x    2    2⋅x    2 ⎥</span>
+<span class="go">⎢  ℯ      ℯ    ℯ      ℯ  ⎥</span>
+<span class="go">⎢- ──── + ──   ──── + ── ⎥</span>
+<span class="go">⎣   2     2     2     2  ⎦</span>
+</pre></div>
+</div>
+</div>
 <div class="section" id="zero-testing">
 <h3>Zero Testing<a class="headerlink" href="#zero-testing" title="Permalink to this headline">¶</a></h3>
 <p>If your matrix operations are failing or returning wrong answers,
@@ -630,6 +703,7 @@ SymPy issue tracker <a class="footnote-reference brackets" href="#sympyissues-fn
 </ul>
 </li>
 <li><a class="reference internal" href="#possible-issues">Possible Issues</a><ul>
+<li><a class="reference internal" href="#controlling-matrix-expression-blowup">Controlling matrix expression blowup</a></li>
 <li><a class="reference internal" href="#zero-testing">Zero Testing</a></li>
 </ul>
 </li>
