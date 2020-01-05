@@ -1,3 +1,8 @@
-plot(x**2, adaptive=False, nb_of_points=400)
-# Plot object containing:
-# [0]: cartesian line: x**2 for x over (-10.0, 10.0)
+<html>
+    <head>
+        <meta http-equiv="refresh" content="0;URL=/1.5.1/sympy-docs-html-1.5.1/modules/plotting-7.py" />
+    </head>
+    <body>
+    </body>
+</html>
+

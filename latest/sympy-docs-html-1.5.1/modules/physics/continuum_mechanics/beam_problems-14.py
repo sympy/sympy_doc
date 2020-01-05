@@ -1,1 +1,8 @@
-b.plot_loading_results(subs={E: 20E9, I: 3.25E-6})  # doctest: +SKIP
+<html>
+    <head>
+        <meta http-equiv="refresh" content="0;URL=/1.5.1/sympy-docs-html-1.5.1/modules/physics/continuum_mechanics/beam_problems-14.py" />
+    </head>
+    <body>
+    </body>
+</html>
+

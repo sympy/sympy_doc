@@ -1,4 +1,8 @@
-plot_parametric((cos(u), sin(u)), (u, cos(u)))
-# Plot object containing:
-# [0]: parametric cartesian line: (cos(u), sin(u)) for u over (-10.0, 10.0)
-# [1]: parametric cartesian line: (u, cos(u)) for u over (-10.0, 10.0)
+<html>
+    <head>
+        <meta http-equiv="refresh" content="0;URL=/1.5.1/sympy-docs-html-1.5.1/modules/plotting-10.py" />
+    </head>
+    <body>
+    </body>
+</html>
+
