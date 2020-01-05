@@ -1,8 +1,1301 @@
-<html>
-    <head>
-        <meta http-equiv="refresh" content="0;URL=/latest/modules/integrals/g-functions.html" />
-    </head>
-    <body>
-    </body>
-</html>
 
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>Computing Integrals using Meijer G-Functions &#8212; SymPy 1.5.1 documentation</title>
+    <link rel="stylesheet" href="../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css" />
+    <link rel="stylesheet" type="text/css" href="https://live.sympy.org/static/live-core.css" />
+    <link rel="stylesheet" type="text/css" href="https://live.sympy.org/static/live-autocomplete.css" />
+    <link rel="stylesheet" type="text/css" href="https://live.sympy.org/static/live-sphinx.css" />
+    
+    <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../_static/language_data.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/utilities.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/external/classy.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/live-core.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/live-autocomplete.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/live-sphinx.js"></script>
+    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS_HTML-full"></script>
+    <script type="text/x-mathjax-config">MathJax.Hub.Config({"tex2jax": {"inlineMath": [["\\(", "\\)"]], "displayMath": [["\\[", "\\]"]]}})</script>
+    
+    <link rel="shortcut icon" href="../../_static/sympy-notailtext-favicon.ico"/>
+    <link href="https://docs.sympy.org/latest/modules/integrals/g-functions.html" rel="canonical" />
+    
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Interactive" href="../interactive.html" />
+    <link rel="prev" title="Integrals" href="integrals.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="../interactive.html" title="Interactive"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="integrals.html" title="Integrals"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">SymPy 1.5.1 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" accesskey="U">SymPy Modules Reference</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="computing-integrals-using-meijer-g-functions">
+<span id="g-functions"></span><h1>Computing Integrals using Meijer G-Functions<a class="headerlink" href="#computing-integrals-using-meijer-g-functions" title="Permalink to this headline">¶</a></h1>
+<p>This text aims do describe in some detail the steps (and subtleties) involved
+in using Meijer G-functions for computing definite and indefinite integrals.
+We shall ignore proofs completely.</p>
+<div class="section" id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Permalink to this headline">¶</a></h2>
+<p>The algorithm to compute <span class="math notranslate nohighlight">\(\int f(x) \mathrm{d}x\)</span> or
+<span class="math notranslate nohighlight">\(\int_0^\infty f(x) \mathrm{d}x\)</span> generally consists of three steps:</p>
+<ol class="arabic simple">
+<li><p>Rewrite the integrand using Meijer G-functions (one or sometimes two).</p></li>
+<li><p>Apply an integration theorem, to get the answer (usually expressed as another
+G-function).</p></li>
+<li><p>Expand the result in named special functions.</p></li>
+</ol>
+<p>Step (3) is implemented in the function hyperexpand (q.v.). Steps (1) and (2)
+are described below. Moreover, G-functions are usually branched. Thus our treatment
+of branched functions is described first.</p>
+<p>Some other integrals (e.g. <span class="math notranslate nohighlight">\(\int_{-\infty}^\infty\)</span>) can also be computed by first
+recasting them into one of the above forms. There is a lot of choice involved
+here, and the algorithm is heuristic at best.</p>
+</div>
+<div class="section" id="polar-numbers-and-branched-functions">
+<h2>Polar Numbers and Branched Functions<a class="headerlink" href="#polar-numbers-and-branched-functions" title="Permalink to this headline">¶</a></h2>
+<p>Both Meijer G-Functions and Hypergeometric functions are typically branched
+(possible branchpoints being <span class="math notranslate nohighlight">\(0\)</span>, <span class="math notranslate nohighlight">\(\pm 1\)</span>, <span class="math notranslate nohighlight">\(\infty\)</span>). This is not very important
+when e.g. expanding a single hypergeometric function into named special functions,
+since sorting out the branches can be left to the human user. However this
+algorithm manipulates and transforms G-functions, and to do this correctly it needs
+at least some crude understanding of the branchings involved.</p>
+<p>To begin, we consider the set
+<span class="math notranslate nohighlight">\(\mathcal{S} = \{(r, \theta) : r &gt; 0, \theta \in \mathbb{R}\}\)</span>. We have a map
+<span class="math notranslate nohighlight">\(p: \mathcal{S}: \rightarrow \mathbb{C}-\{0\}, (r, \theta) \mapsto r e^{i \theta}\)</span>.
+Decreeing this to be a local biholomorphism gives <span class="math notranslate nohighlight">\(\mathcal{S}\)</span> both a topology
+and a complex structure. This Riemann Surface is usually referred to as the
+Riemann Surface of the logarithm, for the following reason:
+We can define maps
+<span class="math notranslate nohighlight">\(\operatorname{Exp}: \mathbb{C} \rightarrow \mathcal{S}, (x + i y) \mapsto (\exp(x), y)\)</span> and
+<span class="math notranslate nohighlight">\(\operatorname{Log}: \mathcal{S} \rightarrow \mathbb{C}, (e^x, y) \mapsto x + iy\)</span>.
+These can both be shown to be holomorphic, and are indeed mutual inverses.</p>
+<p>We also sometimes formally attach a point “zero” (<span class="math notranslate nohighlight">\(0\)</span>) to <span class="math notranslate nohighlight">\(\mathcal{S}\)</span> and denote the
+resulting object <span class="math notranslate nohighlight">\(\mathcal{S}_0\)</span>. Notably there is no complex structure
+defined near <span class="math notranslate nohighlight">\(0\)</span>. A fundamental system of neighbourhoods is given by
+<span class="math notranslate nohighlight">\(\{\operatorname{Exp}(z) : \Re(z) &lt; k\}\)</span>, which at least defines a topology. Elements of
+<span class="math notranslate nohighlight">\(\mathcal{S}_0\)</span> shall be called polar numbers.
+We further define functions
+<span class="math notranslate nohighlight">\(\operatorname{Arg}: \mathcal{S} \rightarrow \mathbb{R}, (r, \theta) \mapsto \theta\)</span> and
+<span class="math notranslate nohighlight">\(|.|: \mathcal{S}_0 \rightarrow \mathbb{R}_{&gt;0}, (r, \theta) \mapsto r\)</span>.
+These have evident meaning and are both continuous everywhere.</p>
+<p>Using these maps many operations can be extended from <span class="math notranslate nohighlight">\(\mathbb{C}\)</span> to
+<span class="math notranslate nohighlight">\(\mathcal{S}\)</span>. We define <span class="math notranslate nohighlight">\(\operatorname{Exp}(a) \operatorname{Exp}(b) = \operatorname{Exp}(a + b)\)</span> for <span class="math notranslate nohighlight">\(a, b \in \mathbb{C}\)</span>,
+also for <span class="math notranslate nohighlight">\(a \in \mathcal{S}\)</span> and <span class="math notranslate nohighlight">\(b \in \mathbb{C}\)</span> we define
+<span class="math notranslate nohighlight">\(a^b = \operatorname{Exp}(b \operatorname{Log}(a))\)</span>.
+It can be checked easily that using these definitions, many algebraic properties
+holding for positive reals (e.g. <span class="math notranslate nohighlight">\((ab)^c = a^c b^c\)</span>) which hold in <span class="math notranslate nohighlight">\(\mathbb{C}\)</span>
+only for some numbers (because of branch cuts) hold indeed for all polar numbers.</p>
+<p>As one peculiarity it should be mentioned that addition of polar numbers is not
+usually defined. However, formal sums of polar numbers can be used to express
+branching behaviour. For example, consider the functions <span class="math notranslate nohighlight">\(F(z) = \sqrt{1 + z}\)</span>
+and <span class="math notranslate nohighlight">\(G(a, b) = \sqrt{a + b}\)</span>, where <span class="math notranslate nohighlight">\(a, b, z\)</span> are polar numbers.
+The general rule is that functions of a single polar variable are defined in
+such a way that they are continuous on circles, and agree with the usual
+definition for positive reals. Thus if <span class="math notranslate nohighlight">\(S(z)\)</span> denotes the standard branch of
+the square root function on <span class="math notranslate nohighlight">\(\mathbb{C}\)</span>, we are forced to define</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}F(z) = \begin{cases}
+ S(p(z)) &amp;: |z| &lt; 1 \\
+ S(p(z)) &amp;: -\pi &lt; \operatorname{Arg}(z) + 4\pi n \le \pi \text{ for some } n \in \mathbb{Z} \\
+ -S(p(z)) &amp;: \text{else}
+\end{cases}.\end{split}\]</div>
+<p>(We are omitting <span class="math notranslate nohighlight">\(|z| = 1\)</span> here, this does not matter for integration.)
+Finally we define <span class="math notranslate nohighlight">\(G(a, b) = \sqrt{a}F(b/a)\)</span>.</p>
+</div>
+<div class="section" id="representing-branched-functions-on-the-argand-plane">
+<h2>Representing Branched Functions on the Argand Plane<a class="headerlink" href="#representing-branched-functions-on-the-argand-plane" title="Permalink to this headline">¶</a></h2>
+<p>Suppose <span class="math notranslate nohighlight">\(f: \mathcal{S} \to \mathbb{C}\)</span> is a holomorphic function. We wish to
+define a function <span class="math notranslate nohighlight">\(F\)</span> on (part of) the complex numbers <span class="math notranslate nohighlight">\(\mathbb{C}\)</span> that
+represents <span class="math notranslate nohighlight">\(f\)</span> as closely as possible. This process is knows as “introducing
+branch cuts”. In our situation, there is actually a canonical way of doing this
+(which is adhered to in all of SymPy), as follows: Introduce the “cut complex
+plane”
+<span class="math notranslate nohighlight">\(C = \mathbb{C} \setminus \mathbb{R}_{\le 0}\)</span>. Define a function
+<span class="math notranslate nohighlight">\(l: C \to \mathcal{S}\)</span> via <span class="math notranslate nohighlight">\(re^{i\theta} \mapsto r \operatorname{Exp}(i\theta)\)</span>. Here <span class="math notranslate nohighlight">\(r &gt; 0\)</span>
+and <span class="math notranslate nohighlight">\(-\pi &lt; \theta \le \pi\)</span>. Then <span class="math notranslate nohighlight">\(l\)</span> is holomorphic, and we define
+<span class="math notranslate nohighlight">\(G = f \circ l\)</span>. This called “lifting to the principal branch” throughout the
+SymPy documentation.</p>
+</div>
+<div class="section" id="table-lookups-and-inverse-mellin-transforms">
+<h2>Table Lookups and Inverse Mellin Transforms<a class="headerlink" href="#table-lookups-and-inverse-mellin-transforms" title="Permalink to this headline">¶</a></h2>
+<p>Suppose we are given an integrand <span class="math notranslate nohighlight">\(f(x)\)</span> and are trying to rewrite it as a
+single G-function. To do this, we first split <span class="math notranslate nohighlight">\(f(x)\)</span> into the form <span class="math notranslate nohighlight">\(x^s g(x)\)</span>
+(where <span class="math notranslate nohighlight">\(g(x)\)</span> is supposed to be simpler than <span class="math notranslate nohighlight">\(f(x)\)</span>). This is because multiplicative
+powers can be absorbed into the G-function later. This splitting is done by
+<code class="docutils literal notranslate"><span class="pre">_split_mul(f,</span> <span class="pre">x)</span></code>. Then we assemble a tuple of functions that occur in
+<span class="math notranslate nohighlight">\(f\)</span> (e.g. if <span class="math notranslate nohighlight">\(f(x) = e^x \cos{x}\)</span>, we would assemble the tuple <span class="math notranslate nohighlight">\((\cos, \exp)\)</span>).
+This is done by the function <code class="docutils literal notranslate"><span class="pre">_mytype(f,</span> <span class="pre">x)</span></code>. Next we index a lookup table
+(created using <code class="docutils literal notranslate"><span class="pre">_create_lookup_table()</span></code>) with this tuple. This (hopefully)
+yields a list of Meijer G-function formulae involving these functions, we then
+pattern-match all of them. If one fits, we were successful, otherwise not and we
+have to try something else.</p>
+<p>Suppose now we want to rewrite as a product of two G-functions. To do this,
+we (try to) find all inequivalent ways of splitting <span class="math notranslate nohighlight">\(f(x)\)</span> into a product
+<span class="math notranslate nohighlight">\(f_1(x) f_2(x)\)</span>.
+We could try these splittings in any order, but it is often a good idea to
+minimize (a) the number of powers occurring in <span class="math notranslate nohighlight">\(f_i(x)\)</span> and (b) the number of
+different functions occurring in <span class="math notranslate nohighlight">\(f_i(x)\)</span>. Thus given e.g.
+<span class="math notranslate nohighlight">\(f(x) = \sin{x}\, e^{x} \sin{2x}\)</span> we should try <span class="math notranslate nohighlight">\(f_1(x) = \sin{x}\, \sin{2x}\)</span>,
+<span class="math notranslate nohighlight">\(f_2(x) = e^{x}\)</span> first.
+All of this is done by the function <code class="docutils literal notranslate"><span class="pre">_mul_as_two_parts(f)</span></code>.</p>
+<p>Finally, we can try a recursive Mellin transform technique. Since the Meijer
+G-function is defined essentially as a certain inverse mellin transform,
+if we want to write a function <span class="math notranslate nohighlight">\(f(x)\)</span> as a G-function, we can compute its mellin
+transform <span class="math notranslate nohighlight">\(F(s)\)</span>. If <span class="math notranslate nohighlight">\(F(s)\)</span> is in the right form, the G-function expression
+can be read off. This technique generalises many standard rewritings, e.g.
+<span class="math notranslate nohighlight">\(e^{ax} e^{bx} = e^{(a + b) x}\)</span>.</p>
+<p>One twist is that some functions don’t have mellin transforms, even though they
+can be written as G-functions. This is true for example for <span class="math notranslate nohighlight">\(f(x) = e^x \sin{x}\)</span>
+(the function grows too rapidly to have a mellin transform). However if the function
+is recognised to be analytic, then we can try to compute the mellin-transform of
+<span class="math notranslate nohighlight">\(f(ax)\)</span> for a parameter <span class="math notranslate nohighlight">\(a\)</span>, and deduce the G-function expression by analytic
+continuation. (Checking for analyticity is easy. Since we can only deal with a
+certain subset of functions anyway, we only have to filter out those which are
+not analyitc.)</p>
+<p>The function <code class="docutils literal notranslate"><span class="pre">_rewrite_single</span></code> does the table lookup and recursive mellin
+transform. The functions <code class="docutils literal notranslate"><span class="pre">_rewrite1</span></code> and <code class="docutils literal notranslate"><span class="pre">_rewrite2</span></code> respectively use
+above-mentioned helpers and <code class="docutils literal notranslate"><span class="pre">_rewrite_single</span></code> to rewrite their argument as
+respectively one or two G-functions.</p>
+</div>
+<div class="section" id="applying-the-integral-theorems">
+<h2>Applying the Integral Theorems<a class="headerlink" href="#applying-the-integral-theorems" title="Permalink to this headline">¶</a></h2>
+<p>If the integrand has been recast into G-functions, evaluating the integral is
+relatively easy. We first do some substitutions to reduce e.g. the exponent
+of the argument of the G-function to unity (see <code class="docutils literal notranslate"><span class="pre">_rewrite_saxena_1</span></code> and
+<code class="docutils literal notranslate"><span class="pre">_rewrite_saxena</span></code>, respectively, for one or two G-functions). Next we go through
+a list of conditions under which the integral theorem applies. It can fail for
+basically two reasons: either the integral does not exist, or the manipulations
+in deriving the theorem may not be allowed (for more details, see this <a class="reference internal" href="#blogpost" id="id1"><span>[BlogPost]</span></a>).</p>
+<p>Sometimes this can be remedied by reducing the argument of the G-functions
+involved. For example it is clear that the G-function representing <span class="math notranslate nohighlight">\(e^z\)</span>
+is satisfies <span class="math notranslate nohighlight">\(G(\operatorname{Exp}(2 \pi i)z) = G(z)\)</span> for all <span class="math notranslate nohighlight">\(z \in \mathcal{S}\)</span>. The function
+<code class="docutils literal notranslate"><span class="pre">meijerg.get_period()</span></code> can be used to discover this, and the function
+<code class="docutils literal notranslate"><span class="pre">principal_branch(z,</span> <span class="pre">period)</span></code> in <code class="docutils literal notranslate"><span class="pre">functions/elementary/complexes.py</span></code> can
+be used to exploit the information. This is done transparently by the
+integration code.</p>
+<dl class="citation">
+<dt class="label" id="blogpost"><span class="brackets"><a class="fn-backref" href="#id1">BlogPost</a></span></dt>
+<dd><p><a class="reference external" href="https://nessgrh.wordpress.com/2011/07/07/tricky-branch-cuts/">https://nessgrh.wordpress.com/2011/07/07/tricky-branch-cuts/</a></p>
+</dd>
+</dl>
+</div>
+</div>
+<div class="section" id="the-g-function-integration-theorems">
+<h1>The G-Function Integration Theorems<a class="headerlink" href="#the-g-function-integration-theorems" title="Permalink to this headline">¶</a></h1>
+<p>This section intends to display in detail the definite integration theorems
+used in the code. The following two formulae go back to Meijer (In fact he
+proved more general formulae; indeed in the literature formulae are usually
+staded in more general form. However it is very easy to deduce the general
+formulae from the ones we give here. It seemed best to keep the theorems as
+simple as possible, since they are very complicated anyway.):</p>
+<ol class="arabic">
+<li><div class="math notranslate nohighlight">
+\[\begin{split}\int_0^\infty
+G_{p, q}^{m, n} \left.\left(\begin{matrix} a_1, \cdots, a_p \\
+                                           b_1, \cdots, b_q \end{matrix}
+        \right| \eta x \right) \mathrm{d}x =
+ \frac{\prod_{j=1}^m \Gamma(b_j + 1) \prod_{j=1}^n \Gamma(-a_j)}{\eta
+       \prod_{j=m+1}^q \Gamma(-b_j) \prod_{j=n+1}^p \Gamma(a_j + 1)}\end{split}\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[\begin{split}\int_0^\infty
+G_{u, v}^{s, t} \left.\left(\begin{matrix} c_1, \cdots, c_u \\
+                                           d_1, \cdots, d_v \end{matrix}
+        \right| \sigma x \right)
+G_{p, q}^{m, n} \left.\left(\begin{matrix} a_1, \cdots, a_p \\
+                                           b_1, \cdots, b_q \end{matrix}
+        \right| \omega x \right)
+\mathrm{d}x =
+G_{v+p, u+q}^{m+t, n+s} \left.\left(
+      \begin{matrix} a_1, \cdots, a_n, -d_1, \cdots, -d_v, a_{n+1}, \cdots, a_p \\
+                     b_1, \cdots, b_m, -c_1, \cdots, -c_u, b_{m+1}, \cdots, b_q
+      \end{matrix}
+        \right| \frac{\omega}{\sigma} \right)\end{split}\]</div>
+</li>
+</ol>
+<p>The more interesting question is under what conditions these formulae are
+valid. Below we detail the conditions implemented in SymPy. They are an
+amalgamation of conditions found in <a class="reference internal" href="../simplify/hyperexpand.html#prudnikov1990" id="id2"><span>[Prudnikov1990]</span></a> and <a class="reference internal" href="../simplify/hyperexpand.html#luke1969" id="id3"><span>[Luke1969]</span></a>; please
+let us know if you find any errors.</p>
+<div class="section" id="conditions-of-convergence-for-integral-1">
+<h2>Conditions of Convergence for Integral (1)<a class="headerlink" href="#conditions-of-convergence-for-integral-1" title="Permalink to this headline">¶</a></h2>
+<p>We can without loss of generality assume <span class="math notranslate nohighlight">\(p \le q\)</span>, since the G-functions
+of indices <span class="math notranslate nohighlight">\(m, n, p, q\)</span> and of indices <span class="math notranslate nohighlight">\(n, m, q, p\)</span> can be related easily
+(see e.g. <a class="reference internal" href="../simplify/hyperexpand.html#luke1969" id="id4"><span>[Luke1969]</span></a>, section 5.3). We introduce the following notation:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\xi = m + n - p \\
+\delta = m + n - \frac{p + q}{2}\end{split}\]</div>
+<div class="math notranslate nohighlight">
+\[\begin{split}C_3: -\Re(b_j) &lt; 1 \text{ for } j=1, \ldots, m \\
+0 &lt; -\Re(a_j) \text{ for } j=1, \ldots, n\end{split}\]</div>
+<div class="math notranslate nohighlight">
+\[\begin{split}C_3^*: -\Re(b_j) &lt; 1 \text{ for } j=1, \ldots, q \\
+0 &lt; -\Re(a_j) \text{ for } j=1, \ldots, p\end{split}\]</div>
+<div class="math notranslate nohighlight">
+\[C_4: -\Re(\delta) + \frac{q + 1 - p}{2} &gt; q - p\]</div>
+<p>The convergence conditions will be detailed in several “cases”, numbered one
+to five. For later use it will be helpful to separate conditions “at infinity”
+from conditions “at zero”. By conditions “at infinity” we mean conditions that
+only depend on the behaviour of the integrand for large, positive values
+of <span class="math notranslate nohighlight">\(x\)</span>, whereas by conditions “at zero” we mean conditions that only depend on
+the behaviour of the integrand on <span class="math notranslate nohighlight">\((0, \epsilon)\)</span> for any <span class="math notranslate nohighlight">\(\epsilon &gt; 0\)</span>.
+Since all our conditions are specified in terms of parameters of the
+G-functions, this distinction is not immediately visible. They are, however, of
+very distinct character mathematically; the conditions at infinity being in
+particular much harder to control.</p>
+<p>In order for the integral theorem to be valid, conditions
+<span class="math notranslate nohighlight">\(n\)</span> “at zero” and “at infinity” both have to be fulfilled, for some <span class="math notranslate nohighlight">\(n\)</span>.</p>
+<p>These are the conditions “at infinity”:</p>
+<ol class="arabic">
+<li><div class="math notranslate nohighlight">
+\[\delta &gt; 0 \wedge |\arg(\eta)| &lt; \delta \pi \wedge (A \vee B \vee C),\]</div>
+<p>where</p>
+<div class="math notranslate nohighlight">
+\[A = 1 \le n \wedge p &lt; q \wedge 1 \le m\]</div>
+<div class="math notranslate nohighlight">
+\[B = 1 \le p \wedge 1 \le m \wedge q = p+1 \wedge
+            \neg (n = 0 \wedge m = p + 1 )\]</div>
+<div class="math notranslate nohighlight">
+\[C = 1 \le n \wedge q = p \wedge |\arg(\eta)| \ne (\delta - 2k)\pi
+       \text{ for } k = 0, 1, \ldots
+         \left\lceil \frac{\delta}{2} \right\rceil.\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[n = 0 \wedge p + 1 \le m \wedge |\arg(\eta)| &lt; \delta \pi\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[(p &lt; q \wedge 1 \le m \wedge \delta &gt; 0 \wedge |\arg(\eta)| = \delta \pi)
+\vee (p \le q - 2 \wedge \delta = 0 \wedge \arg(\eta) = 0)\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[p = q \wedge \delta = 0 \wedge \arg(\eta) = 0 \wedge \eta \ne 0
+\wedge \Re\left(\sum_{j=1}^p b_j - a_j \right) &lt; 0\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[\delta &gt; 0 \wedge |\arg(\eta)| &lt; \delta \pi\]</div>
+</li>
+</ol>
+<p>And these are the conditions “at zero”:</p>
+<ol class="arabic">
+<li><div class="math notranslate nohighlight">
+\[\eta \ne 0 \wedge C_3\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[C_3\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[C_3 \wedge C_4\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[C_3\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[C_3\]</div>
+</li>
+</ol>
+</div>
+<div class="section" id="conditions-of-convergence-for-integral-2">
+<h2>Conditions of Convergence for Integral (2)<a class="headerlink" href="#conditions-of-convergence-for-integral-2" title="Permalink to this headline">¶</a></h2>
+<p>We introduce the following notation:</p>
+<div class="math notranslate nohighlight">
+\[b^* = s + t - \frac{u + v}{2}\]</div>
+<div class="math notranslate nohighlight">
+\[c^* = m + n - \frac{p + q}{2}\]</div>
+<div class="math notranslate nohighlight">
+\[\rho = \sum_{j=1}^v d_j - \sum_{j=1}^u c_j + \frac{u - v}{2} + 1\]</div>
+<div class="math notranslate nohighlight">
+\[\mu = \sum_{j=1}^q b_j - \sum_{j=1}^p a_j + \frac{p - q}{2} + 1\]</div>
+<div class="math notranslate nohighlight">
+\[\phi = q - p - \frac{u - v}{2} + 1\]</div>
+<div class="math notranslate nohighlight">
+\[\eta = 1 - (v - u) - \mu - \rho\]</div>
+<div class="math notranslate nohighlight">
+\[\psi = \frac{\pi(q - m - n) + |\arg(\omega)|}{q - p}\]</div>
+<div class="math notranslate nohighlight">
+\[\theta = \frac{\pi(v - s - t) + |\arg(\sigma)|)}{v - u}\]</div>
+<div class="math notranslate nohighlight">
+\[\lambda_c = (q - p)|\omega|^{1/(q - p)} \cos{\psi}
++ (v - u)|\sigma|^{1/(v - u)} \cos{\theta}\]</div>
+<div class="math notranslate nohighlight">
+\[\lambda_{s0}(c_1, c_2) = c_1 (q - p)|\omega|^{1/(q - p)} \sin{\psi}
++ c_2 (v - u)|\sigma|^{1/(v - u)} \sin{\theta}\]</div>
+<div class="math notranslate nohighlight">
+\[\begin{split}\lambda_s =
+\begin{cases} \operatorname{\lambda_{s0}}\left(-1,-1\right) \operatorname{\lambda_{s0}}\left(1,1\right) &amp; \text{for}\: \arg(\omega) = 0 \wedge \arg(\sigma) = 0 \\\operatorname{\lambda_{s0}}\left(\operatorname{sign}\left(\operatorname{\arg}\left(\omega\right)\right),-1\right) \operatorname{\lambda_{s0}}\left(\operatorname{sign}\left(\operatorname{\arg}\left(\omega\right)\right),1\right) &amp; \text{for}\: \arg(\omega) \ne 0 \wedge \arg(\sigma) = 0 \\\operatorname{\lambda_{s0}}\left(-1,\operatorname{sign}\left(\operatorname{\arg}\left(\sigma\right)\right)\right) \operatorname{\lambda_{s0}}\left(1,\operatorname{sign}\left(\operatorname{\arg}\left(\sigma\right)\right)\right) &amp; \text{for}\: \arg(\omega) = 0 \wedge \arg(\sigma) \ne 0) \\\operatorname{\lambda_{s0}}\left(\operatorname{sign}\left(\operatorname{\arg}\left(\omega\right)\right),\operatorname{sign}\left(\operatorname{\arg}\left(\sigma\right)\right)\right) &amp; \text{otherwise} \end{cases}\end{split}\]</div>
+<div class="math notranslate nohighlight">
+\[z_0 = \frac{\omega}{\sigma} e^{-i\pi (b^* + c^*)}\]</div>
+<div class="math notranslate nohighlight">
+\[z_1 = \frac{\sigma}{\omega} e^{-i\pi (b^* + c^*)}\]</div>
+<p>The following conditions will be helpful:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}C_1: (a_i - b_j \notin \mathbb{Z}_{&gt;0} \text{ for } i = 1, \ldots, n, j = 1, \ldots, m) \\
+\wedge
+(c_i - d_j \notin \mathbb{Z}_{&gt;0} \text{ for } i = 1, \ldots, t, j = 1, \ldots, s)\end{split}\]</div>
+<div class="math notranslate nohighlight">
+\[C_2:
+\Re(1 + b_i + d_j) &gt; 0 \text{ for } i = 1, \ldots, m, j = 1, \ldots, s\]</div>
+<div class="math notranslate nohighlight">
+\[C_3:
+\Re(a_i + c_j) &lt; 1 \text{ for } i = 1, \ldots, n, j = 1, \ldots, t\]</div>
+<div class="math notranslate nohighlight">
+\[C_4:
+(p - q)\Re(c_i) - \Re(\mu) &gt; -\frac{3}{2} \text{ for } i=1, \ldots, t\]</div>
+<div class="math notranslate nohighlight">
+\[C_5:
+(p - q)\Re(1 + d_i) - \Re(\mu) &gt; -\frac{3}{2} \text{ for } i=1, \ldots, s\]</div>
+<div class="math notranslate nohighlight">
+\[C_6:
+(u - v)\Re(a_i) - \Re(\rho) &gt; -\frac{3}{2} \text{ for } i=1, \ldots, n\]</div>
+<div class="math notranslate nohighlight">
+\[C_7:
+(u - v)\Re(1 + b_i) - \Re(\rho) &gt; -\frac{3}{2} \text{ for } i=1, \ldots, m\]</div>
+<div class="math notranslate nohighlight">
+\[C_8:
+0 &lt; \lvert{\phi}\rvert + 2 \Re\left(\left(\mu -1\right) \left(- u + v\right) + \left(- p + q\right) \left(\rho -1\right) + \left(- p + q\right) \left(- u + v\right)\right)\]</div>
+<div class="math notranslate nohighlight">
+\[C_9:
+0 &lt; \lvert{\phi}\rvert - 2 \Re\left(\left(\mu -1\right) \left(- u + v\right) + \left(- p + q\right) \left(\rho -1\right) + \left(- p + q\right) \left(- u + v\right)\right)\]</div>
+<div class="math notranslate nohighlight">
+\[C_{10}:
+\lvert{\operatorname{arg}\left(\sigma\right)}\rvert &lt; \pi b^{*}\]</div>
+<div class="math notranslate nohighlight">
+\[C_{11}:
+\lvert{\operatorname{arg}\left(\sigma\right)}\rvert = \pi b^{*}\]</div>
+<div class="math notranslate nohighlight">
+\[C_{12}:
+|\arg(\omega)| &lt; c^*\pi\]</div>
+<div class="math notranslate nohighlight">
+\[C_{13}:
+|\arg(\omega)| = c^*\pi\]</div>
+<div class="math notranslate nohighlight">
+\[C_{14}^1:
+\left(z_0 \ne 1 \wedge |\arg(1 - z_0)| &lt; \pi \right) \vee
+\left(z_0 = 1 \wedge \Re(\mu + \rho - u + v) &lt; 1 \right)\]</div>
+<div class="math notranslate nohighlight">
+\[C_{14}^2:
+\left(z_1 \ne 1 \wedge |\arg(1 - z_1)| &lt; \pi \right) \vee
+\left(z_1 = 1 \wedge \Re(\mu + \rho - p + q) &lt; 1 \right)\]</div>
+<div class="math notranslate nohighlight">
+\[C_{14}:
+\phi = 0 \wedge b^* + c^* \le 1 \wedge (C_{14}^1 \vee C_{14}^2)\]</div>
+<div class="math notranslate nohighlight">
+\[C_{15}:
+\lambda_c &gt; 0 \vee (\lambda_c = 0 \wedge \lambda_s \ne 0 \wedge \Re(\eta) &gt; -1)
+              \vee (\lambda_c = 0 \wedge \lambda_s = 0 \wedge \Re(\eta) &gt; 0)\]</div>
+<div class="math notranslate nohighlight">
+\[C_{16}: \int_0^\infty G_{u, v}^{s, t}(\sigma x) \mathrm{d} x
+\text{ converges at infinity }\]</div>
+<div class="math notranslate nohighlight">
+\[C_{17}: \int_0^\infty G_{p, q}^{m, n}(\omega x) \mathrm{d} x
+\text{ converges at infinity }\]</div>
+<p>Note that <span class="math notranslate nohighlight">\(C_{16}\)</span> and <span class="math notranslate nohighlight">\(C_{17}\)</span> are the reason we split the convergence conditions for
+integral (1).</p>
+<p>With this notation established, the implemented convergence conditions can be enumerated
+as follows:</p>
+<ol class="arabic">
+<li><div class="math notranslate nohighlight">
+\[m n s t \neq 0 \wedge 0 &lt; b^{*} \wedge 0 &lt; c^{*} \wedge C_{1} \wedge C_{2} \wedge C_{3} \wedge C_{10} \wedge C_{12}\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[u = v \wedge b^{*} = 0 \wedge 0 &lt; c^{*} \wedge 0 &lt; \sigma \wedge \Re{\rho} &lt; 1 \wedge C_{1} \wedge C_{2} \wedge C_{3} \wedge C_{12}\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[p = q \wedge u = v \wedge b^{*} = 0 \wedge c^{*} = 0 \wedge 0 &lt; \sigma \wedge 0 &lt; \omega \wedge \Re{\mu} &lt; 1 \wedge \Re{\rho} &lt; 1 \wedge \sigma \neq \omega \wedge C_{1} \wedge C_{2} \wedge C_{3}\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[p = q \wedge u = v \wedge b^{*} = 0 \wedge c^{*} = 0 \wedge 0 &lt; \sigma \wedge 0 &lt; \omega \wedge \Re\left(\mu + \rho\right) &lt; 1 \wedge \omega \neq \sigma \wedge C_{1} \wedge C_{2} \wedge C_{3}\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[p = q \wedge u = v \wedge b^{*} = 0 \wedge c^{*} = 0 \wedge 0 &lt; \sigma \wedge 0 &lt; \omega \wedge \Re\left(\mu + \rho\right) &lt; 1 \wedge \omega \neq \sigma \wedge C_{1} \wedge C_{2} \wedge C_{3}\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[q &lt; p \wedge 0 &lt; s \wedge 0 &lt; b^{*} \wedge 0 \leq c^{*} \wedge C_{1} \wedge C_{2} \wedge C_{3} \wedge C_{5} \wedge C_{10} \wedge C_{13}\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[p &lt; q \wedge 0 &lt; t \wedge 0 &lt; b^{*} \wedge 0 \leq c^{*} \wedge C_{1} \wedge C_{2} \wedge C_{3} \wedge C_{4} \wedge C_{10} \wedge C_{13}\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[v &lt; u \wedge 0 &lt; m \wedge 0 &lt; c^{*} \wedge 0 \leq b^{*} \wedge C_{1} \wedge C_{2} \wedge C_{3} \wedge C_{7} \wedge C_{11} \wedge C_{12}\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[u &lt; v \wedge 0 &lt; n \wedge 0 &lt; c^{*} \wedge 0 \leq b^{*} \wedge C_{1} \wedge C_{2} \wedge C_{3} \wedge C_{6} \wedge C_{11} \wedge C_{12}\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[q &lt; p \wedge u = v \wedge b^{*} = 0 \wedge 0 \leq c^{*} \wedge 0 &lt; \sigma \wedge \Re{\rho} &lt; 1 \wedge C_{1} \wedge C_{2} \wedge C_{3} \wedge C_{5} \wedge C_{13}\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[p &lt; q \wedge u = v \wedge b^{*} = 0 \wedge 0 \leq c^{*} \wedge 0 &lt; \sigma \wedge \Re{\rho} &lt; 1 \wedge C_{1} \wedge C_{2} \wedge C_{3} \wedge C_{4} \wedge C_{13}\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[p = q \wedge v &lt; u \wedge 0 \leq b^{*} \wedge c^{*} = 0 \wedge 0 &lt; \omega \wedge \Re{\mu} &lt; 1 \wedge C_{1} \wedge C_{2} \wedge C_{3} \wedge C_{7} \wedge C_{11}\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[p = q \wedge u &lt; v \wedge 0 \leq b^{*} \wedge c^{*} = 0 \wedge 0 &lt; \omega \wedge \Re{\mu} &lt; 1 \wedge C_{1} \wedge C_{2} \wedge C_{3} \wedge C_{6} \wedge C_{11}\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[p &lt; q \wedge v &lt; u \wedge 0 \leq b^{*} \wedge 0 \leq c^{*} \wedge C_{1} \wedge C_{2} \wedge C_{3} \wedge C_{4} \wedge C_{7} \wedge C_{11} \wedge C_{13}\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[q &lt; p \wedge u &lt; v \wedge 0 \leq b^{*} \wedge 0 \leq c^{*} \wedge C_{1} \wedge C_{2} \wedge C_{3} \wedge C_{5} \wedge C_{6} \wedge C_{11} \wedge C_{13}\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[q &lt; p \wedge v &lt; u \wedge 0 \leq b^{*} \wedge 0 \leq c^{*} \wedge C_{1} \wedge C_{2} \wedge C_{3} \wedge C_{5} \wedge C_{7} \wedge C_{8} \wedge C_{11} \wedge C_{13} \wedge C_{14}\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[p &lt; q \wedge u &lt; v \wedge 0 \leq b^{*} \wedge 0 \leq c^{*} \wedge C_{1} \wedge C_{2} \wedge C_{3} \wedge C_{4} \wedge C_{6} \wedge C_{9} \wedge C_{11} \wedge C_{13} \wedge C_{14}\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[t = 0 \wedge 0 &lt; s \wedge 0 &lt; b^{*} \wedge 0 &lt; \phi \wedge C_{1} \wedge C_{2} \wedge C_{10}\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[s = 0 \wedge 0 &lt; t \wedge 0 &lt; b^{*} \wedge \phi &lt; 0 \wedge C_{1} \wedge C_{3} \wedge C_{10}\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[n = 0 \wedge 0 &lt; m \wedge 0 &lt; c^{*} \wedge \phi &lt; 0 \wedge C_{1} \wedge C_{2} \wedge C_{12}\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[m = 0 \wedge 0 &lt; n \wedge 0 &lt; c^{*} \wedge 0 &lt; \phi \wedge C_{1} \wedge C_{3} \wedge C_{12}\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[s t = 0 \wedge 0 &lt; b^{*} \wedge 0 &lt; c^{*} \wedge C_{1} \wedge C_{2} \wedge C_{3} \wedge C_{10} \wedge C_{12}\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[m n = 0 \wedge 0 &lt; b^{*} \wedge 0 &lt; c^{*} \wedge C_{1} \wedge C_{2} \wedge C_{3} \wedge C_{10} \wedge C_{12}\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[p &lt; m + n \wedge t = 0 \wedge \phi = 0 \wedge 0 &lt; s \wedge 0 &lt; b^{*} \wedge c^{*} &lt; 0 \wedge \lvert{\operatorname{arg}\left(\omega\right)}\rvert &lt; \pi \left(m + n - p + 1\right) \wedge C_{1} \wedge C_{2} \wedge C_{10} \wedge C_{14} \wedge C_{15}\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[q &lt; m + n \wedge s = 0 \wedge \phi = 0 \wedge 0 &lt; t \wedge 0 &lt; b^{*} \wedge c^{*} &lt; 0 \wedge \lvert{\operatorname{arg}\left(\omega\right)}\rvert &lt; \pi \left(m + n - q + 1\right) \wedge C_{1} \wedge C_{3} \wedge C_{10} \wedge C_{14} \wedge C_{15}\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[p = q -1 \wedge t = 0 \wedge \phi = 0 \wedge 0 &lt; s \wedge 0 &lt; b^{*} \wedge 0 \leq c^{*} \wedge \pi c^{*} &lt; \lvert{\operatorname{arg}\left(\omega\right)}\rvert \wedge C_{1} \wedge C_{2} \wedge C_{10} \wedge C_{14} \wedge C_{15}\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[p = q + 1 \wedge s = 0 \wedge \phi = 0 \wedge 0 &lt; t \wedge 0 &lt; b^{*} \wedge 0 \leq c^{*} \wedge \pi c^{*} &lt; \lvert{\operatorname{arg}\left(\omega\right)}\rvert \wedge C_{1} \wedge C_{3} \wedge C_{10} \wedge C_{14} \wedge C_{15}\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[p &lt; q -1 \wedge t = 0 \wedge \phi = 0 \wedge 0 &lt; s \wedge 0 &lt; b^{*} \wedge 0 \leq c^{*} \wedge \pi c^{*} &lt; \lvert{\operatorname{arg}\left(\omega\right)}\rvert \wedge \lvert{\operatorname{arg}\left(\omega\right)}\rvert &lt; \pi \left(m + n - p + 1\right) \wedge C_{1} \wedge C_{2} \wedge C_{10} \wedge C_{14} \wedge C_{15}\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[q + 1 &lt; p \wedge s = 0 \wedge \phi = 0 \wedge 0 &lt; t \wedge 0 &lt; b^{*} \wedge 0 \leq c^{*} \wedge \pi c^{*} &lt; \lvert{\operatorname{arg}\left(\omega\right)}\rvert \wedge \lvert{\operatorname{arg}\left(\omega\right)}\rvert &lt; \pi \left(m + n - q + 1 \right) \wedge C_{1} \wedge C_{3} \wedge C_{10} \wedge C_{14} \wedge C_{15}\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[n = 0 \wedge \phi = 0 \wedge 0 &lt; s + t \wedge 0 &lt; m \wedge 0 &lt; c^{*} \wedge b^{*} &lt; 0 \wedge \lvert{\operatorname{arg}\left(\sigma\right)}\rvert &lt; \pi \left(s + t - u + 1\right) \wedge C_{1} \wedge C_{2} \wedge C_{12} \wedge C_{14} \wedge C_{15}\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[m = 0 \wedge \phi = 0 \wedge v &lt; s + t \wedge 0 &lt; n \wedge 0 &lt; c^{*} \wedge b^{*} &lt; 0 \wedge \lvert{\operatorname{arg}\left(\sigma\right)}\rvert &lt; \pi \left(s + t - v + 1\right) \wedge C_{1} \wedge C_{3} \wedge C_{12} \wedge C_{14} \wedge C_{15}\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[n = 0 \wedge \phi = 0 \wedge u = v -1 \wedge 0 &lt; m \wedge 0 &lt; c^{*} \wedge 0 \leq b^{*} \wedge \pi b^{*} &lt; \lvert{\operatorname{arg}\left(\sigma\right)}\rvert \wedge \lvert{\operatorname{arg}\left(\sigma\right)}\rvert &lt; \pi \left(b^{*} + 1\right) \wedge C_{1} \wedge C_{2} \wedge C_{12} \wedge C_{14} \wedge C_{15}\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[m = 0 \wedge \phi = 0 \wedge u = v + 1 \wedge 0 &lt; n \wedge 0 &lt; c^{*} \wedge 0 \leq b^{*} \wedge \pi b^{*} &lt; \lvert{\operatorname{arg}\left(\sigma\right)}\rvert \wedge \lvert{\operatorname{arg}\left(\sigma\right)}\rvert &lt; \pi \left(b^{*} + 1\right) \wedge C_{1} \wedge C_{3} \wedge C_{12} \wedge C_{14} \wedge C_{15}\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[n = 0 \wedge \phi = 0 \wedge u &lt; v -1 \wedge 0 &lt; m \wedge 0 &lt; c^{*} \wedge 0 \leq b^{*} \wedge \pi b^{*} &lt; \lvert{\operatorname{arg}\left(\sigma\right)}\rvert \wedge \lvert{\operatorname{arg}\left(\sigma\right)}\rvert &lt; \pi \left(s + t - u + 1\right) \wedge C_{1} \wedge C_{2} \wedge C_{12} \wedge C_{14} \wedge C_{15}\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[m = 0 \wedge \phi = 0 \wedge v + 1 &lt; u \wedge 0 &lt; n \wedge 0 &lt; c^{*} \wedge 0 \leq b^{*} \wedge \pi b^{*} &lt; \lvert{\operatorname{arg}\left(\sigma\right)}\rvert \wedge \lvert{\operatorname{arg}\left(\sigma\right)}\rvert &lt; \pi \left(s + t - v + 1 \right) \wedge C_{1} \wedge C_{3} \wedge C_{12} \wedge C_{14} \wedge C_{15}\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[C_{17} \wedge t = 0 \wedge u &lt; s \wedge 0 &lt; b^{*} \wedge C_{10} \wedge C_{1} \wedge C_{2} \wedge C_{3}\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[C_{17} \wedge s = 0 \wedge v &lt; t \wedge 0 &lt; b^{*} \wedge C_{10} \wedge C_{1} \wedge C_{2} \wedge C_{3}\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[C_{16} \wedge n = 0 \wedge p &lt; m \wedge 0 &lt; c^{*} \wedge C_{12} \wedge C_{1} \wedge C_{2} \wedge C_{3}\]</div>
+</li>
+<li><div class="math notranslate nohighlight">
+\[C_{16} \wedge m = 0 \wedge q &lt; n \wedge 0 &lt; c^{*} \wedge C_{12} \wedge C_{1} \wedge C_{2} \wedge C_{3}\]</div>
+</li>
+</ol>
+</div>
+</div>
+<div class="section" id="the-inverse-laplace-transform-of-a-g-function">
+<h1>The Inverse Laplace Transform of a G-function<a class="headerlink" href="#the-inverse-laplace-transform-of-a-g-function" title="Permalink to this headline">¶</a></h1>
+<p>The inverse laplace transform of a Meijer G-function can be expressed as
+another G-function. This is a fairly versatile method for computing this
+transform. However, I could not find the details in the literature, so I work
+them out here. In <a class="reference internal" href="../simplify/hyperexpand.html#luke1969" id="id5"><span>[Luke1969]</span></a>, section 5.6.3, there is a formula for the inverse
+Laplace transform of a G-function of argument <span class="math notranslate nohighlight">\(bz\)</span>, and convergence conditions
+are also given. However, we need a formula for argument <span class="math notranslate nohighlight">\(bz^a\)</span> for rational <span class="math notranslate nohighlight">\(a\)</span>.</p>
+<p>We are asked to compute</p>
+<div class="math notranslate nohighlight">
+\[f(t) = \frac{1}{2\pi i} \int_{c-i\infty}^{c+i\infty} e^{zt} G(bz^a) \mathrm{d}z,\]</div>
+<p>for positive real <span class="math notranslate nohighlight">\(t\)</span>. Three questions arise:</p>
+<ol class="arabic simple">
+<li><p>When does this integral converge?</p></li>
+<li><p>How can we compute the integral?</p></li>
+<li><p>When is our computation valid?</p></li>
+</ol>
+<div class="section" id="how-to-compute-the-integral">
+<h2>How to compute the integral<a class="headerlink" href="#how-to-compute-the-integral" title="Permalink to this headline">¶</a></h2>
+<p>We shall work formally for now. Denote by <span class="math notranslate nohighlight">\(\Delta(s)\)</span> the product of gamma
+functions appearing in the definition of <span class="math notranslate nohighlight">\(G\)</span>, so that</p>
+<div class="math notranslate nohighlight">
+\[G(z) = \frac{1}{2\pi i} \int_L \Delta(s) z^s \mathrm{d}s.\]</div>
+<p>Thus</p>
+<div class="math notranslate nohighlight">
+\[f(t) = \frac{1}{(2\pi i)^2} \int_{c - i\infty}^{c + i\infty} \int_L
+              e^{zt} \Delta(s) b^s z^{as} \mathrm{d}s \mathrm{d}z.\]</div>
+<p>We interchange the order of integration to get</p>
+<div class="math notranslate nohighlight">
+\[f(t) = \frac{1}{2\pi i} \int_L b^s \Delta(s)
+      \int_{c-i\infty}^{c+i\infty} e^{zt} z^{as} \frac{\mathrm{d}z}{2\pi i}
+            \mathrm{d}s.\]</div>
+<p>The inner integral is easily seen to be
+<span class="math notranslate nohighlight">\(\frac{1}{\Gamma(-as)} \frac{1}{t^{1+as}}\)</span>. (Using Cauchy’s theorem and Jordan’s
+lemma deform the contour to run from <span class="math notranslate nohighlight">\(-\infty\)</span> to <span class="math notranslate nohighlight">\(-\infty\)</span>, encircling <span class="math notranslate nohighlight">\(0\)</span> once
+in the negative sense. For <span class="math notranslate nohighlight">\(as\)</span> real and greater than one,
+this contour can be pushed onto
+the negative real axis and the integral is recognised as a product of a sine and
+a gamma function. The formula is then proved using the functional equation of the
+gamma function, and extended to the entire domain of convergence of the original
+integral by appealing to analytic continuation.)
+Hence we find</p>
+<div class="math notranslate nohighlight">
+\[f(t) = \frac{1}{t} \frac{1}{2\pi i} \int_L \Delta(s) \frac{1}{\Gamma(-as)}
+              \left(\frac{b}{t^a}\right)^s \mathrm{d}s,\]</div>
+<p>which is a so-called Fox H function (of argument <span class="math notranslate nohighlight">\(\frac{b}{t^a}\)</span>). For rational
+<span class="math notranslate nohighlight">\(a\)</span>, this can be expressed as a Meijer G-function using the gamma function
+multiplication theorem.</p>
+</div>
+<div class="section" id="when-this-computation-is-valid">
+<h2>When this computation is valid<a class="headerlink" href="#when-this-computation-is-valid" title="Permalink to this headline">¶</a></h2>
+<p>There are a number of obstacles in this computation. Interchange of integrals
+is only valid if all integrals involved are absolutely convergent. In
+particular the inner integral has to converge. Also, for our identification of
+the final integral as a Fox H / Meijer G-function to be correct, the poles of
+the newly obtained gamma function must be separated properly.</p>
+<p>It is easy to check that the inner integral converges absolutely for
+<span class="math notranslate nohighlight">\(\Re(as) &lt; -1\)</span>. Thus the contour <span class="math notranslate nohighlight">\(L\)</span> has to run left of the line <span class="math notranslate nohighlight">\(\Re(as) = -1\)</span>.
+Under this condition, the poles of the newly-introduced gamma function are
+separated properly.</p>
+<p>It remains to observe that the Meijer G-function is an analytic, unbranched
+function of its parameters, and of the coefficient <span class="math notranslate nohighlight">\(b\)</span>. Hence so is <span class="math notranslate nohighlight">\(f(t)\)</span>.
+Thus the final computation remains valid as long as the initial integral
+converges, and if there exists a changed set of parameters where the computation
+is valid. If we assume w.l.o.g. that <span class="math notranslate nohighlight">\(a &gt; 0\)</span>, then the latter condition is
+fulfilled if <span class="math notranslate nohighlight">\(G\)</span> converges along contours (2) or (3) of <a class="reference internal" href="../simplify/hyperexpand.html#luke1969" id="id6"><span>[Luke1969]</span></a>,
+section 5.2, i.e. either <span class="math notranslate nohighlight">\(\delta &gt;= \frac{a}{2}\)</span> or <span class="math notranslate nohighlight">\(p \ge 1, p \ge q\)</span>.</p>
+</div>
+<div class="section" id="when-the-integral-exists">
+<h2>When the integral exists<a class="headerlink" href="#when-the-integral-exists" title="Permalink to this headline">¶</a></h2>
+<p>Using <a class="reference internal" href="../simplify/hyperexpand.html#luke1969" id="id7"><span>[Luke1969]</span></a>, section 5.10, for any given meijer G-function we can find a
+dominant term of the form <span class="math notranslate nohighlight">\(z^a e^{bz^c}\)</span> (although this expression might not be
+the best possible, because of cancellation).</p>
+<p>We must thus investigate</p>
+<div class="math notranslate nohighlight">
+\[\lim_{T \to \infty} \int_{c-iT}^{c+iT}
+e^{zt} z^a e^{bz^c} \mathrm{d}z.\]</div>
+<p>(This principal value integral is the exact statement used in the Laplace
+inversion theorem.) We write <span class="math notranslate nohighlight">\(z = c + i \tau\)</span>. Then
+<span class="math notranslate nohighlight">\(arg(z) \to \pm \frac{\pi}{2}\)</span>, and so <span class="math notranslate nohighlight">\(e^{zt} \sim e^{it \tau}\)</span> (where <span class="math notranslate nohighlight">\(\sim\)</span>
+shall always mean “asymptotically equivalent up to a positive real
+multiplicative constant”). Also
+<span class="math notranslate nohighlight">\(z^{x + iy} \sim |\tau|^x e^{i y \log{|\tau|}} e^{\pm x i \frac{\pi}{2}}.\)</span></p>
+<p>Set <span class="math notranslate nohighlight">\(\omega_{\pm} = b e^{\pm i \Re(c) \frac{\pi}{2}}\)</span>. We have three cases:</p>
+<ol class="arabic simple">
+<li><p><span class="math notranslate nohighlight">\(b=0\)</span> or <span class="math notranslate nohighlight">\(\Re(c) \le 0\)</span>.
+In this case the integral converges if <span class="math notranslate nohighlight">\(\Re(a) \le -1\)</span>.</p></li>
+<li><p><span class="math notranslate nohighlight">\(b \ne 0\)</span>, <span class="math notranslate nohighlight">\(\Im(c) = 0\)</span>, <span class="math notranslate nohighlight">\(\Re(c) &gt; 0\)</span>.
+In this case the integral converges if <span class="math notranslate nohighlight">\(\Re(\omega_{\pm}) &lt; 0\)</span>.</p></li>
+<li><p><span class="math notranslate nohighlight">\(b \ne 0\)</span>, <span class="math notranslate nohighlight">\(\Im(c) = 0\)</span>, <span class="math notranslate nohighlight">\(\Re(c) &gt; 0\)</span>, <span class="math notranslate nohighlight">\(\Re(\omega_{\pm}) \le 0\)</span>, and at least
+one of <span class="math notranslate nohighlight">\(\Re(\omega_{\pm}) = 0\)</span>.
+Here the same condition as in (1) applies.</p></li>
+</ol>
+</div>
+</div>
+<div class="section" id="implemented-g-function-formulae">
+<h1>Implemented G-Function Formulae<a class="headerlink" href="#implemented-g-function-formulae" title="Permalink to this headline">¶</a></h1>
+<p>An important part of the algorithm is a table expressing various functions
+as Meijer G-functions. This is essentially a table of Mellin Transforms in
+disguise. The following automatically generated table shows the formulae
+currently implemented in SymPy. An entry “generated” means that the
+corresponding G-function has a variable number of parameters.
+This table is intended to shrink in future, when the algorithm’s capabilities
+of deriving new formulae improve. Of course it has to grow whenever a new class
+of special functions is to be dealt with.</p>
+<span class="target" id="module-sympy.integrals.meijerint_doc"></span><p>Elementary functions:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}a = a {G_{1, 1}^{1, 0}\left(\begin{matrix}  &amp; 1 \\0 &amp;  \end{matrix} \middle| {z} \right)} + a {G_{1, 1}^{0, 1}\left(\begin{matrix} 1 &amp;  \\ &amp; 0 \end{matrix} \middle| {z} \right)}\end{split}\]</div>
+<div class="math notranslate nohighlight">
+\[\begin{split}\left(z^{q} p + b\right)^{- a} = \frac{b^{- a} {G_{1, 1}^{1, 1}\left(\begin{matrix} 1 - a &amp;  \\0 &amp;  \end{matrix} \middle| {\frac{z^{q} p}{b}} \right)}}{\Gamma\left(a\right)}\end{split}\]</div>
+<div class="math notranslate nohighlight">
+\[\begin{split}\frac{- b^{a} + \left(z^{q} p\right)^{a}}{z^{q} p - b} = \frac{b^{a - 1} {G_{2, 2}^{2, 2}\left(\begin{matrix} 0, a &amp;  \\0, a &amp;  \end{matrix} \middle| {\frac{z^{q} p}{b}} \right)} \sin{\left(\pi a \right)}}{\pi}\end{split}\]</div>
+<div class="math notranslate nohighlight">
+\[\begin{split}\left(a + \sqrt{z^{q} p + a^{2}}\right)^{b} = - \frac{a^{b} b {G_{2, 2}^{1, 2}\left(\begin{matrix} \frac{b}{2} + \frac{1}{2}, \frac{b}{2} + 1 &amp;  \\0 &amp; b \end{matrix} \middle| {\frac{z^{q} p}{a^{2}}} \right)}}{2 \sqrt{\pi}}\end{split}\]</div>
+<div class="math notranslate nohighlight">
+\[\begin{split}\left(- a + \sqrt{z^{q} p + a^{2}}\right)^{b} = \frac{a^{b} b {G_{2, 2}^{1, 2}\left(\begin{matrix} \frac{b}{2} + \frac{1}{2}, \frac{b}{2} + 1 &amp;  \\b &amp; 0 \end{matrix} \middle| {\frac{z^{q} p}{a^{2}}} \right)}}{2 \sqrt{\pi}}\end{split}\]</div>
+<div class="math notranslate nohighlight">
+\[\begin{split}\frac{\left(a + \sqrt{z^{q} p + a^{2}}\right)^{b}}{\sqrt{z^{q} p + a^{2}}} = \frac{a^{b - 1} {G_{2, 2}^{1, 2}\left(\begin{matrix} \frac{b}{2} + \frac{1}{2}, \frac{b}{2} &amp;  \\0 &amp; b \end{matrix} \middle| {\frac{z^{q} p}{a^{2}}} \right)}}{\sqrt{\pi}}\end{split}\]</div>
+<div class="math notranslate nohighlight">
+\[\begin{split}\frac{\left(- a + \sqrt{z^{q} p + a^{2}}\right)^{b}}{\sqrt{z^{q} p + a^{2}}} = \frac{a^{b - 1} {G_{2, 2}^{1, 2}\left(\begin{matrix} \frac{b}{2} + \frac{1}{2}, \frac{b}{2} &amp;  \\b &amp; 0 \end{matrix} \middle| {\frac{z^{q} p}{a^{2}}} \right)}}{\sqrt{\pi}}\end{split}\]</div>
+<div class="math notranslate nohighlight">
+\[\begin{split}\left(z^{\frac{q}{2}} \sqrt{p} + \sqrt{z^{q} p + a}\right)^{b} = - \frac{a^{\frac{b}{2}} b {G_{2, 2}^{2, 1}\left(\begin{matrix} \frac{b}{2} + 1 &amp; 1 - \frac{b}{2} \\0, \frac{1}{2} &amp;  \end{matrix} \middle| {\frac{z^{q} p}{a}} \right)}}{2 \sqrt{\pi}}\end{split}\]</div>
+<div class="math notranslate nohighlight">
+\[\begin{split}\left(- z^{\frac{q}{2}} \sqrt{p} + \sqrt{z^{q} p + a}\right)^{b} = \frac{a^{\frac{b}{2}} b {G_{2, 2}^{2, 1}\left(\begin{matrix} 1 - \frac{b}{2} &amp; \frac{b}{2} + 1 \\0, \frac{1}{2} &amp;  \end{matrix} \middle| {\frac{z^{q} p}{a}} \right)}}{2 \sqrt{\pi}}\end{split}\]</div>
+<div class="math notranslate nohighlight">
+\[\begin{split}\frac{\left(z^{\frac{q}{2}} \sqrt{p} + \sqrt{z^{q} p + a}\right)^{b}}{\sqrt{z^{q} p + a}} = \frac{a^{\frac{b}{2} - \frac{1}{2}} {G_{2, 2}^{2, 1}\left(\begin{matrix} \frac{b}{2} + \frac{1}{2} &amp; \frac{1}{2} - \frac{b}{2} \\0, \frac{1}{2} &amp;  \end{matrix} \middle| {\frac{z^{q} p}{a}} \right)}}{\sqrt{\pi}}\end{split}\]</div>
+<div class="math notranslate nohighlight">
+\[\begin{split}\frac{\left(- z^{\frac{q}{2}} \sqrt{p} + \sqrt{z^{q} p + a}\right)^{b}}{\sqrt{z^{q} p + a}} = \frac{a^{\frac{b}{2} - \frac{1}{2}} {G_{2, 2}^{2, 1}\left(\begin{matrix} \frac{1}{2} - \frac{b}{2} &amp; \frac{b}{2} + \frac{1}{2} \\0, \frac{1}{2} &amp;  \end{matrix} \middle| {\frac{z^{q} p}{a}} \right)}}{\sqrt{\pi}}\end{split}\]</div>
+<p>Functions involving <span class="math notranslate nohighlight">\(\left|{z^{q} p - b}\right|\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\left|{z^{q} p - b}\right|^{- a} = 2 {G_{2, 2}^{1, 1}\left(\begin{matrix} 1 - a &amp; \frac{1}{2} - \frac{a}{2} \\0 &amp; \frac{1}{2} - \frac{a}{2} \end{matrix} \middle| {\frac{z^{q} p}{b}} \right)} \sin{\left(\frac{\pi a}{2} \right)} \left|{b}\right|^{- a} \Gamma\left(1 - a\right),\text{ if } \operatorname{re}{\left(a\right)} &lt; 1\end{split}\]</div>
+<p>Functions involving <span class="math notranslate nohighlight">\(\operatorname{Chi}\left(z^{q} p\right)\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\operatorname{Chi}\left(z^{q} p\right) = - \frac{\pi^{\frac{3}{2}} {G_{2, 4}^{2, 0}\left(\begin{matrix}  &amp; \frac{1}{2}, 1 \\0, 0 &amp; \frac{1}{2}, \frac{1}{2} \end{matrix} \middle| {\frac{z^{2 q} p^{2}}{4}} \right)}}{2}\end{split}\]</div>
+<p>Functions involving <span class="math notranslate nohighlight">\(\operatorname{Ci}{\left(z^{q} p \right)}\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\operatorname{Ci}{\left(z^{q} p \right)} = - \frac{\sqrt{\pi} {G_{1, 3}^{2, 0}\left(\begin{matrix}  &amp; 1 \\0, 0 &amp; \frac{1}{2} \end{matrix} \middle| {\frac{z^{2 q} p^{2}}{4}} \right)}}{2}\end{split}\]</div>
+<p>Functions involving <span class="math notranslate nohighlight">\(\operatorname{Ei}{\left(z^{q} p \right)}\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\operatorname{Ei}{\left(z^{q} p \right)} = - i \pi {G_{1, 1}^{1, 0}\left(\begin{matrix}  &amp; 1 \\0 &amp;  \end{matrix} \middle| {z} \right)} - {G_{1, 2}^{2, 0}\left(\begin{matrix}  &amp; 1 \\0, 0 &amp;  \end{matrix} \middle| {z^{q} p e^{i \pi}} \right)} - i \pi {G_{1, 1}^{0, 1}\left(\begin{matrix} 1 &amp;  \\ &amp; 0 \end{matrix} \middle| {z} \right)}\end{split}\]</div>
+<p>Functions involving <span class="math notranslate nohighlight">\(\theta\left(z^{q} p - b\right)\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\left(z^{q} p - b\right)^{a - 1} \theta\left(z^{q} p - b\right) = b^{a - 1} {G_{1, 1}^{0, 1}\left(\begin{matrix} a &amp;  \\ &amp; 0 \end{matrix} \middle| {\frac{z^{q} p}{b}} \right)} \Gamma\left(a\right),\text{ if } b &gt; 0\end{split}\]</div>
+<div class="math notranslate nohighlight">
+\[\begin{split}\left(- z^{q} p + b\right)^{a - 1} \theta\left(- z^{q} p + b\right) = b^{a - 1} {G_{1, 1}^{1, 0}\left(\begin{matrix}  &amp; a \\0 &amp;  \end{matrix} \middle| {\frac{z^{q} p}{b}} \right)} \Gamma\left(a\right),\text{ if } b &gt; 0\end{split}\]</div>
+<div class="math notranslate nohighlight">
+\[\begin{split}\left(z^{q} p - b\right)^{a - 1} \theta\left(z - \left(\frac{b}{p}\right)^{\frac{1}{q}}\right) = b^{a - 1} {G_{1, 1}^{0, 1}\left(\begin{matrix} a &amp;  \\ &amp; 0 \end{matrix} \middle| {\frac{z^{q} p}{b}} \right)} \Gamma\left(a\right),\text{ if } b &gt; 0\end{split}\]</div>
+<div class="math notranslate nohighlight">
+\[\begin{split}\left(- z^{q} p + b\right)^{a - 1} \theta\left(- z + \left(\frac{b}{p}\right)^{\frac{1}{q}}\right) = b^{a - 1} {G_{1, 1}^{1, 0}\left(\begin{matrix}  &amp; a \\0 &amp;  \end{matrix} \middle| {\frac{z^{q} p}{b}} \right)} \Gamma\left(a\right),\text{ if } b &gt; 0\end{split}\]</div>
+<p>Functions involving <span class="math notranslate nohighlight">\(\theta\left(- z^{q} p + 1\right)\)</span>, <span class="math notranslate nohighlight">\(\log{\left(z^{q} p \right)}\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[\log{\left(z^{q} p \right)}^{n} \theta\left(- z^{q} p + 1\right) = \text{generated}\]</div>
+<div class="math notranslate nohighlight">
+\[\log{\left(z^{q} p \right)}^{n} \theta\left(z^{q} p - 1\right) = \text{generated}\]</div>
+<p>Functions involving <span class="math notranslate nohighlight">\(\operatorname{Shi}{\left(z^{q} p \right)}\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\operatorname{Shi}{\left(z^{q} p \right)} = \frac{z^{q} \sqrt{\pi} p {G_{1, 3}^{1, 1}\left(\begin{matrix} \frac{1}{2} &amp;  \\0 &amp; - \frac{1}{2}, - \frac{1}{2} \end{matrix} \middle| {\frac{z^{2 q} p^{2} e^{i \pi}}{4}} \right)}}{4}\end{split}\]</div>
+<p>Functions involving <span class="math notranslate nohighlight">\(\operatorname{Si}{\left(z^{q} p \right)}\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\operatorname{Si}{\left(z^{q} p \right)} = \frac{\sqrt{\pi} {G_{1, 3}^{1, 1}\left(\begin{matrix} 1 &amp;  \\\frac{1}{2} &amp; 0, 0 \end{matrix} \middle| {\frac{z^{2 q} p^{2}}{4}} \right)}}{2}\end{split}\]</div>
+<p>Functions involving <span class="math notranslate nohighlight">\(I_{a}\left(z^{q} p\right)\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}I_{a}\left(z^{q} p\right) = \pi {G_{1, 3}^{1, 0}\left(\begin{matrix}  &amp; \frac{a}{2} + \frac{1}{2} \\\frac{a}{2} &amp; - \frac{a}{2}, \frac{a}{2} + \frac{1}{2} \end{matrix} \middle| {\frac{z^{2 q} p^{2}}{4}} \right)}\end{split}\]</div>
+<p>Functions involving <span class="math notranslate nohighlight">\(J_{a}\left(z^{q} p\right)\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}J_{a}\left(z^{q} p\right) = {G_{0, 2}^{1, 0}\left(\begin{matrix}  &amp;  \\\frac{a}{2} &amp; - \frac{a}{2} \end{matrix} \middle| {\frac{z^{2 q} p^{2}}{4}} \right)}\end{split}\]</div>
+<p>Functions involving <span class="math notranslate nohighlight">\(K_{a}\left(z^{q} p\right)\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}K_{a}\left(z^{q} p\right) = \frac{{G_{0, 2}^{2, 0}\left(\begin{matrix}  &amp;  \\\frac{a}{2}, - \frac{a}{2} &amp;  \end{matrix} \middle| {\frac{z^{2 q} p^{2}}{4}} \right)}}{2}\end{split}\]</div>
+<p>Functions involving <span class="math notranslate nohighlight">\(Y_{a}\left(z^{q} p\right)\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}Y_{a}\left(z^{q} p\right) = {G_{1, 3}^{2, 0}\left(\begin{matrix}  &amp; - \frac{a}{2} - \frac{1}{2} \\\frac{a}{2}, - \frac{a}{2} &amp; - \frac{a}{2} - \frac{1}{2} \end{matrix} \middle| {\frac{z^{2 q} p^{2}}{4}} \right)}\end{split}\]</div>
+<p>Functions involving <span class="math notranslate nohighlight">\(\cos{\left(z^{q} p \right)}\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\cos{\left(z^{q} p \right)} = \sqrt{\pi} {G_{0, 2}^{1, 0}\left(\begin{matrix}  &amp;  \\0 &amp; \frac{1}{2} \end{matrix} \middle| {\frac{z^{2 q} p^{2}}{4}} \right)}\end{split}\]</div>
+<p>Functions involving <span class="math notranslate nohighlight">\(\cosh{\left(z^{q} p \right)}\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\cosh{\left(z^{q} p \right)} = \pi^{\frac{3}{2}} {G_{1, 3}^{1, 0}\left(\begin{matrix}  &amp; \frac{1}{2} \\0 &amp; \frac{1}{2}, \frac{1}{2} \end{matrix} \middle| {\frac{z^{2 q} p^{2}}{4}} \right)}\end{split}\]</div>
+<p>Functions involving <span class="math notranslate nohighlight">\(E\left(z^{q} p\right)\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}E\left(z^{q} p\right) = - \frac{{G_{2, 2}^{1, 2}\left(\begin{matrix} \frac{1}{2}, \frac{3}{2} &amp;  \\0 &amp; 0 \end{matrix} \middle| {- z^{q} p} \right)}}{4}\end{split}\]</div>
+<p>Functions involving <span class="math notranslate nohighlight">\(K\left(z^{q} p\right)\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}K\left(z^{q} p\right) = \frac{{G_{2, 2}^{1, 2}\left(\begin{matrix} \frac{1}{2}, \frac{1}{2} &amp;  \\0 &amp; 0 \end{matrix} \middle| {- z^{q} p} \right)}}{2}\end{split}\]</div>
+<p>Functions involving <span class="math notranslate nohighlight">\(\operatorname{erf}{\left(z^{q} p \right)}\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\operatorname{erf}{\left(z^{q} p \right)} = \frac{{G_{1, 2}^{1, 1}\left(\begin{matrix} 1 &amp;  \\\frac{1}{2} &amp; 0 \end{matrix} \middle| {z^{2 q} p^{2}} \right)}}{\sqrt{\pi}}\end{split}\]</div>
+<p>Functions involving <span class="math notranslate nohighlight">\(\operatorname{erfc}{\left(z^{q} p \right)}\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\operatorname{erfc}{\left(z^{q} p \right)} = \frac{{G_{1, 2}^{2, 0}\left(\begin{matrix}  &amp; 1 \\0, \frac{1}{2} &amp;  \end{matrix} \middle| {z^{2 q} p^{2}} \right)}}{\sqrt{\pi}}\end{split}\]</div>
+<p>Functions involving <span class="math notranslate nohighlight">\(\operatorname{erfi}{\left(z^{q} p \right)}\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\operatorname{erfi}{\left(z^{q} p \right)} = \frac{z^{q} p {G_{1, 2}^{1, 1}\left(\begin{matrix} \frac{1}{2} &amp;  \\0 &amp; - \frac{1}{2} \end{matrix} \middle| {- z^{2 q} p^{2}} \right)}}{\sqrt{\pi}}\end{split}\]</div>
+<p>Functions involving <span class="math notranslate nohighlight">\(e^{z^{q} p e^{i \pi}}\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}e^{z^{q} p e^{i \pi}} = {G_{0, 1}^{1, 0}\left(\begin{matrix}  &amp;  \\0 &amp;  \end{matrix} \middle| {z^{q} p} \right)}\end{split}\]</div>
+<p>Functions involving <span class="math notranslate nohighlight">\(\operatorname{E}_{a}\left(z^{q} p\right)\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\operatorname{E}_{a}\left(z^{q} p\right) = {G_{1, 2}^{2, 0}\left(\begin{matrix}  &amp; a \\a - 1, 0 &amp;  \end{matrix} \middle| {z^{q} p} \right)}\end{split}\]</div>
+<p>Functions involving <span class="math notranslate nohighlight">\(C\left(z^{q} p\right)\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}C\left(z^{q} p\right) = \frac{{G_{1, 3}^{1, 1}\left(\begin{matrix} 1 &amp;  \\\frac{1}{4} &amp; 0, \frac{3}{4} \end{matrix} \middle| {\frac{z^{4 q} \pi^{2} p^{4}}{16}} \right)}}{2}\end{split}\]</div>
+<p>Functions involving <span class="math notranslate nohighlight">\(S\left(z^{q} p\right)\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}S\left(z^{q} p\right) = \frac{{G_{1, 3}^{1, 1}\left(\begin{matrix} 1 &amp;  \\\frac{3}{4} &amp; 0, \frac{1}{4} \end{matrix} \middle| {\frac{z^{4 q} \pi^{2} p^{4}}{16}} \right)}}{2}\end{split}\]</div>
+<p>Functions involving <span class="math notranslate nohighlight">\(\log{\left(z^{q} p \right)}\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[\log{\left(z^{q} p \right)}^{n} = \text{generated}\]</div>
+<div class="math notranslate nohighlight">
+\[\begin{split}\log{\left(z^{q} p + a \right)} = {G_{1, 1}^{1, 0}\left(\begin{matrix}  &amp; 1 \\0 &amp;  \end{matrix} \middle| {z} \right)} \log{\left(a \right)} + {G_{1, 1}^{0, 1}\left(\begin{matrix} 1 &amp;  \\ &amp; 0 \end{matrix} \middle| {z} \right)} \log{\left(a \right)} + {G_{2, 2}^{1, 2}\left(\begin{matrix} 1, 1 &amp;  \\1 &amp; 0 \end{matrix} \middle| {\frac{z^{q} p}{a}} \right)}\end{split}\]</div>
+<div class="math notranslate nohighlight">
+\[\begin{split}\log{\left(\left|{z^{q} p - a}\right| \right)} = {G_{1, 1}^{1, 0}\left(\begin{matrix}  &amp; 1 \\0 &amp;  \end{matrix} \middle| {z} \right)} \log{\left(\left|{a}\right| \right)} + {G_{1, 1}^{0, 1}\left(\begin{matrix} 1 &amp;  \\ &amp; 0 \end{matrix} \middle| {z} \right)} \log{\left(\left|{a}\right| \right)} + \pi {G_{3, 3}^{1, 2}\left(\begin{matrix} 1, 1 &amp; \frac{1}{2} \\1 &amp; 0, \frac{1}{2} \end{matrix} \middle| {\frac{z^{q} p}{a}} \right)}\end{split}\]</div>
+<p>Functions involving <span class="math notranslate nohighlight">\(\sin{\left(z^{q} p \right)}\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\sin{\left(z^{q} p \right)} = \sqrt{\pi} {G_{0, 2}^{1, 0}\left(\begin{matrix}  &amp;  \\\frac{1}{2} &amp; 0 \end{matrix} \middle| {\frac{z^{2 q} p^{2}}{4}} \right)}\end{split}\]</div>
+<p>Functions involving <span class="math notranslate nohighlight">\(\operatorname{sinc}{\left(z^{q} p \right)}\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\operatorname{sinc}{\left(z^{q} p \right)} = \frac{\sqrt{\pi} {G_{0, 2}^{1, 0}\left(\begin{matrix}  &amp;  \\0 &amp; - \frac{1}{2} \end{matrix} \middle| {\frac{z^{2 q} p^{2}}{4}} \right)}}{2}\end{split}\]</div>
+<p>Functions involving <span class="math notranslate nohighlight">\(\sinh{\left(z^{q} p \right)}\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\sinh{\left(z^{q} p \right)} = \pi^{\frac{3}{2}} {G_{1, 3}^{1, 0}\left(\begin{matrix}  &amp; 1 \\\frac{1}{2} &amp; 1, 0 \end{matrix} \middle| {\frac{z^{2 q} p^{2}}{4}} \right)}\end{split}\]</div>
+</div>
+<div class="section" id="module-sympy.integrals.meijerint">
+<span id="internal-api-reference"></span><h1>Internal API Reference<a class="headerlink" href="#module-sympy.integrals.meijerint" title="Permalink to this headline">¶</a></h1>
+<p>Integrate functions by rewriting them as Meijer G-functions.</p>
+<p>There are three user-visible functions that can be used by other parts of the
+sympy library to solve various integration problems:</p>
+<ul class="simple">
+<li><p>meijerint_indefinite</p></li>
+<li><p>meijerint_definite</p></li>
+<li><p>meijerint_inversion</p></li>
+</ul>
+<p>They can be used to compute, respectively, indefinite integrals, definite
+integrals over intervals of the real line, and inverse laplace-type integrals
+(from c-I*oo to c+I*oo). See the respective docstrings for details.</p>
+<p>The main references for this are:</p>
+<dl class="simple">
+<dt>[L] Luke, Y. L. (1969), The Special Functions and Their Approximations,</dt><dd><p>Volume 1</p>
+</dd>
+<dt>[R] Kelly B. Roach.  Meijer G Function Representations.</dt><dd><p>In: Proceedings of the 1997 International Symposium on Symbolic and
+Algebraic Computation, pages 205-211, New York, 1997. ACM.</p>
+</dd>
+<dt>[P] A. P. Prudnikov, Yu. A. Brychkov and O. I. Marichev (1990).</dt><dd><p>Integrals and Series: More Special Functions, Vol. 3,.
+Gordon and Breach Science Publisher</p>
+</dd>
+</dl>
+<dl class="exception">
+<dt id="sympy.integrals.meijerint._CoeffExpValueError">
+<em class="property">exception </em><code class="sig-prename descclassname">sympy.integrals.meijerint.</code><code class="sig-name descname">_CoeffExpValueError</code><a class="reference external" href="https://github.com/sympy/sympy/blob/70381f282f2d9d039da860e391fe51649df2779d/sympy/integrals/meijerint.py#L303-L307"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.integrals.meijerint._CoeffExpValueError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Exception raised by _get_coeff_exp, for internal use only.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.integrals.meijerint._check_antecedents">
+<code class="sig-prename descclassname">sympy.integrals.meijerint.</code><code class="sig-name descname">_check_antecedents</code><span class="sig-paren">(</span><em class="sig-param">g1</em>, <em class="sig-param">g2</em>, <em class="sig-param">x</em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/sympy/sympy/blob/70381f282f2d9d039da860e391fe51649df2779d/sympy/integrals/meijerint.py#L938-L1236"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.integrals.meijerint._check_antecedents" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a condition under which the integral theorem applies.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.integrals.meijerint._check_antecedents_1">
+<code class="sig-prename descclassname">sympy.integrals.meijerint.</code><code class="sig-name descname">_check_antecedents_1</code><span class="sig-paren">(</span><em class="sig-param">g</em>, <em class="sig-param">x</em>, <em class="sig-param">helper=False</em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/sympy/sympy/blob/70381f282f2d9d039da860e391fe51649df2779d/sympy/integrals/meijerint.py#L728-L841"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.integrals.meijerint._check_antecedents_1" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a condition under which the mellin transform of g exists.
+Any power of x has already been absorbed into the G function,
+so this is just <span class="math notranslate nohighlight">\(\int_0^\infty g\, dx\)</span>.</p>
+<p>See [L, section 5.6.1]. (Note that s=1.)</p>
+<p>If <code class="docutils literal notranslate"><span class="pre">helper</span></code> is True, only check if the MT exists at infinity, i.e. if
+<span class="math notranslate nohighlight">\(\int_1^\infty g\, dx\)</span> exists.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.integrals.meijerint._check_antecedents_inversion">
+<code class="sig-prename descclassname">sympy.integrals.meijerint.</code><code class="sig-name descname">_check_antecedents_inversion</code><span class="sig-paren">(</span><em class="sig-param">g</em>, <em class="sig-param">x</em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/sympy/sympy/blob/70381f282f2d9d039da860e391fe51649df2779d/sympy/integrals/meijerint.py#L1279-L1397"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.integrals.meijerint._check_antecedents_inversion" title="Permalink to this definition">¶</a></dt>
+<dd><p>Check antecedents for the laplace inversion integral.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.integrals.meijerint._condsimp">
+<code class="sig-prename descclassname">sympy.integrals.meijerint.</code><code class="sig-name descname">_condsimp</code><span class="sig-paren">(</span><em class="sig-param">cond</em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/sympy/sympy/blob/70381f282f2d9d039da860e391fe51649df2779d/sympy/integrals/meijerint.py#L582-L680"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.integrals.meijerint._condsimp" title="Permalink to this definition">¶</a></dt>
+<dd><p>Do naive simplifications on <code class="docutils literal notranslate"><span class="pre">cond</span></code>.</p>
+<p>Note that this routine is completely ad-hoc, simplification rules being
+added as need arises rather than following any logical pattern.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.integrals.meijerint</span> <span class="kn">import</span> <span class="n">_condsimp</span> <span class="k">as</span> <span class="n">simp</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">Or</span><span class="p">,</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">unbranched_argument</span> <span class="k">as</span> <span class="n">arg</span><span class="p">,</span> <span class="n">And</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.abc</span> <span class="kn">import</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">simp</span><span class="p">(</span><span class="n">Or</span><span class="p">(</span><span class="n">x</span> <span class="o">&lt;</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">Eq</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)))</span>
+<span class="go">z | (x &lt;= y)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">simp</span><span class="p">(</span><span class="n">Or</span><span class="p">(</span><span class="n">x</span> <span class="o">&lt;=</span> <span class="n">y</span><span class="p">,</span> <span class="n">And</span><span class="p">(</span><span class="n">x</span> <span class="o">&lt;</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">)))</span>
+<span class="go">x &lt;= y</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.integrals.meijerint._create_lookup_table">
+<code class="sig-prename descclassname">sympy.integrals.meijerint.</code><code class="sig-name descname">_create_lookup_table</code><span class="sig-paren">(</span><em class="sig-param">table</em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/sympy/sympy/blob/70381f282f2d9d039da860e391fe51649df2779d/sympy/integrals/meijerint.py#L66-L277"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.integrals.meijerint._create_lookup_table" title="Permalink to this definition">¶</a></dt>
+<dd><p>Add formulae for the function -&gt; meijerg lookup table.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.integrals.meijerint._dummy">
+<code class="sig-prename descclassname">sympy.integrals.meijerint.</code><code class="sig-name descname">_dummy</code><span class="sig-paren">(</span><em class="sig-param">name</em>, <em class="sig-param">token</em>, <em class="sig-param">expr</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/sympy/sympy/blob/70381f282f2d9d039da860e391fe51649df2779d/sympy/integrals/meijerint.py#L552-L561"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.integrals.meijerint._dummy" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a dummy. This will return the same dummy if the same token+name is
+requested more than once, and it is not already in expr.
+This is for being cache-friendly.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.integrals.meijerint._dummy_">
+<code class="sig-prename descclassname">sympy.integrals.meijerint.</code><code class="sig-name descname">_dummy_</code><span class="sig-paren">(</span><em class="sig-param">name</em>, <em class="sig-param">token</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/sympy/sympy/blob/70381f282f2d9d039da860e391fe51649df2779d/sympy/integrals/meijerint.py#L564-L572"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.integrals.meijerint._dummy_" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a dummy associated to name and token. Same effect as declaring
+it globally.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.integrals.meijerint._eval_cond">
+<code class="sig-prename descclassname">sympy.integrals.meijerint.</code><code class="sig-name descname">_eval_cond</code><span class="sig-paren">(</span><em class="sig-param">cond</em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/sympy/sympy/blob/70381f282f2d9d039da860e391fe51649df2779d/sympy/integrals/meijerint.py#L683-L687"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.integrals.meijerint._eval_cond" title="Permalink to this definition">¶</a></dt>
+<dd><p>Re-evaluate the conditions.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.integrals.meijerint._exponents">
+<code class="sig-prename descclassname">sympy.integrals.meijerint.</code><code class="sig-name descname">_exponents</code><span class="sig-paren">(</span><em class="sig-param">expr</em>, <em class="sig-param">x</em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/sympy/sympy/blob/70381f282f2d9d039da860e391fe51649df2779d/sympy/integrals/meijerint.py#L341-L368"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.integrals.meijerint._exponents" title="Permalink to this definition">¶</a></dt>
+<dd><p>Find the exponents of <code class="docutils literal notranslate"><span class="pre">x</span></code> (not including zero) in <code class="docutils literal notranslate"><span class="pre">expr</span></code>.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.integrals.meijerint</span> <span class="kn">import</span> <span class="n">_exponents</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.abc</span> <span class="kn">import</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">sin</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">_exponents</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+<span class="go">{1}</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">_exponents</span><span class="p">(</span><span class="n">x</span><span class="o">**</span><span class="mi">2</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+<span class="go">{2}</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">_exponents</span><span class="p">(</span><span class="n">x</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">x</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+<span class="go">{1, 2}</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">_exponents</span><span class="p">(</span><span class="n">x</span><span class="o">**</span><span class="mi">3</span><span class="o">*</span><span class="n">sin</span><span class="p">(</span><span class="n">x</span> <span class="o">+</span> <span class="n">x</span><span class="o">**</span><span class="n">y</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="o">/</span><span class="n">x</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+<span class="go">{-1, 1, 3, y}</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.integrals.meijerint._find_splitting_points">
+<code class="sig-prename descclassname">sympy.integrals.meijerint.</code><code class="sig-name descname">_find_splitting_points</code><span class="sig-paren">(</span><em class="sig-param">expr</em>, <em class="sig-param">x</em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/sympy/sympy/blob/70381f282f2d9d039da860e391fe51649df2779d/sympy/integrals/meijerint.py#L377-L407"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.integrals.meijerint._find_splitting_points" title="Permalink to this definition">¶</a></dt>
+<dd><p>Find numbers a such that a linear substitution x -&gt; x + a would
+(hopefully) simplify expr.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.integrals.meijerint</span> <span class="kn">import</span> <span class="n">_find_splitting_points</span> <span class="k">as</span> <span class="n">fsp</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">sin</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.abc</span> <span class="kn">import</span> <span class="n">a</span><span class="p">,</span> <span class="n">x</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">fsp</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+<span class="go">{0}</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">fsp</span><span class="p">((</span><span class="n">x</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">**</span><span class="mi">3</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+<span class="go">{1}</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">fsp</span><span class="p">(</span><span class="n">sin</span><span class="p">(</span><span class="n">x</span><span class="o">+</span><span class="mi">3</span><span class="p">)</span><span class="o">*</span><span class="n">x</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+<span class="go">{-3, 0}</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.integrals.meijerint._flip_g">
+<code class="sig-prename descclassname">sympy.integrals.meijerint.</code><code class="sig-name descname">_flip_g</code><span class="sig-paren">(</span><em class="sig-param">g</em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/sympy/sympy/blob/70381f282f2d9d039da860e391fe51649df2779d/sympy/integrals/meijerint.py#L515-L521"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.integrals.meijerint._flip_g" title="Permalink to this definition">¶</a></dt>
+<dd><p>Turn the G function into one of inverse argument
+(i.e. G(1/x) -&gt; G’(x))</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.integrals.meijerint._functions">
+<code class="sig-prename descclassname">sympy.integrals.meijerint.</code><code class="sig-name descname">_functions</code><span class="sig-paren">(</span><em class="sig-param">expr</em>, <em class="sig-param">x</em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/sympy/sympy/blob/70381f282f2d9d039da860e391fe51649df2779d/sympy/integrals/meijerint.py#L371-L374"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.integrals.meijerint._functions" title="Permalink to this definition">¶</a></dt>
+<dd><p>Find the types of functions in expr, to estimate the complexity.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.integrals.meijerint._get_coeff_exp">
+<code class="sig-prename descclassname">sympy.integrals.meijerint.</code><code class="sig-name descname">_get_coeff_exp</code><span class="sig-paren">(</span><em class="sig-param">expr</em>, <em class="sig-param">x</em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/sympy/sympy/blob/70381f282f2d9d039da860e391fe51649df2779d/sympy/integrals/meijerint.py#L310-L338"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.integrals.meijerint._get_coeff_exp" title="Permalink to this definition">¶</a></dt>
+<dd><p>When expr is known to be of the form c*x**b, with c and/or b possibly 1,
+return c, b.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.abc</span> <span class="kn">import</span> <span class="n">x</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.integrals.meijerint</span> <span class="kn">import</span> <span class="n">_get_coeff_exp</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">_get_coeff_exp</span><span class="p">(</span><span class="n">a</span><span class="o">*</span><span class="n">x</span><span class="o">**</span><span class="n">b</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+<span class="go">(a, b)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">_get_coeff_exp</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+<span class="go">(1, 1)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">_get_coeff_exp</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">x</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+<span class="go">(2, 1)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">_get_coeff_exp</span><span class="p">(</span><span class="n">x</span><span class="o">**</span><span class="mi">3</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+<span class="go">(1, 3)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.integrals.meijerint._guess_expansion">
+<code class="sig-prename descclassname">sympy.integrals.meijerint.</code><code class="sig-name descname">_guess_expansion</code><span class="sig-paren">(</span><em class="sig-param">f</em>, <em class="sig-param">x</em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/sympy/sympy/blob/70381f282f2d9d039da860e391fe51649df2779d/sympy/integrals/meijerint.py#L1869-L1899"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.integrals.meijerint._guess_expansion" title="Permalink to this definition">¶</a></dt>
+<dd><p>Try to guess sensible rewritings for integrand f(x).</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.integrals.meijerint._inflate_fox_h">
+<code class="sig-prename descclassname">sympy.integrals.meijerint.</code><code class="sig-name descname">_inflate_fox_h</code><span class="sig-paren">(</span><em class="sig-param">g</em>, <em class="sig-param">a</em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/sympy/sympy/blob/70381f282f2d9d039da860e391fe51649df2779d/sympy/integrals/meijerint.py#L524-L547"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.integrals.meijerint._inflate_fox_h" title="Permalink to this definition">¶</a></dt>
+<dd><p>Let d denote the integrand in the definition of the G function <code class="docutils literal notranslate"><span class="pre">g</span></code>.
+Consider the function H which is defined in the same way, but with
+integrand d/Gamma(a*s) (contour conventions as usual).</p>
+<p>If a is rational, the function H can be written as C*G, for a constant C
+and a G-function G.</p>
+<p>This function returns C, G.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.integrals.meijerint._inflate_g">
+<code class="sig-prename descclassname">sympy.integrals.meijerint.</code><code class="sig-name descname">_inflate_g</code><span class="sig-paren">(</span><em class="sig-param">g</em>, <em class="sig-param">n</em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/sympy/sympy/blob/70381f282f2d9d039da860e391fe51649df2779d/sympy/integrals/meijerint.py#L495-L512"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.integrals.meijerint._inflate_g" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return C, h such that h is a G function of argument z**n and
+g = C*h.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.integrals.meijerint._int0oo">
+<code class="sig-prename descclassname">sympy.integrals.meijerint.</code><code class="sig-name descname">_int0oo</code><span class="sig-paren">(</span><em class="sig-param">g1</em>, <em class="sig-param">g2</em>, <em class="sig-param">x</em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/sympy/sympy/blob/70381f282f2d9d039da860e391fe51649df2779d/sympy/integrals/meijerint.py#L1242-L1265"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.integrals.meijerint._int0oo" title="Permalink to this definition">¶</a></dt>
+<dd><p>Express integral from zero to infinity g1*g2 using a G function,
+assuming the necessary conditions are fulfilled.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.integrals.meijerint</span> <span class="kn">import</span> <span class="n">_int0oo</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.abc</span> <span class="kn">import</span> <span class="n">s</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">m</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">meijerg</span><span class="p">,</span> <span class="n">S</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">g1</span> <span class="o">=</span> <span class="n">meijerg</span><span class="p">([],</span> <span class="p">[],</span> <span class="p">[</span><span class="o">-</span><span class="n">S</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">/</span><span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="p">[],</span> <span class="n">s</span><span class="o">**</span><span class="mi">2</span><span class="o">*</span><span class="n">t</span><span class="o">/</span><span class="mi">4</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">g2</span> <span class="o">=</span> <span class="n">meijerg</span><span class="p">([],</span> <span class="p">[],</span> <span class="p">[</span><span class="n">m</span><span class="o">/</span><span class="mi">2</span><span class="p">],</span> <span class="p">[</span><span class="o">-</span><span class="n">m</span><span class="o">/</span><span class="mi">2</span><span class="p">],</span> <span class="n">t</span><span class="o">/</span><span class="mi">4</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">_int0oo</span><span class="p">(</span><span class="n">g1</span><span class="p">,</span> <span class="n">g2</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span>
+<span class="go">4*meijerg(((1/2, 0), ()), ((m/2,), (-m/2,)), s**(-2))/s**2</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.integrals.meijerint._int0oo_1">
+<code class="sig-prename descclassname">sympy.integrals.meijerint.</code><code class="sig-name descname">_int0oo_1</code><span class="sig-paren">(</span><em class="sig-param">g</em>, <em class="sig-param">x</em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/sympy/sympy/blob/70381f282f2d9d039da860e391fe51649df2779d/sympy/integrals/meijerint.py#L844-L868"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.integrals.meijerint._int0oo_1" title="Permalink to this definition">¶</a></dt>
+<dd><p>Evaluate <span class="math notranslate nohighlight">\(\int_0^\infty g\, dx\)</span> using G functions,
+assuming the necessary conditions are fulfilled.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.abc</span> <span class="kn">import</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">meijerg</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.integrals.meijerint</span> <span class="kn">import</span> <span class="n">_int0oo_1</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">_int0oo_1</span><span class="p">(</span><span class="n">meijerg</span><span class="p">([</span><span class="n">a</span><span class="p">],</span> <span class="p">[</span><span class="n">b</span><span class="p">],</span> <span class="p">[</span><span class="n">c</span><span class="p">],</span> <span class="p">[</span><span class="n">d</span><span class="p">],</span> <span class="n">x</span><span class="o">*</span><span class="n">y</span><span class="p">),</span> <span class="n">x</span><span class="p">)</span>
+<span class="go">gamma(-a)*gamma(c + 1)/(y*gamma(-d)*gamma(b + 1))</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.integrals.meijerint._int_inversion">
+<code class="sig-prename descclassname">sympy.integrals.meijerint.</code><code class="sig-name descname">_int_inversion</code><span class="sig-paren">(</span><em class="sig-param">g</em>, <em class="sig-param">x</em>, <em class="sig-param">t</em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/sympy/sympy/blob/70381f282f2d9d039da860e391fe51649df2779d/sympy/integrals/meijerint.py#L1400-L1406"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.integrals.meijerint._int_inversion" title="Permalink to this definition">¶</a></dt>
+<dd><p>Compute the laplace inversion integral, assuming the formula applies.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.integrals.meijerint._is_analytic">
+<code class="sig-prename descclassname">sympy.integrals.meijerint.</code><code class="sig-name descname">_is_analytic</code><span class="sig-paren">(</span><em class="sig-param">f</em>, <em class="sig-param">x</em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/sympy/sympy/blob/70381f282f2d9d039da860e391fe51649df2779d/sympy/integrals/meijerint.py#L575-L579"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.integrals.meijerint._is_analytic" title="Permalink to this definition">¶</a></dt>
+<dd><p>Check if f(x), when expressed using G functions on the positive reals,
+will in fact agree with the G functions almost everywhere</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.integrals.meijerint._meijerint_definite_2">
+<code class="sig-prename descclassname">sympy.integrals.meijerint.</code><code class="sig-name descname">_meijerint_definite_2</code><span class="sig-paren">(</span><em class="sig-param">f</em>, <em class="sig-param">x</em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/sympy/sympy/blob/70381f282f2d9d039da860e391fe51649df2779d/sympy/integrals/meijerint.py#L1902-L1929"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.integrals.meijerint._meijerint_definite_2" title="Permalink to this definition">¶</a></dt>
+<dd><p>Try to integrate f dx from zero to infinity.</p>
+<p>The body of this function computes various ‘simplifications’
+f1, f2, … of f (e.g. by calling expand_mul(), trigexpand()
+- see _guess_expansion) and calls _meijerint_definite_3 with each of
+these in succession.
+If _meijerint_definite_3 succeeds with any of the simplified functions,
+returns this result.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.integrals.meijerint._meijerint_definite_3">
+<code class="sig-prename descclassname">sympy.integrals.meijerint.</code><code class="sig-name descname">_meijerint_definite_3</code><span class="sig-paren">(</span><em class="sig-param">f</em>, <em class="sig-param">x</em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/sympy/sympy/blob/70381f282f2d9d039da860e391fe51649df2779d/sympy/integrals/meijerint.py#L1932-L1953"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.integrals.meijerint._meijerint_definite_3" title="Permalink to this definition">¶</a></dt>
+<dd><p>Try to integrate f dx from zero to infinity.</p>
+<p>This function calls _meijerint_definite_4 to try to compute the
+integral. If this fails, it tries using linearity.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.integrals.meijerint._meijerint_definite_4">
+<code class="sig-prename descclassname">sympy.integrals.meijerint.</code><code class="sig-name descname">_meijerint_definite_4</code><span class="sig-paren">(</span><em class="sig-param">f</em>, <em class="sig-param">x</em>, <em class="sig-param">only_double=False</em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/sympy/sympy/blob/70381f282f2d9d039da860e391fe51649df2779d/sympy/integrals/meijerint.py#L1961-L2026"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.integrals.meijerint._meijerint_definite_4" title="Permalink to this definition">¶</a></dt>
+<dd><p>Try to integrate f dx from zero to infinity.</p>
+<p>This function tries to apply the integration theorems found in literature,
+i.e. it tries to rewrite f as either one or a product of two G-functions.</p>
+<p>The parameter <code class="docutils literal notranslate"><span class="pre">only_double</span></code> is used internally in the recursive algorithm
+to disable trying to rewrite f as a single G-function.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.integrals.meijerint._meijerint_indefinite_1">
+<code class="sig-prename descclassname">sympy.integrals.meijerint.</code><code class="sig-name descname">_meijerint_indefinite_1</code><span class="sig-paren">(</span><em class="sig-param">f</em>, <em class="sig-param">x</em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/sympy/sympy/blob/70381f282f2d9d039da860e391fe51649df2779d/sympy/integrals/meijerint.py#L1641-L1727"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.integrals.meijerint._meijerint_indefinite_1" title="Permalink to this definition">¶</a></dt>
+<dd><p>Helper that does not attempt any substitution.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.integrals.meijerint._mul_args">
+<code class="sig-prename descclassname">sympy.integrals.meijerint.</code><code class="sig-name descname">_mul_args</code><span class="sig-paren">(</span><em class="sig-param">f</em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/sympy/sympy/blob/70381f282f2d9d039da860e391fe51649df2779d/sympy/integrals/meijerint.py#L447-L467"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.integrals.meijerint._mul_args" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a list <code class="docutils literal notranslate"><span class="pre">L</span></code> such that <code class="docutils literal notranslate"><span class="pre">Mul(*L)</span> <span class="pre">==</span> <span class="pre">f</span></code>.</p>
+<p>If <code class="docutils literal notranslate"><span class="pre">f</span></code> is not a <code class="docutils literal notranslate"><span class="pre">Mul</span></code> or <code class="docutils literal notranslate"><span class="pre">Pow</span></code>, <code class="docutils literal notranslate"><span class="pre">L=[f]</span></code>.
+If <code class="docutils literal notranslate"><span class="pre">f=g**n</span></code> for an integer <code class="docutils literal notranslate"><span class="pre">n</span></code>, <code class="docutils literal notranslate"><span class="pre">L=[g]*n</span></code>.
+If <code class="docutils literal notranslate"><span class="pre">f</span></code> is a <code class="docutils literal notranslate"><span class="pre">Mul</span></code>, <code class="docutils literal notranslate"><span class="pre">L</span></code> comes from applying <code class="docutils literal notranslate"><span class="pre">_mul_args</span></code> to all factors of <code class="docutils literal notranslate"><span class="pre">f</span></code>.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.integrals.meijerint._mul_as_two_parts">
+<code class="sig-prename descclassname">sympy.integrals.meijerint.</code><code class="sig-name descname">_mul_as_two_parts</code><span class="sig-paren">(</span><em class="sig-param">f</em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/sympy/sympy/blob/70381f282f2d9d039da860e391fe51649df2779d/sympy/integrals/meijerint.py#L470-L492"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.integrals.meijerint._mul_as_two_parts" title="Permalink to this definition">¶</a></dt>
+<dd><p>Find all the ways to split f into a product of two terms.
+Return None on failure.</p>
+<p>Although the order is canonical from multiset_partitions, this is
+not necessarily the best order to process the terms. For example,
+if the case of len(gs) == 2 is removed and multiset is allowed to
+sort the terms, some tests fail.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.integrals.meijerint</span> <span class="kn">import</span> <span class="n">_mul_as_two_parts</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">sin</span><span class="p">,</span> <span class="n">exp</span><span class="p">,</span> <span class="n">ordered</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.abc</span> <span class="kn">import</span> <span class="n">x</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">list</span><span class="p">(</span><span class="n">ordered</span><span class="p">(</span><span class="n">_mul_as_two_parts</span><span class="p">(</span><span class="n">x</span><span class="o">*</span><span class="n">sin</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">*</span><span class="n">exp</span><span class="p">(</span><span class="n">x</span><span class="p">))))</span>
+<span class="go">[(x, exp(x)*sin(x)), (x*exp(x), sin(x)), (x*sin(x), exp(x))]</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.integrals.meijerint._my_principal_branch">
+<code class="sig-prename descclassname">sympy.integrals.meijerint.</code><code class="sig-name descname">_my_principal_branch</code><span class="sig-paren">(</span><em class="sig-param">expr</em>, <em class="sig-param">period</em>, <em class="sig-param">full_pb=False</em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/sympy/sympy/blob/70381f282f2d9d039da860e391fe51649df2779d/sympy/integrals/meijerint.py#L694-L704"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.integrals.meijerint._my_principal_branch" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bring expr nearer to its principal branch by removing superfluous
+factors.
+This function does <em>not</em> guarantee to yield the principal branch,
+to avoid introducing opaque principal_branch() objects,
+unless full_pb=True.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.integrals.meijerint._mytype">
+<code class="sig-prename descclassname">sympy.integrals.meijerint.</code><code class="sig-name descname">_mytype</code><span class="sig-paren">(</span><em class="sig-param">f</em>, <em class="sig-param">x</em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/sympy/sympy/blob/70381f282f2d9d039da860e391fe51649df2779d/sympy/integrals/meijerint.py#L288-L300"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.integrals.meijerint._mytype" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create a hashable entity describing the type of f.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.integrals.meijerint._rewrite1">
+<code class="sig-prename descclassname">sympy.integrals.meijerint.</code><code class="sig-name descname">_rewrite1</code><span class="sig-paren">(</span><em class="sig-param">f</em>, <em class="sig-param">x</em>, <em class="sig-param">recursive=True</em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/sympy/sympy/blob/70381f282f2d9d039da860e391fe51649df2779d/sympy/integrals/meijerint.py#L1560-L1571"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.integrals.meijerint._rewrite1" title="Permalink to this definition">¶</a></dt>
+<dd><p>Try to rewrite f using a (sum of) single G functions with argument a*x**b.
+Return fac, po, g such that f = fac*po*g, fac is independent of x
+and po = x**s.
+Here g is a result from _rewrite_single.
+Return None on failure.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.integrals.meijerint._rewrite2">
+<code class="sig-prename descclassname">sympy.integrals.meijerint.</code><code class="sig-name descname">_rewrite2</code><span class="sig-paren">(</span><em class="sig-param">f</em>, <em class="sig-param">x</em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/sympy/sympy/blob/70381f282f2d9d039da860e391fe51649df2779d/sympy/integrals/meijerint.py#L1574-L1601"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.integrals.meijerint._rewrite2" title="Permalink to this definition">¶</a></dt>
+<dd><p>Try to rewrite f as a product of two G functions of arguments a*x**b.
+Return fac, po, g1, g2 such that f = fac*po*g1*g2, where fac is
+independent of x and po is x**s.
+Here g1 and g2 are results of _rewrite_single.
+Returns None on failure.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.integrals.meijerint._rewrite_inversion">
+<code class="sig-prename descclassname">sympy.integrals.meijerint.</code><code class="sig-name descname">_rewrite_inversion</code><span class="sig-paren">(</span><em class="sig-param">fac</em>, <em class="sig-param">po</em>, <em class="sig-param">g</em>, <em class="sig-param">x</em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/sympy/sympy/blob/70381f282f2d9d039da860e391fe51649df2779d/sympy/integrals/meijerint.py#L1268-L1276"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.integrals.meijerint._rewrite_inversion" title="Permalink to this definition">¶</a></dt>
+<dd><p>Absorb <code class="docutils literal notranslate"><span class="pre">po</span></code> == x**s into g.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.integrals.meijerint._rewrite_saxena">
+<code class="sig-prename descclassname">sympy.integrals.meijerint.</code><code class="sig-name descname">_rewrite_saxena</code><span class="sig-paren">(</span><em class="sig-param">fac</em>, <em class="sig-param">po</em>, <em class="sig-param">g1</em>, <em class="sig-param">g2</em>, <em class="sig-param">x</em>, <em class="sig-param">full_pb=False</em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/sympy/sympy/blob/70381f282f2d9d039da860e391fe51649df2779d/sympy/integrals/meijerint.py#L871-L935"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.integrals.meijerint._rewrite_saxena" title="Permalink to this definition">¶</a></dt>
+<dd><p>Rewrite the integral fac*po*g1*g2 from 0 to oo in terms of G functions
+with argument c*x.
+Return C, f1, f2 such that integral C f1 f2 from 0 to infinity equals
+integral fac po g1 g2 from 0 to infinity.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.integrals.meijerint</span> <span class="kn">import</span> <span class="n">_rewrite_saxena</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.abc</span> <span class="kn">import</span> <span class="n">s</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">m</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">meijerg</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">g1</span> <span class="o">=</span> <span class="n">meijerg</span><span class="p">([],</span> <span class="p">[],</span> <span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="p">[],</span> <span class="n">s</span><span class="o">*</span><span class="n">t</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">g2</span> <span class="o">=</span> <span class="n">meijerg</span><span class="p">([],</span> <span class="p">[],</span> <span class="p">[</span><span class="n">m</span><span class="o">/</span><span class="mi">2</span><span class="p">],</span> <span class="p">[</span><span class="o">-</span><span class="n">m</span><span class="o">/</span><span class="mi">2</span><span class="p">],</span> <span class="n">t</span><span class="o">**</span><span class="mi">2</span><span class="o">/</span><span class="mi">4</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">r</span> <span class="o">=</span> <span class="n">_rewrite_saxena</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">t</span><span class="o">**</span><span class="mi">0</span><span class="p">,</span> <span class="n">g1</span><span class="p">,</span> <span class="n">g2</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">r</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+<span class="go">s/(4*sqrt(pi))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">r</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+<span class="go">meijerg(((), ()), ((-1/2, 0), ()), s**2*t/4)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">r</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+<span class="go">meijerg(((), ()), ((m/2,), (-m/2,)), t/4)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.integrals.meijerint._rewrite_saxena_1">
+<code class="sig-prename descclassname">sympy.integrals.meijerint.</code><code class="sig-name descname">_rewrite_saxena_1</code><span class="sig-paren">(</span><em class="sig-param">fac</em>, <em class="sig-param">po</em>, <em class="sig-param">g</em>, <em class="sig-param">x</em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/sympy/sympy/blob/70381f282f2d9d039da860e391fe51649df2779d/sympy/integrals/meijerint.py#L707-L725"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.integrals.meijerint._rewrite_saxena_1" title="Permalink to this definition">¶</a></dt>
+<dd><p>Rewrite the integral fac*po*g dx, from zero to infinity, as
+integral fac*G, where G has argument a*x. Note po=x**s.
+Return fac, G.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.integrals.meijerint._rewrite_single">
+<code class="sig-prename descclassname">sympy.integrals.meijerint.</code><code class="sig-name descname">_rewrite_single</code><span class="sig-paren">(</span><em class="sig-param">f</em>, <em class="sig-param">x</em>, <em class="sig-param">recursive=True</em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/sympy/sympy/blob/70381f282f2d9d039da860e391fe51649df2779d/sympy/integrals/meijerint.py#L1416-L1557"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.integrals.meijerint._rewrite_single" title="Permalink to this definition">¶</a></dt>
+<dd><p>Try to rewrite f as a sum of single G functions of the form
+C*x**s*G(a*x**b), where b is a rational number and C is independent of x.
+We guarantee that result.argument.as_coeff_mul(x) returns (a, (x**b,))
+or (a, ()).
+Returns a list of tuples (C, s, G) and a condition cond.
+Returns None on failure.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.integrals.meijerint._split_mul">
+<code class="sig-prename descclassname">sympy.integrals.meijerint.</code><code class="sig-name descname">_split_mul</code><span class="sig-paren">(</span><em class="sig-param">f</em>, <em class="sig-param">x</em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/sympy/sympy/blob/70381f282f2d9d039da860e391fe51649df2779d/sympy/integrals/meijerint.py#L410-L444"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.integrals.meijerint._split_mul" title="Permalink to this definition">¶</a></dt>
+<dd><p>Split expression <code class="docutils literal notranslate"><span class="pre">f</span></code> into fac, po, g, where fac is a constant factor,
+po = x**s for some s independent of s, and g is “the rest”.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.integrals.meijerint</span> <span class="kn">import</span> <span class="n">_split_mul</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">sin</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.abc</span> <span class="kn">import</span> <span class="n">s</span><span class="p">,</span> <span class="n">x</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">_split_mul</span><span class="p">((</span><span class="mi">3</span><span class="o">*</span><span class="n">x</span><span class="p">)</span><span class="o">**</span><span class="n">s</span><span class="o">*</span><span class="n">sin</span><span class="p">(</span><span class="n">x</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">*</span><span class="n">x</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+<span class="go">(3**s, x*x**s, sin(x**2))</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.integrals.meijerint.meijerint_definite">
+<code class="sig-prename descclassname">sympy.integrals.meijerint.</code><code class="sig-name descname">meijerint_definite</code><span class="sig-paren">(</span><em class="sig-param">f</em>, <em class="sig-param">x</em>, <em class="sig-param">a</em>, <em class="sig-param">b</em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/sympy/sympy/blob/70381f282f2d9d039da860e391fe51649df2779d/sympy/integrals/meijerint.py#L1730-L1866"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.integrals.meijerint.meijerint_definite" title="Permalink to this definition">¶</a></dt>
+<dd><p>Integrate <code class="docutils literal notranslate"><span class="pre">f</span></code> over the interval [<code class="docutils literal notranslate"><span class="pre">a</span></code>, <code class="docutils literal notranslate"><span class="pre">b</span></code>], by rewriting it as a product
+of two G functions, or as a single G function.</p>
+<p>Return res, cond, where cond are convergence conditions.</p>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.integrals.meijerint</span> <span class="kn">import</span> <span class="n">meijerint_definite</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">exp</span><span class="p">,</span> <span class="n">oo</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.abc</span> <span class="kn">import</span> <span class="n">x</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">meijerint_definite</span><span class="p">(</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">x</span><span class="o">**</span><span class="mi">2</span><span class="p">),</span> <span class="n">x</span><span class="p">,</span> <span class="o">-</span><span class="n">oo</span><span class="p">,</span> <span class="n">oo</span><span class="p">)</span>
+<span class="go">(sqrt(pi), True)</span>
+</pre></div>
+</div>
+<p>This function is implemented as a succession of functions
+meijerint_definite, _meijerint_definite_2, _meijerint_definite_3,
+_meijerint_definite_4. Each function in the list calls the next one
+(presumably) several times. This means that calling meijerint_definite
+can be very costly.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.integrals.meijerint.meijerint_indefinite">
+<code class="sig-prename descclassname">sympy.integrals.meijerint.</code><code class="sig-name descname">meijerint_indefinite</code><span class="sig-paren">(</span><em class="sig-param">f</em>, <em class="sig-param">x</em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/sympy/sympy/blob/70381f282f2d9d039da860e391fe51649df2779d/sympy/integrals/meijerint.py#L1604-L1638"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.integrals.meijerint.meijerint_indefinite" title="Permalink to this definition">¶</a></dt>
+<dd><p>Compute an indefinite integral of <code class="docutils literal notranslate"><span class="pre">f</span></code> by rewriting it as a G function.</p>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.integrals.meijerint</span> <span class="kn">import</span> <span class="n">meijerint_indefinite</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">sin</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.abc</span> <span class="kn">import</span> <span class="n">x</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">meijerint_indefinite</span><span class="p">(</span><span class="n">sin</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="n">x</span><span class="p">)</span>
+<span class="go">-cos(x)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="function">
+<dt id="sympy.integrals.meijerint.meijerint_inversion">
+<code class="sig-prename descclassname">sympy.integrals.meijerint.</code><code class="sig-name descname">meijerint_inversion</code><span class="sig-paren">(</span><em class="sig-param">f</em>, <em class="sig-param">x</em>, <em class="sig-param">t</em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/sympy/sympy/blob/70381f282f2d9d039da860e391fe51649df2779d/sympy/integrals/meijerint.py#L2029-L2140"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#sympy.integrals.meijerint.meijerint_inversion" title="Permalink to this definition">¶</a></dt>
+<dd><p>Compute the inverse laplace transform
+<span class="math notranslate nohighlight">\(\int_{c+i\infty}^{c-i\infty} f(x) e^{tx}\, dx\)</span>,
+for real c larger than the real part of all singularities of f.</p>
+<p>Note that <code class="docutils literal notranslate"><span class="pre">t</span></code> is always assumed real and positive.</p>
+<p>Return None if the integral does not exist or could not be evaluated.</p>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.abc</span> <span class="kn">import</span> <span class="n">x</span><span class="p">,</span> <span class="n">t</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.integrals.meijerint</span> <span class="kn">import</span> <span class="n">meijerint_inversion</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">meijerint_inversion</span><span class="p">(</span><span class="mi">1</span><span class="o">/</span><span class="n">x</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span>
+<span class="go">Heaviside(t)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../index.html">
+              <img class="logo" src="../../_static/sympylogo.png" alt="Logo"/>
+            </a></p>
+  <h3><a href="../../index.html">Table of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Computing Integrals using Meijer G-Functions</a><ul>
+<li><a class="reference internal" href="#overview">Overview</a></li>
+<li><a class="reference internal" href="#polar-numbers-and-branched-functions">Polar Numbers and Branched Functions</a></li>
+<li><a class="reference internal" href="#representing-branched-functions-on-the-argand-plane">Representing Branched Functions on the Argand Plane</a></li>
+<li><a class="reference internal" href="#table-lookups-and-inverse-mellin-transforms">Table Lookups and Inverse Mellin Transforms</a></li>
+<li><a class="reference internal" href="#applying-the-integral-theorems">Applying the Integral Theorems</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#the-g-function-integration-theorems">The G-Function Integration Theorems</a><ul>
+<li><a class="reference internal" href="#conditions-of-convergence-for-integral-1">Conditions of Convergence for Integral (1)</a></li>
+<li><a class="reference internal" href="#conditions-of-convergence-for-integral-2">Conditions of Convergence for Integral (2)</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#the-inverse-laplace-transform-of-a-g-function">The Inverse Laplace Transform of a G-function</a><ul>
+<li><a class="reference internal" href="#how-to-compute-the-integral">How to compute the integral</a></li>
+<li><a class="reference internal" href="#when-this-computation-is-valid">When this computation is valid</a></li>
+<li><a class="reference internal" href="#when-the-integral-exists">When the integral exists</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#implemented-g-function-formulae">Implemented G-Function Formulae</a></li>
+<li><a class="reference internal" href="#module-sympy.integrals.meijerint">Internal API Reference</a></li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="integrals.html"
+                        title="previous chapter">Integrals</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="../interactive.html"
+                        title="next chapter">Interactive</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../../_sources/modules/integrals/g-functions.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="../interactive.html" title="Interactive"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="integrals.html" title="Integrals"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">SymPy 1.5.1 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" >SymPy Modules Reference</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2019 SymPy Development Team.
+      Last updated on Dec 21, 2019.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 2.3.0.
+    </div>
+  </body>
+</html>

@@ -1,8 +1,2 @@
-<html>
-    <head>
-        <meta http-equiv="refresh" content="0;URL=/latest/modules/physics/continuum_mechanics/beam_problems-13.py" />
-    </head>
-    <body>
-    </body>
-</html>
-
+b.plot_slope(subs={E: 20E9, I: 3.25E-6})  # doctest: +SKIP
+b.plot_deflection(subs={E: 20E9, I: 3.25E-6})  # doctest: +SKIP
