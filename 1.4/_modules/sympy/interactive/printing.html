@@ -1,8 +1,552 @@
-<html>
-    <head>
-        <meta http-equiv="refresh" content="0;URL=/latest/_modules/sympy/interactive/printing.html" />
-    </head>
-    <body>
-    </body>
-</html>
 
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>sympy.interactive.printing &#8212; SymPy 1.4 documentation</title>
+    <link rel="stylesheet" href="../../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/graphviz.css" />
+    <link rel="stylesheet" type="text/css" href="https://live.sympy.org/static/live-core.css" />
+    <link rel="stylesheet" type="text/css" href="https://live.sympy.org/static/live-autocomplete.css" />
+    <link rel="stylesheet" type="text/css" href="https://live.sympy.org/static/live-sphinx.css" />
+    
+    <script type="text/javascript" id="documentation_options" data-url_root="../../../" src="../../../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/language_data.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/utilities.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/external/classy.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/live-core.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/live-autocomplete.js"></script>
+    <script type="text/javascript" src="https://live.sympy.org/static/live-sphinx.js"></script>
+    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS_HTML-full"></script>
+    
+    <link rel="shortcut icon" href="../../../_static/sympy-notailtext-favicon.ico"/>
+    <link href="https://docs.sympy.org/latest/_modules/sympy/interactive/printing.html" rel="canonical" />
+    
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../../index.html">SymPy 1.4 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for sympy.interactive.printing</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Tools for setting up printing in interactive sessions. &quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">division</span>
+
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">from</span> <span class="nn">distutils.version</span> <span class="k">import</span> <span class="n">LooseVersion</span> <span class="k">as</span> <span class="n">V</span>
+<span class="kn">from</span> <span class="nn">io</span> <span class="k">import</span> <span class="n">BytesIO</span>
+
+<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">latex</span> <span class="k">as</span> <span class="n">default_latex</span>
+<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">preview</span>
+<span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="k">import</span> <span class="n">integer_types</span>
+<span class="kn">from</span> <span class="nn">sympy.utilities.misc</span> <span class="k">import</span> <span class="n">debug</span>
+
+
+<span class="k">def</span> <span class="nf">_init_python_printing</span><span class="p">(</span><span class="n">stringify_func</span><span class="p">,</span> <span class="o">**</span><span class="n">settings</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Setup printing in Python interactive session. &quot;&quot;&quot;</span>
+    <span class="kn">import</span> <span class="nn">sys</span>
+    <span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="k">import</span> <span class="n">builtins</span>
+
+    <span class="k">def</span> <span class="nf">_displayhook</span><span class="p">(</span><span class="n">arg</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Python&#39;s pretty-printer display hook.</span>
+
+<span class="sd">           This function was adapted from:</span>
+
+<span class="sd">            http://www.python.org/dev/peps/pep-0217/</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">arg</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">builtins</span><span class="o">.</span><span class="n">_</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">stringify_func</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="o">**</span><span class="n">settings</span><span class="p">))</span>
+            <span class="n">builtins</span><span class="o">.</span><span class="n">_</span> <span class="o">=</span> <span class="n">arg</span>
+
+    <span class="n">sys</span><span class="o">.</span><span class="n">displayhook</span> <span class="o">=</span> <span class="n">_displayhook</span>
+
+
+<span class="k">def</span> <span class="nf">_init_ipython_printing</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">stringify_func</span><span class="p">,</span> <span class="n">use_latex</span><span class="p">,</span> <span class="n">euler</span><span class="p">,</span> <span class="n">forecolor</span><span class="p">,</span>
+                           <span class="n">backcolor</span><span class="p">,</span> <span class="n">fontsize</span><span class="p">,</span> <span class="n">latex_mode</span><span class="p">,</span> <span class="n">print_builtin</span><span class="p">,</span>
+                           <span class="n">latex_printer</span><span class="p">,</span> <span class="o">**</span><span class="n">settings</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Setup printing in IPython interactive session. &quot;&quot;&quot;</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="kn">from</span> <span class="nn">IPython.lib.latextools</span> <span class="k">import</span> <span class="n">latex_to_png</span>
+    <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+        <span class="k">pass</span>
+
+    <span class="n">preamble</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="se">\\</span><span class="s2">documentclass[varwidth,</span><span class="si">%s</span><span class="s2">]</span><span class="si">{standalone}</span><span class="se">\n</span><span class="s2">&quot;</span> \
+               <span class="s2">&quot;</span><span class="se">\\</span><span class="s2">usepackage{amsmath,amsfonts}</span><span class="si">%s</span><span class="se">\\</span><span class="s2">begin</span><span class="si">{document}</span><span class="s2">&quot;</span>
+    <span class="k">if</span> <span class="n">euler</span><span class="p">:</span>
+        <span class="n">addpackages</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="se">\\</span><span class="s1">usepackage</span><span class="si">{euler}</span><span class="s1">&#39;</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">addpackages</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+    <span class="n">preamble</span> <span class="o">=</span> <span class="n">preamble</span> <span class="o">%</span> <span class="p">(</span><span class="n">fontsize</span><span class="p">,</span> <span class="n">addpackages</span><span class="p">)</span>
+
+    <span class="n">imagesize</span> <span class="o">=</span> <span class="s1">&#39;tight&#39;</span>
+    <span class="n">offset</span> <span class="o">=</span> <span class="s2">&quot;0cm,0cm&quot;</span>
+    <span class="n">resolution</span> <span class="o">=</span> <span class="mi">150</span>
+    <span class="n">dvi</span> <span class="o">=</span> <span class="sa">r</span><span class="s2">&quot;-T </span><span class="si">%s</span><span class="s2"> -D </span><span class="si">%d</span><span class="s2"> -bg </span><span class="si">%s</span><span class="s2"> -fg </span><span class="si">%s</span><span class="s2"> -O </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span>
+        <span class="n">imagesize</span><span class="p">,</span> <span class="n">resolution</span><span class="p">,</span> <span class="n">backcolor</span><span class="p">,</span> <span class="n">forecolor</span><span class="p">,</span> <span class="n">offset</span><span class="p">)</span>
+    <span class="n">dvioptions</span> <span class="o">=</span> <span class="n">dvi</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+    <span class="n">debug</span><span class="p">(</span><span class="s2">&quot;init_printing: DVIOPTIONS:&quot;</span><span class="p">,</span> <span class="n">dvioptions</span><span class="p">)</span>
+    <span class="n">debug</span><span class="p">(</span><span class="s2">&quot;init_printing: PREAMBLE:&quot;</span><span class="p">,</span> <span class="n">preamble</span><span class="p">)</span>
+
+    <span class="n">latex</span> <span class="o">=</span> <span class="n">latex_printer</span> <span class="ow">or</span> <span class="n">default_latex</span>
+
+    <span class="k">def</span> <span class="nf">_print_plain</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">cycle</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;caller for pretty, for use in IPython 0.11&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">_can_print_latex</span><span class="p">(</span><span class="n">arg</span><span class="p">):</span>
+            <span class="n">p</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">stringify_func</span><span class="p">(</span><span class="n">arg</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">p</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">IPython</span><span class="o">.</span><span class="n">lib</span><span class="o">.</span><span class="n">pretty</span><span class="o">.</span><span class="n">pretty</span><span class="p">(</span><span class="n">arg</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">_preview_wrapper</span><span class="p">(</span><span class="n">o</span><span class="p">):</span>
+        <span class="n">exprbuffer</span> <span class="o">=</span> <span class="n">BytesIO</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">preview</span><span class="p">(</span><span class="n">o</span><span class="p">,</span> <span class="n">output</span><span class="o">=</span><span class="s1">&#39;png&#39;</span><span class="p">,</span> <span class="n">viewer</span><span class="o">=</span><span class="s1">&#39;BytesIO&#39;</span><span class="p">,</span>
+                    <span class="n">outputbuffer</span><span class="o">=</span><span class="n">exprbuffer</span><span class="p">,</span> <span class="n">preamble</span><span class="o">=</span><span class="n">preamble</span><span class="p">,</span>
+                    <span class="n">dvioptions</span><span class="o">=</span><span class="n">dvioptions</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="c1"># IPython swallows exceptions</span>
+            <span class="n">debug</span><span class="p">(</span><span class="s2">&quot;png printing:&quot;</span><span class="p">,</span> <span class="s2">&quot;_preview_wrapper exception raised:&quot;</span><span class="p">,</span>
+                  <span class="nb">repr</span><span class="p">(</span><span class="n">e</span><span class="p">))</span>
+            <span class="k">raise</span>
+        <span class="k">return</span> <span class="n">exprbuffer</span><span class="o">.</span><span class="n">getvalue</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">_matplotlib_wrapper</span><span class="p">(</span><span class="n">o</span><span class="p">):</span>
+        <span class="c1"># mathtext does not understand certain latex flags, so we try to</span>
+        <span class="c1"># replace them with suitable subs</span>
+        <span class="n">o</span> <span class="o">=</span> <span class="n">o</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;\operatorname&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
+        <span class="n">o</span> <span class="o">=</span> <span class="n">o</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;\overline&#39;</span><span class="p">,</span> <span class="sa">r</span><span class="s1">&#39;\bar&#39;</span><span class="p">)</span>
+        <span class="c1"># mathtext can&#39;t render some LaTeX commands. For example, it can&#39;t</span>
+        <span class="c1"># render any LaTeX environments such as array or matrix. So here we</span>
+        <span class="c1"># ensure that if mathtext fails to render, we return None.</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">latex_to_png</span><span class="p">(</span><span class="n">o</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">ValueError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="n">debug</span><span class="p">(</span><span class="s1">&#39;matplotlib exception caught:&#39;</span><span class="p">,</span> <span class="nb">repr</span><span class="p">(</span><span class="n">e</span><span class="p">))</span>
+            <span class="k">return</span> <span class="kc">None</span>
+
+
+    <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Basic</span>
+    <span class="kn">from</span> <span class="nn">sympy.matrices</span> <span class="k">import</span> <span class="n">MatrixBase</span>
+    <span class="kn">from</span> <span class="nn">sympy.physics.vector</span> <span class="k">import</span> <span class="n">Vector</span><span class="p">,</span> <span class="n">Dyadic</span>
+    <span class="kn">from</span> <span class="nn">sympy.tensor.array</span> <span class="k">import</span> <span class="n">NDimArray</span>
+
+    <span class="c1"># These should all have _repr_latex_ and _repr_latex_orig. If you update</span>
+    <span class="c1"># this also update printable_types below.</span>
+    <span class="n">sympy_latex_types</span> <span class="o">=</span> <span class="p">(</span><span class="n">Basic</span><span class="p">,</span> <span class="n">MatrixBase</span><span class="p">,</span> <span class="n">Vector</span><span class="p">,</span> <span class="n">Dyadic</span><span class="p">,</span> <span class="n">NDimArray</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_can_print_latex</span><span class="p">(</span><span class="n">o</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return True if type o can be printed with LaTeX.</span>
+
+<span class="sd">        If o is a container type, this is True if and only if every element of</span>
+<span class="sd">        o can be printed with LaTeX.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="c1"># If you&#39;re adding another type, make sure you add it to printable_types</span>
+            <span class="c1"># later in this file as well</span>
+
+            <span class="n">builtin_types</span> <span class="o">=</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">,</span> <span class="nb">set</span><span class="p">,</span> <span class="nb">frozenset</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">o</span><span class="p">,</span> <span class="n">builtin_types</span><span class="p">):</span>
+                <span class="c1"># If the object is a custom subclass with a custom str or</span>
+                <span class="c1"># repr, use that instead.</span>
+                <span class="k">if</span> <span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">o</span><span class="p">)</span><span class="o">.</span><span class="fm">__str__</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="fm">__str__</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">builtin_types</span><span class="p">)</span> <span class="ow">or</span>
+                    <span class="nb">type</span><span class="p">(</span><span class="n">o</span><span class="p">)</span><span class="o">.</span><span class="fm">__repr__</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="fm">__repr__</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">builtin_types</span><span class="p">)):</span>
+                    <span class="k">return</span> <span class="kc">False</span>
+                <span class="k">return</span> <span class="nb">all</span><span class="p">(</span><span class="n">_can_print_latex</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">o</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">o</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+                <span class="k">return</span> <span class="nb">all</span><span class="p">(</span><span class="n">_can_print_latex</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="ow">and</span> <span class="n">_can_print_latex</span><span class="p">(</span><span class="n">o</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">o</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">o</span><span class="p">,</span> <span class="nb">bool</span><span class="p">):</span>
+                <span class="k">return</span> <span class="kc">False</span>
+            <span class="c1"># TODO : Investigate if &quot;elif hasattr(o, &#39;_latex&#39;)&quot; is more useful</span>
+            <span class="c1"># to use here, than these explicit imports.</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">o</span><span class="p">,</span> <span class="n">sympy_latex_types</span><span class="p">):</span>
+                <span class="k">return</span> <span class="kc">True</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">o</span><span class="p">,</span> <span class="p">(</span><span class="nb">float</span><span class="p">,</span> <span class="n">integer_types</span><span class="p">))</span> <span class="ow">and</span> <span class="n">print_builtin</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">True</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">except</span> <span class="ne">RuntimeError</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+            <span class="c1"># This is in case maximum recursion depth is reached.</span>
+            <span class="c1"># Since RecursionError is for versions of Python 3.5+</span>
+            <span class="c1"># so this is to guard against RecursionError for older versions.</span>
+
+    <span class="k">def</span> <span class="nf">_print_latex_png</span><span class="p">(</span><span class="n">o</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        A function that returns a png rendered by an external latex</span>
+<span class="sd">        distribution, falling back to matplotlib rendering</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">_can_print_latex</span><span class="p">(</span><span class="n">o</span><span class="p">):</span>
+            <span class="n">s</span> <span class="o">=</span> <span class="n">latex</span><span class="p">(</span><span class="n">o</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="n">latex_mode</span><span class="p">,</span> <span class="o">**</span><span class="n">settings</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">latex_mode</span> <span class="o">==</span> <span class="s1">&#39;plain&#39;</span><span class="p">:</span>
+                <span class="n">s</span> <span class="o">=</span> <span class="s1">&#39;$</span><span class="se">\\</span><span class="s1">displaystyle </span><span class="si">%s</span><span class="s1">$&#39;</span> <span class="o">%</span> <span class="n">s</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">_preview_wrapper</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">RuntimeError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="n">debug</span><span class="p">(</span><span class="s1">&#39;preview failed with:&#39;</span><span class="p">,</span> <span class="nb">repr</span><span class="p">(</span><span class="n">e</span><span class="p">),</span>
+                      <span class="s1">&#39; Falling back to matplotlib backend&#39;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">latex_mode</span> <span class="o">!=</span> <span class="s1">&#39;inline&#39;</span><span class="p">:</span>
+                    <span class="n">s</span> <span class="o">=</span> <span class="n">latex</span><span class="p">(</span><span class="n">o</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;inline&#39;</span><span class="p">,</span> <span class="o">**</span><span class="n">settings</span><span class="p">)</span>
+                <span class="k">return</span> <span class="n">_matplotlib_wrapper</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_print_latex_matplotlib</span><span class="p">(</span><span class="n">o</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        A function that returns a png rendered by mathtext</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">_can_print_latex</span><span class="p">(</span><span class="n">o</span><span class="p">):</span>
+            <span class="n">s</span> <span class="o">=</span> <span class="n">latex</span><span class="p">(</span><span class="n">o</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;inline&#39;</span><span class="p">,</span> <span class="o">**</span><span class="n">settings</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">_matplotlib_wrapper</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_print_latex_text</span><span class="p">(</span><span class="n">o</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        A function to generate the latex representation of sympy expressions.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">_can_print_latex</span><span class="p">(</span><span class="n">o</span><span class="p">):</span>
+            <span class="n">s</span> <span class="o">=</span> <span class="n">latex</span><span class="p">(</span><span class="n">o</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="n">latex_mode</span><span class="p">,</span> <span class="o">**</span><span class="n">settings</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">latex_mode</span> <span class="o">==</span> <span class="s1">&#39;plain&#39;</span><span class="p">:</span>
+                <span class="k">return</span> <span class="s1">&#39;$</span><span class="se">\\</span><span class="s1">displaystyle </span><span class="si">%s</span><span class="s1">$&#39;</span> <span class="o">%</span> <span class="n">s</span>
+            <span class="k">return</span> <span class="n">s</span>
+
+    <span class="k">def</span> <span class="nf">_result_display</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">arg</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;IPython&#39;s pretty-printer display hook, for use in IPython 0.10</span>
+
+<span class="sd">           This function was adapted from:</span>
+
+<span class="sd">            ipython/IPython/hooks.py:155</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">rc</span><span class="o">.</span><span class="n">pprint</span><span class="p">:</span>
+            <span class="n">out</span> <span class="o">=</span> <span class="n">stringify_func</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="ow">in</span> <span class="n">out</span><span class="p">:</span>
+                <span class="nb">print</span>
+
+            <span class="nb">print</span><span class="p">(</span><span class="n">out</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="nb">repr</span><span class="p">(</span><span class="n">arg</span><span class="p">))</span>
+
+    <span class="kn">import</span> <span class="nn">IPython</span>
+    <span class="k">if</span> <span class="n">V</span><span class="p">(</span><span class="n">IPython</span><span class="o">.</span><span class="n">__version__</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="s1">&#39;0.11&#39;</span><span class="p">:</span>
+        <span class="kn">from</span> <span class="nn">sympy.core.basic</span> <span class="k">import</span> <span class="n">Basic</span>
+        <span class="kn">from</span> <span class="nn">sympy.matrices.matrices</span> <span class="k">import</span> <span class="n">MatrixBase</span>
+        <span class="kn">from</span> <span class="nn">sympy.physics.vector</span> <span class="k">import</span> <span class="n">Vector</span><span class="p">,</span> <span class="n">Dyadic</span>
+        <span class="kn">from</span> <span class="nn">sympy.tensor.array</span> <span class="k">import</span> <span class="n">NDimArray</span>
+
+        <span class="n">printable_types</span> <span class="o">=</span> <span class="p">[</span><span class="n">Basic</span><span class="p">,</span> <span class="n">MatrixBase</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">,</span> <span class="nb">list</span><span class="p">,</span> <span class="nb">set</span><span class="p">,</span>
+                <span class="nb">frozenset</span><span class="p">,</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">Vector</span><span class="p">,</span> <span class="n">Dyadic</span><span class="p">,</span> <span class="n">NDimArray</span><span class="p">]</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">integer_types</span><span class="p">)</span>
+
+        <span class="n">plaintext_formatter</span> <span class="o">=</span> <span class="n">ip</span><span class="o">.</span><span class="n">display_formatter</span><span class="o">.</span><span class="n">formatters</span><span class="p">[</span><span class="s1">&#39;text/plain&#39;</span><span class="p">]</span>
+
+        <span class="k">for</span> <span class="bp">cls</span> <span class="ow">in</span> <span class="n">printable_types</span><span class="p">:</span>
+            <span class="n">plaintext_formatter</span><span class="o">.</span><span class="n">for_type</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">_print_plain</span><span class="p">)</span>
+
+        <span class="n">png_formatter</span> <span class="o">=</span> <span class="n">ip</span><span class="o">.</span><span class="n">display_formatter</span><span class="o">.</span><span class="n">formatters</span><span class="p">[</span><span class="s1">&#39;image/png&#39;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">use_latex</span> <span class="ow">in</span> <span class="p">(</span><span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;png&#39;</span><span class="p">):</span>
+            <span class="n">debug</span><span class="p">(</span><span class="s2">&quot;init_printing: using png formatter&quot;</span><span class="p">)</span>
+            <span class="k">for</span> <span class="bp">cls</span> <span class="ow">in</span> <span class="n">printable_types</span><span class="p">:</span>
+                <span class="n">png_formatter</span><span class="o">.</span><span class="n">for_type</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">_print_latex_png</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">use_latex</span> <span class="o">==</span> <span class="s1">&#39;matplotlib&#39;</span><span class="p">:</span>
+            <span class="n">debug</span><span class="p">(</span><span class="s2">&quot;init_printing: using matplotlib formatter&quot;</span><span class="p">)</span>
+            <span class="k">for</span> <span class="bp">cls</span> <span class="ow">in</span> <span class="n">printable_types</span><span class="p">:</span>
+                <span class="n">png_formatter</span><span class="o">.</span><span class="n">for_type</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">_print_latex_matplotlib</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">debug</span><span class="p">(</span><span class="s2">&quot;init_printing: not using any png formatter&quot;</span><span class="p">)</span>
+            <span class="k">for</span> <span class="bp">cls</span> <span class="ow">in</span> <span class="n">printable_types</span><span class="p">:</span>
+                <span class="c1"># Better way to set this, but currently does not work in IPython</span>
+                <span class="c1">#png_formatter.for_type(cls, None)</span>
+                <span class="k">if</span> <span class="bp">cls</span> <span class="ow">in</span> <span class="n">png_formatter</span><span class="o">.</span><span class="n">type_printers</span><span class="p">:</span>
+                    <span class="n">png_formatter</span><span class="o">.</span><span class="n">type_printers</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span>
+
+        <span class="n">latex_formatter</span> <span class="o">=</span> <span class="n">ip</span><span class="o">.</span><span class="n">display_formatter</span><span class="o">.</span><span class="n">formatters</span><span class="p">[</span><span class="s1">&#39;text/latex&#39;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">use_latex</span> <span class="ow">in</span> <span class="p">(</span><span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;mathjax&#39;</span><span class="p">):</span>
+            <span class="n">debug</span><span class="p">(</span><span class="s2">&quot;init_printing: using mathjax formatter&quot;</span><span class="p">)</span>
+            <span class="k">for</span> <span class="bp">cls</span> <span class="ow">in</span> <span class="n">printable_types</span><span class="p">:</span>
+                <span class="n">latex_formatter</span><span class="o">.</span><span class="n">for_type</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">_print_latex_text</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">typ</span> <span class="ow">in</span> <span class="n">sympy_latex_types</span><span class="p">:</span>
+                <span class="n">typ</span><span class="o">.</span><span class="n">_repr_latex_</span> <span class="o">=</span> <span class="n">typ</span><span class="o">.</span><span class="n">_repr_latex_orig</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">debug</span><span class="p">(</span><span class="s2">&quot;init_printing: not using text/latex formatter&quot;</span><span class="p">)</span>
+            <span class="k">for</span> <span class="bp">cls</span> <span class="ow">in</span> <span class="n">printable_types</span><span class="p">:</span>
+                <span class="c1"># Better way to set this, but currently does not work in IPython</span>
+                <span class="c1">#latex_formatter.for_type(cls, None)</span>
+                <span class="k">if</span> <span class="bp">cls</span> <span class="ow">in</span> <span class="n">latex_formatter</span><span class="o">.</span><span class="n">type_printers</span><span class="p">:</span>
+                    <span class="n">latex_formatter</span><span class="o">.</span><span class="n">type_printers</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span>
+
+            <span class="k">for</span> <span class="n">typ</span> <span class="ow">in</span> <span class="n">sympy_latex_types</span><span class="p">:</span>
+                <span class="n">typ</span><span class="o">.</span><span class="n">_repr_latex_</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">ip</span><span class="o">.</span><span class="n">set_hook</span><span class="p">(</span><span class="s1">&#39;result_display&#39;</span><span class="p">,</span> <span class="n">_result_display</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">_is_ipython</span><span class="p">(</span><span class="n">shell</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Is a shell instance an IPython shell?&quot;&quot;&quot;</span>
+    <span class="c1"># shortcut, so we don&#39;t import IPython if we don&#39;t have to</span>
+    <span class="k">if</span> <span class="s1">&#39;IPython&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">modules</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="kn">from</span> <span class="nn">IPython.core.interactiveshell</span> <span class="k">import</span> <span class="n">InteractiveShell</span>
+    <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+        <span class="c1"># IPython &lt; 0.11</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="kn">from</span> <span class="nn">IPython.iplib</span> <span class="k">import</span> <span class="n">InteractiveShell</span>
+        <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+            <span class="c1"># Reaching this points means IPython has changed in a backward-incompatible way</span>
+            <span class="c1"># that we don&#39;t know about. Warn?</span>
+            <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">return</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">shell</span><span class="p">,</span> <span class="n">InteractiveShell</span><span class="p">)</span>
+
+<span class="c1"># Used by the doctester to override the default for no_global</span>
+<span class="n">NO_GLOBAL</span> <span class="o">=</span> <span class="kc">False</span>
+
+<div class="viewcode-block" id="init_printing"><a class="viewcode-back" href="../../../modules/physics/vector/api/printing.html#sympy.physics.vector.printing.init_printing">[docs]</a><span class="k">def</span> <span class="nf">init_printing</span><span class="p">(</span><span class="n">pretty_print</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">use_unicode</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                  <span class="n">use_latex</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">wrap_line</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">num_columns</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                  <span class="n">no_global</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">ip</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">euler</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">forecolor</span><span class="o">=</span><span class="s1">&#39;Black&#39;</span><span class="p">,</span>
+                  <span class="n">backcolor</span><span class="o">=</span><span class="s1">&#39;Transparent&#39;</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="s1">&#39;10pt&#39;</span><span class="p">,</span>
+                  <span class="n">latex_mode</span><span class="o">=</span><span class="s1">&#39;plain&#39;</span><span class="p">,</span> <span class="n">print_builtin</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                  <span class="n">str_printer</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">pretty_printer</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                  <span class="n">latex_printer</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">settings</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Initializes pretty-printer depending on the environment.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+
+<span class="sd">    pretty_print: boolean</span>
+<span class="sd">        If True, use pretty_print to stringify or the provided pretty</span>
+<span class="sd">        printer; if False, use sstrrepr to stringify or the provided string</span>
+<span class="sd">        printer.</span>
+<span class="sd">    order: string or None</span>
+<span class="sd">        There are a few different settings for this parameter:</span>
+<span class="sd">        lex (default), which is lexographic order;</span>
+<span class="sd">        grlex, which is graded lexographic order;</span>
+<span class="sd">        grevlex, which is reversed graded lexographic order;</span>
+<span class="sd">        old, which is used for compatibility reasons and for long expressions;</span>
+<span class="sd">        None, which sets it to lex.</span>
+<span class="sd">    use_unicode: boolean or None</span>
+<span class="sd">        If True, use unicode characters;</span>
+<span class="sd">        if False, do not use unicode characters.</span>
+<span class="sd">    use_latex: string, boolean, or None</span>
+<span class="sd">        If True, use default latex rendering in GUI interfaces (png and</span>
+<span class="sd">        mathjax);</span>
+<span class="sd">        if False, do not use latex rendering;</span>
+<span class="sd">        if &#39;png&#39;, enable latex rendering with an external latex compiler,</span>
+<span class="sd">        falling back to matplotlib if external compilation fails;</span>
+<span class="sd">        if &#39;matplotlib&#39;, enable latex rendering with matplotlib;</span>
+<span class="sd">        if &#39;mathjax&#39;, enable latex text generation, for example MathJax</span>
+<span class="sd">        rendering in IPython notebook or text rendering in LaTeX documents</span>
+<span class="sd">    wrap_line: boolean</span>
+<span class="sd">        If True, lines will wrap at the end; if False, they will not wrap</span>
+<span class="sd">        but continue as one line. This is only relevant if `pretty_print` is</span>
+<span class="sd">        True.</span>
+<span class="sd">    num_columns: int or None</span>
+<span class="sd">        If int, number of columns before wrapping is set to num_columns; if</span>
+<span class="sd">        None, number of columns before wrapping is set to terminal width.</span>
+<span class="sd">        This is only relevant if `pretty_print` is True.</span>
+<span class="sd">    no_global: boolean</span>
+<span class="sd">        If True, the settings become system wide;</span>
+<span class="sd">        if False, use just for this console/session.</span>
+<span class="sd">    ip: An interactive console</span>
+<span class="sd">        This can either be an instance of IPython,</span>
+<span class="sd">        or a class that derives from code.InteractiveConsole.</span>
+<span class="sd">    euler: boolean, optional, default=False</span>
+<span class="sd">        Loads the euler package in the LaTeX preamble for handwritten style</span>
+<span class="sd">        fonts (http://www.ctan.org/pkg/euler).</span>
+<span class="sd">    forecolor: string, optional, default=&#39;Black&#39;</span>
+<span class="sd">        DVI setting for foreground color.</span>
+<span class="sd">    backcolor: string, optional, default=&#39;Transparent&#39;</span>
+<span class="sd">        DVI setting for background color.</span>
+<span class="sd">    fontsize: string, optional, default=&#39;10pt&#39;</span>
+<span class="sd">        A font size to pass to the LaTeX documentclass function in the</span>
+<span class="sd">        preamble.</span>
+<span class="sd">    latex_mode: string, optional, default=&#39;plain&#39;</span>
+<span class="sd">        The mode used in the LaTeX printer. Can be one of:</span>
+<span class="sd">        {&#39;inline&#39;|&#39;plain&#39;|&#39;equation&#39;|&#39;equation*&#39;}.</span>
+<span class="sd">    print_builtin: boolean, optional, default=True</span>
+<span class="sd">        If true then floats and integers will be printed. If false the</span>
+<span class="sd">        printer will only print SymPy types.</span>
+<span class="sd">    str_printer: function, optional, default=None</span>
+<span class="sd">        A custom string printer function. This should mimic</span>
+<span class="sd">        sympy.printing.sstrrepr().</span>
+<span class="sd">    pretty_printer: function, optional, default=None</span>
+<span class="sd">        A custom pretty printer. This should mimic sympy.printing.pretty().</span>
+<span class="sd">    latex_printer: function, optional, default=None</span>
+<span class="sd">        A custom LaTeX printer. This should mimic sympy.printing.latex().</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    &gt;&gt;&gt; from sympy.interactive import init_printing</span>
+<span class="sd">    &gt;&gt;&gt; from sympy import Symbol, sqrt</span>
+<span class="sd">    &gt;&gt;&gt; from sympy.abc import x, y</span>
+<span class="sd">    &gt;&gt;&gt; sqrt(5)</span>
+<span class="sd">    sqrt(5)</span>
+<span class="sd">    &gt;&gt;&gt; init_printing(pretty_print=True) # doctest: +SKIP</span>
+<span class="sd">    &gt;&gt;&gt; sqrt(5) # doctest: +SKIP</span>
+<span class="sd">      ___</span>
+<span class="sd">    \/ 5</span>
+<span class="sd">    &gt;&gt;&gt; theta = Symbol(&#39;theta&#39;) # doctest: +SKIP</span>
+<span class="sd">    &gt;&gt;&gt; init_printing(use_unicode=True) # doctest: +SKIP</span>
+<span class="sd">    &gt;&gt;&gt; theta # doctest: +SKIP</span>
+<span class="sd">    \u03b8</span>
+<span class="sd">    &gt;&gt;&gt; init_printing(use_unicode=False) # doctest: +SKIP</span>
+<span class="sd">    &gt;&gt;&gt; theta # doctest: +SKIP</span>
+<span class="sd">    theta</span>
+<span class="sd">    &gt;&gt;&gt; init_printing(order=&#39;lex&#39;) # doctest: +SKIP</span>
+<span class="sd">    &gt;&gt;&gt; str(y + x + y**2 + x**2) # doctest: +SKIP</span>
+<span class="sd">    x**2 + x + y**2 + y</span>
+<span class="sd">    &gt;&gt;&gt; init_printing(order=&#39;grlex&#39;) # doctest: +SKIP</span>
+<span class="sd">    &gt;&gt;&gt; str(y + x + y**2 + x**2) # doctest: +SKIP</span>
+<span class="sd">    x**2 + x + y**2 + y</span>
+<span class="sd">    &gt;&gt;&gt; init_printing(order=&#39;grevlex&#39;) # doctest: +SKIP</span>
+<span class="sd">    &gt;&gt;&gt; str(y * x**2 + x * y**2) # doctest: +SKIP</span>
+<span class="sd">    x**2*y + x*y**2</span>
+<span class="sd">    &gt;&gt;&gt; init_printing(order=&#39;old&#39;) # doctest: +SKIP</span>
+<span class="sd">    &gt;&gt;&gt; str(x**2 + y**2 + x + y) # doctest: +SKIP</span>
+<span class="sd">    x**2 + x + y**2 + y</span>
+<span class="sd">    &gt;&gt;&gt; init_printing(num_columns=10) # doctest: +SKIP</span>
+<span class="sd">    &gt;&gt;&gt; x**2 + x + y**2 + y # doctest: +SKIP</span>
+<span class="sd">    x + y +</span>
+<span class="sd">    x**2 + y**2</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">import</span> <span class="nn">sys</span>
+    <span class="kn">from</span> <span class="nn">sympy.printing.printer</span> <span class="k">import</span> <span class="n">Printer</span>
+
+    <span class="k">if</span> <span class="n">pretty_print</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">pretty_printer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">stringify_func</span> <span class="o">=</span> <span class="n">pretty_printer</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="kn">from</span> <span class="nn">sympy.printing</span> <span class="k">import</span> <span class="n">pretty</span> <span class="k">as</span> <span class="n">stringify_func</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">str_printer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">stringify_func</span> <span class="o">=</span> <span class="n">str_printer</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="kn">from</span> <span class="nn">sympy.printing</span> <span class="k">import</span> <span class="n">sstrrepr</span> <span class="k">as</span> <span class="n">stringify_func</span>
+
+    <span class="c1"># Even if ip is not passed, double check that not in IPython shell</span>
+    <span class="n">in_ipython</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="k">if</span> <span class="n">ip</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">ip</span> <span class="o">=</span> <span class="n">get_ipython</span><span class="p">()</span>
+        <span class="k">except</span> <span class="ne">NameError</span><span class="p">:</span>
+            <span class="k">pass</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">in_ipython</span> <span class="o">=</span> <span class="p">(</span><span class="n">ip</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">ip</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">in_ipython</span><span class="p">:</span>
+        <span class="n">in_ipython</span> <span class="o">=</span> <span class="n">_is_ipython</span><span class="p">(</span><span class="n">ip</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">in_ipython</span> <span class="ow">and</span> <span class="n">pretty_print</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="kn">import</span> <span class="nn">IPython</span>
+            <span class="c1"># IPython 1.0 deprecates the frontend module, so we import directly</span>
+            <span class="c1"># from the terminal module to prevent a deprecation message from being</span>
+            <span class="c1"># shown.</span>
+            <span class="k">if</span> <span class="n">V</span><span class="p">(</span><span class="n">IPython</span><span class="o">.</span><span class="n">__version__</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="s1">&#39;1.0&#39;</span><span class="p">:</span>
+                <span class="kn">from</span> <span class="nn">IPython.terminal.interactiveshell</span> <span class="k">import</span> <span class="n">TerminalInteractiveShell</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="kn">from</span> <span class="nn">IPython.frontend.terminal.interactiveshell</span> <span class="k">import</span> <span class="n">TerminalInteractiveShell</span>
+            <span class="kn">from</span> <span class="nn">code</span> <span class="k">import</span> <span class="n">InteractiveConsole</span>
+        <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+            <span class="k">pass</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># This will be True if we are in the qtconsole or notebook</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="p">(</span><span class="n">InteractiveConsole</span><span class="p">,</span> <span class="n">TerminalInteractiveShell</span><span class="p">))</span> \
+                    <span class="ow">and</span> <span class="s1">&#39;ipython-console&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">use_unicode</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">debug</span><span class="p">(</span><span class="s2">&quot;init_printing: Setting use_unicode to True&quot;</span><span class="p">)</span>
+                    <span class="n">use_unicode</span> <span class="o">=</span> <span class="kc">True</span>
+                <span class="k">if</span> <span class="n">use_latex</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">debug</span><span class="p">(</span><span class="s2">&quot;init_printing: Setting use_latex to True&quot;</span><span class="p">)</span>
+                    <span class="n">use_latex</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">NO_GLOBAL</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">no_global</span><span class="p">:</span>
+        <span class="n">Printer</span><span class="o">.</span><span class="n">set_global_settings</span><span class="p">(</span><span class="n">order</span><span class="o">=</span><span class="n">order</span><span class="p">,</span> <span class="n">use_unicode</span><span class="o">=</span><span class="n">use_unicode</span><span class="p">,</span>
+                                    <span class="n">wrap_line</span><span class="o">=</span><span class="n">wrap_line</span><span class="p">,</span> <span class="n">num_columns</span><span class="o">=</span><span class="n">num_columns</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">_stringify_func</span> <span class="o">=</span> <span class="n">stringify_func</span>
+
+        <span class="k">if</span> <span class="n">pretty_print</span><span class="p">:</span>
+            <span class="n">stringify_func</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">expr</span><span class="p">:</span> \
+                             <span class="n">_stringify_func</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="n">order</span><span class="p">,</span>
+                                             <span class="n">use_unicode</span><span class="o">=</span><span class="n">use_unicode</span><span class="p">,</span>
+                                             <span class="n">wrap_line</span><span class="o">=</span><span class="n">wrap_line</span><span class="p">,</span>
+                                             <span class="n">num_columns</span><span class="o">=</span><span class="n">num_columns</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">stringify_func</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">expr</span><span class="p">:</span> <span class="n">_stringify_func</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="n">order</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">in_ipython</span><span class="p">:</span>
+        <span class="n">mode_in_settings</span> <span class="o">=</span> <span class="n">settings</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;mode&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">mode_in_settings</span><span class="p">:</span>
+            <span class="n">debug</span><span class="p">(</span><span class="s2">&quot;init_printing: Mode is not able to be set due to internals&quot;</span>
+                  <span class="s2">&quot;of IPython printing&quot;</span><span class="p">)</span>
+        <span class="n">_init_ipython_printing</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">stringify_func</span><span class="p">,</span> <span class="n">use_latex</span><span class="p">,</span> <span class="n">euler</span><span class="p">,</span>
+                               <span class="n">forecolor</span><span class="p">,</span> <span class="n">backcolor</span><span class="p">,</span> <span class="n">fontsize</span><span class="p">,</span> <span class="n">latex_mode</span><span class="p">,</span>
+                               <span class="n">print_builtin</span><span class="p">,</span> <span class="n">latex_printer</span><span class="p">,</span> <span class="o">**</span><span class="n">settings</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">_init_python_printing</span><span class="p">(</span><span class="n">stringify_func</span><span class="p">,</span> <span class="o">**</span><span class="n">settings</span><span class="p">)</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../../index.html">
+              <img class="logo" src="../../../_static/sympylogo.png" alt="Logo"/>
+            </a></p>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../../index.html">SymPy 1.4 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../../index.html" >Module code</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2019 SymPy Development Team.
+      Last updated on Apr 10, 2019.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 2.0.1.
+    </div>
+  </body>
+</html>
