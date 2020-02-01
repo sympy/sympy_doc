@@ -61,7 +61,7 @@ def main():
             sys.exit(0)
 
         # Do we want to delete anything? Is there a table there already?
-        if "Docs for other versions" in lines[linei]:
+        if "Documentation version" in lines[linei]:
             # Where does the current table end?
             # We want endi to be the first line not part of the current table.
             while linei < len(lines):
@@ -82,7 +82,7 @@ def main():
                     insertreleasedir,
                     insertrelease
                 ))
-        lines.insert(inserti, "            <h4>Docs for other versions</h4>\n")
+        lines.insert(inserti, "            <h4>Documentation version</h4>\n")
 
         # Write the changed file back out.
         with codecs.open(os.path.join(releasedir, "index.html"), "w", "utf8") as f:
