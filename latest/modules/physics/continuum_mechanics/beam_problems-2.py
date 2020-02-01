@@ -1,8 +1,3 @@
-<html>
-    <head>
-        <meta http-equiv="refresh" content="0;URL=/1.5.1/modules/physics/continuum_mechanics/beam_problems-2.py" />
-    </head>
-    <body>
-    </body>
-</html>
-
+from sympy.physics.continuum_mechanics.beam import Beam
+E, I = symbols('E, I')
+b = Beam(9, E, I)

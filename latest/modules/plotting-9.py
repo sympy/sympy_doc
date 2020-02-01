@@ -1,8 +1,3 @@
-<html>
-    <head>
-        <meta http-equiv="refresh" content="0;URL=/1.5.1/modules/plotting-9.py" />
-    </head>
-    <body>
-    </body>
-</html>
-
+plot_parametric(cos(u), sin(u), (u, -5, 5))
+# Plot object containing:
+# [0]: parametric cartesian line: (cos(u), sin(u)) for u over (-5.0, 5.0)

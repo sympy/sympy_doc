@@ -1,8 +1,3 @@
-<html>
-    <head>
-        <meta http-equiv="refresh" content="0;URL=/1.5.1/modules/physics/continuum_mechanics/beam_problems-1.py" />
-    </head>
-    <body>
-    </body>
-</html>
-
+from sympy import *
+x, y, z = symbols('x y z')
+init_printing(use_unicode=True, wrap_line=False)
