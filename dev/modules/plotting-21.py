@@ -1,2 +1,3 @@
-from sympy import plot_implicit, cos, sin, symbols, Eq, And
-x, y = symbols('x y')
+from sympy import symbols, cos, sin
+from sympy.plotting import plot3d_parametric_surface
+u, v = symbols('u v')
