@@ -1,2 +1,2 @@
-from sympy import plot_implicit, cos, sin, symbols, Eq, And
+from sympy import plot_implicit, symbols, Eq, And
 x, y = symbols('x y')

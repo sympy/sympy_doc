@@ -1,6 +1,5 @@
 from sympy.physics.continuum_mechanics.beam import Beam
 from sympy import symbols
-from sympy.plotting import PlotGrid
 R1, R2 = symbols('R1, R2')
 b = Beam(8, 200*(10**9), 400*(10**-6))
 b.apply_load(5000, 2, -1)
