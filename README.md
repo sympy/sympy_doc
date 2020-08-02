@@ -1,5 +1,12 @@
 # SymPy Docs Repository
 
+**NOTE: The contents of this repository are generated automatically. To make
+modifications to the SymPy documentation, edit the RST sources in the `doc`
+directory of the [main SymPy
+repo](https://github.com/sympy/sympy/tree/master/doc). Pull requests should
+only be made to this repo if you are modifying old version builds of the docs,
+or for emergency hotfixes.**
+
 This git repository contains all the generated SymPy documentation. It is
 hosted at http://docs.sympy.org/ automatically by github.
 
@@ -14,8 +21,10 @@ several things.
 
 ## Development docs
 
-These are the easiest.  Just build the docs from the latest SymPy master.
-Then, do
+**NOTE: The doctr command that runs on Travis on the sympy/sympy repo does
+this automatically. There is usually not a need to do this manually.**
+
+Build the docs from the latest SymPy master. Then, do
 
     rm -rf dev/
     cp -R ../path/to/sympy/doc/_build/html dev/
@@ -24,32 +33,42 @@ Then
 
     git add -A dev/
 
-Finally, you need to make sure the index of the different docs on the the left
+Finally, you need to make sure the index of the different docs on the left
 of index.html remains intact. Run
 
     ./generate_indexes.py
 
 ## Release docs
 
-This is harder, because you have to update the index.
+**NOTE: This should be done automatically by the SymPy release script. It
+should only be done manually if the release script doesn't do it correctly for
+some reason.**
 
-First, move the current latest docs to the version number (which should
-currently be a redirect to the `latest` docs).
+First, completely remove the old release docs
 
-    git rm -r 0.7.2/
-    git mv latest 0.7.3
+    git rm -rf latest/
 
 Checkout the SymPy release tag and build the docs as above.  Then do
+a
+    cp -R ../path/to/sympy/doc/_build/html latest/
 
-    cp -R ../path/to/sympy/doc/_build/html 0.7.3
-
-Edit `releases.txt` with the new release. Then run
+Then update the release versions in `releases.txt` and run
 
     ./generate_indexes.py
 
-Finally, you need to make sure the url with the latest version redirects to
-`latest`. This is easy. Just run `./generate_redirects.py 0.7.3 latest`, and
-commit the changes.
+And add the results
+
+    git add -A dev/ latest/ releases.txt
+
+## Making redirects
+
+The `generate_redirects.py` script can generate redirects from one path to
+another.
+
+We used to host old versions of the docs on this, but now we only host the
+latest and development docs. The old docs that were there have redirects to
+the latest docs. This is only done so that old links can continue to work. It
+is not necessary to add redirects for future versions.
 
 ## Pull requests
 
