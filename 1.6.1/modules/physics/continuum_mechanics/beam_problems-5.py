@@ -1,1 +1,8 @@
-b.apply_load(50, 5, -2)
+<html>
+    <head>
+        <meta http-equiv="refresh" content="0;URL=/latest/modules/physics/continuum_mechanics/beam_problems-5.py" />
+    </head>
+    <body>
+    </body>
+</html>
+

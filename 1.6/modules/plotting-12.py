@@ -1,3 +1,8 @@
-from sympy import symbols
-from sympy.plotting import plot3d
-x, y = symbols('x y')
+<html>
+    <head>
+        <meta http-equiv="refresh" content="0;URL=/latest/modules/plotting-12.py" />
+    </head>
+    <body>
+    </body>
+</html>
+

@@ -1,2 +1,8 @@
-p2 = plot_implicit(
-    Eq(x**2 + y**2, 3), (x, -3, 3), (y, -3, 3))
+<html>
+    <head>
+        <meta http-equiv="refresh" content="0;URL=/latest/modules/plotting-23.py" />
+    </head>
+    <body>
+    </body>
+</html>
+

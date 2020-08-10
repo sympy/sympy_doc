@@ -1,3 +1,8 @@
-p5 = plot_implicit(
-    Eq(x**2 + y**2, 5), (x, -5, 5), (y, -2, 2),
-    adaptive=False, points=400)
+<html>
+    <head>
+        <meta http-equiv="refresh" content="0;URL=/latest/modules/plotting-26.py" />
+    </head>
+    <body>
+    </body>
+</html>
+
