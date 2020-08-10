@@ -1,2 +1,8 @@
-p3 = plot_implicit(
-    Eq(x**2 + y**2, 5), (x, -4, 4), (y, -4, 4), depth = 2)
+<html>
+    <head>
+        <meta http-equiv="refresh" content="0;URL=/latest/modules/plotting-24.py" />
+    </head>
+    <body>
+    </body>
+</html>
+

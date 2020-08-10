@@ -1,1 +1,8 @@
-p6 = plot_implicit(y > x**2)
+<html>
+    <head>
+        <meta http-equiv="refresh" content="0;URL=/latest/modules/plotting-27.py" />
+    </head>
+    <body>
+    </body>
+</html>
+

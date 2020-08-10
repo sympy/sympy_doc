@@ -1,2 +1,8 @@
-from sympy import plot_implicit, cos, sin, symbols, Eq, And
-x, y = symbols('x y')
+<html>
+    <head>
+        <meta http-equiv="refresh" content="0;URL=/latest/modules/plotting-21.py" />
+    </head>
+    <body>
+    </body>
+</html>
+

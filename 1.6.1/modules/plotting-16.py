@@ -1,3 +1,8 @@
-from sympy import symbols, cos, sin
-from sympy.plotting import plot3d_parametric_line
-u = symbols('u')
+<html>
+    <head>
+        <meta http-equiv="refresh" content="0;URL=/latest/modules/plotting-16.py" />
+    </head>
+    <body>
+    </body>
+</html>
+
