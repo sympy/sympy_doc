@@ -52,7 +52,7 @@ Checkout the SymPy release tag and build the docs as above.  Then do
 a
     cp -R ../path/to/sympy/doc/_build/html latest/
 
-Then update the release versions in `releases.txt` and run
+Then run
 
     ./generate_indexes.py
 

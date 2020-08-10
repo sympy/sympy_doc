@@ -11,24 +11,30 @@ import codecs
 import os
 import os.path
 import sys
-
+import re
 
 def main():
-    # Get a list of all the releases, in order.
-    # These are held in a file, releases.txt where
-    # each line includes RELEASEDIR:Release Name.
-    releases = []
-    with codecs.open("releases.txt", "r", "utf8") as f:
-        for linei, line in enumerate(f):
-            parts = line.strip().split(":")
-            if len(parts) != 2:
-                print("Error parsing line {0}".format(linei))
-                sys.exit(1)
-            releases.append((parts[0], parts[1]))
-
+    dirs = ['latest', 'dev']
     # Simply update the releases list in each $RELEASEDIR/index.html.
     # This should be idempotent.
-    for releasedir, releasename in releases:
+    versions = {}
+    for releasedir in dirs:
+        with codecs.open(os.path.join(releasedir, "index.html"), "r", "utf8") as f:
+            lines = f.readlines()
+
+        # Find the release version
+        for line in lines:
+            m = re.search(r"<title>Welcome to SymPy’s documentation! &#8212; SymPy (.*?) documentation</title>", line)
+            if m:
+                versions[releasedir] = m.group(1)
+                break
+        else:
+            raise RuntimeError(f"Could not find the version for {releasedir}")
+
+    releases = [('latest', f'SymPy {versions["latest"]} (latest release)'),
+                ('dev', f'SymPy {versions["dev"]} (development version)')]
+
+    for releasedir in dirs:
         with codecs.open(os.path.join(releasedir, "index.html"), "r", "utf8") as f:
             lines = f.readlines()
 
