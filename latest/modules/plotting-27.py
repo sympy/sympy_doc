@@ -1,1 +1,3 @@
-p6 = plot_implicit(y > x**2)
+p4 = plot_implicit(
+    Eq(x**2 + y**2, 5), (x, -5, 5), (y, -2, 2),
+    adaptive=False)

@@ -1,4 +1,5 @@
-plot3d_parametric_surface(cos(u + v), sin(u - v), u - v,
-    (u, -5, 5), (v, -5, 5))
+plot3d_parametric_line((cos(u), sin(u), u, (u, -5, 5)),
+    (sin(u), u**2, u, (u, -5, 5)))
 # Plot object containing:
-# [0]: parametric cartesian surface: (cos(u + v), sin(u - v), u - v) for u over (-5.0, 5.0) and v over (-5.0, 5.0)
+# [0]: 3D parametric cartesian line: (cos(u), sin(u), u) for u over (-5.0, 5.0)
+# [1]: 3D parametric cartesian line: (sin(u), u**2, u) for u over (-5.0, 5.0)
