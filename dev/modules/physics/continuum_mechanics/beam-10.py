@@ -6,6 +6,6 @@ b = Beam(12, E, I)
 b.apply_support(0, 'roller')
 b.apply_support(8, 'roller')
 b.solve_for_ild_reactions(1, R_0, R_8)
-b.solve_for_ild_shear(4, 1, R_0, R_8)
-b.ild_shear
-# Piecewise((x/8, x < 4), (x/8 - 1, x > 4))
+b.solve_for_ild_moment(4, 1, R_0, R_8)
+b.ild_moment
+# Piecewise((-x/2, x < 4), (x/2 - 4, x > 4))
