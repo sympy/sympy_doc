@@ -1,11 +1,10 @@
 from sympy import symbols
 from sympy.physics.continuum_mechanics.beam import Beam
 E, I = symbols('E, I')
-R_0, R_8 = symbols('R_0, R_8')
-b = Beam(12, E, I)
+R_0, R_10 = symbols('R_0, R_10')
+b = Beam(10, E, I)
 b.apply_support(0, 'roller')
-b.apply_support(8, 'roller')
-b.solve_for_ild_reactions(1, R_0, R_8)
-b.solve_for_ild_shear(4, 1, R_0, R_8)
-b.ild_shear
-# Piecewise((x/8, x < 4), (x/8 - 1, x > 4))
+b.apply_support(10, 'roller')
+b.solve_for_ild_reactions(1,R_0,R_10)
+b.ild_reactions
+# {R_0: x/10 - 1, R_10: -x/10}
