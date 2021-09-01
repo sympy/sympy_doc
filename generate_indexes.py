@@ -24,7 +24,8 @@ def main():
 
         # Find the release version
         for line in lines:
-            m = re.search(r"<title>Welcome to SymPy’s documentation! &#8212; SymPy (.*?) documentation</title>", line)
+            m = re.search(r'<a href="#">SymPy (.*?) documentation</a>', line)
+
             if m:
                 versions[releasedir] = m.group(1)
                 break
