@@ -1,4 +1,4 @@
-PlotGrid(1, 3 , p2, p3, p4)
+PlotGrid(1, 3, p2, p3, p4)
 # PlotGrid object containing:
 # Plot[0]:Plot object containing:
 # [0]: cartesian line: x**2 for x over (-6.0, 6.0)
