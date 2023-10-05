@@ -797,6 +797,54 @@ SymPy deprecation warnings.</p>
 </section>
 <section id="version-1-13">
 <h2>Version 1.13<a class="headerlink" href="#version-1-13" title="Link to this heading">#</a></h2>
+<section id="the-string-fallback-in-sympify">
+<span id="deprecated-sympify-string-fallback"></span><h3>The string fallback in <code class="docutils literal notranslate"><span class="pre">sympify()</span></code><a class="headerlink" href="#the-string-fallback-in-sympify" title="Link to this heading">#</a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">sympify</span></code> function would previously convert an unrecognized object to a
+string and retry sympification. This was deprecated in SymPy 1.6 and was
+removed in SymPy 1.13.</p>
+<p>The behavior of <a class="reference internal" href="../modules/core.html#sympy.core.sympify.sympify" title="sympy.core.sympify.sympify"><code class="xref py py-func docutils literal notranslate"><span class="pre">sympify()</span></code></a> is that <code class="docutils literal notranslate"><span class="pre">sympify(expr)</span></code> tries various methods
+to try to convert <code class="docutils literal notranslate"><span class="pre">expr</span></code> into a SymPy objects. Previously if all these methods
+would fail, it would take <code class="docutils literal notranslate"><span class="pre">str(expr)</span></code> and try to parse it using
+<a class="reference internal" href="../modules/parsing.html#sympy.parsing.sympy_parser.parse_expr" title="sympy.parsing.sympy_parser.parse_expr"><code class="xref py py-func docutils literal notranslate"><span class="pre">parse_expr()</span></code></a>. This string fallback feature was deprecated in SymPy 1.6
+and was removed in SymPy 1.13.</p>
+<p>This behaviour was problematic for a few reasons:</p>
+<ul class="simple">
+<li><p>It could affect performance in major ways. See for instance issues
+<a class="reference external" href="https://github.com/sympy/sympy/issues/18056">#18056</a> and
+<a class="reference external" href="https://github.com/sympy/sympy/issues/15416">#15416</a> where it caused up to
+100x slowdowns. The issue is that SymPy functions automatically call
+<code class="docutils literal notranslate"><span class="pre">sympify</span></code> on their arguments. Whenever a function is passed something that
+<code class="docutils literal notranslate"><span class="pre">sympify</span></code> doesn’t know how to convert to a SymPy object, for instance, a
+Python function type, it passes the string to <a class="reference internal" href="../modules/parsing.html#sympy.parsing.sympy_parser.parse_expr" title="sympy.parsing.sympy_parser.parse_expr"><code class="xref py py-func docutils literal notranslate"><span class="pre">parse_expr()</span></code></a>. This is
+significantly slower than the direct conversions that happen by default.
+This occurs specifically whenever <code class="docutils literal notranslate"><span class="pre">sympify()</span></code> is used in library code
+instead of <code class="docutils literal notranslate"><span class="pre">_sympify()</span></code> (or equivalently <code class="docutils literal notranslate"><span class="pre">sympify(strict=True)</span></code>), but
+presently this is done a lot. Using <code class="docutils literal notranslate"><span class="pre">strict=True</span></code> will at some point be the
+default for all library code, but this is a <a class="reference external" href="https://github.com/sympy/sympy/issues/11003">harder change to
+make</a>.</p></li>
+<li><p>It can cause security issues, since strings are evaled, and objects can
+return whatever string they want in their <code class="docutils literal notranslate"><span class="pre">__repr__</span></code>. See also
+<a class="reference external" href="https://github.com/sympy/sympy/pull/12524">https://github.com/sympy/sympy/pull/12524</a>.</p></li>
+<li><p>It really wasn’t very useful to begin with. Just because an object’s string
+form can be parsed into a SymPy expression doesn’t mean it should be parsed
+that way. This is usually correct for custom numeric types, but an object’s
+repr could be anything. For instance, if the string form of an object looks
+like a valid Python identifier, it would parse as a <code class="docutils literal notranslate"><span class="pre">Symbol</span></code>.</p></li>
+</ul>
+<p>There are plenty of ways to make custom objects work inside of
+<a class="reference internal" href="../modules/core.html#sympy.core.sympify.sympify" title="sympy.core.sympify.sympify"><code class="xref py py-func docutils literal notranslate"><span class="pre">sympify()</span></code></a>.</p>
+<ul class="simple">
+<li><p>Firstly, if an object is intended to work alongside other SymPy expressions,
+it should subclass from <a class="reference internal" href="../modules/core.html#sympy.core.basic.Basic" title="sympy.core.basic.Basic"><code class="xref py py-class docutils literal notranslate"><span class="pre">Basic</span></code></a> (or <a class="reference internal" href="../modules/core.html#sympy.core.expr.Expr" title="sympy.core.expr.Expr"><code class="xref py py-class docutils literal notranslate"><span class="pre">Expr</span></code></a>). If it does,
+<a class="reference internal" href="../modules/core.html#sympy.core.sympify.sympify" title="sympy.core.sympify.sympify"><code class="xref py py-func docutils literal notranslate"><span class="pre">sympify()</span></code></a> will just return it unchanged because it will already be a
+valid SymPy object.</p></li>
+<li><p>For objects that you control, you can add the <code class="docutils literal notranslate"><span class="pre">_sympy_</span></code> method. The <a class="reference internal" href="../modules/core.html#sympy.core.sympify.sympify" title="sympy.core.sympify.sympify"><span class="xref myst py py-func">sympify
+docstring</span></a> has an example of this.</p></li>
+<li><p>For objects that you don’t control, you can add a custom converter to the
+<code class="docutils literal notranslate"><span class="pre">sympy.core.sympify.converter</span></code> dictionary. The <a class="reference internal" href="../modules/core.html#sympy.core.sympify.sympify" title="sympy.core.sympify.sympify"><code class="xref py py-func docutils literal notranslate"><span class="pre">sympify()</span></code></a> docstring
+also has an example of this.</p></li>
+</ul>
+</section>
 <section id="deprecate-the-dmp-rep-attribute">
 <span id="dmp-rep"></span><h3>Deprecate the DMP.rep attribute.<a class="headerlink" href="#deprecate-the-dmp-rep-attribute" title="Link to this heading">#</a></h3>
 <p>The internal type of <code class="docutils literal notranslate"><span class="pre">Poly</span></code> is the <code class="docutils literal notranslate"><span class="pre">DMP</span></code> class which previously could be
@@ -1743,54 +1791,6 @@ integral as an <a class="reference internal" href="../modules/core.html#sympy.co
 first.</p>
 <p>See also <a class="reference internal" href="#deprecated-poly-nonpoly-binary-operations"><span class="std std-ref">Mixing Poly and non-polynomial expressions in binary operations</span></a> above.</p>
 </section>
-<section id="the-string-fallback-in-sympify">
-<span id="deprecated-sympify-string-fallback"></span><h3>The string fallback in <code class="docutils literal notranslate"><span class="pre">sympify()</span></code><a class="headerlink" href="#the-string-fallback-in-sympify" title="Link to this heading">#</a></h3>
-<p>The current behavior of <a class="reference internal" href="../modules/core.html#sympy.core.sympify.sympify" title="sympy.core.sympify.sympify"><code class="xref py py-func docutils literal notranslate"><span class="pre">sympify()</span></code></a> is that <code class="docutils literal notranslate"><span class="pre">sympify(expr)</span></code> tries
-various methods to try to convert <code class="docutils literal notranslate"><span class="pre">expr</span></code> into a SymPy objects. If all these
-methods fail, it takes <code class="docutils literal notranslate"><span class="pre">str(expr)</span></code> and tries to parse it using
-<a class="reference internal" href="../modules/parsing.html#sympy.parsing.sympy_parser.parse_expr" title="sympy.parsing.sympy_parser.parse_expr"><code class="xref py py-func docutils literal notranslate"><span class="pre">parse_expr()</span></code></a>. This string fallback feature is deprecated. It is
-problematic for a few reasons:</p>
-<ul class="simple">
-<li><p>It can affect performance in major ways. See for instance issues
-<a class="reference external" href="https://github.com/sympy/sympy/issues/18056">#18056</a> and
-<a class="reference external" href="https://github.com/sympy/sympy/issues/15416">#15416</a> where it caused up to
-100x slowdowns. The issue is that SymPy functions automatically call
-<code class="docutils literal notranslate"><span class="pre">sympify</span></code> on their arguments. Whenever a function is passed something that
-<code class="docutils literal notranslate"><span class="pre">sympify</span></code> doesn’t know how to convert to a SymPy object, for instance, a
-Python function type, it passes the string to <a class="reference internal" href="../modules/parsing.html#sympy.parsing.sympy_parser.parse_expr" title="sympy.parsing.sympy_parser.parse_expr"><code class="xref py py-func docutils literal notranslate"><span class="pre">parse_expr()</span></code></a>. This is
-significantly slower than the direct conversions that happen by default.
-This occurs specifically whenever <code class="docutils literal notranslate"><span class="pre">sympify()</span></code> is used in library code
-instead of <code class="docutils literal notranslate"><span class="pre">_sympify()</span></code> (or equivalently <code class="docutils literal notranslate"><span class="pre">sympify(strict=True)</span></code>), but
-presently this is done a lot. Using <code class="docutils literal notranslate"><span class="pre">strict=True</span></code> will at some point be the
-default for all library code, but this is a <a class="reference external" href="https://github.com/sympy/sympy/issues/11003">harder change to
-make</a>.</p></li>
-<li><p>It can cause security issues, since strings are evaled, and objects can
-return whatever string they want in their <code class="docutils literal notranslate"><span class="pre">__repr__</span></code>. See also
-<a class="reference external" href="https://github.com/sympy/sympy/pull/12524">https://github.com/sympy/sympy/pull/12524</a>.</p></li>
-<li><p>It really isn’t very useful to begin with. Just because an object’s string
-form can be parsed into a SymPy expression doesn’t mean it should be parsed
-that way. This is usually correct for custom numeric types, but an object’s
-repr could be anything. For instance, if the string form of an object looks
-like a valid Python identifier, it will parse as a <code class="docutils literal notranslate"><span class="pre">Symbol</span></code>.</p></li>
-</ul>
-<p>There are plenty of ways to make custom objects work inside of
-<a class="reference internal" href="../modules/core.html#sympy.core.sympify.sympify" title="sympy.core.sympify.sympify"><code class="xref py py-func docutils literal notranslate"><span class="pre">sympify()</span></code></a>.</p>
-<ul class="simple">
-<li><p>Firstly, if an object is intended to work alongside other SymPy expressions,
-it should subclass from <a class="reference internal" href="../modules/core.html#sympy.core.basic.Basic" title="sympy.core.basic.Basic"><code class="xref py py-class docutils literal notranslate"><span class="pre">Basic</span></code></a> (or <a class="reference internal" href="../modules/core.html#sympy.core.expr.Expr" title="sympy.core.expr.Expr"><code class="xref py py-class docutils literal notranslate"><span class="pre">Expr</span></code></a>). If it does,
-<a class="reference internal" href="../modules/core.html#sympy.core.sympify.sympify" title="sympy.core.sympify.sympify"><code class="xref py py-func docutils literal notranslate"><span class="pre">sympify()</span></code></a> will just return it unchanged because it will already be a
-valid SymPy object.</p></li>
-<li><p>For objects that you control, you can add the <code class="docutils literal notranslate"><span class="pre">_sympy_</span></code> method. The <a class="reference internal" href="../modules/core.html#sympy.core.sympify.sympify" title="sympy.core.sympify.sympify"><span class="xref myst py py-func">sympify
-docstring</span></a> has an example of this.</p></li>
-<li><p>For objects that you don’t control, you can add a custom converter to the
-<code class="docutils literal notranslate"><span class="pre">sympy.core.sympify.converter</span></code> dictionary. The <a class="reference internal" href="../modules/core.html#sympy.core.sympify.sympify" title="sympy.core.sympify.sympify"><code class="xref py py-func docutils literal notranslate"><span class="pre">sympify()</span></code></a> docstring
-also has an example of this.</p></li>
-</ul>
-<p>To silence this deprecation warning in all cases, you can pass <code class="docutils literal notranslate"><span class="pre">strict=True</span></code>
-to <code class="docutils literal notranslate"><span class="pre">sympify()</span></code>. However, note that this will also disable some other
-conversions such as conversion of strings (for converting strings to SymPy
-types, you can explicitly use <a class="reference internal" href="../modules/parsing.html#sympy.parsing.sympy_parser.parse_expr" title="sympy.parsing.sympy_parser.parse_expr"><code class="xref py py-func docutils literal notranslate"><span class="pre">parse_expr()</span></code></a>).</p>
-</section>
 <section id="creating-an-indefinite-integral-with-an-eq-argument">
 <span id="deprecated-indefinite-integral-eq"></span><h3>Creating an indefinite <code class="docutils literal notranslate"><span class="pre">Integral</span></code> with an <code class="docutils literal notranslate"><span class="pre">Eq</span></code> argument<a class="headerlink" href="#creating-an-indefinite-integral-with-an-eq-argument" title="Link to this heading">#</a></h3>
 <p>Passing an <a class="reference internal" href="../modules/core.html#sympy.core.relational.Equality" title="sympy.core.relational.Equality"><span class="xref myst py py-class"><code class="docutils literal notranslate"><span class="pre">Eq()</span></code></span></a> object to
@@ -2044,6 +2044,7 @@ used.</p>
 <li><a class="reference internal" href="#">List of active deprecations</a><ul>
 <li><a class="reference internal" href="#silencing-sympy-deprecation-warnings">Silencing SymPy Deprecation Warnings</a></li>
 <li><a class="reference internal" href="#version-1-13">Version 1.13</a><ul>
+<li><a class="reference internal" href="#the-string-fallback-in-sympify">The string fallback in <code class="docutils literal notranslate"><span class="pre">sympify()</span></code></a></li>
 <li><a class="reference internal" href="#deprecate-the-dmp-rep-attribute">Deprecate the DMP.rep attribute.</a></li>
 <li><a class="reference internal" href="#deprecate-eq-rewrite-add">Deprecate Eq.rewrite(Add)</a></li>
 <li><a class="reference internal" href="#deprecate-markers-annotations-fill-rectangles-of-the-plot-class">Deprecate markers, annotations, fill, rectangles of the Plot class</a></li>
@@ -2106,7 +2107,6 @@ used.</p>
 <li><a class="reference internal" href="#mixing-poly-and-non-polynomial-expressions-in-binary-operations">Mixing <code class="docutils literal notranslate"><span class="pre">Poly</span></code> and non-polynomial expressions in binary operations</a></li>
 <li><a class="reference internal" href="#the-print-cyclic-flag-of-sympy-combinatorics-permutation">The <code class="docutils literal notranslate"><span class="pre">print_cyclic</span></code> flag of <code class="docutils literal notranslate"><span class="pre">sympy.combinatorics.Permutation</span></code></a></li>
 <li><a class="reference internal" href="#using-integrate-with-poly">Using <code class="docutils literal notranslate"><span class="pre">integrate</span></code> with <code class="docutils literal notranslate"><span class="pre">Poly</span></code></a></li>
-<li><a class="reference internal" href="#the-string-fallback-in-sympify">The string fallback in <code class="docutils literal notranslate"><span class="pre">sympify()</span></code></a></li>
 <li><a class="reference internal" href="#creating-an-indefinite-integral-with-an-eq-argument">Creating an indefinite <code class="docutils literal notranslate"><span class="pre">Integral</span></code> with an <code class="docutils literal notranslate"><span class="pre">Eq</span></code> argument</a></li>
 </ul>
 </li>
