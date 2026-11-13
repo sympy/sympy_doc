@@ -1,5 +1,5 @@
 const DOCUMENTATION_OPTIONS = {
-    VERSION: '1.15.0.dev3460+g63bcb3fedf.uninstalled',
+    VERSION: '1.15.0.dev3467+g7924a87ec1.uninstalled',
     LANGUAGE: 'en',
     COLLAPSE_INDEX: false,
     BUILDER: 'html',
